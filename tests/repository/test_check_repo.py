@@ -93,6 +93,15 @@ class RepositoryCheckTests(unittest.TestCase):
                 self.git("add", "data.json")
                 self.assert_rejected(marker)
 
+    def test_only_registered_branding_binary_is_allowed(self):
+        logo = (ROOT / "apps/desktop/branding/logo.png").read_bytes()
+        self.write("apps/desktop/branding/logo.png", logo)
+        self.git("add", ".")
+        self.assertEqual(self.run_check().returncode, 0)
+        self.write("apps/desktop/branding/logo.png", logo + b"modified")
+        self.git("add", ".")
+        self.assert_rejected("branding asset hash mismatch")
+
     def test_large_staged_file_is_rejected(self):
         self.write("large.txt", b"x" * (1024 * 1024 + 1))
         self.git("add", "large.txt")

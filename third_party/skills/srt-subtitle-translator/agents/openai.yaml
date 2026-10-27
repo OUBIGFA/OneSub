@@ -1,0 +1,8 @@
+interface:
+  display_name: "Subtitle Translator"
+  short_description: "Translate and repair timed subtitle files"
+  brand_color: "#2563EB"
+  default_prompt: "Use $srt-subtitle-translator to translate this subtitle file and preserve its timing and format."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,225 @@
+{
+  "upstream": "https://github.com/eclipse005/OneAsr",
+  "revision": "9c1b51085b0ee084a0c8e11cd069021fc1ea7d0f",
+  "sourceSha256": "b9180ea45cd30ee6dd4157d26fc227a51c8d48af26fa83947ec6a76bcf3204c7",
+  "models": [
+    {
+      "id": "Qwen3-ASR-0.6B-hf",
+      "label": "Qwen3-ASR 0.6B",
+      "kind": "asr",
+      "files": [
+        {
+          "name": "config.json",
+          "size": 2398,
+          "sha256": "9eecf6f1b383e343889c2e6010e632590fa57d4bc678e151c7d6a160a0dfb04a",
+          "url": "https://modelscope.cn/models/Qwen/Qwen3-ASR-0.6B-hf/resolve/c4650525d0d40f32f1517abe624a89be04386bef/config.json"
+        },
+        {
+          "name": "model.safetensors",
+          "size": 1564928088,
+          "sha256": "d3f212dd20abecd315d830bc54ae3865e56ebfc3276484e57b771288ba27fd35",
+          "url": "https://modelscope.cn/models/Qwen/Qwen3-ASR-0.6B-hf/resolve/c4650525d0d40f32f1517abe624a89be04386bef/model.safetensors"
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 11429653,
+          "sha256": "fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05",
+          "url": "https://modelscope.cn/models/Qwen/Qwen3-ASR-0.6B-hf/resolve/c4650525d0d40f32f1517abe624a89be04386bef/tokenizer.json"
+        }
+      ]
+    },
+    {
+      "id": "Qwen3-ASR-1.7B-hf",
+      "label": "Qwen3-ASR 1.7B",
+      "kind": "asr",
+      "files": [
+        {
+          "name": "config.json",
+          "size": 2399,
+          "sha256": "117ac8e63e2af7cae3665e5a632d6eb03f5f384915519ceb6403c15ec6533f63",
+          "url": "https://modelscope.cn/models/Qwen/Qwen3-ASR-1.7B-hf/resolve/d4c6c75bbebe9a9730445a33b6cc105dd9873c90/config.json"
+        },
+        {
+          "name": "model.safetensors",
+          "size": 4076193080,
+          "sha256": "2db53c7d81bd9b8cbc6a074e89be2c968a0d373fb4ee68bb1b1e14f7042dfee1",
+          "url": "https://modelscope.cn/models/Qwen/Qwen3-ASR-1.7B-hf/resolve/d4c6c75bbebe9a9730445a33b6cc105dd9873c90/model.safetensors"
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 11429653,
+          "sha256": "fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05",
+          "url": "https://modelscope.cn/models/Qwen/Qwen3-ASR-1.7B-hf/resolve/d4c6c75bbebe9a9730445a33b6cc105dd9873c90/tokenizer.json"
+        }
+      ]
+    },
+    {
+      "id": "Qwen3-ASR-0.6B-int8",
+      "label": "Qwen3-ASR 0.6B INT8",
+      "kind": "asr",
+      "files": [
+        {
+          "name": "config.json",
+          "size": 2398,
+          "sha256": "9eecf6f1b383e343889c2e6010e632590fa57d4bc678e151c7d6a160a0dfb04a",
+          "url": "https://modelscope.cn/models/eclipse005/Qwen3-ASR-0.6B-int8/resolve/54da0afa3013767ac2b2f2ad69845510e5a099e2/config.json"
+        },
+        {
+          "name": "model.safetensors",
+          "size": 1125925928,
+          "sha256": "bdcf3ec8bb76d3a6f28943ef65867002f6843e7727ce5f528eb70bf738537e3b",
+          "url": "https://modelscope.cn/models/eclipse005/Qwen3-ASR-0.6B-int8/resolve/54da0afa3013767ac2b2f2ad69845510e5a099e2/model.safetensors"
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 11429653,
+          "sha256": "fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05",
+          "url": "https://modelscope.cn/models/eclipse005/Qwen3-ASR-0.6B-int8/resolve/54da0afa3013767ac2b2f2ad69845510e5a099e2/tokenizer.json"
+        }
+      ]
+    },
+    {
+      "id": "Qwen3-ASR-1.7B-int8",
+      "label": "Qwen3-ASR 1.7B INT8",
+      "kind": "asr",
+      "files": [
+        {
+          "name": "config.json",
+          "size": 2399,
+          "sha256": "117ac8e63e2af7cae3665e5a632d6eb03f5f384915519ceb6403c15ec6533f63",
+          "url": "https://modelscope.cn/models/eclipse005/Qwen3-ASR-1.7B-int8/resolve/333ad56f31ba89e158c083a61bfb51d1381c0848/config.json"
+        },
+        {
+          "name": "model.safetensors",
+          "size": 2669224624,
+          "sha256": "7b015318ff478ba90472fcc831763f8659c5e04ea466d96c92e45232addce010",
+          "url": "https://modelscope.cn/models/eclipse005/Qwen3-ASR-1.7B-int8/resolve/333ad56f31ba89e158c083a61bfb51d1381c0848/model.safetensors"
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 11429653,
+          "sha256": "fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05",
+          "url": "https://modelscope.cn/models/eclipse005/Qwen3-ASR-1.7B-int8/resolve/333ad56f31ba89e158c083a61bfb51d1381c0848/tokenizer.json"
+        }
+      ]
+    },
+    {
+      "id": "omniASR-CTC-300M-v2-hf",
+      "label": "CTC 300M",
+      "kind": "aligner",
+      "files": [
+        {
+          "name": "config.json",
+          "size": 1968,
+          "sha256": "a78b50a52e4e067bd5e502c33447dc556db1dd08f5286bb5ece49b61d522b194",
+          "url": "https://modelscope.cn/models/eclipse005/omniASR-CTC-300M-v2/resolve/ecd67cd0a814c13b3a0e9314c4a12037f60bc052/config.json"
+        },
+        {
+          "name": "preprocessor_config.json",
+          "size": 187,
+          "sha256": "06cd0728688a41b0d4ff87a7eb08479b2fdae9a9521fb1c328bc8c4230a4f6f7",
+          "url": "https://modelscope.cn/models/eclipse005/omniASR-CTC-300M-v2/resolve/ecd67cd0a814c13b3a0e9314c4a12037f60bc052/preprocessor_config.json"
+        },
+        {
+          "name": "special_tokens_map.json",
+          "size": 93,
+          "sha256": "d9a757b89920ad7c0cd8329f2320709943c21d96c1ab7bce56c258930f6b07b7",
+          "url": "https://modelscope.cn/models/eclipse005/omniASR-CTC-300M-v2/resolve/ecd67cd0a814c13b3a0e9314c4a12037f60bc052/special_tokens_map.json"
+        },
+        {
+          "name": "tokenizer_config.json",
+          "size": 233,
+          "sha256": "413ddc3802665f3b11a96161b565e38644750fdb592c325564ddd75d6cf6b8bf",
+          "url": "https://modelscope.cn/models/eclipse005/omniASR-CTC-300M-v2/resolve/ecd67cd0a814c13b3a0e9314c4a12037f60bc052/tokenizer_config.json"
+        },
+        {
+          "name": "vocab.json",
+          "size": 152362,
+          "sha256": "4568040d826f2584ca2b76ed10c679dd051e7e1df9742acb5285370cd16a331f",
+          "url": "https://modelscope.cn/models/eclipse005/omniASR-CTC-300M-v2/resolve/ecd67cd0a814c13b3a0e9314c4a12037f60bc052/vocab.json"
+        },
+        {
+          "name": "model.safetensors",
+          "size": 1303988352,
+          "sha256": "606d849a55b746e698976b8a979b597f4902be7a799ecf723dd283d6210e5871",
+          "url": "https://modelscope.cn/models/eclipse005/omniASR-CTC-300M-v2/resolve/ecd67cd0a814c13b3a0e9314c4a12037f60bc052/model.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "Qwen3-ForcedAligner-0.6B-hf",
+      "label": "Qwen 对齐器 0.6B",
+      "kind": "aligner",
+      "files": [
+        {
+          "name": "config.json",
+          "size": 248029,
+          "sha256": "82ac390b36a8f80c5a0c4e202367debd149e5d8c30abe4cf5eed439101b1c5ce",
+          "url": "https://modelscope.cn/models/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/053506a54ad1c9deea6105050330d7c500b9f098/config.json"
+        },
+        {
+          "name": "model.safetensors",
+          "size": 1835545960,
+          "sha256": "00568245ceca5af1991d28562a75fe1ddc9bfeb041c27fda66947ea05c47fb86",
+          "url": "https://modelscope.cn/models/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/053506a54ad1c9deea6105050330d7c500b9f098/model.safetensors"
+        },
+        {
+          "name": "tokenizer.json",
+          "size": 11429842,
+          "sha256": "cadfb9cbd9ff8f4e309075ec6a71b063295ff796afb4b5dbc0fd2873fbb301f2",
+          "url": "https://modelscope.cn/models/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/053506a54ad1c9deea6105050330d7c500b9f098/tokenizer.json"
+        },
+        {
+          "name": "tokenizer_config.json",
+          "size": 998,
+          "sha256": "945e980986de2ca7768f3326bfdbb4fbea3406f972b8ae0be233089f2b253c11",
+          "url": "https://modelscope.cn/models/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/053506a54ad1c9deea6105050330d7c500b9f098/tokenizer_config.json"
+        }
+      ]
+    },
+    {
+      "id": "htdemucs_ft",
+      "label": "HTDemucs 人声分离",
+      "kind": "separation",
+      "files": [
+        {
+          "name": "htdemucs_ft_vocals.safetensors",
+          "size": 84025440,
+          "sha256": "68854b0d7c2b3274723b5761f6fd9f5aec5f1bcd3f0de7c1669546fdb7871b7c",
+          "url": "https://modelscope.cn/models/eclipse005/htdemucs/resolve/d7057b07a0432fede79326e7d56f50c031d9cb50/htdemucs_ft_vocals.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "SenseVoiceSmall",
+      "label": "SenseVoiceSmall 热词",
+      "kind": "hotword",
+      "files": [
+        {
+          "name": "model.pt",
+          "size": 936291369,
+          "sha256": "833ca2dcfdf8ec91bd4f31cfac36d6124e0c459074d5e909aec9cabe6204a3ea",
+          "url": "https://modelscope.cn/models/iic/SenseVoiceSmall/resolve/70514a3da51f1160f51d18449dab6128bbd4928b/model.pt"
+        },
+        {
+          "name": "chn_jpn_yue_eng_ko_spectok.bpe.model",
+          "size": 377341,
+          "sha256": "aa87f86064c3730d799ddf7af3c04659151102cba548bce325cf06ba4da4e6a8",
+          "url": "https://modelscope.cn/models/iic/SenseVoiceSmall/resolve/70514a3da51f1160f51d18449dab6128bbd4928b/chn_jpn_yue_eng_ko_spectok.bpe.model"
+        },
+        {
+          "name": "am.mvn",
+          "size": 11203,
+          "sha256": "29b3c740a2c0cfc6b308126d31d7f265fa2be74f3bb095cd2f143ea970896ae5",
+          "url": "https://modelscope.cn/models/iic/SenseVoiceSmall/resolve/70514a3da51f1160f51d18449dab6128bbd4928b/am.mvn"
+        },
+        {
+          "name": "tokens.json",
+          "size": 352064,
+          "sha256": "a2594fc1474e78973149cba8cd1f603ebed8c39c7decb470631f66e70ce58e97",
+          "url": "https://modelscope.cn/models/iic/SenseVoiceSmall/resolve/43d0ed61231c41f8393fa347b838a1f6e2d264f6/tokens.json"
+        }
+      ]
+    }
+  ]
+}

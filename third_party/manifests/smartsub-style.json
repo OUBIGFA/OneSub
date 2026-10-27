@@ -1,0 +1,75 @@
+{
+  "repository": "https://github.com/buxuku/SmartSub",
+  "revision": "f7ce2045aea53177a60236092487897da3c8cd06",
+  "spdx": "MIT",
+  "license": "third_party/licenses/smartsub.txt",
+  "modifications": "fontResolver exact-family alias priority; see third_party/ports/smartsub/README.md; process adapter loads SmartSub font variants",
+  "files": [
+    {
+      "source": "main/helpers/assStyleBuilder.ts",
+      "destination": "workers/style-core/smartsub/main/helpers/assStyleBuilder.ts",
+      "sha256": "d24554abfbfbaa0f06d9fe0b39a681bab20a406abc7237720612780974fc8bba"
+    },
+    {
+      "source": "main/helpers/subtitleFormats.ts",
+      "destination": "workers/style-core/smartsub/main/helpers/subtitleFormats.ts",
+      "sha256": "fbaf6081e20476ea359fdd057c7643856fde4da82a3037f3a20d1f47fb5f2eeb"
+    },
+    {
+      "source": "main/helpers/fontResolver.ts",
+      "destination": "workers/style-core/smartsub/main/helpers/fontResolver.ts",
+      "upstreamSha256": "6c82036cb5d47de7b1510b9d47f344314cc9e4fae7213af3209c5240618c07bf",
+      "sha256": "078341bf1e176f7774a4ae06eecdc4e9682e5497dcd0a54eb07f4c0d466ee8d7"
+    },
+    {
+      "source": "main/helpers/commonFonts.ts",
+      "destination": "workers/style-core/smartsub/main/helpers/commonFonts.ts",
+      "sha256": "a6e2d7fac012e38cb4ab45d87ab5cf61c7ebf5705bf04ae0f2bb6af8e4dec01a"
+    },
+    {
+      "source": "main/helpers/assFonts.ts",
+      "destination": "workers/style-core/smartsub/main/helpers/assFonts.ts",
+      "sha256": "569cd222eab1ae7182fa4674ec6384f59d0c223fb72e34518b2b1ba4a239f252"
+    },
+    {
+      "source": "main/helpers/assEmbeddedFonts.ts",
+      "destination": "workers/style-core/smartsub/main/helpers/assEmbeddedFonts.ts",
+      "sha256": "7608d24efcd75373f3ca945f6e60528b85bae8c095a67a1156e0a2b0ee4744f7"
+    },
+    {
+      "source": "types/subtitleMerge.ts",
+      "destination": "workers/style-core/smartsub/types/subtitleMerge.ts",
+      "sha256": "25dbc54a1d766b66eb03fbcb5244790b76c5e0aed779cbd9a498d357c651f6f2"
+    },
+    {
+      "source": "types/subtitleAppearance.ts",
+      "destination": "workers/style-core/smartsub/types/subtitleAppearance.ts",
+      "sha256": "221cb9fd8642aed83deb9eecf216811e6c7e0f12a81734ed8ba11a8d60380402"
+    },
+    {
+      "source": "types/subtitleColor.ts",
+      "destination": "workers/style-core/smartsub/types/subtitleColor.ts",
+      "sha256": "45a1e27d63b8a22cc8ad854b5117bfb994e7215cd2202a1a4042897eb37f3d98"
+    },
+    {
+      "source": "types/assOverrides.ts",
+      "destination": "workers/style-core/smartsub/types/assOverrides.ts",
+      "sha256": "54e5ecfd20a18ceb73856fdc3f7f7b67926a039411af25f4f0d801f87f45b851"
+    },
+    {
+      "source": "types/subtitleCanvas.ts",
+      "destination": "workers/style-core/smartsub/types/subtitleCanvas.ts",
+      "sha256": "68f37812d7a8f3d26d19b98a8f338c557cf66682c89d151d8cc035e05d7570e6"
+    },
+    {
+      "source": "types/subtitleOutput.ts",
+      "destination": "workers/style-core/smartsub/types/subtitleOutput.ts",
+      "sha256": "a5e5bbd45065edd7cf9ae00bf1f43ef5746445d855a43e6547e5d4bdd35de3b3"
+    },
+    {
+      "source": "renderer/components/subtitleMerge/constants.ts",
+      "destination": "workers/style-core/smartsub/renderer/components/subtitleMerge/constants.ts",
+      "sha256": "9d0063f22ee42863a0fa11761979a8a3638c9cf950fbddbdc7ed8f738e88af06"
+    }
+  ]
+}

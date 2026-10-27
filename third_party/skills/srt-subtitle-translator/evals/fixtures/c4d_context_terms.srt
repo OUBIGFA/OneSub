@@ -1,0 +1,12 @@
+1
+00:00:00,000 --> 00:00:03,000
+Create a null and drop everything inside.
+
+2
+00:00:03,000 --> 00:00:06,000
+It is under Create > Null.
+
+3
+00:00:06,000 --> 00:00:09,000
+If the value is null, the node does nothing.
+

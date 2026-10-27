@@ -1,0 +1,316 @@
+{
+  "repository": "https://github.com/OUBIGFA/skills",
+  "revision": "d37492b88383c63ccf923c26483709122940de20",
+  "archiveSha256": "5c056fbd11e013d03bc52d6a2b910096e677be299b6014dc02f1868aecc2dd7c",
+  "authorization": "third_party/ports/subtitle-skill/AUTHORIZATION.md",
+  "files": [
+    {
+      "path": "srt-subtitle-translator/SKILL.md",
+      "destination": "third_party/skills/srt-subtitle-translator/SKILL.md",
+      "gitBlob": "ad73775969f0a49358c0217194f48d8b598f4f75",
+      "sha256": "41c7b414367976a73f9e27bce1bc6f0e4cd274bd2d6d2d5adc7b6141c36bdb33",
+      "bytes": 8841
+    },
+    {
+      "path": "srt-subtitle-translator/agents/openai.yaml",
+      "destination": "third_party/skills/srt-subtitle-translator/agents/openai.yaml",
+      "gitBlob": "109229118089ea2c2a06c69cd585a312e4144ae3",
+      "sha256": "c48009f2eeb4b7e5043f9b1ad3b8f44593e69eb6fe59b412edd1b0ea125ed8f1",
+      "bytes": 299
+    },
+    {
+      "path": "srt-subtitle-translator/config/language_profiles.json",
+      "destination": "third_party/skills/srt-subtitle-translator/config/language_profiles.json",
+      "gitBlob": "129b3c2b9e24826426a4e93cd73c8ba4cb1ae37f",
+      "sha256": "811ac58a098c13ee1351321cb76696d2d7ec9843f6cb08b5345b486fb90a14af",
+      "bytes": 3686
+    },
+    {
+      "path": "srt-subtitle-translator/docs/superpowers/plans/2026-09-05-srt-subtitle-translator-upgrade.md",
+      "destination": "third_party/skills/srt-subtitle-translator/docs/superpowers/plans/2026-09-05-srt-subtitle-translator-upgrade.md",
+      "gitBlob": "0e6a7c16c96d7b8d547a5de6f1a7f33b0c74e5e2",
+      "sha256": "c6ab63ec381f336133a4cd89ca36c7bccc8de14b4e3deae4a0a365e8de74b546",
+      "bytes": 6057
+    },
+    {
+      "path": "srt-subtitle-translator/docs/superpowers/specs/2026-09-05-srt-subtitle-translator-upgrade-design.md",
+      "destination": "third_party/skills/srt-subtitle-translator/docs/superpowers/specs/2026-09-05-srt-subtitle-translator-upgrade-design.md",
+      "gitBlob": "99630b889ae847aeddceb5a7fe5e2bae83d300b7",
+      "sha256": "5e623f5206f462419de2978f64ca195e6d86d6b693483532d962856c47388592",
+      "bytes": 1747
+    },
+    {
+      "path": "srt-subtitle-translator/evals/evals.json",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/evals.json",
+      "gitBlob": "ef2d8b6c2cf5bd42dcbd2e1ef1e7dfe627ee69c9",
+      "sha256": "a54fd02811947f33aec932779cd558cdb072599f2d043982ea3979e6a7735c85",
+      "bytes": 11528
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/bilingual_sample.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/bilingual_sample.srt",
+      "gitBlob": "2dda1f45f70a11faa02236cfc3acd9fdf237b2d4",
+      "sha256": "64c88675d08a67fa43cc5365546df94e46ad361240d131865e5c2aad2994dac5",
+      "bytes": 84
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/blender_terms.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/blender_terms.srt",
+      "gitBlob": "3602205aca0539c0d733fb9574f310735ebd4831",
+      "sha256": "c24ef89c03e44358b234273e4324789aa1e57456e07b8b8b87e104c2321edf71",
+      "bytes": 153
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/c4d_context_terms.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/c4d_context_terms.srt",
+      "gitBlob": "32f51dcb61f670b5dd8d5eaf5bc78a28afb6ee2b",
+      "sha256": "398278ab5f12e270465cea2a5646ba19c8eee7ad40a811fdc6c0779af958201a",
+      "bytes": 213
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/c4d_terms.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/c4d_terms.srt",
+      "gitBlob": "59f68b0a82a671095061a430ea2e86ca31fd6928",
+      "sha256": "0d96b6d18181ef44692edb3f802d487642d733a5dfe43dd992c9a65ac7cd7400",
+      "bytes": 251
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/chinese_to_english.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/chinese_to_english.srt",
+      "gitBlob": "a69d4a3a14cd02a1240e829af3b942b68383828f",
+      "sha256": "c85fe80ede8a00346c62ff986104f4100e3724a36195930a4bf6c1dbc5df06eb",
+      "bytes": 101
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/complete_sentences.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/complete_sentences.srt",
+      "gitBlob": "b43d894948c7cb2cf82b86efcf597fa54e70f065",
+      "sha256": "21cc465d36687811435d126b7c7288dddfa4fff3ab4f98dbfd2e0a46129cbef1",
+      "bytes": 163
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/controlled_expression.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/controlled_expression.srt",
+      "gitBlob": "198ecc7880c337a395dbf5e7d61a279182655ffa",
+      "sha256": "ca7e64d5a1326e7d335fadb7c877884d29ac1729988308f494cb8f7e5857cce1",
+      "bytes": 296
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/dense_technical.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/dense_technical.srt",
+      "gitBlob": "4f864fa1f35bfe64e72d66d7f8932ddb2416b012",
+      "sha256": "5c941e27776a06b318cdd257a2737fc80687df7e326a95eaaa4a676d8426efad",
+      "bytes": 159
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/filler_lines.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/filler_lines.srt",
+      "gitBlob": "d843fa548e7fd79225b9c3109664c9fefeb00fb7",
+      "sha256": "e719c2494707393ba27685c379495dab158b13de61b5cd5fbee8557d45715d28",
+      "bytes": 231
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/flash_fillers.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/flash_fillers.srt",
+      "gitBlob": "842120def0359cfcfd328950b11ea12089f238a2",
+      "sha256": "1197a30492bf924f4d0a8449f577b8352df1d2b25c37b91395c557909ff69a22",
+      "bytes": 132
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/lean_lines.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/lean_lines.srt",
+      "gitBlob": "a99c2e2232609c04f208ae517537df9fa04ce84f",
+      "sha256": "4cf2bd468554a814013c91f8b06b490b34197f6292560be7ca4a3b3686ba3bec",
+      "bytes": 242
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/long_sentence.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/long_sentence.srt",
+      "gitBlob": "0150264ed2ee709c9ea4c0cf1a9d568058b25d39",
+      "sha256": "ffc9a0e2b35e33e50d2631e71cdff73ed4b300b44f29dad6efc449d590b76886",
+      "bytes": 151
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/long_tutorial_sample.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/long_tutorial_sample.srt",
+      "gitBlob": "3013ae22deef441983ac3a710eecc616b3038b0a",
+      "sha256": "281fcfefba7bccb2d9e05eaf0f2e302c7670198476b96a45bc9c8781805a2f04",
+      "bytes": 364
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/markup_dialogue.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/markup_dialogue.srt",
+      "gitBlob": "49a7a842dfeb4a59a9368e35a16bb388de258def",
+      "sha256": "821e77018d77f069696593d37097b3bbf01624e5856be656d3387267b591168e",
+      "bytes": 165
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/maya_terms.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/maya_terms.srt",
+      "gitBlob": "1fc58738877c7e5f3c25d2959e3149a695fe4311",
+      "sha256": "3a9685a86ab86879186b0e775253f82241f7f53f82846dd710414367257bca12",
+      "bytes": 204
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/punctuation.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/punctuation.srt",
+      "gitBlob": "efdf46717acbebe04636865bab3747b645c434cb",
+      "sha256": "0cfbab0f66a3881934611b8f2309b7032acb447c256c86e00e8b89ea6966a2d4",
+      "bytes": 291
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/render_terms.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/render_terms.srt",
+      "gitBlob": "a2c9f830b6ef5eaf6884834487fd4a5c9b088e95",
+      "sha256": "b0e8813b5d2e28c1da6f729b8898074cea6b208b0135004181726a555618b333",
+      "bytes": 198
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/segmentation_orphans.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/segmentation_orphans.srt",
+      "gitBlob": "30dc7b07a5813ea86e56316fb36a805cfa664944",
+      "sha256": "b2f017caac0e5237894d49c3887f90c5caaccc9bd1c2a5af3018b325aced0efc",
+      "bytes": 192
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/structure.ass",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/structure.ass",
+      "gitBlob": "114a10e13ff93067e684e3d419e0633434584bf6",
+      "sha256": "7e240e19645e4f5a3df04bf5dfb507875f05fa7d294760861d786ff1f5dc3e4b",
+      "bytes": 651
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/structure.vtt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/structure.vtt",
+      "gitBlob": "42317e160c313f8337c8fc54c143a377bb34ed48",
+      "sha256": "c3d325b3a4a6598a793b22315d71412bb2d5b96a0daeae58fe1bff63d9cf435a",
+      "bytes": 187
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/timing_gap.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/timing_gap.srt",
+      "gitBlob": "7b295e8ad5d03b2d67eca064d91060cf63ca49f4",
+      "sha256": "0db48e491592815a049ebf2777b183b0b52ebc452e8416adad69a782de084b5a",
+      "bytes": 152
+    },
+    {
+      "path": "srt-subtitle-translator/evals/fixtures/tutorial_sample.srt",
+      "destination": "third_party/skills/srt-subtitle-translator/evals/fixtures/tutorial_sample.srt",
+      "gitBlob": "3013ae22deef441983ac3a710eecc616b3038b0a",
+      "sha256": "281fcfefba7bccb2d9e05eaf0f2e302c7670198476b96a45bc9c8781805a2f04",
+      "bytes": 364
+    },
+    {
+      "path": "srt-subtitle-translator/references/asd-ste100-subtitles.md",
+      "destination": "third_party/skills/srt-subtitle-translator/references/asd-ste100-subtitles.md",
+      "gitBlob": "abc625f2014a1f5e454b424376435ae3784afb5f",
+      "sha256": "ba7a258f46897a70e6be27fe58a6f01ca63a80d8dc8fe77f88d149af9d4de4b6",
+      "bytes": 4494
+    },
+    {
+      "path": "srt-subtitle-translator/references/edge-cases.md",
+      "destination": "third_party/skills/srt-subtitle-translator/references/edge-cases.md",
+      "gitBlob": "7ab5ae87a300d0ad5d1678068a866711a32bcaa8",
+      "sha256": "7c344dd033ab0f14d4d9bc37226be072f88e6c2201bba9d99cc6947612ecf623",
+      "bytes": 4455
+    },
+    {
+      "path": "srt-subtitle-translator/references/formats.md",
+      "destination": "third_party/skills/srt-subtitle-translator/references/formats.md",
+      "gitBlob": "33f0372b9d6023601825a101e9ebaa1d82ddebe9",
+      "sha256": "4dc2168d320faeee439dd857cd3f6ef0eabc22d9b6566fadb2b5b88152d943a4",
+      "bytes": 4306
+    },
+    {
+      "path": "srt-subtitle-translator/references/glossary-3d-zh.md",
+      "destination": "third_party/skills/srt-subtitle-translator/references/glossary-3d-zh.md",
+      "gitBlob": "1591c64d9bf1890f0cb48bdd24c73f5716529d8b",
+      "sha256": "07fdeeda0b727774d564c461fe352e25da0b55a2348ae5806ceef9fb86b95862",
+      "bytes": 16719
+    },
+    {
+      "path": "srt-subtitle-translator/references/language-profiles.md",
+      "destination": "third_party/skills/srt-subtitle-translator/references/language-profiles.md",
+      "gitBlob": "92e7a4f20a530d22fc3021357c27ade5891af99f",
+      "sha256": "1e9de646a23b08ec7eb5b488be2d4710a98ec83b43b9506cd808cf95574de52f",
+      "bytes": 2139
+    },
+    {
+      "path": "srt-subtitle-translator/references/names-zh.md",
+      "destination": "third_party/skills/srt-subtitle-translator/references/names-zh.md",
+      "gitBlob": "5d015f0049cc4aa9b8417d98c689c601d7dd7299",
+      "sha256": "da2d60137216790c9eead6f8c8752fc76aa52fac7f7383acae51676f2e22cea2",
+      "bytes": 3411
+    },
+    {
+      "path": "srt-subtitle-translator/references/reading-load.md",
+      "destination": "third_party/skills/srt-subtitle-translator/references/reading-load.md",
+      "gitBlob": "a6dfe7101b2be77f9027383eb9c9a2ca15353384",
+      "sha256": "e3261cd669b2fce2726e04d8331efbd13a7273bcd376fdb1da9da3a5f28ae2b5",
+      "bytes": 4586
+    },
+    {
+      "path": "srt-subtitle-translator/references/segmentation.md",
+      "destination": "third_party/skills/srt-subtitle-translator/references/segmentation.md",
+      "gitBlob": "8d38aafded22c26948c4f09370d05cbd2761eef6",
+      "sha256": "807da8dd23f29ed1f4043ac28615a024cb9ead35c82361705abf70fdedf90400",
+      "bytes": 6129
+    },
+    {
+      "path": "srt-subtitle-translator/references/style-common.md",
+      "destination": "third_party/skills/srt-subtitle-translator/references/style-common.md",
+      "gitBlob": "8818570e3465410cf6fc3c55f14dda43df26776b",
+      "sha256": "50276afb49656d9346daf5fa0a9279ffc80b5ad3666afe6387822689b0da7f82",
+      "bytes": 16979
+    },
+    {
+      "path": "srt-subtitle-translator/references/style-zh.md",
+      "destination": "third_party/skills/srt-subtitle-translator/references/style-zh.md",
+      "gitBlob": "c38a7ec7b29bff8ab974c4788a21202f9eb7bd85",
+      "sha256": "5431dc14997520ded6d11a33167d491776b3b3b7dec0743bd1f2bf921fb6a6d3",
+      "bytes": 15534
+    },
+    {
+      "path": "srt-subtitle-translator/scripts/assemble_subtitle.py",
+      "destination": "third_party/skills/srt-subtitle-translator/scripts/assemble_subtitle.py",
+      "gitBlob": "a81c285722ec2323b2d672943826c541c5e269fa",
+      "sha256": "bf98a45c3ac47f90f370c10029b7831789c262c730290dcfe812e90fcc9b0998",
+      "bytes": 7539
+    },
+    {
+      "path": "srt-subtitle-translator/scripts/check_subtitle.py",
+      "destination": "third_party/skills/srt-subtitle-translator/scripts/check_subtitle.py",
+      "gitBlob": "64f2316fc030e7e1c48c235aa26633b2bc3b22ec",
+      "sha256": "831854fbf73833b722dbefee41525b401a8b03429ea461e0d6e123b148954b1b",
+      "bytes": 51371
+    },
+    {
+      "path": "srt-subtitle-translator/scripts/test_assemble_subtitle.py",
+      "destination": "third_party/skills/srt-subtitle-translator/scripts/test_assemble_subtitle.py",
+      "gitBlob": "a1bacaf4835eb2816c974435f134bc7907d36817",
+      "sha256": "fa00794a388cac81a5021e4f4ba8f6473250d468f994b7d0e9ed3619fc56e241",
+      "bytes": 8260
+    },
+    {
+      "path": "srt-subtitle-translator/scripts/test_check_subtitle.py",
+      "destination": "third_party/skills/srt-subtitle-translator/scripts/test_check_subtitle.py",
+      "gitBlob": "18cdeda4c2f787017489c2639becfc2e416982a3",
+      "sha256": "90438278cf54ce7c2d9be2857a72ae3a8dc69e141252a68d4447f1bc18e1cf3f",
+      "bytes": 23713
+    },
+    {
+      "path": "srt-subtitle-translator/scripts/test_checker_regressions.py",
+      "destination": "third_party/skills/srt-subtitle-translator/scripts/test_checker_regressions.py",
+      "gitBlob": "8a1bb0fba68f6894cf8849b0c2a5ee444a469a48",
+      "sha256": "01bf4caf802f216346782def9fcce6094e703a37e392bdca11ddf3c83e726ffb",
+      "bytes": 13801
+    },
+    {
+      "path": "srt-subtitle-translator/scripts/test_skill_assets.py",
+      "destination": "third_party/skills/srt-subtitle-translator/scripts/test_skill_assets.py",
+      "gitBlob": "68a6ada55bbfd1531ad60c699a5a84249ab55ccc",
+      "sha256": "75bd6626bdb7ff04167f944e7572645856b98222a7e9553f3c06141faf73d951",
+      "bytes": 3806
+    }
+  ]
+}

@@ -54,7 +54,9 @@ dist/
 /toolchains/
 /third_party/sources/
 /apps/desktop/src/generated/
+/apps/desktop/locales/catalog_gen.go
 /apps/desktop/build/
+/apps/desktop/player/generated/
 /workers/skill-tools/build/
 *.exe
 *.dll

@@ -1,0 +1,13 @@
+WEBVTT - tutorial
+Kind: captions
+Language: en
+
+NOTE this note must stay
+
+STYLE
+::cue { color: lime; }
+
+cue-1
+00:00.000 --> 00:02.000 position:50% align:center
+<i>Hello</i> &amp; welcome
+

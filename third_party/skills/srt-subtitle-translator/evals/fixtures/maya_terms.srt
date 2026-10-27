@@ -1,0 +1,12 @@
+1
+00:00:00,000 --> 00:00:03,000
+Use extrude and bevel on the mesh.
+
+2
+00:00:03,000 --> 00:00:06,000
+The subdivision surface needs ambient occlusion.
+
+3
+00:00:06,000 --> 00:00:08,000
+Set a keyframe here.
+
