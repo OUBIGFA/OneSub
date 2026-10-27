@@ -1,0 +1,7 @@
+{
+  "name": "onesub-media-view",
+  "private": true,
+  "type": "module",
+  "dependencies": { "jassub": "2.5.23" },
+  "scripts": { "build": "bun build ./main.js --outdir ./generated --target browser" }
+}

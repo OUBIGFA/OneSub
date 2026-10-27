@@ -1,0 +1,12 @@
+1
+00:00:00,000 --> 00:00:03,000
+Do an inner extrude, then add a bevel.
+
+2
+00:00:03,000 --> 00:00:06,000
+Adjust the interpolation in the keyframes.
+
+3
+00:00:06,000 --> 00:00:09,000
+It is hard to see in the viewport, and the render has a lot of noise.
+

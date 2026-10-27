@@ -5,3 +5,7 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.ps1 text eol=lf
+*.png binary
+
+# Subtitle fixtures retain upstream separators, including a final empty block.
+third_party/skills/srt-subtitle-translator/evals/fixtures/* whitespace=-blank-at-eof

@@ -1,0 +1,16 @@
+1
+00:00:00,000 --> 00:00:01,200
+Um, okay, so.
+
+2
+00:00:01,200 --> 00:00:05,200
+If you raise the substeps above 20, the simulation gets stable.
+
+3
+00:00:05,200 --> 00:00:08,200
+But the cache size roughly triples.
+
+4
+00:00:08,200 --> 00:00:11,200
+Only do that for the final pass, not the preview.
+

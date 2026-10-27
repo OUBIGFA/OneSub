@@ -1,0 +1,164 @@
+{
+  "default": {
+    "target_language": "default",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 17.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "zh": {
+    "target_language": "简体中文",
+    "counting": "cjk",
+    "final_punctuation": "none",
+    "max_cps": 4.5,
+    "max_width": 25,
+    "spacing": true,
+    "ban_exclamation": true
+  },
+  "zh-hant": {
+    "target_language": "繁體中文",
+    "counting": "cjk",
+    "final_punctuation": "none",
+    "max_cps": 4.5,
+    "max_width": 25,
+    "spacing": true,
+    "ban_exclamation": true
+  },
+  "ja": {
+    "target_language": "日本語",
+    "counting": "cjk",
+    "final_punctuation": "none",
+    "max_cps": 4.0,
+    "max_width": 25,
+    "spacing": false,
+    "ban_exclamation": true
+  },
+  "ko": {
+    "target_language": "한국어",
+    "counting": "cjk",
+    "final_punctuation": "standard",
+    "max_cps": 12.0,
+    "max_width": 25,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "en": {
+    "target_language": "English",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 20.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "es": {
+    "target_language": "Español",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 17.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "fr": {
+    "target_language": "Français",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 17.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "de": {
+    "target_language": "Deutsch",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 17.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "it": {
+    "target_language": "Italiano",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 17.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "pt": {
+    "target_language": "Português",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 17.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "ru": {
+    "target_language": "Русский",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 17.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "ar": {
+    "target_language": "العربية",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 17.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "he": {
+    "target_language": "עברית",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 17.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "th": {
+    "target_language": "ไทย",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 17.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "vi": {
+    "target_language": "Tiếng Việt",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 17.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "id": {
+    "target_language": "Bahasa Indonesia",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 17.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  },
+  "tr": {
+    "target_language": "Türkçe",
+    "counting": "raw",
+    "final_punctuation": "standard",
+    "max_cps": 17.0,
+    "max_width": 42,
+    "spacing": false,
+    "ban_exclamation": false
+  }
+}

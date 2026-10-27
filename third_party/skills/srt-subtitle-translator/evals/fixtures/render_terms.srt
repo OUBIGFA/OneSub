@@ -1,0 +1,12 @@
+1
+00:00:00,000 --> 00:00:03,000
+Add a noise to the roughness.
+
+2
+00:00:03,000 --> 00:00:06,000
+The render is still too noisy.
+
+3
+00:00:06,000 --> 00:00:09,000
+The light bounces off the wall twice.
+

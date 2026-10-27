@@ -1,0 +1,191 @@
+{
+  "skill_name": "srt-subtitle-translator",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "审查附件的四条 ASR 字幕，修复 we are / going to show you 等机械断句，再翻成简体中文。",
+      "expected_output": "理解完整语句后重分段；修复悬空谓语和 using MoGraph 的修饰关系，不按四条逐块硬译，也不为合并添加原文没有的操作。保留 0–4.8 秒的源时间范围。",
+      "files": ["evals/fixtures/segmentation_orphans.srt"]
+    },
+    {
+      "id": 3,
+      "prompt": "先检查是否需要合并，再把附件两个完整句子翻成中文。",
+      "expected_output": "两句各自完整，且中文有自然接缝；保留边界，不因主题连续而合并。",
+      "files": ["evals/fixtures/complete_sentences.srt"]
+    },
+    {
+      "id": 7,
+      "prompt": "翻译附件，保留斜体、定位标签、声音标注和双人对话。",
+      "expected_output": "保留 <i> 和 {\\an8} 的作用范围；[music] 可译为 [音乐]；两条说话人破折号行保持分开，用 --max-lines 2 校验，不要求用户再次授权保留已有换行。",
+      "files": ["evals/fixtures/markup_dialogue.srt"]
+    },
+    {
+      "id": 8,
+      "prompt": "检查附件中 Right、Okay 这样的闪现口头语，然后翻译。",
+      "expected_output": "仅清除无意义填充，必要时并入它所属的相邻意群；不得把后面的操作拉到前面的短轴。说明修复与保留警告。",
+      "files": ["evals/fixtures/flash_fillers.srt"]
+    },
+    {
+      "id": 9,
+      "prompt": "用 DeepL API 把附件批量翻译一下。",
+      "expected_output": "说明本技能不调用外部机器翻译服务；不擅自改成当前模型翻译并冒充 DeepL。需要该服务时转入单独获授权的流程，缺少工具或授权就说明限制。",
+      "files": ["evals/fixtures/dense_technical.srt"]
+    },
+    {
+      "id": 10,
+      "prompt": "把附件翻成中英双语字幕。",
+      "expected_output": "中文在上、源文本在下，块内无空行；保持时间对应，输出 -bi.srt，以 --max-lines 2 校验，并人工核对原文未漏。",
+      "files": ["evals/fixtures/bilingual_sample.srt"]
+    },
+    {
+      "id": 11,
+      "prompt": "把附件 VTT 课程字幕翻成中文，保留网页字幕设置。",
+      "expected_output": "输出 -zh.vtt；保留 WEBVTT 元数据、NOTE、前置 STYLE、cue ID、position/align、斜体和 &amp;，不静默转为 SRT。",
+      "files": ["evals/fixtures/structure.vtt"]
+    },
+    {
+      "id": 12,
+      "prompt": "翻译附件 ASS，保留定位、样式、注释和已有换行。",
+      "expected_output": "只改 Dialogue 的 Text；保留 Comment、样式、事件顺序与所有非 Text 字段、{\\pos(...)} 和 \\N；不合并、拆分或改时间。按已有两行结构设置检查参数。",
+      "files": ["evals/fixtures/structure.ass"]
+    },
+    {
+      "id": 13,
+      "prompt": "把附件中文教程字幕翻译成英文。",
+      "expected_output": "输出 -en.srt，使用 --lang en；英文保留正常句末标点，采用英文读取配置，不套用中文去句末标点或 4.5 DU/s 预设。",
+      "files": ["evals/fixtures/chinese_to_english.srt"]
+    },
+    {
+      "id": 14,
+      "prompt": "把附件 VTT 转成 SRT，再翻译成中文。",
+      "expected_output": "尊重显式转换请求，先说明设置、ID、NOTE/STYLE 等损失；独立校验转换结果并人工比较文本和时间，不假装跨格式 --source 比较已经通过。",
+      "files": ["evals/fixtures/structure.vtt"]
+    },
+    {
+      "id": 15,
+      "prompt": "附件两条完整句子之间有字幕空档，请检查后翻译。没有音频。",
+      "expected_output": "两侧完整且有自然中文接缝，保留空档。只把时间差称作字幕间隔，不宣称听到了静音；跨间隔合并仍须有可命名的断句缺陷依据。",
+      "files": ["evals/fixtures/timing_gap.srt"]
+    },
+    {
+      "id": 16,
+      "prompt": "把附件两段连续短语翻成中文，检查 before you start the simulations 与前句的关系。",
+      "expected_output": "先理解完整句子，保留先选择对象、检查比例、再开始模拟的时序关系；按自然中文意群放置边界，不因属于同一句而强制合成一条，也不凭字数分配精确声学时间。",
+      "files": ["evals/fixtures/long_sentence.srt"]
+    },
+    {
+      "id": 18,
+      "prompt": "按本技能简体中文术语约定翻译附件 C4D 教程。",
+      "expected_output": "普通叙述的 inner extrude 用内部挤压，interpolation 用插值，viewport 用视窗，渲染瑕疵的 noise 用噪点；保持概念一致和原有操作，不把表当作跨语境替换表。",
+      "files": ["evals/fixtures/c4d_terms.srt"]
+    },
+    {
+      "id": 19,
+      "prompt": "按本技能的跨软件术语约定翻译附件 Blender 教程。",
+      "expected_output": "普通叙述 Inset Faces 用内部挤压、Extrude 用挤压；Geometry Nodes 和 Grease Pencil 按软件专有功能及实际界面处理，不生造 C4D 对应项。",
+      "files": ["evals/fixtures/blender_terms.srt"]
+    },
+    {
+      "id": 20,
+      "prompt": "把附件 Maya 教程翻成简体中文。",
+      "expected_output": "在本技能的叙述语境默认使用挤压、倒角、细分曲面、环境吸收、关键帧；Maya、AO 等专名/缩写保留。显式 UI 字符串和用户锁定术语优先。",
+      "files": ["evals/fixtures/maya_terms.srt"]
+    },
+    {
+      "id": 21,
+      "prompt": "翻译附件，注意 null 在口头操作、Create > Null 菜单和 XPresso 条件中的不同意思。",
+      "expected_output": "叙述对象时用空对象，菜单用实际可查找的 UI 文本，脚本 null 用空值；不机械统一一个英文字符串的所有词义。",
+      "files": ["evals/fixtures/c4d_context_terms.srt"]
+    },
+    {
+      "id": 22,
+      "prompt": "翻译附件渲染教程，区分材质 noise、渲染 noisy 和 light bounces。",
+      "expected_output": "分别表达噪波、噪点、光线反弹，不把材质纹理当渲染瑕疵，也不让灯光对象代替传播中的光线。",
+      "files": ["evals/fixtures/render_terms.srt"]
+    },
+    {
+      "id": 23,
+      "prompt": "按本技能的中文标点和单块意群风格翻译附件。",
+      "expected_output": "对独立句子和分号分开的操作检查自然分段；不因普通逗号机械拆分。说明性冒号按中文 house style 自然改写，结构性 JOHN：标签保留；行末不添句号。",
+      "files": ["evals/fixtures/punctuation.srt"]
+    },
+    {
+      "id": 25,
+      "prompt": "翻译附件五条两秒左右的短句，保持简洁口语。",
+      "expected_output": "保留一点、20、比较结果等载荷，不添加我们、需要、效果、就可以了等原文没有的内容。短句不扩成书面长句，也不为了凝练删掉真实判断。",
+      "files": ["evals/fixtures/lean_lines.srt"]
+    },
+    {
+      "id": 26,
+      "prompt": "翻译附件，清理 yeah、um、cool 等无意义口头填充。",
+      "expected_output": "只删无信息填充；拖动、像这样、烘焙等操作/指示保留。合并不能提前显示后续动作，也不能通过增加字词填满窗口。",
+      "files": ["evals/fixtures/filler_lines.srt"]
+    },
+    {
+      "id": 27,
+      "prompt": "准确翻译附件的高密度技术句，不要概括。",
+      "expected_output": "保留超过 20 的条件、稳定性收益、缓存大约变成三倍的代价，以及 only/final pass 限定。final pass 的具体含义按语境保守处理，不无依据改成最终渲染。负荷警告不能成为删条件或 roughly 的理由。",
+      "files": ["evals/fixtures/dense_technical.srt"]
+    },
+    {
+      "id": 28,
+      "prompt": "翻译附件六条教程字幕，并用检查脚本带 --source 校验后说明结果。",
+      "expected_output": "用 --source 和 --lang 校验完整文件，报告实际错误/警告数。附件只是六条连续字幕的小样，不冒称已测试数百条长文件，也不声称小样已经获得可靠的 length-fidelity 中位数检验。",
+      "files": ["evals/fixtures/tutorial_sample.srt"]
+    },
+    {
+      "id": 29,
+      "prompt": "只检查附件的时间戳、编号和空档，不翻译、不改文件。",
+      "expected_output": "不启动翻译或重分段流程；只做请求的只读检查。",
+      "files": ["evals/fixtures/tutorial_sample.srt"]
+    },
+    {
+      "id": 30,
+      "prompt": "把附件 VTT 转成 SRT，不要翻译。",
+      "expected_output": "不误触发翻译；使用转换流程并说明设置、NOTE/STYLE 和标识符等损失。",
+      "files": ["evals/fixtures/structure.vtt"]
+    },
+    {
+      "id": 31,
+      "prompt": "我想把视频字幕压制到 MP4 中，需要准备什么？",
+      "expected_output": "解释视频处理所需输入，不创建或翻译字幕，不把压制误判成本技能的翻译请求。",
+      "files": []
+    },
+    {
+      "id": 32,
+      "prompt": "提取附件字幕的纯文本，保留原阅读顺序。",
+      "expected_output": "只提取源文本；不翻译、不重分段、不改写源文件。",
+      "files": ["evals/fixtures/tutorial_sample.srt"]
+    },
+    {
+      "id": 33,
+      "prompt": "参考 ASD-STE100 的清晰简洁原则翻译附件，删除口水词，但务必保留否定、条件、限定、数值和不确定性。",
+      "expected_output": "信息核对先于精简：保留 if、above 20、roughly triples、only、not the preview；um/okay/so 只在无信息时删除。字幕中不输出载荷清单或译者说明，也不宣称符合完整 ASD-STE100 标准。",
+      "files": ["evals/fixtures/controlled_expression.srt"]
+    },
+    {
+      "id": 35,
+      "prompt": "把附件翻成中文，但严格保留每条字幕编号和时间轴，不允许合并或拆分。",
+      "expected_output": "进入严格模式，即使源断句不自然也不改块数、边界、顺序和标记；运行 --source --strict，解释无法在锁定时间轴下修复的断句或密度警告。",
+      "files": ["evals/fixtures/segmentation_orphans.srt"]
+    },
+    {
+      "id": 36,
+      "prompt": "翻译附件并检查字幕有没有错位。我只有 SRT，没有视频或音频。",
+      "expected_output": "完成源文本/时间窗口核对，报告可观察的问题；明确没有验证声学对齐，不虚构试听了三个时间点，也不因为缺少音频拒绝完成可做的翻译。",
+      "files": ["evals/fixtures/tutorial_sample.srt"]
+    },
+    {
+      "id": 37,
+      "prompt": "翻译附件 Blender 教程，重要概念首次保留中文（English）对照，英文括号内容全部不计入阅读负荷。",
+      "expected_output": "保留重要概念首现对照；英文括号内容在 DU、CPS 和扫描宽度统计中全额豁免，不擅自取消或改成部分豁免。中文正文仍遵循原有负荷配置和忠实性要求。",
+      "files": ["evals/fixtures/blender_terms.srt"]
+    },
+    {
+      "id": 38,
+      "prompt": "只清理附件英文 ASR 字幕中的无意义口头词，保持英文，不要翻译。",
+      "expected_output": "保留英文，按请求清理无信息填充并核对时间覆盖；不套用默认简体中文目标，不删操作和有效语气，不擅自改写成新的内容。",
+      "files": ["evals/fixtures/filler_lines.srt"]
+    }
+  ]
+}

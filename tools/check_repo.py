@@ -4,6 +4,7 @@ This is a small repository guard, not a complete secret scanner or Markdown pars
 It never prints matched credential contents. Application tests remain separate.
 """
 
+import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import posixpath
@@ -14,6 +15,11 @@ from urllib.parse import unquote, urlsplit
 
 
 MAX_BYTES = 1024 * 1024
+# Only the maintainer-supplied branding source may be binary. A fixed digest
+# prevents this exception from becoming a general asset/secret bypass.
+APPROVED_BINARY = {
+    "apps/desktop/branding/logo.png": "9b8e11465ddd31d0ae86e6c692ce61911d65006bfbd5e7828914192374b93e95",
+}
 CREDENTIAL = re.compile(
     r"(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{50,}"
     r"|AKIA[0-9A-Z]{16}|sk-(?:proj-)?[A-Za-z0-9_-]{32,}"
@@ -82,6 +88,10 @@ def check():
             errors.append(f"{path}: exceeds 1 MiB file limit")
             continue
         data = git("cat-file", "blob", blob)
+        if path in APPROVED_BINARY:
+            if hashlib.sha256(data).hexdigest() != APPROVED_BINARY[path]:
+                errors.append(f"{path}: branding asset hash mismatch")
+            continue
         try:
             text = data.decode("utf-8")
         except UnicodeDecodeError:

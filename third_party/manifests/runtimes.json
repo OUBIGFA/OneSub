@@ -1,0 +1,86 @@
+{
+  "channel": "local-test",
+  "publicReleaseApproved": false,
+  "remainingMaterials": [
+    "complete transitive binary notices and corresponding source/build materials",
+    "signing and clean-machine install/upgrade/uninstall acceptance"
+  ],
+  "mygo": {
+    "version": "v0.6.4",
+    "license": "third_party/licenses/mygo.txt"
+  },
+  "libse": {
+    "revision": "e316223ca1cfe8861acb4da4cd0e4ef5cce634f9",
+    "license": "third_party/licenses/libse.txt"
+  },
+  "media": [
+    {
+      "file": "ffmpeg.EXE",
+      "bytes": 223360000,
+      "sha256": "d1e2a156261ecc675081943197a85f08f2868784a0af499171ede89353edad31",
+      "version": "ffmpeg version 8.1-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+      "configuration": "configuration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-cairo --enable-fontconfig --enable-iconv --enable-gnutls --enable-lcms2 --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-libsnappy --enable-zlib --enable-librist --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-libbluray --enable-libcaca --enable-libdvdnav --enable-libdvdread --enable-sdl2 --enable-libaribb24 --enable-libaribcaption --enable-libdav1d --enable-libdavs2 --enable-libopenjpeg --enable-libquirc --enable-libuavs3d --enable-libxevd --enable-libzvbi --enable-liboapv --enable-libqrencode --enable-librav1e --enable-libsvtav1 --enable-libvvenc --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxavs2 --enable-libxeve --enable-libxvid --enable-libaom --enable-libjxl --enable-libsvtjpegxs --enable-libvpx --enable-mediafoundation --enable-libass --enable-frei0r --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-liblensfun --enable-libvidstab --enable-libvmaf --enable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-ffnvcodec --enable-libvpl --enable-nvdec --enable-nvenc --enable-vaapi --enable-libshaderc --enable-vulkan --enable-libplacebo --enable-opencl --enable-libcdio --enable-openal --enable-libgme --enable-libmodplug --enable-libopenmpt --enable-libopencore-amrwb --enable-libmp3lame --enable-libshine --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libcodec2 --enable-libilbc --enable-libgsm --enable-liblc3 --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enable-libvorbis --enable-ladspa --enable-libbs2b --enable-libflite --enable-libmysofa --enable-librubberband --enable-libsoxr --enable-chromaprint --enable-whisper"
+    },
+    {
+      "file": "ffprobe.EXE",
+      "bytes": 223153664,
+      "sha256": "70872c3ffbc43d0b2c570f9837f54d6e9a832f4ca25463e9735b6a3ec0621478",
+      "version": "ffprobe version 8.1-full_build-www.gyan.dev Copyright (c) 2007-2026 the FFmpeg developers",
+      "configuration": "configuration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-cairo --enable-fontconfig --enable-iconv --enable-gnutls --enable-lcms2 --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-libsnappy --enable-zlib --enable-librist --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-libbluray --enable-libcaca --enable-libdvdnav --enable-libdvdread --enable-sdl2 --enable-libaribb24 --enable-libaribcaption --enable-libdav1d --enable-libdavs2 --enable-libopenjpeg --enable-libquirc --enable-libuavs3d --enable-libxevd --enable-libzvbi --enable-liboapv --enable-libqrencode --enable-librav1e --enable-libsvtav1 --enable-libvvenc --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxavs2 --enable-libxeve --enable-libxvid --enable-libaom --enable-libjxl --enable-libsvtjpegxs --enable-libvpx --enable-mediafoundation --enable-libass --enable-frei0r --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-liblensfun --enable-libvidstab --enable-libvmaf --enable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-ffnvcodec --enable-libvpl --enable-nvdec --enable-nvenc --enable-vaapi --enable-libshaderc --enable-vulkan --enable-libplacebo --enable-opencl --enable-libcdio --enable-openal --enable-libgme --enable-libmodplug --enable-libopenmpt --enable-libopencore-amrwb --enable-libmp3lame --enable-libshine --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libcodec2 --enable-libilbc --enable-libgsm --enable-liblc3 --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enable-libvorbis --enable-ladspa --enable-libbs2b --enable-libflite --enable-libmysofa --enable-librubberband --enable-libsoxr --enable-chromaprint --enable-whisper"
+    }
+  ],
+  "mediaSource": "https://www.gyan.dev/ffmpeg/builds/",
+  "mediaLicense": "third_party/licenses/ffmpeg.txt",
+  "oneasr": {
+    "file": "oneasr-cli.exe",
+    "bytes": 59362816,
+    "sha256": "59b5376b6a49d6c1cebac05d13188ff207454af5e397613405ebc1bed9ca78e0",
+    "version": "v1.3.0",
+    "archiveSha256": "e9e169e108ee43d88b5b047f4ec556819cd7fa5e2424d3f5ed957634f85d4936"
+  },
+  "player": [
+    {
+      "name": "jassub",
+      "version": "2.5.23",
+      "spdx": "LGPL-2.1-or-later AND (FTL OR GPL-2.0-or-later) AND MIT AND MIT-Modern-Variant AND ISC AND NTP AND Zlib AND BSL-1.0",
+      "notice": "third_party/licenses/jassub.txt"
+    },
+    {
+      "name": "abslink",
+      "version": "1.3.1",
+      "spdx": "Apache-2.0",
+      "notice": null
+    },
+    {
+      "name": "lfa-ponyfill",
+      "version": "1.1.1",
+      "spdx": "MIT",
+      "notice": null
+    },
+    {
+      "name": "rvfc-polyfill",
+      "version": "1.0.8",
+      "spdx": "GPL-3.0",
+      "notice": "third_party/licenses/rvfc-polyfill.txt"
+    },
+    {
+      "name": "throughput",
+      "version": "1.0.2",
+      "spdx": "MIT",
+      "notice": null
+    }
+  ],
+  "wasm": [
+    {
+      "file": "jassub-worker-modern.wasm",
+      "bytes": 2189919,
+      "sha256": "e6b436efa71e03274cdb993d38553f7870f37e798d7c83ba7856651c66bb087d"
+    },
+    {
+      "file": "jassub-worker.wasm",
+      "bytes": 2110107,
+      "sha256": "2b7e65f65ab7c84736dbcc5f2bbe3af9536db142f65ca8673b54bca21f38fbf8"
+    }
+  ],
+  "fontRedistribution": "No system font files are copied into the installer. Runtime preview uses the user's installed fonts through local capability URLs."
+}

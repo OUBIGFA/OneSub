@@ -1,0 +1,10 @@
+{
+  "name": "OneSub",
+  "identifier": "io.github.oubigfa.onesub",
+  "version": "0.0.1",
+  "webview": true,
+  "icon": "branding/logo.png",
+  "i18n": {"dir": "locales", "source": "en"},
+  "out": "build",
+  "resources": ["../../build/output/subtitle-core", "../../build/output/style-core", "../../build/output/skill-tools", "../../build/output/media-tools", "../../build/output/oneasr", "../../third_party/skills/srt-subtitle-translator", "../../third_party/licenses", "../../third_party/manifests", "../../build/output/build-info.json"]
+}

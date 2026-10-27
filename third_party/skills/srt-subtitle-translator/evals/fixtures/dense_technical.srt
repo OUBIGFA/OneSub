@@ -1,0 +1,4 @@
+1
+00:00:00,000 --> 00:00:07,000
+If you push the substeps above 20 the sim gets stable but the cache size roughly triples, so only do that for the final pass.
+
