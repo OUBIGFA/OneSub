@@ -2,12 +2,15 @@
 package importing
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
+
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 type Selection struct {
@@ -42,7 +45,7 @@ func Kind(path string) string {
 func Discover(paths []string) (Selection, error) {
 	result := Selection{Candidates: []string{}}
 	if len(paths) == 0 {
-		return result, fmt.Errorf("请添加视频或字幕文件")
+		return result, errors.New(locales.ErrImportEmpty())
 	}
 	var identities []os.FileInfo
 	for _, input := range paths {
@@ -52,10 +55,10 @@ func Discover(paths []string) (Selection, error) {
 		}
 		info, err := os.Stat(path)
 		if err != nil {
-			return result, fmt.Errorf("无法读取 %s：%w", filepath.Base(path), err)
+			return result, apperr.Wrap(locales.ErrImportRead(filepath.Base(path), err.Error()), err)
 		}
 		if !info.Mode().IsRegular() {
-			return result, fmt.Errorf("请添加文件，不能添加文件夹")
+			return result, errors.New(locales.ErrImportFolder())
 		}
 		duplicate := false
 		for _, prior := range identities {
@@ -71,16 +74,16 @@ func Discover(paths []string) (Selection, error) {
 		switch Kind(path) {
 		case "subtitle":
 			if result.Subtitle != "" {
-				return result, fmt.Errorf("一次只能打开一份字幕；请先选择要校对的版本")
+				return result, errors.New(locales.ErrImportManySubtitles())
 			}
 			result.Subtitle = path
 		case "video", "audio":
 			if result.Media != "" {
-				return result, fmt.Errorf("一次只能打开一段媒体；请先选择一组视频与字幕")
+				return result, errors.New(locales.ErrImportManyMedia())
 			}
 			result.Media = path
 		default:
-			return result, fmt.Errorf("不支持此文件类型：%s", filepath.Base(path))
+			return result, errors.New(locales.ErrImportType(filepath.Base(path)))
 		}
 	}
 	if result.Media != "" && result.Subtitle != "" {
@@ -92,7 +95,7 @@ func Discover(paths []string) (Selection, error) {
 	}
 	entries, err := os.ReadDir(filepath.Dir(primary))
 	if err != nil {
-		return result, fmt.Errorf("无法检查同目录关联文件：%w", err)
+		return result, apperr.Wrap(locales.ErrImportSiblings(err.Error()), err)
 	}
 	stem := strings.TrimSuffix(filepath.Base(primary), filepath.Ext(primary))
 	for _, entry := range entries {

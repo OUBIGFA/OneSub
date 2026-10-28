@@ -17,7 +17,7 @@ func numberColumn(c *ui.Context, maximum int) ui.TableColumn {
 		w, _ := c.MeasureText(0, ui.Span{Text: strings.Repeat(string(digit), digits)})
 		width = max(width, w)
 	}
-	header, _ := c.MeasureText(0, ui.Span{Text: "序号", Weight: 600})
+	header, _ := c.MeasureText(0, ui.Span{Text: "#", Weight: 600})
 	width = max(width, header) + 2*c.Theme().Space(2.5) + 2
-	return ui.TableColumn{Title: "序号", ID: "number", Width: width, MinWidth: width, Fixed: true}
+	return ui.TableColumn{Title: "#", ID: "number", Width: width, MinWidth: width, Fixed: true}
 }

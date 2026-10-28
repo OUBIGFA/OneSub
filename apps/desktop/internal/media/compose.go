@@ -15,8 +15,20 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/jobs"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
+)
+
+// Stage IDs of ComposeProgress; the interface says them in its language.
+const (
+	StageChooseOutput = "choose-output"
+	StagePrepare      = "prepare"
+	StageVerifyInput  = "verify-input"
+	StageEncode       = "encode"
+	StageMux          = "mux"
+	StageVerifyOutput = "verify-output"
 )
 
 // ComposeOptions is frozen before execution. It follows SmartSub's separation
@@ -25,8 +37,8 @@ import (
 type ComposeOptions struct {
 	Source      string `json:"source"`
 	Destination string `json:"destination"`
-	Mode        string `json:"mode"` // hard or soft
-	Quality     string `json:"quality"`
+	Mode        string `json:"mode"`    // hard or soft
+	Quality     string `json:"quality"` // lossless, crf18, crf20 or crf23
 	Sample      bool   `json:"sample"`
 	Language    string `json:"language"`
 	Revision    int64  `json:"revision"`
@@ -58,15 +70,15 @@ func streamCounts(info Info) map[string]int {
 // streams are never dropped silently. MP4-incompatible streams require MKV.
 func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]string, error) {
 	if options.Mode != "hard" && options.Mode != "soft" {
-		return nil, errors.New("请选择硬字幕（烧录）或软字幕（封装）")
+		return nil, errors.New(locales.ErrComposeMode())
 	}
 	ext := strings.ToLower(filepath.Ext(options.Destination))
 	if ext != ".mkv" && ext != ".mp4" {
-		return nil, errors.New("合成仅支持 MKV 或 MP4")
+		return nil, errors.New(locales.ErrComposeContainer())
 	}
 	start, _ := strconv.ParseFloat(info.Format.StartTime, 64)
 	if math.Abs(start) > .001 {
-		return nil, errors.New("媒体起点非零，需先完成时间映射后合成")
+		return nil, errors.New(locales.ErrComposeStartTime())
 	}
 	mainVideo := []Stream{}
 	covers := []Stream{}
@@ -88,24 +100,24 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 		case "attachment":
 			attachments = append(attachments, s)
 		default:
-			return nil, fmt.Errorf("源文件含 %s 流；未静默丢弃，请先选择兼容的交付方案", s.CodecType)
+			return nil, errors.New(locales.ErrComposeStreamType(s.CodecType))
 		}
 	}
 	if len(mainVideo) != 1 {
-		return nil, errors.New("合成需要一个主视频流")
+		return nil, errors.New(locales.ErrComposeMainVideo())
 	}
 	if options.Mode == "hard" && (mainVideo[0].ColorTransfer == "smpte2084" || mainVideo[0].ColorTransfer == "arib-std-b67") {
-		return nil, errors.New("此版本不支持 HDR 硬字幕烧录，请选择软字幕封装")
+		return nil, errors.New(locales.ErrComposeHdr())
 	}
 	if ext == ".mp4" && len(attachments) > 0 {
-		return nil, errors.New("MP4 不能保留附件，请选择 MKV")
+		return nil, errors.New(locales.ErrComposeMp4Attachments())
 	}
 	if ext == ".mp4" {
 		for _, s := range subs {
 			switch s.CodecName {
 			case "subrip", "ass", "ssa", "webvtt", "mov_text", "text":
 			default:
-				return nil, errors.New("MP4 不能保留此字幕流，请选择 MKV")
+				return nil, errors.New(locales.ErrComposeMp4Subtitles())
 			}
 		}
 	}
@@ -131,13 +143,27 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 	}
 	args = append(args, "-map_metadata", "0", "-map_chapters", "0", "-c", "copy")
 	if options.Mode == "hard" {
-		quality, ok := map[string]string{"original": "18", "high": "20", "standard": "23"}[options.Quality]
-		if !ok {
-			return nil, errors.New("未知合成画质")
+		// The CRF levels and even-dimension handling mirror SmartSub. QP 0 is
+		// x264's mathematically lossless mode: outside the burned subtitles the
+		// frames equal the decoded source, in its own chroma layout where x264
+		// encodes it. The filter uses task-local fixed names, never
+		// shell-escaped user filenames.
+		pixelFormat, rate := "yuv420p", []string{}
+		switch options.Quality {
+		case "lossless":
+			pixelFormat, rate = losslessPixelFormat(mainVideo[0].PixFmt), []string{"-qp", "0"}
+		case "crf18", "crf20", "crf23":
+			rate = []string{"-crf", strings.TrimPrefix(options.Quality, "crf")}
+		default:
+			return nil, errors.New(locales.ErrComposeQuality())
 		}
-		// These quality levels and even-dimension handling mirror SmartSub. The
-		// filter uses task-local fixed names, never shell-escaped user filenames.
-		args = append(args, "-filter:v:0", "ass=render.ass:fontsdir=fonts,crop=trunc(iw/2)*2:trunc(ih/2)*2:0:0", "-c:v:0", "libx264", "-crf", quality, "-preset", "medium", "-pix_fmt:v:0", "yuv420p", "-fps_mode:v:0", "passthrough")
+		filter := "ass=render.ass:fontsdir=fonts"
+		if !strings.HasPrefix(pixelFormat, "yuv444") {
+			filter += ",crop=trunc(iw/2)*2:trunc(ih/2)*2:0:0"
+		}
+		args = append(args, "-filter:v:0", filter, "-c:v:0", "libx264")
+		args = append(args, rate...)
+		args = append(args, "-preset", "medium", "-pix_fmt:v:0", pixelFormat, "-fps_mode:v:0", "passthrough")
 	} else {
 		if ext == ".mp4" {
 			args = append(args, "-c:s", "mov_text")
@@ -161,6 +187,16 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 		args = append(args, "-t", "5")
 	}
 	return append(args, "-progress", "pipe:1", "-nostats", "-y", partial), nil
+}
+
+// losslessPixelFormat keeps the source's chroma layout and bit depth when
+// libx264 can encode it losslessly; other layouts become 4:2:0.
+func losslessPixelFormat(source string) string {
+	switch source {
+	case "yuv420p", "yuv422p", "yuv444p", "yuv420p10le", "yuv422p10le", "yuv444p10le":
+		return source
+	}
+	return "yuv420p"
 }
 func containerLanguage(tag string) string {
 	values := map[string]string{"zh-CN": "zho", "zh-TW": "zho", "zh": "zho", "en": "eng", "ja": "jpn", "ko": "kor", "fr": "fra", "de": "deu", "es": "spa"}
@@ -219,12 +255,12 @@ func composeFraction(line string, durationMs int64) (float64, bool) {
 func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options ComposeOptions, document styles.Document, progress func(ComposeProgress)) (ComposeReport, error) {
 	report := ComposeReport{Version: 1, Source: filepath.Base(options.Source), Output: filepath.Base(options.Destination), Revision: options.Revision, Mode: options.Mode, Sample: options.Sample}
 	if _, err := os.Lstat(options.Destination); err == nil {
-		return report, errors.New("目标文件已存在，请更换名称")
+		return report, errors.New(locales.ErrComposeExists())
 	} else if !os.IsNotExist(err) {
 		return report, err
 	}
 	if len(document.Report.MissingGlyphs) > 0 {
-		return report, fmt.Errorf("字体缺少字符：%s", strings.Join(document.Report.MissingGlyphs, " "))
+		return report, errors.New(locales.ErrMissingGlyphs(strings.Join(document.Report.MissingGlyphs, " ")))
 	}
 	info, err := Probe(ctx, probe, options.Source)
 	if err != nil {
@@ -251,7 +287,7 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 			return report, err
 		}
 		if actual != font.SHA256 {
-			return report, errors.New("字体文件已改变，请重新生成样式")
+			return report, errors.New(locales.ErrFontChanged())
 		}
 		source, err := os.Open(font.Path)
 		if err != nil {
@@ -285,16 +321,16 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	if err != nil {
 		return report, err
 	}
-	progress(ComposeProgress{Stage: "校验输入文件", Fraction: -1})
+	progress(ComposeProgress{Stage: StageVerifyInput, Fraction: -1})
 	report.SourceSHA256, err = hashFile(ctx, options.Source)
 	if err != nil {
 		return report, err
 	}
 	command := exec.Command(ffmpeg, args...)
 	command.Dir = scratch
-	stage := "视频编码"
+	stage := StageEncode
 	if options.Mode == "soft" {
-		stage = "字幕封装"
+		stage = StageMux
 	}
 	duration := info.DurationMs()
 	if options.Sample && duration > 5000 {
@@ -309,7 +345,7 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	if err != nil {
 		return report, err
 	}
-	progress(ComposeProgress{Stage: "校验输出文件", Fraction: -1})
+	progress(ComposeProgress{Stage: StageVerifyOutput, Fraction: -1})
 	output, err := Probe(ctx, probe, partial)
 	if err != nil {
 		return report, err
@@ -321,18 +357,18 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	actual := streamCounts(output)
 	for kind, count := range expected {
 		if actual[kind] != count {
-			return report, fmt.Errorf("产物流数量不符：%s，应为 %d，实际 %d", kind, count, actual[kind])
+			return report, errors.New(locales.ErrComposeStreamCount(kind, count, actual[kind]))
 		}
 	}
 	if duration <= 0 || math.Abs(float64(output.DurationMs()-duration)) > 250 {
-		return report, errors.New("产物时长与来源不符")
+		return report, errors.New(locales.ErrComposeDuration())
 	}
 	if !options.Sample && len(info.Chapters) != len(output.Chapters) {
-		return report, errors.New("产物章节数量不符")
+		return report, errors.New(locales.ErrComposeChapters())
 	}
 	// Full decode is intentionally stronger than merely finding streams in headers.
 	if err = jobs.Run(ctx, exec.Command(ffmpeg, "-nostdin", "-v", "error", "-xerror", "-i", partial, "-map", "0:V:0", "-map", "0:a?", "-f", "null", "-"), nil); err != nil {
-		return report, fmt.Errorf("产物解码检查失败：%w", err)
+		return report, apperr.Wrap(locales.ErrComposeDecode(err.Error()), err)
 	}
 	report.OutputSHA256, err = hashFile(ctx, partial)
 	if err != nil {
@@ -342,7 +378,7 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	report.Streams = actual
 	report.Checks = []string{"streams", "duration", "chapters", "full audiovisual decode", "sha256"}
 	if err = os.Link(partial, options.Destination); err != nil {
-		return report, fmt.Errorf("无法发布，已有文件未覆盖：%w", err)
+		return report, apperr.Wrap(locales.ErrComposePublish(err.Error()), err)
 	}
 	// The report is independent of the media file: report-write failure is surfaced
 	// with the validated video preserved, never followed by another encode.
@@ -352,7 +388,7 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	}
 	reportFile, err := os.OpenFile(options.Destination+".onesub.json", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
-		return report, fmt.Errorf("视频已生成，但报告无法保存：%w", err)
+		return report, apperr.Wrap(locales.ErrComposeReport(err.Error()), err)
 	}
 	_, err = reportFile.Write(raw)
 	if syncErr := reportFile.Sync(); err == nil {

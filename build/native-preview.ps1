@@ -12,6 +12,8 @@ New-Item -ItemType Directory (Split-Path $out -Parent) -Force | Out-Null
 $flags = "-H=windowsgui -X github.com/egoist/mygo.packageName=$($config.name) -X github.com/egoist/mygo.packageVersion=$($config.version) -X github.com/egoist/mygo.packageIdentifier=$($config.identifier) -X main.BuildNumber=native-preview"
 Push-Location (Join-Path $root 'apps/desktop')
 try {
+    & go run github.com/egoist/mygo/cmd/mygo generate
+    if ($LASTEXITCODE -ne 0) { throw 'Message catalog generation failed' }
     & go build -ldflags $flags -o $out .
     if ($LASTEXITCODE -ne 0) { throw 'Native preview build failed' }
 } finally { Pop-Location }

@@ -8,23 +8,24 @@ string requestId = "";
 try
 {
     // Control messages contain paths only. Large documents are exchanged as artifacts.
+    // Errors of this worker are stable E_ codes; the desktop says them in its language.
     var chars = new char[1024 * 1024 + 1];
     var length = Console.In.ReadBlock(chars, 0, chars.Length);
-    if (length > 1024 * 1024) throw new InvalidDataException("控制消息超过 1 MiB");
+    if (length > 1024 * 1024) throw new InvalidDataException("E_CONTROL_SIZE");
     var request = JsonSerializer.Deserialize<Request>(chars.AsSpan(0, length), json)
-        ?? throw new InvalidDataException("缺少请求");
+        ?? throw new InvalidDataException("E_PROTOCOL");
     requestId = request.RequestId;
-    if (request.Protocol != 1) throw new InvalidDataException("不支持的工作进程协议");
-    if (File.Exists(request.OutputPath)) throw new IOException("输出文件已存在");
+    if (request.Protocol != 1) throw new InvalidDataException("E_PROTOCOL");
+    if (File.Exists(request.OutputPath)) throw new IOException("E_OUTPUT_EXISTS");
     if (new FileInfo(request.InputPath).Length > 64 * 1024 * 1024)
-        throw new InvalidDataException("字幕文件超过 64 MiB");
+        throw new InvalidDataException("E_INPUT_SIZE");
     string result = request.Operation switch
     {
         "read" => JsonSerializer.Serialize(Codec.Read(request.InputPath), json),
         "write" => Codec.Write(JsonSerializer.Deserialize<Document>(
             File.ReadAllText(request.InputPath, Encoding.UTF8), json)
-            ?? throw new InvalidDataException("缺少字幕文档")),
-        _ => throw new InvalidDataException("未知操作")
+            ?? throw new InvalidDataException("E_PROTOCOL")),
+        _ => throw new InvalidDataException("E_PROTOCOL")
     };
     using (var output = new FileStream(request.OutputPath, FileMode.CreateNew, FileAccess.Write))
     {

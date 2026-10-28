@@ -52,3 +52,21 @@ func TestFirstManualTranslationRetainsSource(t *testing.T) {
 		t.Fatal(cue)
 	}
 }
+
+func TestSourceCorrectionStaysTranslatable(t *testing.T) {
+	s := newStore(t)
+	e := edit("校正原文")
+	e[0].Track = "source"
+	if _, err := s.Apply("source", 0, e); err != nil {
+		t.Fatal(err)
+	}
+	if cue := snapshot(t, s).Document.Cues[0]; cue.TextLocked || cue.Text != "校正原文" {
+		t.Fatal("source correction locked or lost", cue)
+	}
+	if _, err := s.ApplyTranslation("translate", 1, edit("译文")); err != nil {
+		t.Fatal("corrected source was not translatable", err)
+	}
+	if cue := snapshot(t, s).Document.Cues[0]; cue.Text != "译文" || cue.TranslationSource != "校正原文" {
+		t.Fatal(cue)
+	}
+}

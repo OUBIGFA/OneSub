@@ -5,9 +5,11 @@ package project
 import (
 	"errors"
 	"os"
+
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 // Other platforms need their own lock and persistence acceptance before use.
 func acquireLock(path string) (*os.File, error) {
-	return nil, errors.New("此构建只验收 Windows 本地工程")
+	return nil, errors.New(locales.ErrProjectPlatform())
 }

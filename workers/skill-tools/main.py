@@ -2,6 +2,7 @@
 
 The checker reports findings; it never translates, writes a project, or calls a
 model. Packaging keeps its configuration at the original relative location.
+Its own errors are stable E_ codes that the desktop says in its language.
 """
 import contextlib
 import io
@@ -18,15 +19,15 @@ def main():
     try:
         raw = sys.stdin.buffer.read(1024 * 1024 + 1)
         if len(raw) > 1024 * 1024:
-            raise ValueError("控制消息超过 1 MiB")
+            raise ValueError("E_CONTROL_SIZE")
         request = json.loads(raw)
         request_id = request["requestId"]
         if request["protocol"] != 1 or request["operation"] != "check":
-            raise ValueError("未知技能检查操作")
+            raise ValueError("E_PROTOCOL")
         for key in ("inputPath", "sourcePath"):
             path = Path(request[key])
             if not path.is_file() or path.stat().st_size > 64 * 1024 * 1024:
-                raise ValueError("字幕输入无效或超过 64 MiB")
+                raise ValueError("E_INPUT")
         sys.argv = ["check_subtitle", request["inputPath"], "--source", request["sourcePath"],
                     "--lang", request["language"], "--lang-config", request["languageConfig"], "--json"]
         if request.get("strict", True):
@@ -35,7 +36,7 @@ def main():
         with contextlib.redirect_stdout(output):
             code = check_subtitle.main()
         if code not in (0, 1):
-            raise ValueError("技能检查器未返回有效结果")
+            raise ValueError("E_RESULT")
         findings = json.loads(output.getvalue())
         with open(request["outputPath"], "x", encoding="utf-8", newline="\n") as file:
             json.dump(findings, file, ensure_ascii=False)

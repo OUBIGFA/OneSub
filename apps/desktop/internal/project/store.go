@@ -7,13 +7,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
 )
@@ -54,10 +55,10 @@ func Create(path, mediaPath, sourcePath string, doc subtitle.Document, displayNa
 		return nil, err
 	}
 	if !strings.EqualFold(filepath.Ext(path), ".onesub") {
-		return nil, errors.New("工程目录须以 .onesub 结尾")
+		return nil, errors.New(locales.ErrProjectExtension())
 	}
 	if err := os.Mkdir(path, 0700); err != nil {
-		return nil, fmt.Errorf("请使用新的工程名称：%w", err)
+		return nil, apperr.Wrap(locales.ErrProjectExists(err.Error()), err)
 	}
 	manifest := Manifest{Schema: schemaVersion, ID: uuid.NewString(), Name: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)), MediaPath: mediaPath, SubtitlePath: sourcePath}
 	if len(displayName) > 0 && strings.TrimSpace(displayName[0]) != "" {
@@ -72,7 +73,7 @@ func Create(path, mediaPath, sourcePath string, doc subtitle.Document, displayNa
 			return nil, err
 		}
 		if len(raw) > 64*1024*1024 {
-			return nil, errors.New("字幕来源超过 64 MiB")
+			return nil, errors.New(locales.ErrProjectSourceSize())
 		}
 		hash := sha256.Sum256(raw)
 		manifest.SourceSHA256 = hex.EncodeToString(hash[:])
@@ -106,7 +107,7 @@ func localPath(path string) (string, error) {
 	// UNC paths are not reliable WAL/lock locations. Sync-provider detection is a
 	// separate UI warning; this does not claim to detect every remote filesystem.
 	if strings.HasPrefix(abs, `\\`) {
-		return "", errors.New("活动工程须位于本地磁盘，不能使用网络共享")
+		return "", errors.New(locales.ErrProjectNetwork())
 	}
 	return abs, nil
 }
@@ -126,7 +127,7 @@ func Open(path string) (*Store, error) {
 	}
 	// No migration is attempted on an unknown schema; the existing files stay intact.
 	if m.Schema != schemaVersion || m.ID == "" {
-		return nil, errors.New("不支持此工程版本；未修改原工程")
+		return nil, errors.New(locales.ErrProjectVersion())
 	}
 	s, err := connect(path, m, false)
 	if err != nil {
@@ -142,7 +143,7 @@ func Open(path string) (*Store, error) {
 func connect(path string, m Manifest, create bool) (*Store, error) {
 	lock, err := acquireLock(filepath.Join(path, "writer.lock"))
 	if err != nil {
-		return nil, fmt.Errorf("工程正在使用或无法加锁；未抢占其他写入者：%w", err)
+		return nil, apperr.Wrap(locales.ErrProjectLocked(err.Error()), err)
 	}
 	dbPath := filepath.Join(path, "project.sqlite")
 	if !create {
@@ -187,7 +188,7 @@ func (s *Store) initialize(doc subtitle.Document) error {
 	for i, cue := range doc.Cues {
 		cue.Position = i
 		if cue.ID == "" {
-			return errors.New("字幕 ID 不能为空")
+			return errors.New(locales.ErrCueID())
 		}
 		raw, err := json.Marshal(cue)
 		if err != nil {
@@ -259,20 +260,20 @@ func (s *Store) ApplyTranslation(commandID string, expected int64, edits []Edit)
 func (s *Store) apply(commandID string, expected int64, edits []Edit, manual bool) (int64, error) {
 	return s.mutate(commandID, expected, func(tx *sql.Tx, cursor int64) (int64, error) {
 		if len(edits) == 0 {
-			return cursor, errors.New("没有修改")
+			return cursor, errors.New(locales.ErrNoEdits())
 		}
 		before, after := []subtitle.Cue{}, []subtitle.Cue{}
 		seen := map[string]bool{}
 		for _, e := range edits {
 			if seen[e.ID] {
-				return cursor, errors.New("修改包含重复字幕 ID")
+				return cursor, errors.New(locales.ErrDuplicateEdit())
 			}
 			seen[e.ID] = true
 			if e.StartMs < 0 || e.EndMs <= e.StartMs || e.EndMs > maxSafeTime {
-				return cursor, errors.New("结束时间须大于开始时间，且时间不能为负")
+				return cursor, errors.New(locales.ErrEditTiming())
 			}
 			if strings.TrimSpace(e.Text) == "" || len(e.Text) > 1024*1024 {
-				return cursor, errors.New("字幕不能为空或超过 1 MiB")
+				return cursor, errors.New(locales.ErrEditText())
 			}
 			var raw string
 			if err := tx.QueryRow("SELECT body FROM cues WHERE id=?", e.ID).Scan(&raw); err != nil {
@@ -283,24 +284,25 @@ func (s *Store) apply(commandID string, expected int64, edits []Edit, manual boo
 				return cursor, err
 			}
 			if cue.ReadOnly {
-				return cursor, errors.New("此事件受格式保护，不能编辑")
+				return cursor, errors.New(locales.ErrEditProtected())
 			}
 			if !manual && (cue.TextLocked || cue.StartMs != e.StartMs || cue.EndMs != e.EndMs) {
-				return cursor, errors.New("候选不能覆盖手改锁或修改时间轴")
+				return cursor, errors.New(locales.ErrCandidateLocked())
 			}
 			if e.Track != "" && e.Track != "source" && e.Track != "translation" {
-				return cursor, errors.New("未知字幕语言轨")
+				return cursor, errors.New(locales.ErrTrack())
 			}
 			if !manual && e.Track != "" {
-				return cursor, errors.New("翻译结果不能更改原文轨")
+				return cursor, errors.New(locales.ErrCandidateSource())
 			}
+			sourceChanged := manual && e.Track != "translation" && subtitle.SourceText(cue) != e.Text
 			before = append(before, cue)
 			if manual {
-				previous := cue.Text
-				if e.Track == "source" && cue.Translated {
-					previous = cue.TranslationSource
-				}
-				cue.TextLocked = cue.TextLocked || previous != e.Text
+				// A hand-written translation is kept when translation runs
+				// again. Source corrections stay translatable, so they never
+				// lock the text.
+				editsTranslation := e.Track == "translation" || e.Track == "" && cue.Translated
+				cue.TextLocked = cue.TextLocked || editsTranslation && cue.Text != e.Text
 				cue.TimeLocked = cue.TimeLocked || cue.StartMs != e.StartMs || cue.EndMs != e.EndMs
 			}
 			if !manual || e.Track == "translation" {
@@ -313,6 +315,11 @@ func (s *Store) apply(commandID string, expected int64, edits []Edit, manual boo
 				cue.TranslationSource = e.Text
 			} else {
 				cue.Text = e.Text
+			}
+			if manual && (sourceChanged || cue.StartMs != e.StartMs || cue.EndMs != e.EndMs) {
+				// Word evidence describes an exact source/timeline revision.
+				cue.Words = nil
+				cue.SourceRange = nil
 			}
 			cue.StartMs, cue.EndMs = e.StartMs, e.EndMs
 			after = append(after, cue)
@@ -334,7 +341,7 @@ func (s *Store) SetTextLock(commandID string, expected int64, id string, locked 
 			return cursor, err
 		}
 		if cue.ReadOnly {
-			return cursor, errors.New("此事件受格式保护，不能解锁")
+			return cursor, errors.New(locales.ErrUnlockProtected())
 		}
 		before := []subtitle.Cue{cue}
 		cue.TextLocked = locked
@@ -343,7 +350,7 @@ func (s *Store) SetTextLock(commandID string, expected int64, id string, locked 
 }
 
 func recordHistory(tx *sql.Tx, cursor int64, before, after []subtitle.Cue) (int64, error) {
-	if err := putCues(tx, after); err != nil {
+	if err := replaceCues(tx, before, after); err != nil {
 		return cursor, err
 	}
 	if _, err := tx.Exec("DELETE FROM history WHERE seq>?", cursor); err != nil {
@@ -363,29 +370,40 @@ func recordHistory(tx *sql.Tx, cursor int64, before, after []subtitle.Cue) (int6
 
 func (s *Store) Undo(commandID string, expected int64, redo bool) (int64, error) {
 	return s.mutate(commandID, expected, func(tx *sql.Tx, cursor int64) (int64, error) {
-		seq, column, next := cursor, "before_json", cursor-1
+		seq, next := cursor, cursor-1
 		if redo {
-			seq, column, next = cursor+1, "after_json", cursor+1
+			seq, next = cursor+1, cursor+1
 		}
-		var raw string
-		if err := tx.QueryRow("SELECT "+column+" FROM history WHERE seq=?", seq).Scan(&raw); err != nil {
-			return cursor, errors.New("没有可撤销或重做的修改")
+		var beforeRaw, afterRaw string
+		if err := tx.QueryRow("SELECT before_json,after_json FROM history WHERE seq=?", seq).Scan(&beforeRaw, &afterRaw); err != nil {
+			return cursor, errors.New(locales.ErrNothingToUndo())
 		}
-		var cues []subtitle.Cue
-		if err := json.Unmarshal([]byte(raw), &cues); err != nil {
+		var before, after []subtitle.Cue
+		if err := json.Unmarshal([]byte(beforeRaw), &before); err != nil {
 			return cursor, err
 		}
-		return next, putCues(tx, cues)
+		if err := json.Unmarshal([]byte(afterRaw), &after); err != nil {
+			return cursor, err
+		}
+		if redo {
+			return next, replaceCues(tx, before, after)
+		}
+		return next, replaceCues(tx, after, before)
 	})
 }
 
-func putCues(tx *sql.Tx, cues []subtitle.Cue) error {
+func replaceCues(tx *sql.Tx, before, cues []subtitle.Cue) error {
+	for _, cue := range before {
+		if _, err := tx.Exec("DELETE FROM cues WHERE id=?", cue.ID); err != nil {
+			return err
+		}
+	}
 	for _, cue := range cues {
 		raw, err := json.Marshal(cue)
 		if err != nil {
 			return err
 		}
-		if _, err = tx.Exec("UPDATE cues SET body=? WHERE id=?", string(raw), cue.ID); err != nil {
+		if _, err = tx.Exec("INSERT INTO cues(id,position,body) VALUES(?,?,?)", cue.ID, cue.Position, string(raw)); err != nil {
 			return err
 		}
 	}
@@ -396,7 +414,7 @@ func (s *Store) mutate(id string, expected int64, change func(*sql.Tx, int64) (i
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if id == "" || len(id) > 128 {
-		return 0, errors.New("缺少有效命令 ID")
+		return 0, errors.New(locales.ErrCommandID())
 	}
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -416,7 +434,7 @@ func (s *Store) mutate(id string, expected int64, change func(*sql.Tx, int64) (i
 		return 0, err
 	}
 	if revision != expected {
-		return revision, errors.New("REVISION_CONFLICT：工程已有新修改，请重新载入后核对")
+		return revision, errors.New(locales.ErrRevisionConflict())
 	}
 	cursor, err = change(tx, cursor)
 	if err != nil {

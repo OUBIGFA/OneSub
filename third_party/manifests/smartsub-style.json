@@ -3,12 +3,13 @@
   "revision": "f7ce2045aea53177a60236092487897da3c8cd06",
   "spdx": "MIT",
   "license": "third_party/licenses/smartsub.txt",
-  "modifications": "fontResolver exact-family alias priority; see third_party/ports/smartsub/README.md; process adapter loads SmartSub font variants",
+  "modifications": "fontResolver exact-family alias priority; assStyleBuilder bilingual events and exact background box padding; see third_party/ports/smartsub/README.md; process adapter loads SmartSub font variants and measures fonts for the box",
   "files": [
     {
       "source": "main/helpers/assStyleBuilder.ts",
       "destination": "workers/style-core/smartsub/main/helpers/assStyleBuilder.ts",
-      "sha256": "d24554abfbfbaa0f06d9fe0b39a681bab20a406abc7237720612780974fc8bba"
+      "upstreamSha256": "d24554abfbfbaa0f06d9fe0b39a681bab20a406abc7237720612780974fc8bba",
+      "sha256": "5ef1a373821fb61070aff2597a596843bc034e99f7ef68d9638fc98b1a462b5d"
     },
     {
       "source": "main/helpers/subtitleFormats.ts",

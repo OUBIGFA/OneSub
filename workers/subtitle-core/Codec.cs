@@ -12,7 +12,7 @@ static class Codec
     {
         "srt" => new SubRip(), "vtt" => new WebVTT(),
         "ass" => new AdvancedSubStationAlpha(), "ssa" => new SubStationAlpha(),
-        _ => throw new InvalidDataException("不支持的字幕格式")
+        _ => throw new InvalidDataException("E_FORMAT")
     };
 
     public static Document Read(string path)
@@ -28,7 +28,7 @@ static class Codec
         parser.LoadSubtitle(source, Regex.Split(original, "\r\n|\n|\r").ToList(), "source." + format);
         var paragraphs = source.Paragraphs.Where(p => !p.IsComment).ToList();
         if (paragraphs.Count == 0 || parser.ErrorCount > 0)
-            throw new InvalidDataException($"字幕解析失败（{parser.ErrorCount} 项格式错误），未导入部分结果");
+            throw new InvalidDataException($"E_PARSE:{parser.ErrorCount}");
         var cues = paragraphs.Select((p, index) => new Cue {
             Id = "c" + (index + 1), Position = index,
             StartMs = checked((long)Math.Round(p.StartTime.TotalMilliseconds)),
@@ -38,7 +38,7 @@ static class Codec
         if (format is "ass" or "ssa")
         {
             var events = AssEvents(original);
-            if (events.Count != cues.Count) throw new InvalidDataException("ASS 事件映射不完整");
+            if (events.Count != cues.Count) throw new InvalidDataException("E_ASS_MAPPING");
             for (int i = 0; i < events.Count; i++)
             {
                 cues[i].Text = cues[i].OriginalText = events[i].Text;
@@ -48,7 +48,7 @@ static class Codec
         if (format == "vtt")
         {
             var blocks = VttCues(original);
-            if (blocks.Count != cues.Count) throw new InvalidDataException("VTT 字幕映射不完整");
+            if (blocks.Count != cues.Count) throw new InvalidDataException("E_VTT_MAPPING");
             for (int i = 0; i < blocks.Count; i++)
                 cues[i].Text = cues[i].OriginalText = blocks[i].Groups["text"].Value.Replace("\r\n", "\n");
         }
@@ -61,16 +61,16 @@ static class Codec
         foreach (var cue in document.Cues)
         {
             if (cue.StartMs < 0 || cue.EndMs <= cue.StartMs || cue.EndMs > 9007199254740991L)
-                throw new InvalidDataException("存在非法时间；请先修复再导出");
-            if (string.IsNullOrWhiteSpace(cue.Text)) throw new InvalidDataException("存在空字幕；请先修复再导出");
+                throw new InvalidDataException("E_TIMING");
+            if (string.IsNullOrWhiteSpace(cue.Text)) throw new InvalidDataException("E_EMPTY_CUE");
         }
-        if (document.Cues.Count == 0) throw new InvalidDataException("没有可导出的字幕");
+        if (document.Cues.Count == 0) throw new InvalidDataException("E_NO_CUES");
         if (target == document.Format && target is "ass" or "ssa" or "vtt")
         {
             var baseline = Parse(document.Original, document.Format);
             if (baseline.Cues.Count != document.Cues.Count ||
                 baseline.Cues.Where((c, i) => c.Id != document.Cues[i].Id).Any())
-                throw new InvalidDataException("保留格式导出不能改变事件数量或顺序；请另存 SRT");
+                throw new InvalidDataException("E_PRESERVE_ORDER");
             if (target == "vtt") return WriteVtt(document, baseline);
             var lines = Regex.Split(document.Original, "(?<=\n)");
             var events = AssEvents(document.Original);
@@ -78,17 +78,17 @@ static class Codec
             {
                 var before = baseline.Cues[i]; var after = document.Cues[i];
                 if (after.StartMs != before.StartMs || after.EndMs != before.EndMs)
-                    throw new InvalidDataException("保留排版模式不能改变 ASS 时间");
+                    throw new InvalidDataException("E_ASS_TIMING");
                 if (before.ReadOnly && after.Text != before.Text)
-                    throw new InvalidDataException("ASS 绘图事件受保护");
+                    throw new InvalidDataException("E_ASS_DRAWING");
                 if (!Tokens(before.Text).SequenceEqual(Tokens(after.Text)) || after.Text.Contains('\n') || after.Text.Contains('\r'))
-                    throw new InvalidDataException("ASS 标签与原有换行受保护");
+                    throw new InvalidDataException("E_ASS_TAGS");
                 var item = events[i];
                 lines[item.Line] = item.Prefix + after.Text + item.Newline;
             }
             return string.Concat(lines);
         }
-        if (target is "ass" or "ssa") throw new InvalidDataException("新 ASS 排版需先生成样式文档");
+        if (target is "ass" or "ssa") throw new InvalidDataException("E_ASS_NEEDS_STYLE");
         var normalized = new Subtitle();
         foreach (var cue in document.Cues)
             normalized.Paragraphs.Add(new Paragraph(cue.Text, cue.StartMs, cue.EndMs));
@@ -115,7 +115,7 @@ static class Codec
         for (int i = blocks.Count - 1; i >= 0; i--)
         {
             var b = blocks[i]; var before = baseline.Cues[i]; var cue = document.Cues[i];
-            if (cue.Text.Contains("\n\n")) throw new InvalidDataException("VTT 字幕内不能含空段");
+            if (cue.Text.Contains("\n\n")) throw new InvalidDataException("E_VTT_BLANK");
             var start = cue.StartMs == before.StartMs ? b.Groups["start"].Value : Stamp(cue.StartMs);
             var end = cue.EndMs == before.EndMs ? b.Groups["end"].Value : Stamp(cue.EndMs);
             var replacement = start + b.Groups["arrow"].Value + end + b.Groups["settings"].Value +
@@ -141,16 +141,16 @@ static class Codec
             {
                 var names = trimmed[7..].Split(',').Select(s => s.Trim()).ToArray();
                 if (!names[^1].Equals("Text", StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("ASS Text 字段必须位于事件末尾");
+                    throw new InvalidDataException("E_ASS_FORMAT");
                 fields = names.Length;
             }
             if (!trimmed.StartsWith("Dialogue:", StringComparison.OrdinalIgnoreCase)) continue;
-            if (fields < 3) throw new InvalidDataException("ASS 缺少事件 Format 声明");
+            if (fields < 3) throw new InvalidDataException("E_ASS_FORMAT");
             int at = body.IndexOf(':') + 1;
             for (int field = 0; field < fields - 1; field++)
             {
                 at = body.IndexOf(',', at) + 1;
-                if (at == 0) throw new InvalidDataException("ASS 事件字段不足");
+                if (at == 0) throw new InvalidDataException("E_ASS_FORMAT");
             }
             result.Add(new AssLine(i, body[..at], body[at..], lines[i][body.Length..]));
         }

@@ -18,6 +18,18 @@ test('SmartSub styles and position are executed without replacing its generator'
   expect(STYLE_PRESETS.some(p => p.id === 'netflix_bilingual')).toBe(true);
 });
 
+test('bilingual order is independent of primary font and uses one event', () => {
+  const cues = [{ startMs: 1000, endMs: 3000, text: 'main', secondaryText: '次字幕' }];
+  const secondaryStyle = { ...DEFAULT_STYLE, fontSize: 16, italic: true, primaryColor: '#FFFF00' };
+  for (const secondaryFirst of [true, false]) {
+    const ass = buildAssDocument(cues, DEFAULT_STYLE, { secondaryStyle, secondaryFirst });
+    expect(ass).toContain('Style: Secondary,');
+    expect(ass).toContain(',16,&H0000FFFF,');
+    expect(ass).toContain(secondaryFirst ? '{\\rSecondary}次字幕\\N{\\rDefault}main' : '{\\rDefault}main\\N{\\rSecondary}次字幕');
+    expect(ass.match(/^Dialogue:/gm)?.length).toBe(1);
+  }
+});
+
 test('OneSub rejects invalid cues instead of accepting upstream filtering', () => {
   expect(() => validateCues([{ startMs: 1, endMs: 2, text: 'too short after ASS quantization' }])).toThrow();
   expect(() => validateCues([{ startMs: 100, endMs: 200, text: '' }])).toThrow();

@@ -30,7 +30,8 @@ for($i=0;$i -lt 30;$i++){$body+="$($i+1)`n00:00:$('{0:00}' -f $i),000 --> 00:00:
 if($LASTEXITCODE -ne 0){throw 'Fixture failed'}
 $env:ONESUB_DATA_ROOT=Join-Path $workPath 'data'
 New-Item -ItemType Directory $env:ONESUB_DATA_ROOT | Out-Null
-[IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),'{"version":1,"closeToTray":true}',[Text.UTF8Encoding]::new($false))
+# Controls are found by their Chinese names; pin the interface language.
+[IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),'{"version":1,"closeToTray":true,"uiLanguage":"zh-Hans"}',[Text.UTF8Encoding]::new($false))
 $env:ONESUB_FFMPEG=(Get-Command ffmpeg).Source
 $env:ONESUB_FFPROBE=(Get-Command ffprobe).Source
 if($Packaged){foreach($name in @('ONESUB_FFPROBE','ONESUB_FFMPEG','ONESUB_SUBTITLE_WORKER','ONESUB_STYLE_WORKER','ONESUB_SKILL_WORKER','ONESUB_SKILL_ROOT')){Remove-Item "Env:$name" -ErrorAction SilentlyContinue}}
@@ -95,23 +96,28 @@ try {
   Start-Sleep -Milliseconds 400
   if(-not [PolishNative]::IsWindowVisible($hwnd) -or [PolishNative]::IsIconic($hwnd)){throw "Activation failed: $mode"}
  }
- # Explicit source save, manual translation save, then unsaved-edit cancellation.
+ # Edits go live into the list; the list's Save replaces the original file.
  Set-Text '字幕文字' '原文修改'
- if(-not (Find-UI '未保存')){throw 'Missing dirty state'}
+ [void](Wait-UI '未保存')
  Click-UI '保存'
+ for($i=0;$i -lt 100;$i++){if([IO.File]::ReadAllText($srt) -match '原文修改'){break};Start-Sleep -Milliseconds 100}
+ if([IO.File]::ReadAllText($srt) -notmatch '原文修改'){throw 'Save did not replace the original subtitle'}
+ # Source and translation are edited independently.
  Select-Tab '译文'
  Set-Text '字幕文字' 'Translated text'
- Click-UI '保存'
- Set-Text '字幕文字' 'Uncommitted change'
+ Start-Sleep -Milliseconds 1000
  Select-Tab '原文'
- [void](Wait-UI '是否保存字幕修改？')
- Click-UI '取消'
- if((Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne 'Uncommitted change'){throw 'Cancel lost draft'}
- Select-Tab '原文';Click-UI '不保存'
  if((Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '原文修改'){throw 'Source and translation were mixed'}
+ # Clearing with unsaved changes asks first; Cancel keeps everything.
+ Set-Text '字幕文字' 'Unsaved change'
+ [void](Wait-UI '未保存')
+ Click-UI '清空工作台'
+ [void](Wait-UI '清空工作台？')
+ Click-UI '取消'
+ if((Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne 'Unsaved change'){throw 'Cancel lost the edit'}
  # Confirm every settings tab keeps exactly the same content rectangle.
  Click-UI '设置';$initial=(Wait-UI '设置内容').Current.BoundingRectangle
- foreach($tab in @('识别','模型','翻译','常规')){Select-Tab $tab;$next=(Wait-UI '设置内容').Current.BoundingRectangle;if($next.Height -ne $initial.Height -or $next.Top -ne $initial.Top){throw "Settings changed size: $tab"}}
+ foreach($tab in @('识别与模型','翻译','常规')){Select-Tab $tab;$next=(Wait-UI '设置内容').Current.BoundingRectangle;if($next.Height -ne $initial.Height -or $next.Top -ne $initial.Top){throw "Settings changed size: $tab"}}
  Click-UI '关闭'
  # Compare internal panes as well as outer bounds when dialog/task status changes.
  $before=Rect
@@ -138,7 +144,7 @@ try {
  if(-not(Test-Path ($output+'.onesub.json'))){throw 'Composition did not publish verified output'}
  Start-Sleep -Seconds 1
  & $ScreenshotTool $p.Id (Join-Path $workPath 'workbench.png')
- Write-Output 'PASS: single instance visible/minimized/tray; source/translation save; unsaved Save/Discard/Cancel; equal settings; file dialog bounds; real composition/player progress'
+ Write-Output 'PASS: single instance visible/minimized/tray; live edit and list save; independent source/translation; unsaved prompt on clearing; equal settings; file dialog bounds; real composition/player progress'
 } finally {
  # Only this test-owned process is terminated; no user instance is touched.
  $p.Refresh();if(-not $p.HasExited){$p.Kill();$p.WaitForExit()}

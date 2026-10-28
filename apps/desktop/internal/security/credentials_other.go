@@ -2,14 +2,18 @@
 
 package security
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
+)
 
 func SaveKey(endpoint, key string) error {
-	return errors.New("当前平台的系统凭据存储尚未验收")
+	return errors.New(locales.ErrCredentialsPlatform())
 }
 func ReadKey(endpoint string) (string, error) {
-	return "", errors.New("当前平台的系统凭据存储尚未验收")
+	return "", errors.New(locales.ErrCredentialsPlatform())
 }
 func DeleteKey(endpoint string) error {
-	return errors.New("当前平台的系统凭据存储尚未验收")
+	return errors.New(locales.ErrCredentialsPlatform())
 }

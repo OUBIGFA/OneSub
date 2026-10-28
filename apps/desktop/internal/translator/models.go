@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 // Models queries only the explicitly configured service, without redirects or
@@ -37,18 +39,18 @@ func Models(ctx context.Context, endpointURL, key string, client *http.Client) (
 	copyClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	response, err := copyClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("无法获取模型列表，请检查服务地址或手动填写模型：%w", err)
+		return nil, apperr.Wrap(locales.ErrModelsFetch(err.Error()), err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("模型列表返回 HTTP %d，可手动填写模型", response.StatusCode)
+		return nil, errors.New(locales.ErrModelsHttp(response.StatusCode))
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, 2*1024*1024+1))
 	if err != nil {
 		return nil, err
 	}
 	if len(data) > 2*1024*1024 {
-		return nil, errors.New("模型列表超过大小限制")
+		return nil, errors.New(locales.ErrModelsSize())
 	}
 	var result struct {
 		Data []struct {
@@ -56,7 +58,7 @@ func Models(ctx context.Context, endpointURL, key string, client *http.Client) (
 		} `json:"data"`
 	}
 	if err = json.Unmarshal(data, &result); err != nil {
-		return nil, errors.New("模型列表格式无效，可手动填写模型")
+		return nil, errors.New(locales.ErrModelsFormat())
 	}
 	names := []string{}
 	for _, model := range result.Data {
@@ -67,7 +69,7 @@ func Models(ctx context.Context, endpointURL, key string, client *http.Client) (
 	slices.Sort(names)
 	names = slices.Compact(names)
 	if len(names) == 0 {
-		return nil, errors.New("服务未返回模型，可手动填写模型")
+		return nil, errors.New(locales.ErrModelsEmpty())
 	}
 	return names, nil
 }

@@ -17,7 +17,10 @@ func TestTranslationCommitUndoLocksAndStaleResults(t *testing.T) {
 	if snapshot(t, s).Document.Cues[0].Text != "原句" {
 		t.Fatal("translation not undoable")
 	}
-	if _, err := s.Apply("manual", 2, edit("手改")); err != nil {
+	// A hand-written translation is protected from the next run.
+	manual := edit("手改")
+	manual[0].Track = "translation"
+	if _, err := s.Apply("manual", 2, manual); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.ApplyTranslation("stale", 1, edit("过期")); err == nil {
