@@ -4,11 +4,13 @@ import (
 	"context"
 	"math"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/egoist/mygo"
@@ -25,7 +27,7 @@ func withStyleCatalog(t *testing.T) *NativeApp {
 	}
 	a.styleCatalog = catalog
 	a.currentStyle = catalog.DefaultStyle
-	a.stylePreset = "默认"
+	a.stylePreset = "default"
 	a.snapshot = &project.Snapshot{Document: subtitle.Document{Format: "srt", Cues: []subtitle.Cue{{ID: "c1", Text: "source", OriginalText: "source", StartMs: 0, EndMs: 2000}}}}
 	a.selected = 0
 	a.loadDraft()
@@ -130,5 +132,90 @@ func TestSourceAndTranslationTabsRemainDistinct(t *testing.T) {
 	cue.Text = "译文"
 	if cueDisplayText(cue, 0) != "edited source" || cueDisplayText(cue, 1) != "译文" {
 		t.Fatal("source overwritten by translation")
+	}
+}
+
+// Outline and box each show only their own parameters, named after what
+// they paint.
+func TestAppearanceShowsTheChosenBorderParameters(t *testing.T) {
+	a := withStyleCatalog(t)
+	a.currentStyle.BorderStyle = 1
+	tt := ui.NewTester(a.view, 1700, 1000)
+	for _, label := range []string{"描边宽度", "描边颜色", "阴影距离", "阴影颜色"} {
+		if _, ok := tt.Find(label); !ok {
+			t.Fatal("outline mode lacks", label)
+		}
+	}
+	for _, label := range []string{"背景框边距", "背景不透明度（%）"} {
+		if _, ok := tt.Find(label); ok {
+			t.Fatal("outline mode shows box parameter", label)
+		}
+	}
+	a.currentStyle.BorderStyle = 3
+	tt.Frame()
+	for _, label := range []string{"背景框边距", "背景颜色", "背景不透明度（%）"} {
+		if _, ok := tt.Find(label); !ok {
+			t.Fatal("box mode lacks", label)
+		}
+	}
+	for _, label := range []string{"描边宽度", "阴影距离", "描边颜色"} {
+		if _, ok := tt.Find(label); ok {
+			t.Fatal("box mode shows outline parameter", label)
+		}
+	}
+}
+
+// Saving makes a new preset and leaves SmartSub's presets untouched; only
+// the user's own presets can be renamed or deleted.
+func TestUserPresetsAreCopies(t *testing.T) {
+	a := withStyleCatalog(t)
+	builtin := a.styleCatalog.Presets[0]
+	a.stylePreset = builtin.ID
+	a.currentStyle = builtin.Style
+	a.currentStyle.FontSize = 31
+	tt := ui.NewTester(a.view, 1700, 1000)
+	if err := tt.Click("保存为新预设"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.presetDialog != "save" || !tt.HasText("预设名称") {
+		t.Fatal(tt.Texts())
+	}
+	a.presetName = "访谈"
+	tt.Frame()
+	if err := tt.Click("保存预设"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.settings.UserPresets) != 1 || a.settings.UserPresets[0].Style.FontSize != 31 || a.stylePreset != a.settings.UserPresets[0].ID {
+		t.Fatal(a.settings.UserPresets, a.stylePreset)
+	}
+	if a.styleCatalog.Presets[0].Style.FontSize == 31 {
+		t.Fatal("built-in preset changed")
+	}
+	a.presetDialog, a.presetDialogLayer, a.presetName = "rename", 0, "访谈 · 竖屏"
+	tt.Frame()
+	if err := tt.Click("保存名称"); err != nil {
+		t.Fatal(err)
+	}
+	if a.settings.UserPresets[0].Name != "访谈 · 竖屏" || a.presetLabel(a.stylePreset) != "访谈 · 竖屏" {
+		t.Fatal(a.settings.UserPresets)
+	}
+	a.stylePreset = builtin.ID
+	tt.Frame()
+	if err := tt.Click("重命名"); err == nil && a.presetDialog != "" {
+		t.Fatal("built-in preset renamable")
+	}
+	a.stylePreset = a.settings.UserPresets[0].ID
+	a.presetDialog, a.presetDialogLayer = "delete", 0
+	tt.Frame()
+	if err := tt.Click("删除预设"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.settings.UserPresets) != 0 || a.currentStyle.FontSize != 31 || a.presetLabel(a.stylePreset) != "自定义" {
+		t.Fatal("delete changed the current style or label", a.currentStyle, a.stylePreset)
+	}
+	prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
+	if err != nil || len(prefs.UserPresets) != 0 {
+		t.Fatal(prefs, err)
 	}
 }

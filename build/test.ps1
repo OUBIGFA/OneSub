@@ -29,6 +29,9 @@ Push-Location $root
 try {
     Push-Location apps/desktop
     try {
+        # Message accessors are generated from locales/*.json and not tracked.
+        & go run github.com/egoist/mygo/cmd/mygo generate
+        if ($LASTEXITCODE -ne 0) { throw 'Message catalog generation failed' }
         & go test @Packages -count=1
         if ($LASTEXITCODE -ne 0) { throw 'Go tests failed' }
     } finally { Pop-Location }

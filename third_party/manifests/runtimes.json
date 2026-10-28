@@ -6,7 +6,7 @@
     "signing and clean-machine install/upgrade/uninstall acceptance"
   ],
   "mygo": {
-    "version": "v0.6.4",
+    "version": "v0.6.5-0.20261026090713-558e498142b0",
     "license": "third_party/licenses/mygo.txt"
   },
   "libse": {

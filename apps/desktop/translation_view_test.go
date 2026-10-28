@@ -14,7 +14,7 @@ import (
 func TestNativeTranslationSettingsAndReviewCommit(t *testing.T) {
 	a := nativeForTest(t)
 	a.settingsOpen = true
-	a.settingsTab = 3
+	a.settingsTab = 2
 	tt := ui.NewTester(a.view, 1280, 840)
 	for _, label := range []string{"API Key", "保存 Key", "目标语言", "API 请求上限"} {
 		if !tt.HasText(label) {
@@ -35,9 +35,13 @@ func TestNativeTranslationSettingsAndReviewCommit(t *testing.T) {
 	a.snapshot = &state
 	a.selected = 0
 	a.loadDraft()
-	candidate := state.Document
-	candidate.Cues = append([]subtitle.Cue{}, candidate.Cues...)
+	candidate, _, err := subtitle.Resegment(state.Document, []subtitle.SourceRange{{FirstAtom: "c1", LastAtom: "c1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	candidate.Cues[0].Text = "你好"
+	candidate.Cues[0].Translated = true
+	candidate.Cues[0].TranslationSource = "Hello"
 	a.translationCandidate = &translationCandidate{ProjectID: state.Manifest.ID, Revision: 0, Result: translator.Result{Document: candidate, Report: translator.Report{Translated: 1}}, Checks: translator.Findings{Blocks: 1}}
 	a.translationReview = true
 	tt = ui.NewTester(a.view, 1280, 840)

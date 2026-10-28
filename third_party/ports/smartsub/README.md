@@ -13,3 +13,36 @@
 适配器调用原 `loadFontData` 取得常规及粗体／斜体 variants，缓存经 SHA-256 校验的字节，并把同一组字体交给 JASSUB 和 FFmpeg。缓存位于用户数据目录，不随安装器再分发系统字体。
 
 验证：真实 Windows 字体文件的 family 与 Bold 检查，重复缓存一致性；Go 包内样式与软／硬字幕合成回归；暂停帧粗体显示由桌面截图核对。
+
+## 双语字幕事件
+
+文件：`main/helpers/assStyleBuilder.ts`；符号：`buildAssDocument`。
+
+需求：双语字幕的原文与译文各用一套样式，并在碰撞布局中保持为一组。
+
+修改：可选参数 `bilingual` 增加 `Secondary` 样式行。每条字幕仍写成一个事件，用 `{\rDefault}` 和 `{\rSecondary}` 切换样式，`secondaryFirst` 决定上下顺序。块的对齐和边距沿用主样式。不传 `bilingual` 时输出与上游相同。
+
+## 背景框精确边距
+
+文件：`main/helpers/assStyleBuilder.ts`；符号：`FontMeasure`、`wrapForBox`、`exactBoxEvents`、`buildAssDocument`。
+
+复现：背景框（BorderStyle=3）边距设为 0 时，左右贴紧文字，上下仍有空白。libass 按 OS/2 winAscent + winDescent 确定字号，背景框覆盖整个行高，与字形墨迹无关，`\ybord` 也不能小于 0。脚本空间为 384×288（4:3），16:9 视频中 libass 按画面宽度缩放水平边框、按高度缩放字形，所以左右边距大于上下边距。
+
+修改：
+
+- 传入 `measure` 时，不与其它字幕同时显示的字幕改用精确背景框。每个带框的行占一层：该层用不可见文字复用 libass 自身的背景框，再用 `\clip` 裁到"墨迹上下沿 ± 边距"的横带。相邻行的横带重叠时在中点分开，半透明背景不重复叠加。文字在最上层单独绘制。
+- 自动换行改为显式 `\N` 加 `\q2`。换行按 libass 智能换行（WrapStyle 0）均衡行宽，并遵守中文避头尾。预览与烧录使用同一组行。
+- `frameAspect` 校正水平边距：`\xbord = 边距 × (384 / 288) / 画面宽高比`。
+- 与其它字幕时间重叠的字幕、字体无法测量的字幕和描边模式，保持上游输出。
+
+适配器：`workers/style-core/main.ts` 的 `measureStyle` 用 fontkit 读取 SmartSub 交给 libass 的同一份字体字节（粗体取同族粗体字面），按 `Fontsize / (winAscent + winDescent)` 换算字宽与字形墨迹。
+
+验证：`workers/style-core/box.test.ts` 固定事件结构。1920×1080 画面、Microsoft YaHei 24、FFmpeg 8.1（libass）烧录后逐像素测量：
+
+| 边距 | 上 / 下 / 左 / 右（像素） | 上游输出 |
+| --- | --- | --- |
+| 0 | 1 / 1 / 3 / 3 | 21 / 14 / 7 / 7 |
+| 4（=15 px） | 17 / 16 / 17 / 17 | 31 / 24 / 23 / 23 |
+| 8（=30 px） | 31 / 30 / 33 / 33 | — |
+
+4:3 画面边距 4 的结果同为 17 / 16 / 17 / 17。像素值含抗锯齿和字形左右间距。半透明多行背景框的行间可能有 1 px 浅缝。

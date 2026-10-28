@@ -7,9 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/OUBIGFA/OneSub/apps/desktop/internal/jobs"
 	"strconv"
 	"time"
+
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/jobs"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 type Stream struct {
@@ -23,6 +26,8 @@ type Stream struct {
 	StartTime     string            `json:"start_time"`
 	Tags          map[string]string `json:"tags"`
 	ColorTransfer string            `json:"color_transfer"`
+	PixFmt        string            `json:"pix_fmt"`
+	SampleAspect  string            `json:"sample_aspect_ratio"`
 	Disposition   struct {
 		Default     int `json:"default"`
 		Forced      int `json:"forced"`
@@ -49,6 +54,23 @@ func (i Info) HasVideo() bool {
 	}
 	return false
 }
+
+// FrameAspect is the main video's display width / height, with its sample
+// aspect ratio; 0 without a video stream.
+func (i Info) FrameAspect() float64 {
+	for _, s := range i.Streams {
+		if s.CodecType != "video" || s.Disposition.AttachedPic != 0 || s.Width <= 0 || s.Height <= 0 {
+			continue
+		}
+		aspect := float64(s.Width) / float64(s.Height)
+		var n, d float64
+		if _, err := fmt.Sscanf(s.SampleAspect, "%g:%g", &n, &d); err == nil && n > 0 && d > 0 {
+			aspect *= n / d
+		}
+		return aspect
+	}
+	return 0
+}
 func (i Info) DurationMs() int64 {
 	seconds, _ := strconv.ParseFloat(i.Format.Duration, 64)
 	return int64(seconds * 1000)
@@ -58,7 +80,7 @@ type limitedOutput struct{ bytes.Buffer }
 
 func (o *limitedOutput) Write(p []byte) (int, error) {
 	if o.Len()+len(p) > 1024*1024 {
-		return 0, errors.New("媒体信息超过 1 MiB")
+		return 0, errors.New(locales.ErrProbeTooLarge())
 	}
 	return o.Buffer.Write(p)
 }
@@ -72,15 +94,15 @@ func Probe(ctx context.Context, executable, path string) (Info, error) {
 	stdout, stderr := &limitedOutput{}, &limitedOutput{}
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	if err := cmd.Run(); err != nil {
-		return info, fmt.Errorf("无法探测媒体；请检查文件与 ffprobe：%w", err)
+		return info, apperr.Wrap(locales.ErrProbe(err.Error()), err)
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &info); err != nil {
-		return info, fmt.Errorf("媒体信息无效：%w", err)
+		return info, apperr.Wrap(locales.ErrProbeInvalid(err.Error()), err)
 	}
 	for _, stream := range info.Streams {
 		if stream.CodecType == "audio" || stream.CodecType == "video" {
 			return info, nil
 		}
 	}
-	return info, errors.New("媒体没有可用的音频或视频流")
+	return info, errors.New(locales.ErrProbeNoStreams())
 }

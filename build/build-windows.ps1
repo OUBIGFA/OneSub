@@ -59,7 +59,8 @@ try {
     $out=Join-Path $root 'build/output/release'
     New-Item -ItemType Directory $out -Force | Out-Null
     $setup=Join-Path $out 'OneSub-0.0.1-Setup.exe'
-    Copy-Item (Join-Path $package 'windows-amd64/OneSub Setup 0.0.1 amd64.exe') $setup -Force
+    # MyGo names the installer <slug>-setup-<version>-<arch>.exe.
+    Copy-Item (Join-Path $package 'windows-amd64/onesub-setup-0.0.1-amd64.exe') $setup -Force
     $hash=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant()
     [IO.File]::WriteAllText(($setup+'.sha256'),"$hash  OneSub-0.0.1-Setup.exe`n",[Text.UTF8Encoding]::new($false))
     Copy-Item 'build/output/build-info.json' $out -Force

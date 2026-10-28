@@ -1,1 +1,680 @@
-{"mygo.appName":"OneSub"}
+{
+  "@@locale": "en",
+  "mygo.appName": "OneSub",
+  "menuFile": "File",
+  "menuOpenProject": "Open project",
+  "menuExportSubtitles": "Export subtitles",
+  "actionAddFiles": "Add files",
+  "actionClearWorkbench": "Clear workbench",
+  "actionRecognize": "Transcribe",
+  "actionTranslate": "Translate",
+  "actionCompose": "Export video",
+  "actionSettings": "Settings",
+  "actionCancelTask": "Cancel task",
+  "actionCancel": "Cancel",
+  "actionClose": "Close",
+  "actionSave": "Save",
+  "filterMediaAndSubtitles": "Video, audio and subtitles",
+  "listSeparator": "; ",
+  "a11yToolbar": "Main actions",
+  "a11yStatusBar": "Status bar",
+  "a11yPlayer": "Video player",
+  "a11yPlayerControls": "Playback controls",
+  "a11yVideo": "Video",
+  "a11yIconOf": "{label} icon",
+  "a11ySubtitleTabs": "Subtitle language",
+  "a11ySubtitleActions": "Subtitle actions",
+  "a11ySubtitleList": "Subtitle list",
+  "a11yCueText": "Subtitle text",
+  "a11ySettingsTabs": "Settings sections",
+  "a11ySettingsContent": "Settings content",
+  "a11yStyleLayers": "Style layer",
+  "a11yModelOf": "{kind} model",
+  "a11yManageModel": "Manage {kind} models",
+  "a11yModelFolder": "Model folder",
+  "a11yModelState": "Model file state",
+  "a11yReviewList": "Translation review list",
+  "a11yComposeProgressArea": "Video export progress",
+  "a11yComposeStage": "Export stage",
+  "a11yComposeProgress": "Export progress",
+  "statusDone": "Done",
+  "statusFailed": "Not completed",
+  "statusCleared": "Workbench cleared",
+  "statusCueCount": "{count, plural, one {# cue} other {# cues}}",
+  "@statusCueCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "statusExported": "Exported {name}",
+  "statusSavedFiles": "Saved {files}",
+  "taskOpenFiles": "Opening files",
+  "taskImport": "Importing files",
+  "taskSaveSubtitles": "Saving subtitles",
+  "taskChooseModelFolder": "Choosing model folder",
+  "taskVerifyModel": "Verifying model",
+  "taskDownloadModel": "Downloading model",
+  "percent": "{value, number, ::.0}%",
+  "@percent": {
+    "placeholders": {
+      "value": {
+        "type": "double"
+      }
+    }
+  },
+  "playerAddVideo": "Add video",
+  "playerPlay": "Play",
+  "playerPause": "Pause",
+  "playerBack": "Back 15 seconds",
+  "playerForward": "Forward 15 seconds",
+  "playerPosition": "Playback position",
+  "playerMute": "Mute",
+  "playerUnmute": "Unmute",
+  "playerVolume": "Volume",
+  "playerVolumeValue": "Volume {volume}%",
+  "@playerVolumeValue": {
+    "placeholders": {
+      "volume": {
+        "type": "int"
+      }
+    }
+  },
+  "tabSource": "Original",
+  "tabTranslation": "Translation",
+  "listSearch": "Search subtitles",
+  "listReview": "Review translation",
+  "listUnsaved": "Unsaved",
+  "listSave": "Save",
+  "listSaveAs": "Save as",
+  "listEmpty": "No subtitles loaded",
+  "listColumnStart": "Start",
+  "listColumnEnd": "End",
+  "listColumnText": "Subtitle",
+  "editorTitle": "Subtitle editor",
+  "editorCueNumber": "No. {number, number, ::group-off}",
+  "@editorCueNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "editorNone": "No subtitle selected",
+  "editorStart": "Start",
+  "editorEnd": "End",
+  "editorUndo": "Undo",
+  "editorRedo": "Redo",
+  "errEditRestored": "Edit not applied, previous text restored: {detail}",
+  "savePromptTitle": "Save subtitle changes?",
+  "saveOverwrite": "{track}: replaces {file}",
+  "@saveOverwrite": {
+    "placeholders": {
+      "track": {
+        "type": "String"
+      },
+      "file": {
+        "type": "String"
+      }
+    }
+  },
+  "saveNewFile": "{track}: saved as a new file",
+  "saveDiscard": "Don't save",
+  "saveConfirm": "Save",
+  "saveSourceTitle": "Save original subtitles",
+  "saveTranslationTitle": "Save translated subtitles",
+  "clearTitle": "Clear the workbench?",
+  "clearBody": "Closes the current video and subtitles. No file is deleted.",
+  "clearConfirm": "Clear",
+  "clearDiscard": "Clear without saving",
+  "clearSave": "Save and clear",
+  "candidatesTitle": "Choose the matching file",
+  "candidatesLater": "Choose later",
+  "exitTitle": "Quit OneSub",
+  "exitTaskRunning": "A task is still running",
+  "exitWait": "Quit when finished",
+  "exitCancelTask": "Cancel task and quit",
+  "exitBack": "Back",
+  "trayOpen": "Open OneSub",
+  "trayExit": "Quit",
+  "settingsTitle": "Settings",
+  "settingsGeneral": "General",
+  "settingsRecognition": "Transcription and models",
+  "settingsTranslation": "Translation",
+  "settingsInterface": "Interface",
+  "settingsLanguage": "Language",
+  "languageSystem": "System language",
+  "settingsCloseWindow": "When closing the window",
+  "settingsCloseExit": "Quit",
+  "settingsCloseTray": "Minimize to tray",
+  "settingsPlayback": "Subtitles and playback",
+  "settingsSingleClick": "Click a subtitle",
+  "settingsDoubleClick": "Double-click a subtitle",
+  "settingsFollowPlayback": "Follow playback in the subtitle list",
+  "clickSelectOnly": "Select only",
+  "clickSeek": "Seek, keep playing state",
+  "clickSeekPause": "Seek and pause",
+  "clickSeekPlay": "Seek and play",
+  "settingsModels": "Transcription and alignment models",
+  "settingsAuxModels": "Auxiliary models",
+  "modelKindAsr": "Speech recognition",
+  "modelKindAligner": "Timing alignment",
+  "modelKindHotword": "Hotword recall",
+  "modelKindDemucs": "Vocal separation",
+  "settingsRecognitionOptions": "Transcription options",
+  "settingsBackend": "Backend",
+  "settingsSourceLanguage": "Spoken language",
+  "settingsChunk": "Chunk length (seconds)",
+  "settingsMaxTokens": "Maximum tokens",
+  "settingsAudioHotwords": "Audio and hotwords",
+  "settingsVocalSeparation": "Separate vocals",
+  "settingsHotwords": "Hotwords (not yet supported)",
+  "settingsHotwordsPlaceholder": "Words to recognize first",
+  "modelManage": "Manage",
+  "modelFiles": "Model files",
+  "modelSize": "Download size: {size, number, ::.00} GB",
+  "@modelSize": {
+    "placeholders": {
+      "size": {
+        "type": "double"
+      }
+    }
+  },
+  "modelDownload": "Download",
+  "modelChooseFolder": "Choose folder",
+  "modelVerify": "Verify files",
+  "modelStateUnknown": "Not verified",
+  "modelStateUnverified": "To be verified",
+  "modelStateVerified": "Verified",
+  "modelStageDownload": "Downloading",
+  "modelStageVerify": "Verifying",
+  "modelProgress": "{stage} {percent, number, ::.0}%",
+  "@modelProgress": {
+    "placeholders": {
+      "stage": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "double"
+      }
+    }
+  },
+  "translationService": "Service",
+  "translationEndpoint": "Endpoint",
+  "translationEndpointPlaceholder": "https://example.com/v1",
+  "translationModel": "Model",
+  "translationModelPlaceholder": "Choose or enter a model name",
+  "translationFetchModels": "Get models",
+  "translationModelsLoading": "Getting the model list",
+  "translationKeyPlaceholder": "Leave empty to keep the stored key",
+  "translationSaveKey": "Save key",
+  "translationDeleteKey": "Delete key",
+  "translationKeySaved": "Stored in Windows Credential Manager",
+  "translationKeyDeleted": "Key deleted",
+  "translationOptions": "Translation options",
+  "translationTarget": "Target language",
+  "translationRequestLimit": "API request limit",
+  "translationStyle": "Translation style",
+  "translationReloadStyles": "Reload styles",
+  "translationStyleFolder": "Style folder",
+  "translationOptimizeTimeline": "Improve segmentation before translating",
+  "translationGlossary": "Glossary",
+  "translationGlossaryPlaceholder": "source term = translation",
+  "translationScope": "{total} cues · {target} · {skipped} skipped",
+  "@translationScope": {
+    "placeholders": {
+      "total": {
+        "type": "int"
+      },
+      "target": {
+        "type": "String"
+      },
+      "skipped": {
+        "type": "int"
+      }
+    }
+  },
+  "translationPrivacy": "Only subtitles, timing evidence and the glossary are sent; no audio or video.",
+  "translationTimelineNote": "Segmentation is reviewed first. Without word timestamps cues are not split.",
+  "translationCostNote": "At most {count} requests. The price is set by the provider; check its bill.",
+  "@translationCostNote": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "translationStart": "Start translation",
+  "translationProgress": "Translating {done} / {total}",
+  "@translationProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "translationChecking": "Checking the translation",
+  "translationAwaitingReview": "Translation awaits review",
+  "translationAccepted": "Translation applied",
+  "reviewSummary": "{translated} translated · {changes} segmentation changes · {errors} errors · {warnings} warnings",
+  "@reviewSummary": {
+    "placeholders": {
+      "translated": {
+        "type": "int"
+      },
+      "changes": {
+        "type": "int"
+      },
+      "errors": {
+        "type": "int"
+      },
+      "warnings": {
+        "type": "int"
+      }
+    }
+  },
+  "reviewTimelineNote": "Timing comes from source evidence; check meaning and sync.",
+  "reviewLater": "Review later",
+  "reviewAccept": "Accept translation",
+  "profileGeneral": "General",
+  "profile3d": "3D / motion / VFX",
+  "profileDrama": "Film / series / anime",
+  "profileLiterature": "Literature",
+  "profileNews": "News",
+  "profileScience": "Popular science",
+  "profileShortVideo": "Vertical short video",
+  "profileTeaching": "Courses and lectures",
+  "outputContent": "Subtitle content",
+  "outputSource": "Original subtitles",
+  "outputTranslation": "Translated subtitles",
+  "outputBilingual": "Bilingual subtitles",
+  "outputOrder": "Line order",
+  "outputTranslationFirst": "Translation above · original below",
+  "outputSourceFirst": "Original above · translation below",
+  "outputPrimary": "Main subtitle",
+  "exportFormat": "File format",
+  "exportPlainNote": "No fonts or sizes are stored; choose ASS for separate main and secondary styles.",
+  "exportConfirm": "Export",
+  "composeMode": "Subtitle mode",
+  "composeHardMp4": "Hard subtitles (burn-in) · MP4",
+  "composeHardMkv": "Hard subtitles (burn-in) · MKV",
+  "composeSoftMkv": "Soft subtitles (muxed) · MKV",
+  "composeSoftMp4": "Soft subtitles (muxed) · MP4",
+  "composeQuality": "Encoding quality",
+  "composeQualityLossless": "Original quality (lossless)",
+  "composeLosslessNote": "H.264 lossless: frames equal the source outside the subtitles. Files are very large; some devices cannot play them.",
+  "composeCrfNote": "H.264 / libx264 · a lower CRF gives higher quality and larger files",
+  "composeMovTextNote": "MP4 uses mov_text subtitles and keeps no ASS fonts or layout",
+  "composeSample": "Export 5-second sample",
+  "composeStart": "Start export",
+  "composeRunning": "Exporting video",
+  "composeCancel": "Cancel export",
+  "composeStageChooseOutput": "Choosing the output file",
+  "composeStagePrepare": "Preparing subtitles and fonts",
+  "composeStageVerifyInput": "Checking the source file",
+  "composeStageEncode": "Encoding video",
+  "composeStageMux": "Muxing subtitles",
+  "composeStageVerifyOutput": "Checking the output file",
+  "styleTitle": "Subtitle style",
+  "styleLoading": "Loading fonts and styles",
+  "styleKeepAss": "Keeps the ASS file's own styles",
+  "stylePrimaryLayer": "Main subtitle style",
+  "styleSecondaryLayer": "Secondary subtitle style",
+  "styleSecondaryLayout": "Position and margins follow the main subtitle",
+  "stylePreset": "Preset",
+  "presetDefault": "Default",
+  "presetCustom": "Custom",
+  "presetSaveNew": "Save as new preset",
+  "presetRename": "Rename",
+  "presetDelete": "Delete",
+  "presetNameLabel": "Preset name",
+  "presetSaveConfirm": "Save preset",
+  "presetRenameConfirm": "Save name",
+  "presetDeleteConfirm": "Delete preset",
+  "presetNewName": "My preset {n}",
+  "@presetNewName": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "presetDeleteTitle": "Delete the preset “{name}”?",
+  "presetBilibili": "Bilibili knowledge",
+  "presetNetflix": "Netflix bilingual",
+  "presetVariety": "Variety show glow",
+  "presetClassic": "Classic white with outline",
+  "presetMovie": "Film subtitles",
+  "presetYoutube": "YouTube style",
+  "presetBlackBox": "White on black box",
+  "presetClean": "Clean and light",
+  "presetBold": "Bold and striking",
+  "styleText": "Text",
+  "styleFont": "Subtitle font",
+  "styleFontSize": "Size",
+  "styleTextColor": "Text color",
+  "styleReloadFonts": "Reload fonts",
+  "styleBold": "Bold",
+  "styleItalic": "Italic",
+  "styleUnderline": "Underline",
+  "styleAppearance": "Look",
+  "styleBorder": "Border style",
+  "styleBorderOutline": "Outline",
+  "styleBorderBox": "Background box",
+  "styleOutlineWidth": "Outline width",
+  "styleOutlineColor": "Outline color",
+  "styleShadowDistance": "Shadow distance",
+  "styleShadowColor": "Shadow color",
+  "styleShadowOpacity": "Shadow opacity (%)",
+  "styleBoxPadding": "Box padding",
+  "styleBoxColor": "Box color",
+  "styleBoxOpacity": "Box opacity (%)",
+  "styleLayout": "Layout",
+  "styleMarginLeft": "Left margin",
+  "styleMarginRight": "Right margin",
+  "styleMarginVertical": "Vertical margin",
+  "stylePosition": "Position",
+  "alignBottomLeft": "Bottom left",
+  "alignBottomCenter": "Bottom center",
+  "alignBottomRight": "Bottom right",
+  "alignMiddleLeft": "Middle left",
+  "alignCenter": "Center",
+  "alignMiddleRight": "Middle right",
+  "alignTopLeft": "Top left",
+  "alignTopCenter": "Top center",
+  "alignTopRight": "Top right",
+  "errSettingsVersion": "Unsupported settings version; the settings file was not changed",
+  "errSettingsChunk": "Chunk length must be 30–180 seconds",
+  "errSettingsMaxTokens": "Maximum tokens must be 1–32768",
+  "errSettingsMaxRequests": "The request limit must be 1–10000",
+  "errSettingsNeedRepair": "The settings file needs repair; it was not overwritten",
+  "errSettingsUnreadable": "Settings could not be read; the original file is kept",
+  "errTrayUnavailable": "The tray is unavailable; the window stays open",
+  "errVideoMoved": "The video has moved; add the video again",
+  "errPlayer": "Playback action failed: {detail}",
+  "errVideoUnsupported": "This video cannot be played directly; convert it to H.264 / AAC MP4 and try again",
+  "errSubtitlePreview": "Subtitle preview failed; try again",
+  "errModelsNeeded": "Download or choose the transcription and alignment models",
+  "errHotwordsUnsupported": "The current OneAsr CLI has no hotword option; clear the hotwords and try again",
+  "errAudioExtract": "Audio extraction failed: {detail}; {log}",
+  "@errAudioExtract": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      },
+      "log": {
+        "type": "String"
+      }
+    }
+  },
+  "errRecognition": "OneAsr transcription failed: {detail}; {log}",
+  "@errRecognition": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      },
+      "log": {
+        "type": "String"
+      }
+    }
+  },
+  "errWordTimingMissing": "OneAsr word timing is missing: {detail}",
+  "errCompose": "Export failed: {detail}",
+  "errMissingGlyphs": "The font lacks characters: {chars}",
+  "errTranslationStale": "REVISION_CONFLICT: the subtitles changed; translate again",
+  "errTranslationChecks": "Resolve the translation check errors first",
+  "errProfileRemoved": "The chosen style was removed; choose another",
+  "errSaveFile": "The subtitle file could not be saved: {detail}",
+  "errPublishExists": "Not written; use a new file name on a local disk. No existing file was replaced: {detail}",
+  "errComposeMode": "Choose hard subtitles (burn-in) or soft subtitles (muxed)",
+  "errComposeContainer": "Export supports MKV or MP4 only",
+  "errComposeStartTime": "The media does not start at zero; map its timing before exporting",
+  "errComposeStreamType": "The source has a {kind} stream; it is not dropped silently, choose a compatible delivery",
+  "errComposeMainVideo": "Export needs one main video stream",
+  "errComposeHdr": "HDR burn-in is not supported in this version; choose soft subtitles",
+  "errComposeMp4Attachments": "MP4 cannot keep attachments; choose MKV",
+  "errComposeMp4Subtitles": "MP4 cannot keep this subtitle stream; choose MKV",
+  "errComposeQuality": "Unknown export quality",
+  "errComposeExists": "The target file exists; choose another name",
+  "errFontChanged": "A font file changed; build the style again",
+  "errComposeStreamCount": "Output stream count differs: {kind} expected {expected}, got {actual}",
+  "@errComposeStreamCount": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      },
+      "expected": {
+        "type": "int"
+      },
+      "actual": {
+        "type": "int"
+      }
+    }
+  },
+  "errComposeDuration": "Output duration differs from the source",
+  "errComposeChapters": "Output chapter count differs",
+  "errComposeDecode": "Output decode check failed: {detail}",
+  "errComposePublish": "Not published; no existing file was replaced: {detail}",
+  "errComposeReport": "The video was written, but its report could not be saved: {detail}",
+  "errProbeTooLarge": "Media information exceeds 1 MiB",
+  "errProbe": "The media could not be probed; check the file and ffprobe: {detail}",
+  "errProbeInvalid": "Invalid media information: {detail}",
+  "errProbeNoStreams": "The media has no usable audio or video stream",
+  "errPreviewNotFile": "The preview source is not a file",
+  "errPreviewFontChanged": "Fonts changed; build the preview again",
+  "errImportEmpty": "Add a video or subtitle file",
+  "errImportRead": "Cannot read {name}: {detail}",
+  "@errImportRead": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "errImportFolder": "Add files, not folders",
+  "errImportManySubtitles": "Open one subtitle file at a time; choose the version to edit",
+  "errImportManyMedia": "Open one media file at a time; choose one video and its subtitles",
+  "errImportType": "Unsupported file type: {name}",
+  "errImportSiblings": "Matching files in the folder could not be checked: {detail}",
+  "warnSiblingSubtitle": "The subtitle with the same name was not loaded; the media is kept. {detail}",
+  "errSiblingNoVideo": "The file with the same name has no video stream",
+  "warnSiblingVideo": "The video with the same name was not linked; the subtitles are kept. {detail}",
+  "errJobControl": "The task process cannot be managed: {detail}",
+  "errJobMessage": "Invalid task message: {detail}",
+  "errJobPlatform": "Task cancellation is not yet accepted on this platform",
+  "errModelUnknown": "Unknown model: {id}",
+  "errModelMissing": "Model file not ready: {name}",
+  "errModelSize": "Model file size differs: {name}",
+  "errModelHash": "Model verification failed: {name}",
+  "errModelPartial": "Unexpected partial download size: {name}; choose an empty folder",
+  "errModelHttp": "Model download failed: HTTP {status, number, ::group-off}",
+  "@errModelHttp": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "errModelRange": "The resumed response range differs; nothing was appended",
+  "errModelOversize": "The model response exceeds its registered size",
+  "errModelFolder": "Model folder unavailable: {id}",
+  "errModelLink": "Model folders could not be linked: {detail}",
+  "errModelLinkCheck": "Model folder link check failed: {id}",
+  "errProjectPlatform": "This build accepts local Windows projects only",
+  "errProjectExtension": "Project folders must end with .onesub",
+  "errProjectExists": "Use a new project name: {detail}",
+  "errProjectSourceSize": "The subtitle source exceeds 64 MiB",
+  "errProjectNetwork": "An open project must be on a local disk, not a network share",
+  "errProjectVersion": "Unsupported project version; the project was not changed",
+  "errProjectLocked": "The project is in use or cannot be locked; no other writer was displaced: {detail}",
+  "errCueID": "Subtitle IDs cannot be empty",
+  "errNoEdits": "No changes",
+  "errDuplicateEdit": "The change repeats a subtitle ID",
+  "errEditTiming": "The end must be after the start, and times cannot be negative",
+  "errEditText": "Subtitles cannot be empty or larger than 1 MiB",
+  "errEditProtected": "This event is protected by its format and cannot be edited",
+  "errCandidateLocked": "A candidate cannot replace hand edits or change timing",
+  "errTrack": "Unknown subtitle track",
+  "errCandidateSource": "A translation result cannot change the original track",
+  "errUnlockProtected": "This event is protected by its format and cannot be unlocked",
+  "errNothingToUndo": "Nothing to undo or redo",
+  "errCommandID": "Missing a valid command ID",
+  "errRevisionConflict": "REVISION_CONFLICT: the project has newer changes; reload and check",
+  "errCredentialsPlatform": "System credential storage is not yet accepted on this platform",
+  "errCredentialsEndpoint": "Enter the service endpoint first",
+  "errCredentialsKey": "Invalid key length or format",
+  "errCredentialsSave": "The system credential could not be saved: {detail}",
+  "errCredentialsRead": "The system credential could not be read: {detail}",
+  "errCredentialsSize": "Unexpected credential size",
+  "errStyleWorker": "The style worker gave no valid reply: {detail}",
+  "errStyle": "Style processing failed: {detail}",
+  "errStyleSize": "Style output exceeds 64 MiB",
+  "errStyleNoCues": "No subtitles to render",
+  "errStyleInvalidCue": "Invalid subtitle text or timing; no subtitle was removed",
+  "errStyleFontCache": "Font cache verification failed",
+  "errStyleInputSize": "Style input is too large",
+  "errStyleProtocol": "Invalid style worker request",
+  "errStyleNoAss": "No ASS document",
+  "errStyleAssFont": "The ASS fonts are unavailable; install the original fonts first",
+  "errStyleFontUnavailable": "Font unavailable: {name}",
+  "errSubtitleEmpty": "The subtitle worker returned no editable subtitles",
+  "errWorkerOutput": "Worker output exceeds its limit",
+  "errSubtitleWorker": "Invalid subtitle worker reply: {detail}",
+  "errSubtitle": "Subtitle processing failed: {detail}",
+  "errSubtitleExit": "The subtitle worker did not exit normally: {detail}",
+  "errSubtitleResultSize": "The subtitle result exceeds 64 MiB",
+  "errSubtitleFormat": "Unsupported subtitle format",
+  "errSubtitleParse": "Subtitle parsing failed ({count} format errors); nothing was imported",
+  "errSubtitleMapping": "Subtitle event mapping is incomplete",
+  "errSubtitleTiming": "Invalid times; fix them before exporting",
+  "errSubtitleEmptyCue": "Empty subtitles; fix them before exporting",
+  "errSubtitleNoCues": "No subtitles to export",
+  "errSubtitlePreserveOrder": "Format-preserving export cannot change the number or order of events; save as SRT",
+  "errSubtitleAssTiming": "Layout-preserving mode cannot change ASS times",
+  "errSubtitleAssDrawing": "ASS drawing events are protected",
+  "errSubtitleAssTags": "ASS tags and original line breaks are protected",
+  "errSubtitleAssStyle": "A new ASS layout needs a style document first",
+  "errSubtitleVttBlank": "WebVTT cues cannot contain blank lines",
+  "errSubtitleAssFormat": "Invalid ASS event format",
+  "errSubtitleInputSize": "The subtitle input is too large",
+  "errSubtitleProtocol": "Invalid subtitle worker request",
+  "errSubtitleOutputExists": "The worker output file already exists",
+  "errWordsSize": "Word timing exceeds 64 MiB",
+  "errWordsProtocol": "Invalid OneAsr word timing",
+  "errWordsTiming": "Invalid OneAsr word times",
+  "errWordsOrder": "OneAsr word times are out of order",
+  "warnWordsUnmatched": "{count} cues have no matching word evidence; their boundaries are kept",
+  "@warnWordsUnmatched": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "errOutputMode": "Unknown subtitle content option",
+  "errOutputPrimary": "Unknown main subtitle language",
+  "errOutputAssBilingual": "ASS/SSA keeps its own layout and is not combined bilingually; save it as SRT first",
+  "errOutputMissing": "{count} cues have no translation; complete them or choose the original subtitles",
+  "@errOutputMissing": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "errAtomWords": "{id}: invalid word timing evidence",
+  "errAtomText": "{id}: the word text differs from the subtitle; align it again",
+  "errAtomDuplicate": "Duplicate source IDs",
+  "errRangeInvalid": "Timing candidate ranges are out of bounds, missing, repeated or out of order",
+  "errRangeProtected": "Hand-edited, overlapping or protected subtitles cannot be split or merged",
+  "errRangeOverlap": "Intentionally overlapping subtitles cannot be merged",
+  "errRangeGapReason": "Joining across a gap needs a specific reason",
+  "warnRangeGap": "Joined across a gap of {from, number, ::group-off}–{to, number, ::group-off} ms: {reason}",
+  "@warnRangeGap": {
+    "placeholders": {
+      "from": {
+        "type": "int"
+      },
+      "to": {
+        "type": "int"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "errRangeReason": "Splitting or merging needs a specific reason",
+  "errRangeFormat": "This subtitle format must keep its original events",
+  "errRangeDuration": "Invalid candidate duration",
+  "errRangeCoverage": "The timing candidate does not cover every source",
+  "errTranslationFormat": "A translation cannot replace the original format or document",
+  "errTranslationSource": "The translation source is missing",
+  "errTranslationCount": "The number of translated cues differs",
+  "errTranslationLocked": "A translation cannot replace hand edits",
+  "errTranslationMetadata": "The translation's source, timing or lock data differs",
+  "errCheckFormatChange": "A translation cannot convert the subtitle format implicitly",
+  "errCheckFormat": "Unsupported translation format",
+  "errCheckSubtitle": "Subtitle format check failed: {detail}",
+  "errCheckWorker": "Invalid skill checker reply: {detail}",
+  "errCheck": "Skill check failed: {detail}",
+  "errCheckExit": "The skill checker did not exit normally: {detail}",
+  "errCheckReportSize": "The skill check report exceeds 4 MiB",
+  "errCheckReport": "Invalid skill check report",
+  "errCheckCount": "The skill check count differs from the candidate",
+  "errCheckProtocol": "Invalid skill checker request",
+  "errCheckInput": "Invalid subtitle input or larger than 64 MiB",
+  "errCheckResult": "The skill checker returned no valid result",
+  "errModelsFetch": "The model list could not be fetched; check the endpoint or enter a model: {detail}",
+  "errModelsHttp": "The model list returned HTTP {status, number, ::group-off}; you can enter a model",
+  "@errModelsHttp": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "errModelsSize": "The model list exceeds its size limit",
+  "errModelsFormat": "Invalid model list; you can enter a model",
+  "errModelsEmpty": "The service returned no models; you can enter a model",
+  "errProfileSize": "Style {name} exceeds 64 KiB",
+  "errProfileMetadata": "Style {name} has no SKILL.md metadata",
+  "errProfileContent": "Style {name} has no name or content",
+  "errProfileMissing": "Translation style {id} was removed; choose another",
+  "errSegmentRegion": "A timing region is too long; check the subtitles first",
+  "errSegmentCoverage": "The timing candidate does not cover this batch",
+  "errEndpointInvalid": "Invalid endpoint",
+  "errEndpointParts": "The endpoint cannot contain credentials, a query or a fragment",
+  "errEndpointHttps": "Remote services must use HTTPS; local services may use HTTP",
+  "errSkillFile": "Skill file missing: {path}",
+  "errRequestLimit": "The request limit was reached; nothing more was sent",
+  "errOutcomeUnknown": "OUTCOME_UNKNOWN: the request result is unknown and may be billed; not resent: {detail}",
+  "errTranslateHttp": "The translation service returned HTTP {status, number, ::group-off}; not retried",
+  "@errTranslateHttp": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "errOutcomeInterrupted": "OUTCOME_UNKNOWN: reading the response was interrupted and may be billed; not resent",
+  "errTranslateSize": "The translation response exceeds 2 MiB",
+  "errTranslateJson": "The translation service response is not valid JSON",
+  "errTranslateTruncated": "The translation result is missing, truncated or did not end normally",
+  "errTranslateStructure": "Invalid translation candidate: {detail}",
+  "errTranslateExtra": "The translation candidate contains extra content",
+  "errCueTooLong": "A subtitle is too long; check the imported content first",
+  "errSummarySize": "The summary exceeds its limit",
+  "errTranslateModel": "Choose a translation model",
+  "errTranslateTarget": "Choose a target language",
+  "errNothingToTranslate": "Nothing to translate; hand edits and protected content were skipped",
+  "errTranslateMissing": "The translation result lacks subtitles; the original was not copied in",
+  "errTranslateLines": "Invalid IDs, order or text in the translation result",
+  "warnNumbers": "Check numbers: {id}"
+}

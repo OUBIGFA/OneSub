@@ -56,7 +56,8 @@ func TestCommitReopenAndOriginalBytes(t *testing.T) {
 	}
 	defer s.Close()
 	got := snapshot(t, s)
-	if got.Revision != 1 || got.Document.Cues[0].Text != "手改" || !got.Document.Cues[0].TextLocked || got.Document.Cues[0].OriginalText != "原句" {
+	// A source correction stays translatable: it is not locked.
+	if got.Revision != 1 || got.Document.Cues[0].Text != "手改" || got.Document.Cues[0].TextLocked || got.Document.Cues[0].OriginalText != "原句" {
 		t.Fatalf("bad reopen: %+v", got)
 	}
 	saved, err := os.ReadFile(filepath.Join(path, "originals/source.srt"))

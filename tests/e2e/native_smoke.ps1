@@ -44,11 +44,14 @@ $subtitle = Join-Path $workPath 'test.srt'
 & ffmpeg -v error -f lavfi -i 'testsrc2=size=320x180:rate=10:duration=3' -c:v libx264 -pix_fmt yuv420p $video
 if($LASTEXITCODE -ne 0){throw 'Fixture creation failed'}
 $env:ONESUB_DATA_ROOT = Join-Path $workPath 'data'
+New-Item -ItemType Directory $env:ONESUB_DATA_ROOT | Out-Null
+# Controls are found by their Chinese names; pin the interface language.
+$prefs=@{version=1;uiLanguage='zh-Hans'}
 if ($TranslationEndpoint) {
-    New-Item -ItemType Directory $env:ONESUB_DATA_ROOT | Out-Null
-    $prefs=@{version=1;providerUrl=$TranslationEndpoint;providerModel='local-protocol-test';targetLanguage='zh-CN'}
-    [IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),($prefs|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+    # One translate request only: the fixture does not answer segmentation.
+    $prefs+=@{providerUrl=$TranslationEndpoint;providerModel='local-protocol-test';targetLanguage='zh-CN';optimizeTimeline=$false}
 }
+[IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),($prefs|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
 if($Packaged){
     foreach($name in @('ONESUB_FFPROBE','ONESUB_FFMPEG','ONESUB_SUBTITLE_WORKER','ONESUB_STYLE_WORKER','ONESUB_SKILL_WORKER','ONESUB_SKILL_ROOT')){Remove-Item "Env:$name" -ErrorAction SilentlyContinue}
 }else{
@@ -122,7 +125,7 @@ try {
     Click-UI '设置'
     & $ScreenshotTool $p.Id (Join-Path $workPath 'settings.png')
     if(Find-UI '设置分类'){
-        foreach($tab in @('识别','模型','翻译')){
+        foreach($tab in @('识别与模型','翻译')){
             Select-SettingsTab $tab
             & $ScreenshotTool $p.Id (Join-Path $workPath ("settings-"+$tab+'.png'))
         }

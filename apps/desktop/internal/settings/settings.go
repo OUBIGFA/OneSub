@@ -8,37 +8,58 @@ import (
 	"path/filepath"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
+// UserPreset is a named copy of a style the user saved. Built-in SmartSub
+// presets are never changed; editing starts from a copy.
+type UserPreset struct {
+	ID    string       `json:"id"`
+	Name  string       `json:"name"`
+	Style styles.Style `json:"style"`
+}
+
 type Settings struct {
-	Version           int               `json:"version"`
-	CloseToTray       bool              `json:"closeToTray"`
-	ModelPaths        map[string]string `json:"modelPaths"`
-	AsrModel          string            `json:"asrModel"`
-	Aligner           string            `json:"aligner"`
-	Backend           string            `json:"backend"`
-	Language          string            `json:"language"`
-	ChunkSeconds      float64           `json:"chunkSeconds"`
-	MaxTokens         float64           `json:"maxTokens"`
-	VocalSeparation   bool              `json:"vocalSeparation"`
-	Hotwords          string            `json:"hotwords"`
-	ProviderURL       string            `json:"providerUrl"`
-	ProviderModel     string            `json:"providerModel"`
-	TargetLanguage    string            `json:"targetLanguage"`
-	Glossary          string            `json:"glossary"`
-	Domain3D          bool              `json:"domain3D"`
-	MaxRequests       float64           `json:"maxRequests"`
-	OutputDir         string            `json:"outputDir"`
-	LastStyle         *styles.Style     `json:"lastStyle,omitempty"`
-	StylePreset       string            `json:"stylePreset,omitempty"`
-	SingleClickAction string            `json:"singleClickAction"`
-	DoubleClickAction string            `json:"doubleClickAction"`
-	FollowPlayback    bool              `json:"followPlayback"`
-	RecentProjects    []string          `json:"recentProjects"`
+	Version            int                    `json:"version"`
+	UILanguage         string                 `json:"uiLanguage"` // "" follows the system
+	CloseToTray        bool                   `json:"closeToTray"`
+	ModelPaths         map[string]string      `json:"modelPaths"`
+	AsrModel           string                 `json:"asrModel"`
+	Aligner            string                 `json:"aligner"`
+	Backend            string                 `json:"backend"`
+	Language           string                 `json:"language"`
+	ChunkSeconds       float64                `json:"chunkSeconds"`
+	MaxTokens          float64                `json:"maxTokens"`
+	VocalSeparation    bool                   `json:"vocalSeparation"`
+	Hotwords           string                 `json:"hotwords"`
+	ProviderURL        string                 `json:"providerUrl"`
+	ProviderModel      string                 `json:"providerModel"`
+	TargetLanguage     string                 `json:"targetLanguage"`
+	Glossary           string                 `json:"glossary"`
+	Domain3D           bool                   `json:"domain3D"`
+	TranslationProfile string                 `json:"translationProfile"`
+	OptimizeTimeline   bool                   `json:"optimizeTimeline"`
+	MaxRequests        float64                `json:"maxRequests"`
+	OutputDir          string                 `json:"outputDir"`
+	LastStyle          *styles.Style          `json:"lastStyle,omitempty"`
+	StylePreset        string                 `json:"stylePreset,omitempty"` // preset ID
+	UserPresets        []UserPreset           `json:"userPresets,omitempty"`
+	SubtitleOutput     subtitle.OutputOptions `json:"subtitleOutput"`
+	SecondaryStyle     *styles.Style          `json:"secondaryStyle,omitempty"`
+	SecondaryPreset    string                 `json:"secondaryPreset,omitempty"`
+	ComposeMode        string                 `json:"composeMode"`
+	ComposeQuality     string                 `json:"composeQuality"`
+	Volume             float64                `json:"volume"` // percent
+	Muted              bool                   `json:"muted"`
+	SingleClickAction  string                 `json:"singleClickAction"`
+	DoubleClickAction  string                 `json:"doubleClickAction"`
+	FollowPlayback     bool                   `json:"followPlayback"`
+	RecentProjects     []string               `json:"recentProjects"`
 }
 
 func Default() Settings {
-	return Settings{Version: 1, ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "zh", ChunkSeconds: 60, MaxTokens: 2048, TargetLanguage: "zh-CN", MaxRequests: 100, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true}
+	return Settings{Version: 1, ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "zh", ChunkSeconds: 60, MaxTokens: 2048, TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", Volume: 100, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true}
 }
 func Load(path string) (Settings, error) {
 	s := Default()
@@ -53,22 +74,23 @@ func Load(path string) (Settings, error) {
 		return Default(), err
 	}
 	if s.Version != 1 {
-		return Default(), errors.New("不支持此设置版本；原设置未修改")
+		return Default(), errors.New(locales.ErrSettingsVersion())
 	}
 	if s.ModelPaths == nil {
 		s.ModelPaths = map[string]string{}
 	}
+	s.Volume = max(0, min(100, s.Volume))
 	return s, nil
 }
 func Save(path string, s Settings) error {
 	if s.ChunkSeconds < 30 || s.ChunkSeconds > 180 {
-		return errors.New("音频分块时长须为 30–180 秒")
+		return errors.New(locales.ErrSettingsChunk())
 	}
 	if s.MaxTokens < 1 || s.MaxTokens > 32768 {
-		return errors.New("最大生成 Token 数须为 1–32768")
+		return errors.New(locales.ErrSettingsMaxTokens())
 	}
 	if s.MaxRequests < 1 || s.MaxRequests > 10000 {
-		return errors.New("本次翻译请求上限须为 1–10000")
+		return errors.New(locales.ErrSettingsMaxRequests())
 	}
 	raw, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {

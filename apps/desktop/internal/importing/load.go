@@ -2,10 +2,11 @@ package importing
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/media"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 type Loaded struct {
@@ -25,7 +26,7 @@ func Load(ctx context.Context, selection Selection, worker subtitle.Client, ffpr
 			if selection.Automatic != "subtitle" {
 				return result, err
 			}
-			result.Warnings = append(result.Warnings, "同名字幕未加载；主媒体仍保留。"+err.Error())
+			result.Warnings = append(result.Warnings, locales.WarnSiblingSubtitle(err.Error()))
 			result.Selection.Subtitle, result.Selection.Automatic = "", ""
 		} else {
 			result.Document = doc
@@ -34,13 +35,13 @@ func Load(ctx context.Context, selection Selection, worker subtitle.Client, ffpr
 	if selection.Media != "" {
 		info, err := media.Probe(ctx, ffprobe, selection.Media)
 		if err == nil && selection.Automatic == "video" && !info.HasVideo() {
-			err = fmt.Errorf("同名候选没有视频流")
+			err = errors.New(locales.ErrSiblingNoVideo())
 		}
 		if err != nil {
 			if selection.Automatic != "video" {
 				return result, err
 			}
-			result.Warnings = append(result.Warnings, "同名视频未关联；字幕仍保留。"+err.Error())
+			result.Warnings = append(result.Warnings, locales.WarnSiblingVideo(err.Error()))
 			result.Selection.Media, result.Selection.Automatic = "", ""
 		} else {
 			result.Media = info

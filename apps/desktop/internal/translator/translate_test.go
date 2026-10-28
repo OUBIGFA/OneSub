@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 func testConfig(t *testing.T, server *httptest.Server) Config {
@@ -88,7 +89,7 @@ func TestTranslateBatchesLocksAndRuleManifest(t *testing.T) {
 	if requests != 3 || result.Report.Requests != 3 || result.Report.Translated != 61 || progress != 61 {
 		t.Fatal(result.Report, progress)
 	}
-	if len(result.Report.Skipped) != 2 || len(result.Report.Rules) != 10 || result.Report.InputTokens != 36 {
+	if len(result.Report.Skipped) != 2 || len(result.Report.Rules) != 11 || result.Report.InputTokens != 36 {
 		t.Fatal(result.Report)
 	}
 	if result.Document.Cues[0].Text != "译文 0" || result.Document.Cues[7].Text != "Source 7" || doc.Cues[0].Text != "Source 0" {
@@ -192,7 +193,7 @@ func TestTranslateFullSourceContextAndRequestCap(t *testing.T) {
 	}
 	config.MaxRequests = 1
 	result, err := Translate(context.Background(), config, doc, nil)
-	if err == nil || !strings.Contains(err.Error(), "上限") || result.Report.Requests != 1 {
+	if err == nil || err.Error() != locales.ErrRequestLimit() || result.Report.Requests != 1 {
 		t.Fatal(err, result.Report)
 	}
 }

@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 //go:embed catalog.json
@@ -49,7 +51,7 @@ func ByID(id string) (Model, error) {
 			return m, nil
 		}
 	}
-	return Model{}, fmt.Errorf("未知模型：%s", id)
+	return Model{}, errors.New(locales.ErrModelUnknown(id))
 }
 func (m Model) Size() int64 {
 	var size int64
@@ -69,7 +71,7 @@ func Verify(ctx context.Context, m Model, dir string) error {
 func verifyFile(ctx context.Context, path string, expected File) error {
 	file, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("模型文件未就绪：%s", expected.Name)
+		return errors.New(locales.ErrModelMissing(expected.Name))
 	}
 	defer file.Close()
 	info, err := file.Stat()
@@ -77,7 +79,7 @@ func verifyFile(ctx context.Context, path string, expected File) error {
 		return err
 	}
 	if info.Size() != expected.Size {
-		return fmt.Errorf("模型文件大小不符：%s", expected.Name)
+		return errors.New(locales.ErrModelSize(expected.Name))
 	}
 	hash := sha256.New()
 	buf := make([]byte, 1024*1024)
@@ -97,10 +99,17 @@ func verifyFile(ctx context.Context, path string, expected File) error {
 		}
 	}
 	if hex.EncodeToString(hash.Sum(nil)) != expected.SHA256 {
-		return fmt.Errorf("模型校验失败：%s", expected.Name)
+		return errors.New(locales.ErrModelHash(expected.Name))
 	}
 	return nil
 }
+
+// Download stages; the interface says them in its language.
+const (
+	StageDownload = "download"
+	StageVerify   = "verify"
+	StageDone     = "done"
+)
 
 type Progress struct {
 	Done, Total int64
@@ -121,7 +130,7 @@ func Download(ctx context.Context, client *http.Client, m Model, dir string, pro
 		final := filepath.Join(dir, spec.Name)
 		if err := verifyFile(ctx, final, spec); err == nil {
 			completed += spec.Size
-			progress(Progress{completed, m.Size(), "已校验"})
+			progress(Progress{completed, m.Size(), StageDone})
 			continue
 		}
 		partial := final + ".partial"
@@ -130,7 +139,7 @@ func Download(ctx context.Context, client *http.Client, m Model, dir string, pro
 			offset = info.Size()
 		}
 		if offset > spec.Size {
-			return fmt.Errorf("下载片段大小异常：%s；请重新选择空目录", spec.Name)
+			return errors.New(locales.ErrModelPartial(spec.Name))
 		}
 		if offset < spec.Size {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, spec.URL, nil)
@@ -146,13 +155,13 @@ func Download(ctx context.Context, client *http.Client, m Model, dir string, pro
 			}
 			if response.StatusCode != 200 && response.StatusCode != 206 {
 				response.Body.Close()
-				return fmt.Errorf("模型下载失败 HTTP %d", response.StatusCode)
+				return errors.New(locales.ErrModelHttp(response.StatusCode))
 			}
 			if response.StatusCode == 200 {
 				offset = 0
 			} else if !strings.HasPrefix(response.Header.Get("Content-Range"), "bytes "+strconv.FormatInt(offset, 10)+"-") {
 				response.Body.Close()
-				return errors.New("续传响应范围不符，未追加数据")
+				return errors.New(locales.ErrModelRange())
 			}
 			flag := os.O_CREATE | os.O_WRONLY
 			if offset == 0 {
@@ -170,7 +179,7 @@ func Download(ctx context.Context, client *http.Client, m Model, dir string, pro
 			for {
 				n, readErr := response.Body.Read(buf)
 				if offset+int64(n) > spec.Size {
-					err = errors.New("模型响应超过登记大小")
+					err = errors.New(locales.ErrModelOversize())
 					break
 				}
 				if n > 0 {
@@ -182,7 +191,7 @@ func Download(ctx context.Context, client *http.Client, m Model, dir string, pro
 					}
 				}
 				if time.Since(last) > 200*time.Millisecond {
-					progress(Progress{completed + offset, m.Size(), "下载中"})
+					progress(Progress{completed + offset, m.Size(), StageDownload})
 					last = time.Now()
 				}
 				if readErr == io.EOF {
@@ -205,7 +214,7 @@ func Download(ctx context.Context, client *http.Client, m Model, dir string, pro
 				return err
 			}
 		}
-		progress(Progress{completed + offset, m.Size(), "校验中"})
+		progress(Progress{completed + offset, m.Size(), StageVerify})
 		if err := verifyFile(ctx, partial, spec); err != nil {
 			return err
 		}
@@ -214,6 +223,6 @@ func Download(ctx context.Context, client *http.Client, m Model, dir string, pro
 		}
 		completed += spec.Size
 	}
-	progress(Progress{m.Size(), m.Size(), "已校验"})
+	progress(Progress{m.Size(), m.Size(), StageDone})
 	return nil
 }

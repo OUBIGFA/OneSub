@@ -77,13 +77,29 @@ func TestSettingsHeightIsStableAcrossTabs(t *testing.T) {
 	if !ok {
 		t.Fatal(tt.Texts())
 	}
-	for _, tab := range []string{"识别", "模型", "翻译", "常规"} {
+	for _, tab := range []string{"识别与模型", "翻译", "常规"} {
 		if err := tt.Click(tab); err != nil {
 			t.Fatal(err)
 		}
 		got, ok := tt.Find("设置内容")
 		if !ok || got.H != first.H || got.Y != first.Y {
 			t.Fatal(tab, first, got)
+		}
+	}
+}
+
+func TestPlayerIconsFitAndStayCentered(t *testing.T) {
+	for _, size := range []float32{15, 22.5, 30} {
+		tt := ui.NewTester(func(c *ui.Context) {
+			theme := *c.Theme()
+			theme.FontSize = size
+			c.SetTheme(&theme)
+			playerButton(c, "播放", "play")
+		}, 300, 120)
+		b, _ := tt.Find("播放")
+		i, _ := tt.Find("播放图标")
+		if math.Abs(float64(b.X+b.W/2-i.X-i.W/2)) > 1 || math.Abs(float64(b.Y+b.H/2-i.Y-i.H/2)) > 1 || i.X < b.X || i.X+i.W > b.X+b.W {
+			t.Fatal("icon not centered inside native button", size, b, i)
 		}
 	}
 }
@@ -154,10 +170,20 @@ func TestComposeNamesTermsAndPlayerProgress(t *testing.T) {
 	}
 	a := nativeForTest(t)
 	a.composeOpen = true
-	a.composeMode = composeModes[0]
-	a.composeQuality = "CRF 20"
 	tt := ui.NewTester(a.view, 1400, 900)
-	if !tt.HasText(composeModes[0]) || !tt.HasText("CRF 20") {
+	if !tt.HasText("硬字幕（烧录） · MP4") || !tt.HasText("CRF 20") || a.settings.ComposeMode != "hard-mp4" {
+		t.Fatal(tt.Texts())
+	}
+	// The lossless level is offered, explained, and remembered by ID.
+	a.settings.ComposeQuality = "lossless"
+	a.settings.ComposeMode = "hard-mkv"
+	a.saveSettings()
+	prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
+	if err != nil || prefs.ComposeQuality != "lossless" || prefs.ComposeMode != "hard-mkv" {
+		t.Fatal(prefs, err)
+	}
+	tt = ui.NewTester(a.view, 1400, 900)
+	if !tt.HasText("原画质（无损）") || !tt.HasText("硬字幕（烧录） · MKV") {
 		t.Fatal(tt.Texts())
 	}
 	a.composeOpen = false
@@ -171,5 +197,50 @@ func TestComposeNamesTermsAndPlayerProgress(t *testing.T) {
 	editor, _ := tt.Find("字幕编辑")
 	if progress.Y >= editor.Y {
 		t.Fatal("progress outside player", progress, editor)
+	}
+}
+
+// Volume and mute apply to the page and are remembered like other
+// preferences; a silent slider unmutes to full volume.
+func TestVolumeAndMuteAreRemembered(t *testing.T) {
+	a := nativeForTest(t)
+	a.setVolume(35, false, time.Now())
+	a.toggleMute(time.Now())
+	if !a.settings.Muted || a.volumeScript() != "video.volume=0.350;video.muted=true;" {
+		t.Fatal(a.volumeScript())
+	}
+	a.saveSettings()
+	prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
+	if err != nil || prefs.Volume != 35 || !prefs.Muted {
+		t.Fatal(prefs, err)
+	}
+	a.setVolume(0, false, time.Now())
+	a.toggleMute(time.Now())
+	if a.settings.Volume != 100 || a.settings.Muted {
+		t.Fatal("silent slider did not restore sound", a.settings)
+	}
+	tt := ui.NewTester(a.view, 1400, 900)
+	if _, ok := tt.Find("静音"); !ok {
+		t.Fatal(tt.Texts())
+	}
+	if _, ok := tt.Find("音量"); !ok {
+		t.Fatal("no volume slider")
+	}
+}
+
+// Labels are said again in the chosen language, while the stored IDs keep
+// the user's choices.
+func TestChoicesSurviveALanguageChange(t *testing.T) {
+	a := nativeForTest(t)
+	a.composeOpen = true
+	inLocale(t, "en", func() {
+		tt := ui.NewTester(a.view, 1400, 900)
+		if !tt.HasText("Hard subtitles (burn-in) · MP4") || !tt.HasText("Encoding quality") {
+			t.Fatal(tt.Texts())
+		}
+	})
+	tt := ui.NewTester(a.view, 1400, 900)
+	if !tt.HasText("硬字幕（烧录） · MP4") || a.settings.ComposeMode != "hard-mp4" {
+		t.Fatal(tt.Texts())
 	}
 }

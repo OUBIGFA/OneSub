@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 // CommandContext is the shared entry for one-shot helpers that exchange binary
@@ -52,7 +55,7 @@ func Run(ctx context.Context, cmd *exec.Cmd, line func(string)) error {
 	if err = group.attach(cmd.Process); err != nil {
 		cmd.Process.Kill()
 		cmd.Wait()
-		return fmt.Errorf("无法管理任务进程：%w", err)
+		return apperr.Wrap(locales.ErrJobControl(err.Error()), err)
 	}
 	done := make(chan struct{})
 	stopped := make(chan struct{})
@@ -81,7 +84,7 @@ func Run(ctx context.Context, cmd *exec.Cmd, line func(string)) error {
 		return ctx.Err()
 	}
 	if scanErr != nil {
-		return fmt.Errorf("任务消息无效：%w", scanErr)
+		return apperr.Wrap(locales.ErrJobMessage(scanErr.Error()), scanErr)
 	}
 	if err != nil {
 		return fmt.Errorf("%w\n%s", err, strings.TrimSpace(string(stderr.data)))

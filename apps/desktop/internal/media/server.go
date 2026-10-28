@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 // Server serves one registered preview, never arbitrary paths from a URL. A new
@@ -53,7 +54,7 @@ func (s *Server) Register(path string) (string, error) {
 		return "", err
 	}
 	if !info.Mode().IsRegular() {
-		return "", errors.New("预览来源不是文件")
+		return "", errors.New(locales.ErrPreviewNotFile())
 	}
 	raw := make([]byte, 32)
 	if _, err = rand.Read(raw); err != nil {
@@ -74,7 +75,7 @@ func (s *Server) RegisterFonts(ctx context.Context, document styles.Document) ([
 			return nil, err
 		}
 		if sum != font.SHA256 {
-			return nil, errors.New("字体已改变，请重新生成预览")
+			return nil, errors.New(locales.ErrPreviewFontChanged())
 		}
 		raw := make([]byte, 32)
 		if _, err = rand.Read(raw); err != nil {

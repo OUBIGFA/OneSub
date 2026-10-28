@@ -2,11 +2,12 @@ package security
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"syscall"
 	"unsafe"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"golang.org/x/sys/windows"
 )
 
@@ -33,10 +34,10 @@ type nativeCredential struct {
 
 func SaveKey(endpoint, key string) error {
 	if strings.TrimSpace(endpoint) == "" {
-		return errors.New("请先填写服务地址")
+		return errors.New(locales.ErrCredentialsEndpoint())
 	}
 	if len(key) > 2560 || strings.ContainsAny(key, "\r\n") {
-		return errors.New("Key 长度或格式无效")
+		return errors.New(locales.ErrCredentialsKey())
 	}
 	if key == "" {
 		return DeleteKey(endpoint)
@@ -54,7 +55,7 @@ func SaveKey(endpoint, key string) error {
 	credential := nativeCredential{Type: 1, TargetName: target, BlobSize: uint32(len(data)), Blob: &data[0], Persist: 2}
 	result, _, callErr := credWrite.Call(uintptr(unsafe.Pointer(&credential)), 0)
 	if result == 0 {
-		return fmt.Errorf("无法保存系统凭据：%w", callErr)
+		return apperr.Wrap(locales.ErrCredentialsSave(callErr.Error()), callErr)
 	}
 	return nil
 }
@@ -69,14 +70,14 @@ func ReadKey(endpoint string) (string, error) {
 		if errors.Is(callErr, syscall.Errno(1168)) {
 			return "", nil
 		}
-		return "", fmt.Errorf("无法读取系统凭据：%w", callErr)
+		return "", apperr.Wrap(locales.ErrCredentialsRead(callErr.Error()), callErr)
 	}
 	defer credFree.Call(uintptr(unsafe.Pointer(credential)))
 	if credential.BlobSize == 0 {
 		return "", nil
 	}
 	if credential.BlobSize > 2560 {
-		return "", errors.New("凭据大小异常")
+		return "", errors.New(locales.ErrCredentialsSize())
 	}
 	return string(unsafe.Slice(credential.Blob, int(credential.BlobSize))), nil
 }

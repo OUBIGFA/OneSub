@@ -5,36 +5,47 @@ import (
 	"math"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
 
+// option is a stable value with the label said in the current language.
+type option struct{ ID, Label string }
+
+// idSelect is a native Select over labels that stores the option's ID, so
+// saved choices survive a change of the interface language.
+func idSelect(c *ui.Context, value *string, options []option) ui.Element {
+	labels, chosen := make([]string, len(options)), ""
+	for i, o := range options {
+		labels[i] = o.Label
+		if o.ID == *value {
+			chosen = o.Label
+		}
+	}
+	return ui.Select(c, &chosen, labels).OnChange(func() {
+		for _, o := range options {
+			if o.Label == chosen {
+				*value = o.ID
+				return
+			}
+		}
+	})
+}
+
 // Actions follow Subtitle Edit's separate single/double-click preferences.
 // Avalonia controls stay upstream; the adapter drives MyGo's existing player.
-var subtitleActions = []struct{ ID, Label string }{
-	{"none", "仅选择字幕"},
-	{"seek", "定位，保持播放状态"},
-	{"seek-pause", "定位并暂停"},
-	{"seek-play", "定位并播放"},
+func subtitleActions() []option {
+	return []option{
+		{"none", locales.ClickSelectOnly()},
+		{"seek", locales.ClickSeek()},
+		{"seek-pause", locales.ClickSeekPause()},
+		{"seek-play", locales.ClickSeekPlay()},
+	}
 }
 
 func (a *NativeApp) playbackActionField(c *ui.Context, label string, value *string) {
-	labels, chosen := []string{}, ""
-	for _, action := range subtitleActions {
-		labels = append(labels, action.Label)
-		if action.ID == *value {
-			chosen = action.Label
-		}
-	}
 	ui.Field(c, label, func() {
-		ui.Select(c, &chosen, labels).OnChange(func() {
-			for _, action := range subtitleActions {
-				if chosen == action.Label {
-					*value = action.ID
-					break
-				}
-			}
-			a.saveSettings()
-		})
+		idSelect(c, value, subtitleActions()).Label(label).OnChange(a.saveSettings)
 	})
 }
 

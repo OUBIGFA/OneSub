@@ -6,13 +6,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/OUBIGFA/OneSub/apps/desktop/internal/jobs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/jobs"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 type Style struct {
@@ -73,11 +77,44 @@ func (c Client) Catalog(ctx context.Context) (Catalog, error) {
 	err := c.call(ctx, "catalog", nil, &result)
 	return result, err
 }
-func (c Client) Build(ctx context.Context, cues []subtitle.Cue, style Style) (Document, error) {
+
+// Build turns cues into SmartSub's ASS. frameAspect is the video's display
+// width / height (0 when unknown): libass scales horizontal borders with
+// the frame width, so the box padding is corrected to be equal on all sides.
+func (c Client) Build(ctx context.Context, cues []subtitle.Cue, style Style, frameAspect float64) (Document, error) {
 	var result Document
-	err := c.call(ctx, "build", map[string]any{"cues": cues, "style": style}, &result)
+	err := c.call(ctx, "build", map[string]any{"cues": cues, "style": style, "frameAspect": frameAspect}, &result)
 	return result, err
 }
+
+// BuildOutput delegates both language layers to the same SmartSub generator.
+func (c Client) BuildOutput(ctx context.Context, doc subtitle.Document, style, secondary Style, options subtitle.OutputOptions, frameAspect float64) (Document, error) {
+	selected, err := subtitle.SelectOutput(doc, options)
+	if err != nil {
+		return Document{}, err
+	}
+	o := options.Normalized()
+	if o.Mode != "bilingual" {
+		return c.Build(ctx, selected.Cues, style, frameAspect)
+	}
+	type bilingualCue struct {
+		subtitle.Cue
+		SecondaryText string `json:"secondaryText"`
+	}
+	cues := make([]bilingualCue, len(doc.Cues))
+	for i, cue := range doc.Cues {
+		primary, second := cue.Text, subtitle.SourceText(cue)
+		if o.Primary == "source" {
+			primary, second = second, primary
+		}
+		cue.Text = primary
+		cues[i] = bilingualCue{cue, second}
+	}
+	var result Document
+	err = c.call(ctx, "build", map[string]any{"cues": cues, "style": style, "frameAspect": frameAspect, "bilingual": map[string]any{"secondaryStyle": secondary, "secondaryFirst": o.SourceFirst != (o.Primary == "source")}}, &result)
+	return result, err
+}
+
 func (c Client) Resolve(ctx context.Context, ass string, style Style) (Document, error) {
 	var result Document
 	err := c.call(ctx, "resolve", map[string]any{"ass": ass, "style": style}, &result)
@@ -115,10 +152,10 @@ func (c Client) call(ctx context.Context, operation string, input any, result an
 		Error     string
 	}
 	if err = json.Unmarshal(response, &reply); err != nil || reply.Protocol != 1 || reply.RequestID != filepath.Base(dir) {
-		return fmt.Errorf("样式工作进程无有效回执：%v", runErr)
+		return apperr.Wrap(locales.ErrStyleWorker(fmt.Sprint(runErr)), runErr)
 	}
 	if !reply.OK {
-		return fmt.Errorf("样式处理失败：%s", reply.Error)
+		return errors.New(locales.ErrStyle(workerMessage(reply.Error)))
 	}
 	if runErr != nil {
 		return runErr
@@ -128,11 +165,36 @@ func (c Client) call(ctx context.Context, operation string, input any, result an
 		return err
 	}
 	if info.Size() > 64*1024*1024 {
-		return fmt.Errorf("样式产物超过 64 MiB")
+		return errors.New(locales.ErrStyleSize())
 	}
 	data, err := os.ReadFile(outputPath)
 	if err != nil {
 		return err
 	}
 	return json.Unmarshal(data, result)
+}
+
+// workerMessage says the style worker's stable E_ codes in the app's
+// language. Library messages, such as an unreadable font, pass unchanged.
+func workerMessage(message string) string {
+	switch message {
+	case "E_NO_CUES":
+		return locales.ErrStyleNoCues()
+	case "E_INVALID_CUE":
+		return locales.ErrStyleInvalidCue()
+	case "E_FONT_CACHE":
+		return locales.ErrStyleFontCache()
+	case "E_CONTROL_SIZE", "E_INPUT_SIZE":
+		return locales.ErrStyleInputSize()
+	case "E_PROTOCOL", "E_OPERATION", "E_FONT_DIR":
+		return locales.ErrStyleProtocol()
+	case "E_NO_ASS":
+		return locales.ErrStyleNoAss()
+	case "E_ASS_FONT":
+		return locales.ErrStyleAssFont()
+	}
+	if name, ok := strings.CutPrefix(message, "E_FONT_UNAVAILABLE:"); ok {
+		return locales.ErrStyleFontUnavailable(name)
+	}
+	return message
 }

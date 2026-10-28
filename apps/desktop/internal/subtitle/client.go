@@ -7,25 +7,45 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/OUBIGFA/OneSub/apps/desktop/internal/jobs"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/jobs"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
+type Word struct {
+	Text    string `json:"text"`
+	StartMs int64  `json:"startMs"`
+	EndMs   int64  `json:"endMs"`
+}
+
+type SourceRange struct {
+	FirstAtom string `json:"firstAtom"`
+	LastAtom  string `json:"lastAtom"`
+	Reason    string `json:"reason"`
+}
+
 type Cue struct {
-	ID                string `json:"id"`
-	Position          int    `json:"position"`
-	StartMs           int64  `json:"startMs"`
-	EndMs             int64  `json:"endMs"`
-	Text              string `json:"text"`
-	OriginalText      string `json:"originalText"`
-	Translated        bool   `json:"translated,omitempty"`
-	TranslationSource string `json:"translationSource,omitempty"`
-	ReadOnly          bool   `json:"readOnly"`
-	TextLocked        bool   `json:"textLocked"`
-	TimeLocked        bool   `json:"timeLocked"`
+	ID                string       `json:"id"`
+	Position          int          `json:"position"`
+	StartMs           int64        `json:"startMs"`
+	EndMs             int64        `json:"endMs"`
+	Text              string       `json:"text"`
+	OriginalText      string       `json:"originalText"`
+	Translated        bool         `json:"translated,omitempty"`
+	TranslationSource string       `json:"translationSource,omitempty"`
+	ReadOnly          bool         `json:"readOnly"`
+	TextLocked        bool         `json:"textLocked"`
+	TimeLocked        bool         `json:"timeLocked"`
+	Words             []Word       `json:"words,omitempty"`
+	SourceCueIDs      []string     `json:"sourceCueIds,omitempty"`
+	SourceRange       *SourceRange `json:"sourceRange,omitempty"`
+	TimingQuality     string       `json:"timingQuality,omitempty"`
 }
 
 type Document struct {
@@ -46,7 +66,7 @@ func (c Client) Read(ctx context.Context, path string) (Document, error) {
 		err = json.Unmarshal(data, &doc)
 	}
 	if err == nil && len(doc.Cues) == 0 {
-		err = errors.New("字幕工作进程没有返回可编辑字幕")
+		err = errors.New(locales.ErrSubtitleEmpty())
 	}
 	return doc, err
 }
@@ -76,7 +96,7 @@ type boundedBuffer struct {
 
 func (b *boundedBuffer) Write(p []byte) (int, error) {
 	if b.Len()+len(p) > b.limit {
-		return 0, errors.New("工作进程输出超过限制")
+		return 0, errors.New(locales.ErrWorkerOutput())
 	}
 	return b.Buffer.Write(p)
 }
@@ -108,13 +128,13 @@ func (c Client) run(ctx context.Context, operation, input string) ([]byte, error
 		Error     string
 	}
 	if err = json.Unmarshal(stdout.Bytes(), &reply); err != nil || reply.Protocol != 1 || reply.RequestID != id {
-		return nil, fmt.Errorf("字幕工作进程协议无效：%v", runErr)
+		return nil, apperr.Wrap(locales.ErrSubtitleWorker(fmt.Sprint(runErr)), runErr)
 	}
 	if !reply.OK {
-		return nil, fmt.Errorf("字幕处理失败：%s", reply.Error)
+		return nil, errors.New(locales.ErrSubtitle(workerMessage(reply.Error)))
 	}
 	if runErr != nil {
-		return nil, fmt.Errorf("字幕工作进程未正常退出：%w", runErr)
+		return nil, apperr.Wrap(locales.ErrSubtitleExit(runErr.Error()), runErr)
 	}
 	f, err := os.Open(output)
 	if err != nil {
@@ -123,7 +143,48 @@ func (c Client) run(ctx context.Context, operation, input string) ([]byte, error
 	defer f.Close()
 	data, err := io.ReadAll(io.LimitReader(f, 64*1024*1024+1))
 	if len(data) > 64*1024*1024 {
-		return nil, errors.New("字幕结果超过 64 MiB")
+		return nil, errors.New(locales.ErrSubtitleResultSize())
 	}
 	return data, err
+}
+
+// workerMessage says the subtitle worker's stable E_ codes in the app's
+// language. libse and system messages pass unchanged.
+func workerMessage(message string) string {
+	switch message {
+	case "E_FORMAT":
+		return locales.ErrSubtitleFormat()
+	case "E_ASS_MAPPING", "E_VTT_MAPPING":
+		return locales.ErrSubtitleMapping()
+	case "E_TIMING":
+		return locales.ErrSubtitleTiming()
+	case "E_EMPTY_CUE":
+		return locales.ErrSubtitleEmptyCue()
+	case "E_NO_CUES":
+		return locales.ErrSubtitleNoCues()
+	case "E_PRESERVE_ORDER":
+		return locales.ErrSubtitlePreserveOrder()
+	case "E_ASS_TIMING":
+		return locales.ErrSubtitleAssTiming()
+	case "E_ASS_DRAWING":
+		return locales.ErrSubtitleAssDrawing()
+	case "E_ASS_TAGS":
+		return locales.ErrSubtitleAssTags()
+	case "E_ASS_NEEDS_STYLE":
+		return locales.ErrSubtitleAssStyle()
+	case "E_VTT_BLANK":
+		return locales.ErrSubtitleVttBlank()
+	case "E_ASS_FORMAT":
+		return locales.ErrSubtitleAssFormat()
+	case "E_CONTROL_SIZE", "E_INPUT_SIZE":
+		return locales.ErrSubtitleInputSize()
+	case "E_PROTOCOL":
+		return locales.ErrSubtitleProtocol()
+	case "E_OUTPUT_EXISTS":
+		return locales.ErrSubtitleOutputExists()
+	}
+	if count, ok := strings.CutPrefix(message, "E_PARSE:"); ok {
+		return locales.ErrSubtitleParse(count)
+	}
+	return message
 }

@@ -13,8 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/jobs"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 // Findings is the unchanged subtitle skill's complete-file report. Warnings
@@ -39,12 +41,12 @@ type Checker struct {
 func (c Checker) Check(ctx context.Context, source, candidate subtitle.Document, language string) (Findings, error) {
 	var result Findings
 	if source.Format != candidate.Format {
-		return result, errors.New("翻译不能隐式转换字幕格式")
+		return result, errors.New(locales.ErrCheckFormatChange())
 	}
 	switch source.Format {
 	case "srt", "vtt", "ass", "ssa":
 	default:
-		return result, errors.New("不支持此翻译格式")
+		return result, errors.New(locales.ErrCheckFormat())
 	}
 	dir, err := os.MkdirTemp(c.Scratch, "skill-check-")
 	if err != nil {
@@ -55,7 +57,7 @@ func (c Checker) Check(ctx context.Context, source, candidate subtitle.Document,
 	for name, document := range map[string]subtitle.Document{"source": source, "candidate": candidate} {
 		data, err := c.Subtitle.Write(ctx, document)
 		if err != nil {
-			return result, fmt.Errorf("字幕格式检查失败：%w", err)
+			return result, apperr.Wrap(locales.ErrCheckSubtitle(err.Error()), err)
 		}
 		if err = os.WriteFile(filepath.Join(dir, name+"."+source.Format), data, 0600); err != nil {
 			return result, err
@@ -91,13 +93,13 @@ func (c Checker) Check(ctx context.Context, source, candidate subtitle.Document,
 		Error     string
 	}
 	if err = json.Unmarshal([]byte(control.String()), &reply); err != nil || reply.Protocol != 1 || reply.RequestID != id {
-		return result, fmt.Errorf("技能检查器协议无效：%v", runErr)
+		return result, apperr.Wrap(locales.ErrCheckWorker(fmt.Sprint(runErr)), runErr)
 	}
 	if !reply.OK {
-		return result, fmt.Errorf("技能检查失败：%s", reply.Error)
+		return result, errors.New(locales.ErrCheck(checkerMessage(reply.Error)))
 	}
 	if runErr != nil {
-		return result, fmt.Errorf("技能检查器未正常退出：%w", runErr)
+		return result, apperr.Wrap(locales.ErrCheckExit(runErr.Error()), runErr)
 	}
 	file, err := os.Open(output)
 	if err != nil {
@@ -109,13 +111,27 @@ func (c Checker) Check(ctx context.Context, source, candidate subtitle.Document,
 		return result, err
 	}
 	if len(raw) > 4*1024*1024 {
-		return result, errors.New("技能检查报告超过 4 MiB")
+		return result, errors.New(locales.ErrCheckReportSize())
 	}
 	if err = json.Unmarshal(raw, &result); err != nil {
-		return result, errors.New("技能检查报告无效")
+		return result, errors.New(locales.ErrCheckReport())
 	}
 	if result.Blocks != len(candidate.Cues) {
-		return result, errors.New("技能检查条数与候选不符")
+		return result, errors.New(locales.ErrCheckCount())
 	}
 	return result, nil
+}
+
+// checkerMessage says the skill checker worker's stable E_ codes in the
+// app's language; the checker's own findings are reported unchanged.
+func checkerMessage(message string) string {
+	switch message {
+	case "E_CONTROL_SIZE", "E_PROTOCOL":
+		return locales.ErrCheckProtocol()
+	case "E_INPUT":
+		return locales.ErrCheckInput()
+	case "E_RESULT":
+		return locales.ErrCheckResult()
+	}
+	return message
 }
