@@ -3,6 +3,7 @@ package jobs
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
@@ -31,9 +32,40 @@ func (b *tailBuffer) Write(p []byte) (int, error) {
 	return n, nil
 }
 
+// stderrLines keeps the bounded tail for error reports and passes each
+// complete line on as the child writes it, as tools report their stages
+// there. A line longer than 64 KiB is cut to its last 64 KiB.
+type stderrLines struct {
+	tailBuffer
+	line    func(string)
+	partial []byte
+}
+
+func (s *stderrLines) Write(p []byte) (int, error) {
+	s.tailBuffer.Write(p)
+	s.partial = append(s.partial, p...)
+	for {
+		i := bytes.IndexByte(s.partial, '\n')
+		if i < 0 {
+			break
+		}
+		s.line(strings.TrimRight(string(s.partial[:i]), "\r"))
+		s.partial = s.partial[i+1:]
+	}
+	if len(s.partial) > 65536 {
+		s.partial = append([]byte{}, s.partial[len(s.partial)-65536:]...)
+	}
+	return len(p), nil
+}
+
 // Run consumes stdout concurrently and retains only a bounded stderr tail. On
 // Windows cancellation terminates this job object, never processes by name.
 func Run(ctx context.Context, cmd *exec.Cmd, line func(string)) error {
+	return RunLines(ctx, cmd, line, nil)
+}
+
+// RunLines is Run that also passes each line of stderr to errLine, when set.
+func RunLines(ctx context.Context, cmd *exec.Cmd, line, errLine func(string)) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -49,6 +81,10 @@ func Run(ctx context.Context, cmd *exec.Cmd, line func(string)) error {
 	}
 	stderr := &tailBuffer{}
 	cmd.Stderr = stderr
+	if errLine != nil {
+		lines := &stderrLines{line: errLine}
+		stderr, cmd.Stderr = &lines.tailBuffer, lines
+	}
 	if err = cmd.Start(); err != nil {
 		return err
 	}
@@ -80,6 +116,10 @@ func Run(ctx context.Context, cmd *exec.Cmd, line func(string)) error {
 		group.terminate()
 	}
 	err = cmd.Wait()
+	if lines, ok := cmd.Stderr.(*stderrLines); ok && len(lines.partial) > 0 {
+		// The last line may end without a newline.
+		errLine(strings.TrimRight(string(lines.partial), "\r"))
+	}
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}

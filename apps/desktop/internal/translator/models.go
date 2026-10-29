@@ -22,7 +22,7 @@ func Models(ctx context.Context, endpointURL, key string, client *http.Client) (
 	if err != nil {
 		return nil, err
 	}
-	api = strings.TrimSuffix(api, "/chat/completions") + "/models"
+	api += "/models"
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, api, nil)

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
-	"github.com/egoist/mygo/ui"
 )
 
 func draftApp(t *testing.T) *NativeApp {
@@ -41,7 +40,7 @@ func TestUnsavedFileGuardsClosingActionsOnly(t *testing.T) {
 			if !a.savePromptOpen || ran != 0 {
 				t.Fatal("closing action did not ask")
 			}
-			tt := ui.NewTester(a.view, 1400, 900)
+			tt := settled(a.view, 1400, 900)
 			if !tt.HasText("是否保存字幕修改？") || !tt.HasText("原文：覆盖 original.srt") {
 				t.Fatal(tt.Texts())
 			}
@@ -107,7 +106,7 @@ func TestDefaultSaveNamesFollowTheSubtitleOrVideo(t *testing.T) {
 func TestClearWorkbenchConfirmsAndCloses(t *testing.T) {
 	a := draftApp(t)
 	a.requestClear()
-	tt := ui.NewTester(a.view, 1400, 900)
+	tt := settled(a.view, 1400, 900)
 	if !a.clearOpen || !tt.HasText("清空工作台？") || !tt.HasText("清空") || tt.HasText("保存并清空") {
 		t.Fatal(tt.Texts())
 	}

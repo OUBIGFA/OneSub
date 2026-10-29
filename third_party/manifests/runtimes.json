@@ -9,6 +9,15 @@
     "version": "v0.6.5-0.20261026090713-558e498142b0",
     "license": "third_party/licenses/mygo.txt"
   },
+  "mcpGoSdk": {
+    "module": "github.com/modelcontextprotocol/go-sdk",
+    "version": "v1.8.0",
+    "spdx": "Apache-2.0 OR MIT (per contribution, see license)",
+    "license": "third_party/licenses/mcp-go-sdk.txt",
+    "usage": "Official Model Context Protocol SDK; OneSub's MCP server over stdio (OneSub.exe mcp)",
+    "modifications": "none",
+    "transitive": "pinned in apps/desktop/go.sum"
+  },
   "libse": {
     "revision": "e316223ca1cfe8861acb4da4cd0e4ef5cce634f9",
     "license": "third_party/licenses/libse.txt"

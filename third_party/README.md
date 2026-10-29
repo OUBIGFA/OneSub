@@ -1,6 +1,6 @@
 # 第三方来源与许可规则
 
-当前已引入 MyGo、libse worker、SmartSub 样式模块、OneAsr 模型目录与开发运行时、完整字幕技能快照、Lucide 图标以及 JASSUB 播放渲染依赖。精确记录位于 `manifests/`，移植边界位于 `ports/`。[研究证据](../docs/research/evidence.json)仍只用于追溯设计阅读，不替代实际依赖锁。
+当前已引入 MyGo、官方 MCP Go SDK、libse worker、SmartSub 样式模块、OneAsr 模型目录与开发运行时、完整字幕技能快照、Lucide 图标以及 JASSUB 播放渲染依赖。精确记录位于 `manifests/`，移植边界位于 `ports/`。[研究证据](../docs/research/evidence.json)仍只用于追溯设计阅读，不替代实际依赖锁。
 
 当前安装器仅用于本地测试。`manifests/runtimes.json` 明确记录尚未补齐的传递许可、对应源码材料、签名与干净机器验收；这些门禁未过前不对外发布。JASSUB 的包装层 MIT 不代表其 WASM 只有 MIT 许可。
 

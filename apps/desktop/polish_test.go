@@ -19,20 +19,20 @@ import (
 
 func TestDialogBusyStateDoesNotReflowWorkbench(t *testing.T) {
 	a := nativeForTest(t)
-	tt := ui.NewTester(a.view, 1400, 900)
+	tt := settled(a.view, 1400, 900)
 	before, _ := tt.Find("视频播放区")
 	footer, _ := tt.Find("状态栏")
 	a.busy = true
 	a.cancel = func() {}
 	a.status = "打开文件"
-	tt = ui.NewTester(a.view, 1400, 900)
+	tt = settled(a.view, 1400, 900)
 	during, _ := tt.Find("视频播放区")
 	busyFooter, _ := tt.Find("状态栏")
 	if before != during || footer != busyFooter {
 		t.Fatal("busy controls resized workspace", before, during, footer, busyFooter)
 	}
 	a.choosingFile = true
-	tt = ui.NewTester(a.view, 1400, 900)
+	tt = settled(a.view, 1400, 900)
 	choosing, _ := tt.Find("视频播放区")
 	if choosing != before || tt.HasText("取消任务") {
 		t.Fatal("file chooser exposed task controls or resized panes")
@@ -44,7 +44,7 @@ func TestNumberColumnFitsEveryDigitAtUIScales(t *testing.T) {
 		last := float32(0)
 		for _, maxNumber := range []int{9, 99, 999, 9999, 10000, 100000} {
 			var col ui.TableColumn
-			tt := ui.NewTester(func(c *ui.Context) {
+			tt := settled(func(c *ui.Context) {
 				theme := *c.Theme()
 				theme.FontSize = size
 				c.SetTheme(&theme)
@@ -72,12 +72,12 @@ func TestNumberColumnFitsEveryDigitAtUIScales(t *testing.T) {
 func TestSettingsHeightIsStableAcrossTabs(t *testing.T) {
 	a := nativeForTest(t)
 	a.settingsOpen = true
-	tt := ui.NewTester(a.view, 1400, 900)
+	tt := settled(a.view, 1400, 900)
 	first, ok := tt.Find("设置内容")
 	if !ok {
 		t.Fatal(tt.Texts())
 	}
-	for _, tab := range []string{"识别与模型", "翻译", "常规"} {
+	for _, tab := range []string{"识别与模型", "翻译服务", "常规"} {
 		if err := tt.Click(tab); err != nil {
 			t.Fatal(err)
 		}
@@ -90,11 +90,11 @@ func TestSettingsHeightIsStableAcrossTabs(t *testing.T) {
 
 func TestPlayerIconsFitAndStayCentered(t *testing.T) {
 	for _, size := range []float32{15, 22.5, 30} {
-		tt := ui.NewTester(func(c *ui.Context) {
+		tt := settled(func(c *ui.Context) {
 			theme := *c.Theme()
 			theme.FontSize = size
 			c.SetTheme(&theme)
-			playerButton(c, "播放", "play")
+			toolIcon(c, "播放", "play")
 		}, 300, 120)
 		b, _ := tt.Find("播放")
 		i, _ := tt.Find("播放图标")
@@ -170,7 +170,7 @@ func TestComposeNamesTermsAndPlayerProgress(t *testing.T) {
 	}
 	a := nativeForTest(t)
 	a.composeOpen = true
-	tt := ui.NewTester(a.view, 1400, 900)
+	tt := settled(a.view, 1400, 900)
 	if !tt.HasText("硬字幕（烧录） · MP4") || !tt.HasText("CRF 20") || a.settings.ComposeMode != "hard-mp4" {
 		t.Fatal(tt.Texts())
 	}
@@ -182,14 +182,14 @@ func TestComposeNamesTermsAndPlayerProgress(t *testing.T) {
 	if err != nil || prefs.ComposeQuality != "lossless" || prefs.ComposeMode != "hard-mkv" {
 		t.Fatal(prefs, err)
 	}
-	tt = ui.NewTester(a.view, 1400, 900)
+	tt = settled(a.view, 1400, 900)
 	if !tt.HasText("原画质（无损）") || !tt.HasText("硬字幕（烧录） · MKV") {
 		t.Fatal(tt.Texts())
 	}
 	a.composeOpen = false
 	a.composeRunning = true
 	a.composeProgress = media.ComposeProgress{Stage: "视频编码", Fraction: .42}
-	tt = ui.NewTester(a.view, 1400, 900)
+	tt = settled(a.view, 1400, 900)
 	if !tt.HasText("正在合成视频") || !tt.HasText("42.0%") || !tt.HasText("取消合成") {
 		t.Fatal(tt.Texts())
 	}
@@ -201,7 +201,7 @@ func TestComposeNamesTermsAndPlayerProgress(t *testing.T) {
 }
 
 // Volume and mute apply to the page and are remembered like other
-// preferences; a silent slider unmutes to full volume.
+// preferences; the volume starts at half, and a silent slider unmutes to it.
 func TestVolumeAndMuteAreRemembered(t *testing.T) {
 	a := nativeForTest(t)
 	a.setVolume(35, false, time.Now())
@@ -214,12 +214,15 @@ func TestVolumeAndMuteAreRemembered(t *testing.T) {
 	if err != nil || prefs.Volume != 35 || !prefs.Muted {
 		t.Fatal(prefs, err)
 	}
+	if settings.Default().Volume != 50 {
+		t.Fatal("the volume does not start at half")
+	}
 	a.setVolume(0, false, time.Now())
 	a.toggleMute(time.Now())
-	if a.settings.Volume != 100 || a.settings.Muted {
+	if a.settings.Volume != 50 || a.settings.Muted {
 		t.Fatal("silent slider did not restore sound", a.settings)
 	}
-	tt := ui.NewTester(a.view, 1400, 900)
+	tt := settled(a.view, 1400, 900)
 	if _, ok := tt.Find("静音"); !ok {
 		t.Fatal(tt.Texts())
 	}
@@ -234,12 +237,12 @@ func TestChoicesSurviveALanguageChange(t *testing.T) {
 	a := nativeForTest(t)
 	a.composeOpen = true
 	inLocale(t, "en", func() {
-		tt := ui.NewTester(a.view, 1400, 900)
+		tt := settled(a.view, 1400, 900)
 		if !tt.HasText("Hard subtitles (burn-in) · MP4") || !tt.HasText("Encoding quality") {
 			t.Fatal(tt.Texts())
 		}
 	})
-	tt := ui.NewTester(a.view, 1400, 900)
+	tt := settled(a.view, 1400, 900)
 	if !tt.HasText("硬字幕（烧录） · MP4") || a.settings.ComposeMode != "hard-mp4" {
 		t.Fatal(tt.Texts())
 	}

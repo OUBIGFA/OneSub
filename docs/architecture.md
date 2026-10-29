@@ -223,3 +223,15 @@ Settings 是单一持久化边界，位于稳定用户数据目录，与工程�
 ## 11. 不变量与失败边界
 
 任何阶段不得突破：来源只读、时间有证据、候选有版本、手改有锁、发布有检查、云端有选择、文件有授权、第三方有来源。具体边界测试见 [实施与验收](roadmap.md)，依赖/发布门禁见 [安全与分发](security-and-release.md)。
+
+## MCP 服务
+
+OneSub 同时是 [Model Context Protocol](https://modelcontextprotocol.io) 服务端，供支持 MCP 的智能体调用。实现使用官方 Go SDK（`github.com/modelcontextprotocol/go-sdk` v1.8.0，支持协议 2026-07-28 及更早版本），传输为规范定义的 stdio：客户端启动 `OneSub.exe mcp`，消息只走 stdin/stdout，日志写 stderr。该模式不取单实例锁、不创建窗口，可与已打开的窗口并存。
+
+| 工具 | 作用 | 注解 |
+| --- | --- | --- |
+| `list_languages` | 列出可识别的源语言与可翻译的目标语言 | 只读、封闭 |
+| `transcribe_media` | 本地 OneAsr 识别音视频，按设置的格式与标点规则生成新字幕文件，返回路径与条数；识别阶段与分块通过 `notifications/progress` 报告 | 非破坏、封闭 |
+| `translate_subtitles` | 用设置中的翻译服务与凭据翻译字幕文件，完整检查通过才写新文件 | 非破坏、开放（外部服务，可能计费） |
+
+工具与窗口共用同一条识别/翻译流程（`toolset`）、设置文件、模型目录和系统凭据；每次调用读取最新设置。输出从不覆盖已有文件。设置“常规”页提供可一键复制的 `mcpServers` 配置。

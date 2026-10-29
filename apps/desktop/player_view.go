@@ -4,36 +4,28 @@ import (
 	"fmt"
 	"math"
 	"path/filepath"
+	"strconv"
 	"time"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
 
-func playerButton(c *ui.Context, label, icon string) ui.Element {
-	// Keep MyGo's button and icon sizing in the same font-scaled box. Its
-	// normal text-button padding leaves too little room in a fixed 36px box.
-	return ui.Button(c, "").Label(label).Tooltip(label).Padding(c.Theme().Space(2)).Justify(ui.Center).AlignItems(ui.Center).Children(func() {
-		ui.Icon(c, icons[icon]).Label(locales.A11yIconOf(label))
-	})
-}
-
+// playerView is the program monitor: a header with the transcription action
+// and the file name, the picture edge to edge on black, and the transport.
 func (a *NativeApp) playerView(c *ui.Context) {
-	ui.Column(c).Fill().Padding(12).Gap(8).Label(locales.A11yPlayer()).Children(func() {
-		// Equal flexible cells on both sides keep the file name centred
-		// whatever the width of the action on the left.
-		ui.Row(c).Gap(12).AlignItems(ui.Center).Children(func() {
-			ui.Row(c).Grow(1).Basis(0).Children(func() {
-				iconButton(c, locales.ActionRecognize(), "audio-lines").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(a.recognize)
-			})
-			name := ""
-			if a.snapshot != nil && a.snapshot.Manifest.MediaPath != "" {
-				name = filepath.Base(a.snapshot.Manifest.MediaPath)
-			}
-			ui.Text(c, name).TextColor(c.Theme().TextMuted).SingleLine().Shrink(1).MinWidth(0).Tooltip(name)
-			ui.Row(c).Grow(1).Basis(0)
-		})
+	ui.Column(c).Fill().Label(locales.A11yPlayer()).Children(func() {
+		name := ""
+		if a.snapshot != nil && a.snapshot.Manifest.MediaPath != "" {
+			name = filepath.Base(a.snapshot.Manifest.MediaPath)
+		}
+		panelHeader(c, nil, func() {
+			muted(c, name).SingleLine().Shrink(1).MinWidth(0).Tooltip(name)
+		}, nil)
 		switch {
+		case a.recognitionRunning:
+			a.recognitionProgressView(c)
 		case a.composeRunning:
 			a.composeProgressView(c)
 		case a.player != nil:
@@ -45,31 +37,57 @@ func (a *NativeApp) playerView(c *ui.Context) {
 				iconButton(c, locales.PlayerAddVideo(), "folder-open").Disabled(a.busy).OnClick(a.pickFiles)
 			})
 		}
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			label, icon := locales.PlayerPlay(), "play"
-			if !a.paused {
-				label, icon = locales.PlayerPause(), "pause"
-			}
-			disabled := a.mediaURL == "" || a.composeRunning
-			playerButton(c, locales.PlayerBack(), "rewind").Disabled(disabled).OnClick(func() { a.seekBy(-15) })
-			playerButton(c, label, icon).Disabled(disabled).OnClick(a.togglePlayback)
-			playerButton(c, locales.PlayerForward(), "fast-forward").Disabled(disabled).OnClick(func() { a.seekBy(15) })
-			ui.Text(c, stamp(a.position)).SingleLine().MarginStart(8)
-			value := a.position
-			upper := math.Max(a.duration, .001)
-			ui.Slider(c, &value, 0, upper).Label(locales.PlayerPosition()).Disabled(disabled).Grow(1).OnChange(func() { a.evalPlayer(fmt.Sprintf("video.currentTime = %f", value)) })
-			ui.Text(c, stamp(a.duration)).SingleLine()
+		a.transportBar(c)
+	})
+}
+
+// transportBar: the position across the whole picture, then the transport
+// buttons and the speed, the time, and at the end the volume, as video
+// players and editors' monitors lay them out. A narrow player keeps every
+// control whole: only the volume slider gives up room. Times use digits of
+// one width so they do not shift as they count.
+func (a *NativeApp) transportBar(c *ui.Context) {
+	// The picture gives way to a task's progress, and so does its transport.
+	disabled := a.mediaURL == "" || a.composeRunning || a.recognitionRunning
+	ui.Column(c).Padding(em(c, 2), em(c, 12), em(c, 6), em(c, 12)).Shrink(0).Label(locales.A11yPlayerControls()).Children(func() {
+		value := a.position
+		ui.Slider(c, &value, 0, math.Max(a.duration, .001)).Label(locales.PlayerPosition()).Disabled(disabled).OnChange(func() { a.evalPlayer(fmt.Sprintf("video.currentTime = %f", value)) })
+		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+			ui.Toolbar(c, func() {
+				toolIcon(c, locales.PlayerBack(), "rewind").Disabled(disabled).OnClick(func() { a.seekBy(-15) })
+				label, name := locales.PlayerPlay(), "play"
+				if !a.paused {
+					label, name = locales.PlayerPause(), "pause"
+				}
+				toolIcon(c, label, name).Disabled(disabled).OnClick(a.togglePlayback)
+				toolIcon(c, locales.PlayerForward(), "fast-forward").Disabled(disabled).OnClick(func() { a.seekBy(15) })
+				ui.MenuButton(c, rateLabel(a.playbackRate()), func(m *ui.Menu) {
+					for _, rate := range playbackRates {
+						if m.Item(rateLabel(rate)).Checked(rate == a.playbackRate()).Chosen() {
+							a.setPlaybackRate(rate)
+						}
+					}
+				}).Label(locales.PlayerSpeed()).Tooltip(locales.PlayerSpeed()).Disabled(disabled).FontFeatures("tnum")
+			}).Gap(em(c, 2)).Shrink(0)
+			ui.Row(c).Gap(em(c, 6)).AlignItems(ui.Center).Shrink(0).Children(func() {
+				ui.Text(c, stamp(a.position)).FontFeatures("tnum").SingleLine()
+				muted(c, "/").SingleLine()
+				muted(c, stamp(a.duration)).FontFeatures("tnum").SingleLine()
+			})
+			ui.Spacer(c)
 			muteLabel, muteIcon := locales.PlayerMute(), "volume-2"
 			if a.settings.Muted || a.settings.Volume == 0 {
 				muteLabel, muteIcon = locales.PlayerUnmute(), "volume-x"
 			}
-			playerButton(c, muteLabel, muteIcon).MarginStart(8).OnClick(func() { a.toggleMute(c.Now()) })
+			ui.Toolbar(c, func() {
+				toolIcon(c, muteLabel, muteIcon).OnClick(func() { a.toggleMute(c.Now()) })
+			}).Shrink(0)
 			volume := a.settings.Volume
-			ui.Slider(c, &volume, 0, 100).Width(110).Label(locales.PlayerVolume()).Tooltip(locales.PlayerVolumeValue(int(math.Round(volume)))).OnChange(func() {
+			ui.Slider(c, &volume, 0, 100).Width(em(c, 96)).MinWidth(em(c, 48)).Shrink(1).Label(locales.PlayerVolume()).Tooltip(locales.PlayerVolumeValue(int(math.Round(volume)))).OnChange(func() {
 				// Moving the volume is a request to hear it.
 				a.setVolume(volume, false, c.Now())
 			})
-		}).Label(locales.A11yPlayerControls())
+		})
 	})
 }
 
@@ -135,16 +153,43 @@ func (a *NativeApp) setVolume(percent float64, muted bool, now time.Time) {
 	a.prefsSaveDue = now.Add(400 * time.Millisecond)
 }
 
-// toggleMute restores a silent slider to full volume, else flips mute.
+// toggleMute restores a silent slider to the default volume, else flips mute.
 func (a *NativeApp) toggleMute(now time.Time) {
 	if a.settings.Volume == 0 {
-		a.setVolume(100, false, now)
+		a.setVolume(settings.Default().Volume, false, now)
 		return
 	}
 	a.setVolume(a.settings.Volume, !a.settings.Muted, now)
 }
 func (a *NativeApp) volumeScript() string {
 	return fmt.Sprintf("video.volume=%.3f;video.muted=%t;", a.settings.Volume/100, a.settings.Muted)
+}
+
+// playbackRates are the speeds of the speed menu, slow to fast. The page's
+// video element cannot play backwards (Chromium rejects negative rates).
+var playbackRates = []float64{0.5, 0.75, 1, 1.25, 1.5, 2}
+
+// playbackRate is the speed chosen for this session, normal until one is.
+func (a *NativeApp) playbackRate() float64 {
+	if a.rate == 0 {
+		return 1
+	}
+	return a.rate
+}
+
+// setPlaybackRate plays at rate, also the next videos: a new source starts
+// at the default rate, which is set with it.
+func (a *NativeApp) setPlaybackRate(rate float64) {
+	a.rate = rate
+	a.evalPlayer(a.rateScript())
+}
+func (a *NativeApp) rateScript() string {
+	return fmt.Sprintf("video.defaultPlaybackRate=%g;video.playbackRate=%g;", a.playbackRate(), a.playbackRate())
+}
+
+// rateLabel writes a speed as players do: 0.75×, 1×, 2×.
+func rateLabel(rate float64) string {
+	return strconv.FormatFloat(rate, 'f', -1, 64) + "×"
 }
 
 // playerErrorText says the page's error codes in the app's language.

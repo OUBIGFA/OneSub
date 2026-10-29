@@ -219,3 +219,54 @@ func TestEndpointRejectsUnsafeRoutes(t *testing.T) {
 		}
 	}
 }
+
+// The Responses protocol sends the rules as instructions, asks the service
+// not to store the request, and accepts only a completed answer.
+func TestResponsesProtocol(t *testing.T) {
+	for _, status := range []string{"completed", "incomplete"} {
+		t.Run(status, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/v1/responses" || r.Header.Get("Authorization") != "Bearer not-a-live-key" {
+					t.Error("wrong provider route", r.URL.Path)
+				}
+				var request struct {
+					Model, Instructions, Input string
+					Store                      *bool
+					Messages                   []message
+				}
+				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+					t.Error(err)
+				}
+				if request.Model != "protocol-test" || !strings.Contains(request.Instructions, "## SKILL.md") || request.Store == nil || *request.Store || request.Messages != nil {
+					t.Error("not a Responses request")
+				}
+				var data struct{ Cues []line }
+				json.Unmarshal([]byte(request.Input), &data)
+				for i := range data.Cues {
+					data.Cues[i].Text = strings.Replace(data.Cues[i].Text, "Source", "译文", 1)
+				}
+				answer, _ := json.Marshal(candidate{Cues: data.Cues, Uncertainties: []string{}})
+				json.NewEncoder(w).Encode(map[string]any{"status": status, "output": []any{
+					map[string]any{"type": "reasoning", "summary": []any{}},
+					map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": string(answer)}}},
+				}, "usage": map[string]int{"input_tokens": 10, "output_tokens": 5}})
+			}))
+			defer server.Close()
+			config := testConfig(t, server)
+			config.API = APIResponses
+			result, err := Translate(context.Background(), config, testDocument(2), nil)
+			if status == "incomplete" {
+				if err == nil {
+					t.Fatal("an incomplete answer was accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Document.Cues[1].Text != "译文 1" || result.Report.InputTokens != 10 || result.Report.OutputTokens != 5 {
+				t.Fatal(result.Document.Cues, result.Report)
+			}
+		})
+	}
+}

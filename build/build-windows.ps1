@@ -5,6 +5,9 @@ $env:GOROOT = Join-Path $root '.local/toolchains/go1.27.3/go'
 $env:PATH = "$env:GOROOT/bin;$env:PATH"
 $env:GOMODCACHE = Join-Path $root '.local/gomodcache'
 $env:GOCACHE = Join-Path $root '.local/gocache'
+$patchedMod = & python (Join-Path $root 'tools/prepare_mygo.py')
+if ($LASTEXITCODE -ne 0) { throw 'MyGo menu patch preparation failed' }
+$env:GOFLAGS = "`"-modfile=$patchedMod`""
 $env:MYGO_LDFLAGS = "-X main.BuildNumber=$BuildNumber"
 Push-Location $root
 try {

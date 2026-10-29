@@ -126,7 +126,9 @@ if (import.meta.main) {
     let result: unknown;
     if (request.operation === 'catalog') {
       const fontName = process.platform === 'win32' ? 'Microsoft YaHei' : process.platform === 'darwin' ? 'PingFang SC' : 'Noto Sans CJK SC';
-      result = { presets: STYLE_PRESETS, defaultStyle: { ...DEFAULT_STYLE, fontName }, fonts: await listSubtitleFonts() };
+      // OneSub's default is SmartSub's without the shadow: no distance and no
+      // opacity, so a new subtitle is drawn with its outline only.
+      result = { presets: STYLE_PRESETS, defaultStyle: { ...DEFAULT_STYLE, fontName, shadow: 0, backOpacity: 0 }, fonts: await listSubtitleFonts() };
     } else if (request.operation === 'build' || request.operation === 'resolve') {
       const raw = await readFile(request.inputPath);
       if (raw.byteLength > 64 * 1024 * 1024) throw new Error('E_INPUT_SIZE');
