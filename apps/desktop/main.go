@@ -221,8 +221,8 @@ func (a *NativeApp) keepPaneMinimums(c *ui.Context) {
 	}
 	keep(&a.splitX, width, em(c, 500), em(c, 360))
 	keep(&a.splitY, height, em(c, 320), em(c, 180))
-	keep(&a.bottomSplit, width, em(c, 220), em(c, 360+260))
-	keep(&a.styleSplit, width*(100-a.bottomSplit)/100, em(c, 360), em(c, 260))
+	keep(&a.bottomSplit, width, em(c, 220), em(c, 340+300))
+	keep(&a.styleSplit, width*(100-a.bottomSplit)/100, em(c, 340), em(c, 300))
 }
 
 // topBar holds the actions on the whole workbench: adding and clearing on
