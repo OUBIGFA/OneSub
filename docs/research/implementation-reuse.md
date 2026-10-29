@@ -85,6 +85,17 @@ MyGo 首个原生薄链路继续固定已编译验证的 `v0.6.4`；最新仓库
 
 程序约束比模型输出更严格：无真实内部时间锚点时不按字数分时间；ASS 保留事件/非 Text 字段；旧 revision 不覆盖手改；检查失败不回填原文冒充译文。技能检查通过不等于语义或音画同步已通过。
 
-## 7. 实施证据要求
+## 7. 翻译协议、容错与分段参考
+
+2026-10-30 补充核查以下固定修订；这里只借鉴流程并用 Go 适配实现，不引入其 Python/Electron 翻译运行时或 JSON 修复依赖，不整体复制上游提示词：
+
+| 来源 | 核查位置 | OneSub 的适配与差异 |
+| --- | --- | --- |
+| [VideoCaptioner `95842ecb5618c0b6a548a336bdfb0eb859bdb501`](https://github.com/WEIFENG2333/VideoCaptioner/tree/95842ecb5618c0b6a548a336bdfb0eb859bdb501)，GPL-3.0 | `videocaptioner/core/translate/llm_translator.py`、`core/split/split_by_llm.py`、`core/split/split.py` | 参考编号批量翻译、反馈修复、缓存及模型断句后对齐。OneSub 的 `segment.go` / `align.go` 只从原始 atom 落时；内容仍用原文，缺译不回填原文。 |
+| [SmartSub `b398113b0fdf608120b22a3d17f7b784bf1ff3b0`](https://github.com/buxuku/SmartSub/tree/b398113b0fdf608120b22a3d17f7b784bf1ff3b0)，MIT | `main/translate/utils/aiResponseParser.ts`、`services/translationProvider.ts`、`services/providerFallback.ts` | 参考思考/代码块剥离、结构化输出兼容与缺漏修复。OneSub 的 `parse.go` / `client.go` 使用 Go 实现有限容错，不嵌入上游 JavaScript 解析器。 |
+
+翻译质量规则与数值阈值仍来自已授权字幕技能，不用上述项目的提示词替换。3D 术语是可选风格规则，不是通用核心默认内容。实现、缓存和保存边界见 [字幕翻译](../translation.md)。这些参考修订不改变已有 SmartSub 样式模块的冻结版本。
+
+## 8. 实施证据要求
 
 每个组件记录精确版本、依赖、许可证、改动符号、构建命令及行为测试。发行前的证据必须来自最终打包组件，而不是开发机 PATH 上的替代工具。具体流水线和验收见 [界面设计](../ui-design.md)、[架构](../architecture.md)和[实施计划](../roadmap.md)。

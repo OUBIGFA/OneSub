@@ -15,6 +15,8 @@ BASE_HASHES = {
     "menu.go": "4694b0f050a10f85512a8f55ecefeaf15252d47994b27fd69f1235c15bf83fc5",
     "menudraw.go": "aa49e1a0bbd0b763c69223b520251a27777d820de2334ae014dad62e1fcdd366",
     "menudraw_test.go": "aed92f41e8f97b0b17668e3643d829a068f75b447eb0514e5112e7a820014edf",
+    "surface.go": "2888504461944780a2a425042d0bcdc5d8f1e8722386f8af382fa182433e857a",
+    "webview_embed.go": "64fd60d9f67bf9f682ae397d7df660469c92ad53413a09b6abc3bc7807264784",
 }
 
 
@@ -34,7 +36,7 @@ def mirror(source, output):
 
 def prepare():
     source = ROOT / ".local/gomodcache" / MODULE
-    patch = ROOT / "third_party/patches/mygo/popup-metrics.patch"
+    patch = ROOT / "third_party/patches/mygo/windows-native.patch"
     relative = ".local/mygo-menu-source"
     output = ROOT / relative
     for name, expected in BASE_HASHES.items():

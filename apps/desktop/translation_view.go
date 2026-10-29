@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/security"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
@@ -91,15 +92,8 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 		})
 	})
 	settingsGroup(c, locales.TranslationStyle(), func() {
-		options := []option{}
-		for _, p := range a.translationProfiles {
-			options = append(options, option{p.ID, profileName(p)})
-		}
 		ui.Row(c).Gap(12).Children(func() {
-			idSelect(c, &a.settings.TranslationProfile, options).Label(locales.TranslationStyle()).Grow(1).OnChange(func() {
-				a.profilesError = ""
-				a.saveSettings()
-			})
+			a.styleSelect(c).Grow(1)
 			ui.Button(c, locales.TranslationReloadStyles()).OnClick(a.reloadTranslationProfiles)
 			ui.Button(c, locales.TranslationStyleFolder()).OnClick(func() {
 				path := filepath.Join(a.dataRoot, "translation-styles")
@@ -121,60 +115,41 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 	})
 }
 
-func (a *NativeApp) translationView(c *ui.Context) {
-	ui.Modal(c, &a.translationConfirm, func() {
-		ui.Column(c).Width(em(c, 560)).Gap(em(c, 12)).Children(a.translationConfirmContent(c))
+// styleSelect chooses the translation style: the same choice in the
+// settings and where a translation starts.
+func (a *NativeApp) styleSelect(c *ui.Context) ui.Element {
+	options := []option{}
+	for _, p := range a.translationProfiles {
+		options = append(options, option{p.ID, profileName(p)})
+	}
+	return idSelect(c, &a.settings.TranslationProfile, options).Label(locales.TranslationStyle()).OnChange(func() {
+		a.profilesError = ""
+		a.saveSettings()
 	})
+}
+
+// translationView is the check results of the last translation: what the
+// subtitle skill's checker found, and every subtitle beside its source.
+func (a *NativeApp) translationView(c *ui.Context) {
 	ui.Modal(c, &a.translationReview, func() {
 		ui.Column(c).Width(em(c, 760)).Gap(em(c, 12)).Children(a.translationReviewContent(c))
 	})
 }
 
-// translationConfirmContent says what is sent and to where before anything
-// is sent.
-func (a *NativeApp) translationConfirmContent(c *ui.Context) func() {
-	return func() {
-		dialogTitle(c, locales.ActionTranslate())
-		ui.Text(c, a.settings.ProviderModel)
-		muted(c, a.settings.ProviderURL)
-		if a.snapshot != nil {
-			total, locked := 0, 0
-			for _, cue := range a.snapshot.Document.Cues {
-				if cue.ReadOnly || cue.TextLocked {
-					locked++
-				} else {
-					total++
-				}
-			}
-			ui.Text(c, locales.TranslationScope(total, a.settings.TargetLanguage, locked))
-		}
-		ui.Text(c, locales.TranslationPrivacy())
-		if a.settings.OptimizeTimeline {
-			ui.Text(c, locales.TranslationTimelineNote()).TextColor(c.Theme().TextMuted)
-		}
-		ui.Text(c, locales.TranslationCostNote(int(a.settings.MaxRequests))).TextColor(c.Theme().TextMuted)
-		ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Margin(em(c, 8), 0, 0, 0).Children(func() {
-			ui.Button(c, locales.ActionCancel()).OnClick(func() { a.translationConfirm = false })
-			ui.PrimaryButton(c, locales.TranslationStart()).OnClick(func() { a.translationConfirm = false; a.startTranslation() })
-		})
-	}
-}
-
-// translationReviewContent shows the checks, the result beside its source
-// and the chosen line in full before the translation is accepted.
 func (a *NativeApp) translationReviewContent(c *ui.Context) func() {
 	return func() {
 		candidate := a.translationCandidate
 		if candidate == nil {
 			return
 		}
-		dialogTitle(c, locales.ListReview())
-		ui.Text(c, locales.ReviewSummary(candidate.Result.Report.Translated, candidate.Result.Report.TimelineChanges, len(candidate.Checks.Errors), len(candidate.Checks.Warnings)+len(candidate.Result.Report.Warnings)))
+		report := candidate.Result.Report
+		dialogTitle(c, locales.TranslationResults())
+		ui.Text(c, locales.ReviewSummary(report.Translated, report.TimelineChanges, len(candidate.Checks.Errors), len(candidate.Checks.Warnings)+len(report.Warnings)))
 		ui.Scroll(c).Height(em(c, 130)).Children(func() {
 			for _, item := range candidate.Checks.Errors {
 				ui.Text(c, item).TextColor(c.Theme().Danger)
 			}
-			for _, item := range candidate.Result.Report.Warnings {
+			for _, item := range report.Warnings {
 				ui.Text(c, item).TextColor(c.Theme().Warning)
 			}
 			for _, item := range candidate.Checks.Warnings {
@@ -204,12 +179,49 @@ func (a *NativeApp) translationReviewContent(c *ui.Context) func() {
 			}
 		}
 		ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Children(func() {
-			ui.Button(c, locales.ReviewLater()).OnClick(func() { a.translationReview = false })
-			ui.PrimaryButton(c, locales.ReviewAccept()).Disabled(len(candidate.Checks.Errors) > 0 || a.busy).OnClick(a.acceptTranslation)
+			ui.PrimaryButton(c, locales.ActionClose()).OnClick(func() { a.translationReview = false })
 		})
 	}
 }
 
+// skillTools are the subtitle skill's files and its checker worker.
+func (a *NativeApp) skillTools() (root, worker string) {
+	root = filepath.Join(a.resources, "srt-subtitle-translator")
+	if value := os.Getenv("ONESUB_SKILL_ROOT"); value != "" {
+		root = value
+	}
+	worker = filepath.Join(a.resources, "skill-tools", "OneSub.SkillTools.exe")
+	if value := os.Getenv("ONESUB_SKILL_WORKER"); value != "" {
+		worker = value
+	}
+	return root, worker
+}
+
+// translationFile is where a finished translation is saved: beside the
+// subtitles, or the video, as lesson-zh.srt, or in the folder chosen for
+// translations. "" when the project has no file to name it after.
+func (a *NativeApp) translationFile() string {
+	base := a.originalSubtitlePath()
+	if base == "" && a.snapshot != nil {
+		base = a.snapshot.Manifest.MediaPath
+	}
+	if base == "" {
+		return ""
+	}
+	dir := a.settings.TranslationDir
+	if dir == "" {
+		dir = filepath.Dir(base)
+	}
+	stem := strings.TrimSuffix(filepath.Base(base), filepath.Ext(base)) + "-" + translationSuffix(a.settings.TargetLanguage)
+	return filepath.Join(dir, stem+"."+a.trackFormats()[0])
+}
+
+// startTranslation translates the whole subtitle file at once, without a
+// second confirmation: the service and model are the user's own settings.
+// The list shows each subtitle's translation as the model writes it. The
+// finished, checked translation becomes the translation track in one
+// undoable step and is saved beside its source; one the checker finds
+// errors in is kept in the project, unsaved, with the errors shown.
 func (a *NativeApp) startTranslation() {
 	if a.busy || a.snapshot == nil {
 		return
@@ -222,25 +234,20 @@ func (a *NativeApp) startTranslation() {
 		a.errorText = err.Error()
 		return
 	}
-	root := filepath.Join(a.resources, "srt-subtitle-translator")
-	if value := os.Getenv("ONESUB_SKILL_ROOT"); value != "" {
-		root = value
-	}
-	executable := filepath.Join(a.resources, "skill-tools", "OneSub.SkillTools.exe")
-	if value := os.Getenv("ONESUB_SKILL_WORKER"); value != "" {
-		executable = value
-	}
-	config := translator.Config{Endpoint: prefs.ProviderURL, API: prefs.ProviderAPI, Model: prefs.ProviderModel, Key: key, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(a.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests)}
-	config.Observe = func(p translator.Progress) {
+	root, executable := a.skillTools()
+	config := translator.Config{Endpoint: prefs.ProviderURL, API: prefs.ProviderAPI, Model: prefs.ProviderModel, Key: key, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(a.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests), CacheDir: filepath.Join(a.dataRoot, "cache", "translation")}
+	live := newTranslationLive()
+	config.Observe = func(ev translator.Event) {
 		a.win.Update(func() {
-			a.translationProgress = p
-			a.translationDraft = append(a.translationDraft, p.Preview...)
+			if a.translationLive == live {
+				live.apply(ev)
+			}
 		})
 	}
+	a.translationLive = live
 	a.translationRunning = true
-	a.translationProgress = translator.Progress{Stage: "context"}
-	a.translationDraft, a.draftShown, a.draftList = nil, 0, ui.ListState{}
 	checker := translator.Checker{Executable: executable, SkillRoot: root, Scratch: a.worker.Scratch, Subtitle: a.worker}
+	target, format := a.translationFile(), a.trackFormats()[0]
 	a.run(locales.ActionTranslate(), func(ctx context.Context) (func(), error) {
 		// Always translate the retained source, not a previous machine translation.
 		// Locked hand edits stay in place and never enter the writable candidate set.
@@ -251,14 +258,12 @@ func (a *NativeApp) startTranslation() {
 				source.Cues[i].Text = cueDisplayText(source.Cues[i], 0)
 			}
 		}
-		result, err := translator.Translate(ctx, config, source, func(done, total int) {
-			a.win.Update(func() { a.status = locales.TranslationProgress(done, total) })
-		})
+		result, err := translator.Translate(ctx, config, source)
 		if err != nil {
 			return nil, err
 		}
-		a.win.Update(func() { a.status = locales.TranslationChecking(); a.translationProgress.Stage = "checking" })
-		checks, err := checker.Check(ctx, result.Source, result.Document, prefs.TargetLanguage)
+		a.win.Update(func() { live.stage = "check" })
+		checks, err := checker.Check(ctx, source, result.Document, prefs.TargetLanguage, !result.Report.Rebuilt)
 		if err != nil {
 			return nil, err
 		}
@@ -274,33 +279,26 @@ func (a *NativeApp) startTranslation() {
 		if err = subtitle.Publish(filepath.Join(artifacts, "translation-"+uuid.NewString()+".json"), data); err != nil {
 			return nil, err
 		}
-		return func() {
-			a.translationCandidate = candidate
-			a.translationReview = true
-			a.translationSelected = 0
-			a.status = locales.TranslationAwaitingReview()
-		}, nil
+		// The file is written only for a translation without check errors.
+		var file []byte
+		if len(checks.Errors) == 0 && target != "" {
+			if file, err = a.encodeTrack(ctx, result.Document, 1, format); err != nil {
+				return nil, err
+			}
+		}
+		return func() { a.applyTranslation(candidate, target, file) }, nil
 	})
 }
 
-// Accepting the whole reviewed result is one undoable transaction. The store
-// repeats revision/lock checks, so an old review cannot overwrite later edits.
-func (a *NativeApp) acceptTranslation() {
-	if a.snapshot == nil || a.translationCandidate == nil {
-		return
-	}
-	a.commitEdit(true)
-	candidate := a.translationCandidate
-	if candidate.ProjectID != a.snapshot.Manifest.ID || candidate.Revision != a.snapshot.Revision {
+// applyTranslation makes a checked translation the translation track, as one
+// undoable transaction, then saves it as a new file: an existing one is
+// never overwritten. The store repeats the revision and lock checks.
+func (a *NativeApp) applyTranslation(candidate *translationCandidate, target string, file []byte) {
+	if a.snapshot == nil || candidate.ProjectID != a.snapshot.Manifest.ID || candidate.Revision != a.snapshot.Revision {
 		a.errorText = locales.ErrTranslationStale()
 		return
 	}
-	if len(candidate.Checks.Errors) > 0 {
-		a.errorText = locales.ErrTranslationChecks()
-		return
-	}
-	_, err := a.store.ApplyTranslationDocument(uuid.NewString(), candidate.Revision, candidate.Result.Document)
-	if err != nil {
+	if _, err := a.store.ApplyTranslationDocument(uuid.NewString(), candidate.Revision, candidate.Result.Document); err != nil {
 		a.errorText = err.Error()
 		return
 	}
@@ -316,8 +314,26 @@ func (a *NativeApp) acceptTranslation() {
 	a.settings.SubtitleOutput.Mode = "translation"
 	a.saveSettings()
 	a.loadDraft()
-	a.translationReview = false
-	a.translationCandidate = nil
-	a.errorText = ""
-	a.status = locales.TranslationAccepted()
+	a.translationCandidate = candidate
+	a.translationSelected = 0
+	report, checks := candidate.Result.Report, candidate.Checks
+	if len(checks.Errors) > 0 {
+		a.status = locales.TranslationDoneUnsaved(report.Translated, len(checks.Errors))
+		a.translationReview = true
+		return
+	}
+	if file == nil {
+		a.status = locales.TranslationDoneNoFile(report.Translated)
+		return
+	}
+	stem := strings.TrimSuffix(filepath.Base(target), filepath.Ext(target))
+	path, err := publishBeside(filepath.Dir(target), stem, strings.TrimPrefix(filepath.Ext(target), "."), file)
+	if err != nil {
+		a.errorText = err.Error()
+		a.status = locales.TranslationDoneNoFile(report.Translated)
+		return
+	}
+	a.markSaved(1, path)
+	a.lastOutput = path
+	a.status = locales.TranslationDone(report.Translated, filepath.Base(path), len(checks.Warnings)+len(report.Warnings))
 }

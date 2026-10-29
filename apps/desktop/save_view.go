@@ -105,7 +105,8 @@ func (a *NativeApp) trackFormats() []string {
 }
 
 // defaultTrackPath proposes a name next to the subtitle or the video:
-// lesson.srt for the source, lesson.zh-CN.srt for the translation.
+// lesson.srt for the source, lesson-zh.srt for the translation, in the
+// folder chosen for translations if there is one.
 func (a *NativeApp) defaultTrackPath(track int) string {
 	if a.savedPath[track] != "" {
 		return a.savedPath[track]
@@ -119,7 +120,10 @@ func (a *NativeApp) defaultTrackPath(track int) string {
 		base = a.snapshot.Manifest.Name
 	}
 	if track == 1 {
-		base += "." + a.settings.TargetLanguage
+		base += "-" + translationSuffix(a.settings.TargetLanguage)
+		if a.settings.TranslationDir != "" {
+			base = filepath.Join(a.settings.TranslationDir, filepath.Base(base))
+		}
 	}
 	return base + "." + a.trackFormats()[0]
 }
@@ -357,7 +361,7 @@ func (a *NativeApp) clearWorkbench() {
 	a.selected = -1
 	a.loadDraft()
 	a.pending, a.candidatesOpen = nil, false
-	a.translationCandidate, a.translationReview, a.translationConfirm = nil, false, false
+	a.translationCandidate, a.translationReview = nil, false
 	a.savedHash, a.savedPath, a.unsaved = [2]string{}, [2]string{}, [2]bool{}
 	a.subtitleTab = 0
 	a.query = ""

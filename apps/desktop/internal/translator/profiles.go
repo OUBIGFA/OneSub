@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -22,7 +23,14 @@ type Profile struct {
 	Rules  string
 	SHA256 string
 	Custom bool
+	// References are the subtitle skill's reference files the style adds to
+	// the core, as the 3D style adds references/glossary-3d-zh.md.
+	References []string
 }
+
+// reference is the only form a style may name: a file in the skill's
+// references folder, never a path out of it.
+var reference = regexp.MustCompile(`^references/[a-z0-9][a-z0-9-]*\.md$`)
 
 // Profiles are declarative SKILL.md documents, never executable plugins.
 // Reload for each settings visit and each request; no process-wide cache can
@@ -59,15 +67,25 @@ func Profiles(directory string) ([]Profile, error) {
 				return errors.New(locales.ErrProfileMetadata(entry.Name()))
 			}
 			name := ""
+			refs := []string{}
 			for _, line := range strings.Split(parts[0], "\n") {
 				if strings.HasPrefix(line, "name:") {
 					name = strings.Trim(strings.TrimSpace(strings.TrimPrefix(line, "name:")), "\"'")
+				}
+				// references: a, b — skill reference files the style adds.
+				if strings.HasPrefix(line, "references:") {
+					for _, ref := range strings.Split(strings.TrimPrefix(line, "references:"), ",") {
+						if ref = strings.TrimSpace(ref); !reference.MatchString(ref) {
+							return errors.New(locales.ErrProfileReference(entry.Name(), ref))
+						}
+						refs = append(refs, strings.TrimSpace(ref))
+					}
 				}
 			}
 			if name == "" || strings.TrimSpace(parts[1]) == "" {
 				return errors.New(locales.ErrProfileContent(entry.Name()))
 			}
-			profiles[entry.Name()] = Profile{ID: entry.Name(), Name: name, Rules: parts[1], SHA256: fmt.Sprintf("%x", sha256.Sum256(raw)), Custom: custom}
+			profiles[entry.Name()] = Profile{ID: entry.Name(), Name: name, Rules: parts[1], SHA256: fmt.Sprintf("%x", sha256.Sum256(raw)), Custom: custom, References: refs}
 		}
 		return nil
 	}

@@ -45,6 +45,7 @@ type Settings struct {
 	MaxRequests        float64                `json:"maxRequests"`
 	RecognitionFormat  string                 `json:"recognitionFormat"`
 	RecognitionDir     string                 `json:"recognitionDir"` // empty: beside the media
+	TranslationDir     string                 `json:"translationDir"` // empty: beside the subtitle or the media
 	OutputDir          string                 `json:"outputDir"`
 	LastStyle          *styles.Style          `json:"lastStyle,omitempty"`
 	StylePreset        string                 `json:"stylePreset,omitempty"` // preset ID
@@ -75,10 +76,10 @@ type Settings struct {
 
 // version is that of the settings written now. Version 1 had full volume
 // and SmartSub's shadow as defaults; Load moves them to version 2's.
-const version = 2
+const version = 3
 
 func Default() Settings {
-	return Settings{Version: version, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "zh", RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 25, StyleWidth: 200.0 / 3, StripPunctuation: true, KeepPunctuation: "?"}
+	return Settings{Version: version, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "zh", RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 20, StyleWidth: 50, StripPunctuation: true, KeepPunctuation: "?"}
 }
 func Load(path string) (Settings, error) {
 	s := Default()
@@ -92,10 +93,10 @@ func Load(path string) (Settings, error) {
 	if err = json.Unmarshal(raw, &s); err != nil {
 		return Default(), err
 	}
-	if s.Version != 1 && s.Version != version {
+	if s.Version < 1 || s.Version > version {
 		return Default(), errors.New(locales.ErrSettingsVersion())
 	}
-	if s.Version == 1 {
+	if s.Version < version {
 		upgrade(&s)
 	}
 	if s.ModelPaths == nil {
@@ -112,9 +113,18 @@ func Load(path string) (Settings, error) {
 	return s, nil
 }
 
-// upgrade moves version 1's untouched defaults to version 2's: half volume,
-// and the default style without a shadow. Values the user chose stay.
+// upgrade moves the untouched defaults of earlier versions to the current
+// ones. Version 2 has half volume and the default style without a shadow;
+// version 3 sizes the editor, the style and recognition with translation
+// 1:2:2. Values the user chose stay.
 func upgrade(s *Settings) {
+	if s.Version >= 2 {
+		if s.EditorWidth == 25 && s.StyleWidth > 66.6 && s.StyleWidth < 66.7 {
+			s.EditorWidth, s.StyleWidth = 20, 50
+		}
+		s.Version = version
+		return
+	}
 	if s.Volume == 100 {
 		s.Volume = 50
 	}

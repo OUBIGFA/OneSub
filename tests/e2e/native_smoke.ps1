@@ -40,7 +40,8 @@ if (Test-Path $workPath) { throw 'Use a fresh smoke directory' }
 New-Item -ItemType Directory $workPath | Out-Null
 $video = Join-Path $workPath 'test.mp4'
 $subtitle = Join-Path $workPath 'test.srt'
-[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:02,900`n测试字幕`n",[Text.UTF8Encoding]::new($false))
+$sourceText = if ($TranslationEndpoint) { 'Hello, world' } else { '测试字幕' }
+[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:02,900`n$sourceText`n",[Text.UTF8Encoding]::new($false))
 & ffmpeg -v error -f lavfi -i 'testsrc2=size=320x180:rate=10:duration=3' -c:v libx264 -pix_fmt yuv420p $video
 if($LASTEXITCODE -ne 0){throw 'Fixture creation failed'}
 $env:ONESUB_DATA_ROOT = Join-Path $workPath 'data'
@@ -59,11 +60,17 @@ if($Packaged){
     $env:ONESUB_FFMPEG = (Get-Command ffmpeg).Source
 }
 $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $workPath 'webview'
+# MyGo's single-instance socket must be isolated as well as the project
+# data. Otherwise a packaged smoke run activates the user's installed app.
+$env:XDG_RUNTIME_DIR = Join-Path $workPath 'ipc'
+if($env:XDG_RUNTIME_DIR.Length -gt 65){throw 'Use a shorter smoke directory for the isolated single-instance socket'}
+New-Item -ItemType Directory $env:XDG_RUNTIME_DIR | Out-Null
 $launch=@{FilePath=[IO.Path]::GetFullPath($Exe);PassThru=$true;RedirectStandardError=(Join-Path $workPath 'stderr.log')}
 if($OpenArgument){$launch.ArgumentList=@('"'+$video+'"')}
 $p=Start-Process @launch
 function Find-UI($name) {
     $p.Refresh()
+    if($p.HasExited -or -not $p.MainWindowHandle){return $null}
     $root=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
     if(-not $root){return $null}
     $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name)
@@ -85,14 +92,29 @@ function Click-UI($name) {
     }
     throw "Control unavailable: $name"
 }
-function Select-SettingsTab($name) {
-    $tabs=Find-UI '设置分类'
-    $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name)
-    $item=$tabs.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$condition)
-    $pattern=$null
-    if($item.TryGetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern,[ref]$pattern)){$pattern.Select()}
-    else{$item.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()}
-    Start-Sleep -Milliseconds 300
+function Select-Tab($container, $name) {
+    # Invoke/selection is asynchronous; wait for the next UIA tree after
+    # closing a modal instead of reading the just-invalidated tree once.
+    for($i=0;$i -lt 100;$i++) {
+        try {
+            $tabs=Find-UI $container
+            if($tabs) {
+                $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name)
+                $item=$tabs.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$condition)
+                if($item) {
+                    $pattern=$null
+                    if($item.TryGetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern,[ref]$pattern)){$pattern.Select()}
+                    else{$item.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()}
+                    Start-Sleep -Milliseconds 300
+                    return
+                }
+            }
+        } catch [System.Windows.Automation.ElementNotAvailableException] {
+            # Reacquire after an immediate-mode redraw, as Click-UI does.
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    throw "Tab unavailable: $container / $name"
 }
 function Choose-Path($path){
     for($i=0;$i -lt 100;$i++) { if([SmokeNative]::Choose($p.Id,$path)){return};Start-Sleep -Milliseconds 100 }
@@ -100,6 +122,7 @@ function Choose-Path($path){
 }
 try {
     Start-Sleep -Seconds 4
+    if($p.HasExited){throw "Test application exited at startup: $($p.ExitCode)"}
     if(-not $OpenArgument){Click-UI '添加文件'; Choose-Path $video}
     for($i=0;$i -lt 150;$i++){if(Find-UI '字幕文字'){break};Start-Sleep -Milliseconds 100}
     if(-not (Find-UI '字幕文字')){
@@ -125,27 +148,48 @@ try {
     Click-UI '设置'
     & $ScreenshotTool $p.Id (Join-Path $workPath 'settings.png')
     if(Find-UI '设置分类'){
-        foreach($tab in @('识别与模型','翻译')){
-            Select-SettingsTab $tab
+        foreach($tab in @('识别与模型','翻译服务')){
+            Select-Tab '设置分类' $tab
             & $ScreenshotTool $p.Id (Join-Path $workPath ("settings-"+$tab+'.png'))
         }
     }
     Click-UI '关闭'
     if ($TranslationEndpoint) {
-        Click-UI '翻译字幕'
-        Click-UI '开始翻译'
-        Click-UI '接受译文'
-        for($i=0;$i -lt 100;$i++){if(Find-UI '你好，世界'){break};Start-Sleep -Milliseconds 100}
-        if(-not (Find-UI '你好，世界')){throw 'Translation acceptance did not update the subtitle table'}
+        Select-Tab '识别与翻译' 'AI 翻译'
+        Click-UI '开始翻译字幕'
+        for($i=0;$i -lt 100;$i++){if(Find-UI '实时译文'){break};Start-Sleep -Milliseconds 100}
+        if(-not (Find-UI '实时译文')){throw 'Streaming translation view did not appear'}
+        for($i=0;$i -lt 100;$i++){if(Find-UI '你好'){break};Start-Sleep -Milliseconds 100}
+        if(-not (Find-UI '你好')){throw 'Partial streamed text did not appear'}
+        $translated=Join-Path $workPath 'test-zh.srt'
+        if(Test-Path $translated){throw 'Partial translation was published before completion'}
+        & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-live.png')
+        for($i=0;$i -lt 200;$i++){if(Test-Path $translated){break};Start-Sleep -Milliseconds 100}
+        if(-not (Test-Path $translated)){throw 'Translation was not automatically saved'}
+        if(-not [IO.File]::ReadAllText($translated).Contains('你好，世界')){throw 'Saved translation has no translated text'}
+        if(-not [IO.File]::ReadAllText($subtitle).Contains($sourceText)){throw 'Source subtitle was overwritten'}
+        if(-not (Find-UI '你好，世界')){throw 'Finished translation did not update the subtitle table'}
         Start-Sleep -Seconds 2
         & $ScreenshotTool $p.Id (Join-Path $workPath 'translation.png')
         Click-UI '撤销'
-        for($i=0;$i -lt 100;$i++){if(Find-UI '测试字幕'){break};Start-Sleep -Milliseconds 100}
-        if(-not (Find-UI '测试字幕')){throw 'Translation undo did not restore the original'}
+        Select-Tab '字幕语言' '原文'
+        for($i=0;$i -lt 100;$i++){if(Find-UI $sourceText){break};Start-Sleep -Milliseconds 100}
+        if(-not (Find-UI $sourceText)){throw 'Translation undo did not restore the original'}
     }
     Write-Output "PASS: import (argument=$OpenArgument), same-name subtitle, real playback/pause, settings, translation=$([bool]$TranslationEndpoint)"
 } finally {
     for($i=0;$i -lt 200;$i++){if(-not (Find-UI '取消任务')){break};Start-Sleep -Milliseconds 100}
     $p.Refresh()
-    if(-not $p.HasExited){$null=$p.CloseMainWindow();if(-not $p.WaitForExit(10000)){Write-Output "Window remains open: PID=$($p.Id)"}}
+    if(-not $p.HasExited){
+        $null=$p.CloseMainWindow()
+        for($i=0;$i -lt 100;$i++){
+            if($p.HasExited){break}
+            # Undo leaves the generated translation file out of sync with
+            # this disposable project. Dismiss only this test instance's guard.
+            if(Find-UI '不保存'){Click-UI '不保存'}
+            Start-Sleep -Milliseconds 100
+            $p.Refresh()
+        }
+        if(-not $p.WaitForExit(10000)){throw "Test window remains open: PID=$($p.Id)"}
+    }
 }
