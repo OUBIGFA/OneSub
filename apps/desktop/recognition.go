@@ -14,6 +14,27 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+func (a *NativeApp) pickTranslationDir() {
+	a.run(locales.RecognitionChooseFolder(), func(context.Context) (func(), error) {
+		paths, err := a.openDialog(mygo.OpenDialogOptions{Parent: a.win, Title: locales.RecognitionChooseFolder(), Directory: true, DefaultPath: a.settings.TranslationDir})
+		if err != nil || len(paths) == 0 {
+			return nil, err
+		}
+		return func() { a.settings.TranslationDir = paths[0]; a.saveSettings() }, nil
+	})
+}
+
+// translationSuffix names a translation's file after its language, as
+// lesson-zh.srt: the language's code, with the region only where the
+// language has scripts of its own (zh-TW).
+func translationSuffix(language string) string {
+	switch language {
+	case "zh-CN", "zh":
+		return "zh"
+	}
+	return strings.ToLower(language)
+}
+
 func (a *NativeApp) pickRecognitionDir() {
 	a.run(locales.RecognitionChooseFolder(), func(context.Context) (func(), error) {
 		paths, err := a.openDialog(mygo.OpenDialogOptions{Parent: a.win, Title: locales.RecognitionChooseFolder(), Directory: true, DefaultPath: a.settings.RecognitionDir})
@@ -138,7 +159,7 @@ func publishRecognition(source, directory, format string, data []byte) (string, 
 // then loads that exact file. A save failure still leaves the recognized text
 // editable and explicitly unsaved; it never masquerades as a successful export.
 func (a *NativeApp) finishRecognition(ctx context.Context, source, srt string, words []byte, prefs settings.Settings, style styles.Style, aspect float64) (func(), error) {
-	data, err := a.toolset().recognitionFile(ctx, srt, words, prefs, style, aspect)
+	data, repaired, err := a.toolset().recognitionFile(ctx, srt, prefs, style, aspect)
 	if err != nil {
 		return nil, err
 	}
@@ -165,5 +186,8 @@ func (a *NativeApp) finishRecognition(ctx context.Context, source, srt string, w
 		a.markSaved(0, path)
 		a.lastOutput = path
 		a.status = locales.RecognitionSaved(len(a.snapshot.Document.Cues), path)
+		if repaired > 0 {
+			a.status += locales.ListSeparator() + locales.RecognitionRepaired(repaired)
+		}
 	}, nil
 }

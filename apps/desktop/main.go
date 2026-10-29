@@ -43,100 +43,98 @@ var BuildNumber = "native-development"
 // NativeApp keeps model data, not ui.Element values. The view and callbacks run
 // on MyGo's main thread; background results enter through Window.Update.
 type NativeApp struct {
-	win                                   *mygo.Window
-	player                                *mygo.WebView
-	tray                                  *mygo.Tray
-	store                                 *project.Store
-	snapshot                              *project.Snapshot
-	worker                                subtitle.Client
-	preview                               *media.Server
-	probe, ffmpeg, resources, dataRoot    string
-	settings                              settings.Settings
-	settingsOpen                          bool
-	settingsTab                           int
-	settingsError                         bool
-	errorText, status                     string
-	errorShown                            string    // the error the status bar shows, since errorSince
-	errorSince                            time.Time // when it began to show
-	playerError                           string    // the page's last error code
-	rate                                  float64   // the playback speed; 0 is normal
-	busy                                  bool
-	choosingFile                          bool
-	cancel                                context.CancelFunc
-	pending                               *importing.Loaded
-	candidatesOpen                        bool
-	splitX, splitY, bottomSplit           float32
-	styleSplit                            float32 // the style's share of the room right of the editor
-	workflowTab                           int     // 0 recognition, 1 translation
-	list                                  ui.ListState
-	selected                              int
-	query                                 string
-	draft                                 string
-	start, end                            float64
-	editPending, composing, editing       bool
-	editDue                               time.Time
-	savedHash, savedPath                  [2]string
-	unsaved                               [2]bool
-	savePromptOpen, clearOpen, skipGuard  bool
-	afterSave                             func()
-	position, duration                    float64
-	paused                                bool
-	mediaURL                              string
-	playerReady                           bool
-	previewPending                        bool
-	previewRunning                        bool
-	previewRevision                       uint64
-	previewDue                            time.Time
-	previewCancel                         context.CancelFunc
-	observedStyle                         string
-	prefsSaveDue                          time.Time
-	activeCue                             int
-	followPaused                          bool    // the user scrolled the list away from the playhead
-	followRow, locateCue                  int     // the row last centered; a cue to center, or -1
-	frameAspect                           float64 // the video's display width / height
-	modelStates                           map[string]string
-	modelSelection                        string
-	modelOpen                             bool
-	exportOpen                            bool
-	exportFormat                          string
-	quitAfterTask                         bool
-	composeOpen                           bool
-	composeRunning                        bool
-	recognitionRunning                    bool
-	recognitionStarted                    time.Time
-	recognitionStep                       recognitionStep
-	translationRunning                    bool
-	translationProgress                   translator.Progress
-	translationDraft                      []subtitle.Cue // the batches translated so far, a preview
-	draftList                             ui.ListState
-	draftShown                            int // the preview rows the list has followed
-	composeProgress                       media.ComposeProgress
-	lastOutput                            string
-	styleClient                           styles.Client
-	styleCatalog                          styles.Catalog
-	currentStyle                          styles.Style
-	secondaryStyle                        styles.Style
-	secondaryPreset                       string
-	styleLayer                            int
-	stylePreset                           string
-	presetDialog                          string // "", "save", "rename" or "delete"
-	presetDialogLayer                     int
-	presetName                            string
-	styleWidths                           [3]float32 // the style sections' widths in the last frame
-	styleRoom                             float32    // the width the style sections have
-	subtitleTab                           int
-	openOnReady                           []string
-	providerKey, keyStatus                string
-	providerModels                        []string
-	modelsEndpoint, modelsError           string
-	modelsLoading                         bool
-	fontCatalogLoading                    bool
-	translationConfirm, translationReview bool
-	translationCandidate                  *translationCandidate
-	translationList                       ui.ListState
-	translationProfiles                   []translator.Profile
-	profilesError                         string
-	translationSelected                   int
+	win                                  *mygo.Window
+	player                               *mygo.WebView
+	tray                                 *mygo.Tray
+	store                                *project.Store
+	snapshot                             *project.Snapshot
+	worker                               subtitle.Client
+	preview                              *media.Server
+	probe, ffmpeg, resources, dataRoot   string
+	settings                             settings.Settings
+	settingsOpen                         bool
+	settingsTab                          int
+	settingsError                        bool
+	errorText, status                    string
+	errorShown                           string    // the error the status bar shows, since errorSince
+	errorSince                           time.Time // when it began to show
+	playerError                          string    // the page's last error code
+	rate                                 float64   // the playback speed; 0 is normal
+	loop                                 bool      // the video starts again at its end
+	busy                                 bool
+	choosingFile                         bool
+	cancel                               context.CancelFunc
+	pending                              *importing.Loaded
+	candidatesOpen                       bool
+	splitX, splitY, bottomSplit          float32
+	styleSplit                           float32 // the style's share of the room right of the editor
+	workflowTab                          int     // 0 recognition, 1 translation
+	list                                 ui.ListState
+	selected                             int
+	query                                string
+	draft                                string
+	start, end                           float64
+	editPending, composing, editing      bool
+	editDue                              time.Time
+	savedHash, savedPath                 [2]string
+	unsaved                              [2]bool
+	savePromptOpen, clearOpen, skipGuard bool
+	afterSave                            func()
+	position, duration                   float64
+	paused                               bool
+	mediaURL                             string
+	playerReady                          bool
+	previewPending                       bool
+	previewRunning                       bool
+	previewRevision                      uint64
+	previewDue                           time.Time
+	previewCancel                        context.CancelFunc
+	observedStyle                        string
+	prefsSaveDue                         time.Time
+	activeCue                            int
+	followPaused                         bool    // the user scrolled the list away from the playhead
+	followRow, locateCue                 int     // the row last centered; a cue to center, or -1
+	frameAspect                          float64 // the video's display width / height
+	modelStates                          map[string]string
+	modelSelection                       string
+	modelOpen                            bool
+	exportOpen                           bool
+	exportFormat                         string
+	quitAfterTask                        bool
+	composeOpen                          bool
+	composeRunning                       bool
+	recognitionRunning                   bool
+	recognitionStarted                   time.Time
+	recognitionStep                      recognitionStep
+	translationRunning                   bool
+	translationLive                      *translationLive // what the running translation has shown
+	composeProgress                      media.ComposeProgress
+	lastOutput                           string
+	styleClient                          styles.Client
+	styleCatalog                         styles.Catalog
+	currentStyle                         styles.Style
+	secondaryStyle                       styles.Style
+	secondaryPreset                      string
+	styleLayer                           int
+	stylePreset                          string
+	presetDialog                         string // "", "save", "rename" or "delete"
+	presetDialogLayer                    int
+	presetName                           string
+	styleWidths                          [3]float32 // the style sections' widths in the last frame
+	styleRoom                            float32    // the width the style sections have
+	subtitleTab                          int
+	openOnReady                          []string
+	providerKey, keyStatus               string
+	providerModels                       []string
+	modelsEndpoint, modelsError          string
+	modelsLoading                        bool
+	fontCatalogLoading                   bool
+	translationReview                    bool // the check results of the last translation are shown
+	translationCandidate                 *translationCandidate
+	translationList                      ui.ListState
+	translationProfiles                  []translator.Profile
+	profilesError                        string
+	translationSelected                  int
 }
 
 func stamp(seconds float64) string {
@@ -299,16 +297,18 @@ func (a *NativeApp) run(label string, work func(context.Context) (func(), error)
 			a.recognitionRunning = false
 			a.translationRunning = false
 			a.cancel = nil
-			if err != nil {
+			switch {
+			case errors.Is(err, context.Canceled):
+				// Cancelling is the user's choice, not a failure.
+				a.status = locales.StatusCancelled()
+			case err != nil:
 				a.errorText = err.Error()
 				a.status = locales.StatusFailed()
-			} else {
-				if apply != nil {
-					a.status = locales.StatusDone()
-					apply()
-				} else {
-					a.status = ""
-				}
+			case apply != nil:
+				a.status = locales.StatusDone()
+				apply()
+			default:
+				a.status = ""
 			}
 			if a.quitAfterTask {
 				a.quitAfterTask = false
@@ -347,12 +347,14 @@ func (a *NativeApp) importFiles(ctx context.Context, paths []string, wordEvidenc
 		return nil, err
 	}
 	if len(wordEvidence) > 0 {
-		var warnings []string
-		loaded.Document, warnings, err = subtitle.AttachOneAsrWords(loaded.Document, wordEvidence[0])
-		if err != nil {
-			return nil, err
+		// Faulty word timings cost only finer splits later, never the
+		// recognized subtitles: they are left out, with a notice.
+		if attached, wordWarnings, attachErr := subtitle.AttachOneAsrWords(loaded.Document, wordEvidence[0]); attachErr != nil {
+			loaded.Warnings = append(loaded.Warnings, locales.WarnWordsSkipped(attachErr.Error()))
+		} else {
+			loaded.Document = attached
+			loaded.Warnings = append(loaded.Warnings, wordWarnings...)
 		}
-		loaded.Warnings = append(loaded.Warnings, warnings...)
 	}
 	name := selection.Subtitle
 	if name == "" {

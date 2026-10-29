@@ -92,7 +92,7 @@ func TestDefaultSaveNamesFollowTheSubtitleOrVideo(t *testing.T) {
 	a.snapshot.Manifest.SubtitlePath = filepath.Join("videos", "lesson.srt")
 	a.savedPath = [2]string{}
 	a.settings.TargetLanguage = "zh-CN"
-	if got := a.defaultTrackPath(1); got != filepath.Join("videos", "lesson.zh-CN.srt") {
+	if got := a.defaultTrackPath(1); got != filepath.Join("videos", "lesson-zh.srt") {
 		t.Fatal(got)
 	}
 	a.snapshot.Manifest.SubtitlePath = filepath.Join(a.dataRoot, "cache", "worker", "asr-1", "result.srt")

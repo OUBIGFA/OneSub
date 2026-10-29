@@ -18,8 +18,11 @@ func TestResegmentWordCutsKeepOuterBoundariesAndCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Cues[0].StartMs != 100 || out.Cues[0].EndMs != 1100 || out.Cues[1].StartMs != 1100 || out.Cues[1].EndMs != 4000 || out.Cues[1].Text != " world again" || len(warnings) != 1 {
+	if out.Cues[0].StartMs != 100 || out.Cues[0].EndMs != 1100 || out.Cues[1].StartMs != 1100 || out.Cues[1].EndMs != 4000 || out.Cues[1].Text != "world again" || len(warnings) != 1 {
 		t.Fatal(out, warnings)
+	}
+	if _, err := TimelineAtoms(out); err != nil {
+		t.Fatal("resegmented word evidence must remain reusable:", err)
 	}
 	for i := range out.Cues {
 		out.Cues[i].Translated = true
@@ -37,6 +40,40 @@ func TestResegmentWordCutsKeepOuterBoundariesAndCoverage(t *testing.T) {
 		t.Fatal("source mutated")
 	}
 }
+func TestResegmentTrimsSplitTextAndWordsWithoutMutatingSource(t *testing.T) {
+	// Whitespace belongs to the source's word coverage, but not to the
+	// outside of a newly split subtitle. Trim both representations alike.
+	doc := Document{Format: "srt", Cues: []Cue{{
+		ID: "c1", StartMs: 0, EndMs: 2000,
+		Text: "\u2003Hello\t world\u00a0", OriginalText: "\u2003Hello\t world\u00a0",
+		Words: []Word{{Text: "\u2003Hello\t", StartMs: 100, EndMs: 800}, {Text: " world\u00a0", StartMs: 1100, EndMs: 1800}},
+	}}}
+	wantWords := append([]Word(nil), doc.Cues[0].Words...)
+	out, _, err := Resegment(doc, []SourceRange{{"c1:w0", "c1:w0", "split"}, {"c1:w1", "c1:w1", "split"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, text := range []string{"Hello", "world"} {
+		cue := out.Cues[i]
+		if cue.Text != text || cue.OriginalText != text || len(cue.Words) != 1 || cue.Words[0].Text != text || cue.TimingQuality != "aligned" {
+			t.Fatalf("split %d: %+v", i, cue)
+		}
+		if cue.Words[0].StartMs != wantWords[i].StartMs || cue.Words[0].EndMs != wantWords[i].EndMs {
+			t.Fatal("word times changed")
+		}
+	}
+	if _, err := TimelineAtoms(out); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(doc.Cues[0].Words, wantWords) {
+		t.Fatal("source words mutated")
+	}
+	unchanged, _, err := Resegment(doc, []SourceRange{{"c1:w0", "c1:w1", ""}})
+	if err != nil || unchanged.Cues[0].Text != doc.Cues[0].Text || !reflect.DeepEqual(unchanged.Cues[0].Words, wantWords) {
+		t.Fatal("untouched cue must retain exact whitespace:", unchanged, err)
+	}
+}
+
 func TestResegmentRejectsUnsafeRanges(t *testing.T) {
 	for name, ranges := range map[string][]SourceRange{
 		"missing":       {{"c1:w0", "c1:w1", ""}},

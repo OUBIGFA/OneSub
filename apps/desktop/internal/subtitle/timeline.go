@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"unicode"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
@@ -100,7 +101,11 @@ func Resegment(doc Document, ranges []SourceRange) (Document, []string, error) {
 					}
 					warnings = append(warnings, locales.WarnRangeGap(int(group[i-1].EndMs), int(atom.StartMs), r.Reason))
 				}
-				text.WriteString(" ")
+				// Joined cues are one text: a space between words, none
+				// between characters of scripts written without one.
+				if spaced(text.String(), atom.Text) {
+					text.WriteString(" ")
+				}
 			}
 			if len(ids) == 0 || ids[len(ids)-1] != atom.CueID {
 				ids = append(ids, atom.CueID)
@@ -117,7 +122,10 @@ func Resegment(doc Document, ranges []SourceRange) (Document, []string, error) {
 			if doc.Format != "srt" {
 				return Document{}, nil, errors.New(locales.ErrRangeFormat())
 			}
-			cue = Cue{ID: fmt.Sprintf("seg-%x", sha256.Sum256([]byte(r.FirstAtom+"/"+r.LastAtom)))[:28], StartMs: start, EndMs: end, Text: text.String(), OriginalText: text.String(), SourceCueIDs: ids, TimingQuality: "cue_boundary"}
+			// A piece divided out of a cue starts with its first word, not
+			// the space before it.
+			value := strings.TrimSpace(text.String())
+			cue = Cue{ID: fmt.Sprintf("seg-%x", sha256.Sum256([]byte(r.FirstAtom+"/"+r.LastAtom)))[:28], StartMs: start, EndMs: end, Text: value, OriginalText: value, SourceCueIDs: ids, TimingQuality: "cue_boundary"}
 			// Retain original word evidence only if every cue in this range has
 			// it; cue-level evidence must not turn into fictional word evidence.
 			allWords := true
@@ -135,7 +143,10 @@ func Resegment(doc Document, ranges []SourceRange) (Document, []string, error) {
 					}
 				}
 				// Cross-cue joins introduce a separator in source text.
-				if len(ids) == 1 {
+				if len(ids) == 1 && len(words) > 0 {
+					// The words still spell the text exactly, trimmed alike.
+					words[0].Text = strings.TrimLeftFunc(words[0].Text, unicode.IsSpace)
+					words[len(words)-1].Text = strings.TrimRightFunc(words[len(words)-1].Text, unicode.IsSpace)
 					cue.Words = words
 					cue.TimingQuality = "aligned"
 				}

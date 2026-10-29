@@ -6,6 +6,8 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
@@ -88,4 +90,93 @@ func AttachOneAsrWords(doc Document, data []byte) (Document, []string, error) {
 		warnings = append(warnings, locales.WarnWordsUnmatched(unmatched))
 	}
 	return out, warnings, nil
+}
+
+// NormalizeRecognition makes any recognition result writable as a
+// subtitle file: every cue has text, starts at 0 or later and ends after it
+// starts. ASR output breaks this in ways no one model run predicts: OneAsr
+// v1.3.0 writes a cue whose end is its start for a sentence whose aligned
+// words all have no duration (seen over long stretches without speech), an
+// aligner may end a cue before it starts, and a cue may hold only spaces.
+// No text is dropped: a cue without length followed by one that starts no
+// later is the start of that cue's sentence and joins it; another gets up
+// to zeroLengthCue of the gap before the next cue, never past its start; a
+// cue with no room at all joins the cue before it. Blank cues, which hold
+// no text, go. It reports how many cues it changed.
+func NormalizeRecognition(doc Document) (Document, int) {
+	out := doc
+	out.Cues = nil
+	changed := 0
+	cues := append([]Cue{}, doc.Cues...)
+	for i := range cues {
+		if cues[i].StartMs < 0 {
+			cues[i].StartMs = 0
+			changed++
+		}
+	}
+	for i := 0; i < len(cues); i++ {
+		cue := cues[i]
+		if strings.TrimSpace(cue.Text) == "" {
+			changed++
+			continue
+		}
+		if cue.EndMs > cue.StartMs {
+			out.Cues = append(out.Cues, cue)
+			continue
+		}
+		changed++
+		cue.EndMs = cue.StartMs
+		next := int64(-1)
+		if i+1 < len(cues) {
+			next = cues[i+1].StartMs
+		}
+		switch {
+		case next >= 0 && next <= cue.StartMs && strings.TrimSpace(cues[i+1].Text) != "":
+			cues[i+1].StartMs = min(cues[i+1].StartMs, cue.StartMs)
+			cues[i+1].Text = joinText(cue.Text, cues[i+1].Text)
+			cues[i+1].OriginalText = joinText(cue.OriginalText, cues[i+1].OriginalText)
+		case next > cue.StartMs || next < 0 || len(out.Cues) == 0:
+			cue.EndMs = cue.StartMs + zeroLengthCue
+			if next > cue.StartMs {
+				cue.EndMs = min(cue.EndMs, next)
+			}
+			out.Cues = append(out.Cues, cue)
+		default:
+			last := &out.Cues[len(out.Cues)-1]
+			last.Text = joinText(last.Text, cue.Text)
+			last.OriginalText = joinText(last.OriginalText, cue.OriginalText)
+		}
+	}
+	for i := range out.Cues {
+		out.Cues[i].Position = i
+	}
+	return out, changed
+}
+
+// zeroLengthCue is the time a cue without one gets: a short reading time.
+const zeroLengthCue = 1000
+
+// joinText joins two parts of a sentence, with a space between words of
+// scripts that use one.
+func joinText(a, b string) string {
+	a, b = strings.TrimSpace(a), strings.TrimSpace(b)
+	if spaced(a, b) {
+		return a + " " + b
+	}
+	return a + b
+}
+
+// spaced reports whether next joins before with a space: between words of
+// scripts that use spaces, not between CJK characters, nor where a side
+// already ends or starts with a space.
+func spaced(before, next string) bool {
+	if before == "" || next == "" {
+		return false
+	}
+	last, _ := utf8.DecodeLastRuneInString(before)
+	first, _ := utf8.DecodeRuneInString(next)
+	if unicode.IsSpace(last) || unicode.IsSpace(first) {
+		return false
+	}
+	return last < 0x2E80 && first < 0x2E80
 }

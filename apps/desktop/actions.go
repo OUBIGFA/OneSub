@@ -50,9 +50,10 @@ func boundedText(data []byte) string {
 	return strings.TrimSpace(string(data))
 }
 
-// Actions open the native workflows; only validated candidates can be applied.
+// translate starts a translation at once. Without a service or model it
+// opens the settings that set them instead.
 func (a *NativeApp) translate() {
-	if a.snapshot == nil {
+	if a.busy || a.snapshot == nil {
 		return
 	}
 	a.commitEdit(true)
@@ -62,7 +63,7 @@ func (a *NativeApp) translate() {
 		a.settingsTab = 2
 		return
 	}
-	a.translationConfirm = true
+	a.startTranslation()
 }
 func (a *NativeApp) compose() {
 	if a.snapshot == nil {

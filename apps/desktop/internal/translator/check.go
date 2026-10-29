@@ -38,7 +38,9 @@ type Checker struct {
 // Check serializes one whole document with libse before invoking the original
 // checker. We do not concatenate batch fragments or normalize strict ASS with
 // an assembler: the original document's metadata remains authoritative.
-func (c Checker) Check(ctx context.Context, source, candidate subtitle.Document, language string) (Findings, error) {
+// strict compares block by block, for a timeline kept as it was; a rebuilt
+// one is checked against the source's speech, as the skill checks it.
+func (c Checker) Check(ctx context.Context, source, candidate subtitle.Document, language string, strict bool) (Findings, error) {
 	var result Findings
 	if source.Format != candidate.Format {
 		return result, errors.New(locales.ErrCheckFormatChange())
@@ -69,7 +71,7 @@ func (c Checker) Check(ctx context.Context, source, candidate subtitle.Document,
 		"protocol": 1, "requestId": id, "operation": "check",
 		"inputPath":  filepath.Join(dir, "candidate."+source.Format),
 		"sourcePath": filepath.Join(dir, "source."+source.Format),
-		"outputPath": output, "language": language, "strict": true,
+		"outputPath": output, "language": language, "strict": strict,
 		"languageConfig": filepath.Join(c.SkillRoot, "config", "language_profiles.json"),
 	})
 	if err != nil {

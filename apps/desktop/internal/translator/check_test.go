@@ -26,18 +26,18 @@ func TestPackagedSkillCheckerAndLibse(t *testing.T) {
 	candidate.Cues = append([]subtitle.Cue{}, source.Cues...)
 	candidate.Cues[0].Text = "<i>你好</i>"
 	candidate.Cues[1].Text = "再见"
-	findings, err := checker.Check(context.Background(), source, candidate, "zh-CN")
+	findings, err := checker.Check(context.Background(), source, candidate, "zh-CN", true)
 	if err != nil || len(findings.Errors) != 0 || findings.Blocks != 2 {
 		t.Fatal(err, findings)
 	}
 	candidate.Cues[1].StartMs = 2000
-	findings, err = checker.Check(context.Background(), source, candidate, "zh-CN")
+	findings, err = checker.Check(context.Background(), source, candidate, "zh-CN", true)
 	if err == nil && len(findings.Errors) == 0 {
 		t.Fatal("overlap and changed timeline accepted")
 	}
 	candidate.Cues[1].StartMs = source.Cues[1].StartMs
 	candidate.Cues[0].Text = "你好"
-	findings, err = checker.Check(context.Background(), source, candidate, "zh-CN")
+	findings, err = checker.Check(context.Background(), source, candidate, "zh-CN", true)
 	if err == nil && len(findings.Errors) == 0 {
 		t.Fatal("protected markup removal accepted")
 	}

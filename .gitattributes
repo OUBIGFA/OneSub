@@ -9,3 +9,6 @@
 
 # Subtitle fixtures retain upstream separators, including a final empty block.
 third_party/skills/srt-subtitle-translator/evals/fixtures/* whitespace=-blank-at-eof
+
+# Unified-diff context prefixes precede the Go source's tabs by design.
+third_party/patches/mygo/*.patch whitespace=-space-before-tab

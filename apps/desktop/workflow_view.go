@@ -34,8 +34,8 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 }
 
 // recognizeTab starts with what it does and to which file, then the
-// options of a recognition and of the file it saves. Labels sit above their
-// fields, so the panel stays narrow.
+// options of a recognition and of the file it saves, as many to a line as
+// fit, so that they all show at once.
 func (a *NativeApp) recognizeTab(c *ui.Context) {
 	hasMedia := a.snapshot != nil && a.snapshot.Manifest.MediaPath != ""
 	startButton(c, locales.WorkflowStartRecognize(), "audio-lines", a.busy || !hasMedia, a.recognize)
@@ -46,20 +46,20 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 		muted(c, locales.WorkflowNeedsVideo()).AlignSelf(ui.Center)
 	}
 	ui.Divider(c)
-	ui.Field(c, locales.SettingsSourceLanguage(), func() {
-		languageSelect(c, &a.settings.Language, sourceLanguages(), a.busy).Label(locales.SettingsSourceLanguage()).OnChange(a.saveSettings)
-	})
-	ui.Row(c).Gap(em(c, 12)).Wrap().Children(func() {
+	line(c, func() {
+		ui.Field(c, locales.SettingsSourceLanguage(), func() {
+			languageSelect(c, &a.settings.Language, sourceLanguages(), a.busy).Label(locales.SettingsSourceLanguage()).OnChange(a.saveSettings)
+		}).MinWidth(em(c, 220))
 		ui.Field(c, locales.SettingsBackend(), func() {
 			idSelect(c, &a.settings.Backend, []option{{"auto", locales.BackendAuto()}, {"gpu", "GPU"}, {"cpu", "CPU"}}).Label(locales.SettingsBackend()).OnChange(a.saveSettings)
 		})
+	})
+	line(c, func() {
 		ui.Field(c, locales.ExportFormat(), func() {
 			idSelect(c, &a.settings.RecognitionFormat, []option{{"srt", "SRT"}, {"vtt", "VTT"}, {"ass", "ASS"}}).Label(locales.ExportFormat()).OnChange(a.saveSettings)
 		})
-	})
-	ui.Row(c).Gap(em(c, 12)).Wrap().Children(func() {
 		ui.Field(c, locales.SettingsChunk(), func() {
-			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(em(c, 6)).AlignItems(ui.Center).Children(func() {
 				ui.NumberInput(c, &a.settings.ChunkSeconds, 30, 180, 1).Label(locales.SettingsChunk()).OnChange(a.saveSettings)
 				muted(c, locales.UnitSeconds()).SingleLine()
 			})
@@ -67,29 +67,51 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 		ui.Field(c, locales.SettingsMaxTokens(), func() {
 			ui.NumberInput(c, &a.settings.MaxTokens, 1, 32768, 1).Label(locales.SettingsMaxTokens()).AlignSelf(ui.Start).OnChange(a.saveSettings)
 		})
+		folderField(c, a.settings.RecognitionDir, locales.RecognitionBesideMedia(), a.busy, a.pickRecognitionDir, func() { a.settings.RecognitionDir = ""; a.saveSettings() })
 	})
-	ui.Field(c, locales.RecognitionDirectory(), func() {
-		path := a.settings.RecognitionDir
-		if path == "" {
-			path = locales.RecognitionBesideMedia()
-		}
-		ui.Column(c).Gap(em(c, 6)).Children(func() {
-			muted(c, path).SingleLine().Tooltip(path)
-			ui.Row(c).Gap(em(c, 8)).Wrap().Children(func() {
-				ui.Button(c, locales.RecognitionChooseFolder()).Disabled(a.busy).OnClick(a.pickRecognitionDir)
-				ui.Button(c, locales.RecognitionResetFolder()).Disabled(a.busy || a.settings.RecognitionDir == "").OnClick(func() { a.settings.RecognitionDir = ""; a.saveSettings() })
-			})
+	// These are inline controls, not top-labelled fields: align their
+	// centers, rather than the bottoms of the checkbox and text input.
+	line(c, func() {
+		ui.Checkbox(c, &a.settings.StripPunctuation, locales.WorkflowStripPunctuation()).OnChange(a.saveSettings)
+		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+			muted(c, locales.WorkflowKeepPunctuation()).SingleLine()
+			ui.TextInput(c, &a.settings.KeepPunctuation).Width(em(c, 80)).Placeholder("?").Label(locales.WorkflowKeepPunctuation()).Disabled(!a.settings.StripPunctuation).OnChange(a.saveSettings)
 		})
-	})
-	ui.Checkbox(c, &a.settings.StripPunctuation, locales.WorkflowStripPunctuation()).OnChange(a.saveSettings)
-	ui.Field(c, locales.WorkflowKeepPunctuation(), func() {
-		ui.TextInput(c, &a.settings.KeepPunctuation).Placeholder("?").Label(locales.WorkflowKeepPunctuation()).Disabled(!a.settings.StripPunctuation).OnChange(a.saveSettings)
-	})
+	}).AlignItems(ui.Center)
 	ui.Button(c, locales.WorkflowModels()).AlignSelf(ui.Start).OnClick(func() { a.settingsOpen, a.settingsTab = true, 1 })
 }
 
-// translateTab starts with its button, then the language and service it
-// translates with.
+// line puts fields side by side, wrapping onto a new line only when the
+// panel is too narrow for them.
+func line(c *ui.Context, fields func()) ui.Element {
+	return ui.Row(c).GapX(em(c, 12)).GapY(em(c, 10)).Wrap().AlignItems(ui.End).Children(fields)
+}
+
+// folderField is where a task saves its file: the folder, or what the
+// default is, with buttons to choose another and to go back to it.
+func folderField(c *ui.Context, dir, fallback string, busy bool, choose, reset func()) {
+	ui.Field(c, locales.RecognitionDirectory(), func() {
+		path := dir
+		if path == "" {
+			path = fallback
+		}
+		// No flex growth: the path and its actions are one compact group.
+		// Only user paths may truncate; the default location stays complete.
+		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
+			label := muted(c, path).SingleLine().Tooltip(path)
+			if dir != "" {
+				label.MaxWidth(em(c, 200))
+			}
+			ui.Row(c).Gap(em(c, 8)).Children(func() {
+				ui.Button(c, locales.RecognitionChooseFolder()).Disabled(busy).OnClick(choose)
+				ui.Button(c, locales.RecognitionResetFolder()).Disabled(busy || dir == "").OnClick(reset)
+			})
+		})
+	}).AlignSelf(ui.Start)
+}
+
+// translateTab starts with its button, then the language, style and service
+// it translates with and where it saves.
 func (a *NativeApp) translateTab(c *ui.Context) {
 	hasCues := a.snapshot != nil && len(a.snapshot.Document.Cues) > 0
 	startButton(c, locales.WorkflowStartTranslate(), "languages", a.busy || !hasCues, a.translate)
@@ -97,18 +119,32 @@ func (a *NativeApp) translateTab(c *ui.Context) {
 		muted(c, locales.WorkflowNeedsSubtitles()).AlignSelf(ui.Center)
 	}
 	ui.Divider(c)
-	ui.Field(c, locales.TranslationTarget(), func() {
-		languageSelect(c, &a.settings.TargetLanguage, targetLanguages(), a.busy).Label(locales.TranslationTarget()).OnChange(a.saveSettings)
+	if a.translationProfiles == nil {
+		a.reloadTranslationProfiles()
+	}
+	line(c, func() {
+		ui.Field(c, locales.TranslationTarget(), func() {
+			languageSelect(c, &a.settings.TargetLanguage, targetLanguages(), a.busy).Label(locales.TranslationTarget()).OnChange(a.saveSettings)
+		}).MinWidth(em(c, 220))
+		ui.Field(c, locales.TranslationStyle(), func() {
+			a.styleSelect(c).Disabled(a.busy)
+		}).MinWidth(em(c, 180))
 	})
-	ui.Field(c, locales.TranslationModel(), func() {
-		// No service yet is the one thing to fix first: it says so.
-		if model := a.settings.ProviderModel; model != "" {
-			muted(c, model).SingleLine().Tooltip(model)
-		} else {
-			ui.Text(c, locales.WorkflowNoService()).TextColor(c.Theme().Warning)
-		}
+	line(c, func() {
+		ui.Field(c, locales.TranslationModel(), func() {
+			// Match the adjacent MyGo buttons' vertical inset so both the
+			// field labels and their values align, without adding a fake input.
+			ui.Row(c).Padding(c.Theme().Space(1.5)+1, 0).Children(func() {
+				if model := a.settings.ProviderModel; model != "" {
+					muted(c, model).SingleLine().Tooltip(model).MaxWidth(em(c, 260))
+				} else {
+					ui.Text(c, locales.WorkflowNoService()).TextColor(c.Theme().Warning)
+				}
+			})
+		})
+		folderField(c, a.settings.TranslationDir, locales.TranslationBesideSource(), a.busy, a.pickTranslationDir, func() { a.settings.TranslationDir = ""; a.saveSettings() })
 	})
-	ui.Checkbox(c, &a.settings.OptimizeTimeline, locales.TranslationOptimizeTimeline()).OnChange(a.saveSettings)
+	ui.Checkbox(c, &a.settings.OptimizeTimeline, locales.TranslationOptimizeTimeline()).Disabled(a.busy).OnChange(a.saveSettings)
 	ui.Button(c, locales.WorkflowService()).AlignSelf(ui.Start).OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen, a.settingsTab = true, 2 })
 }
 

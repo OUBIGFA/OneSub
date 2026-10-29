@@ -28,6 +28,11 @@
   "settingsMcpNote": "Copy this configuration into the MCP settings of an AI agent (such as Claude, Cursor or Codex) to let it transcribe and translate subtitles with OneSub.",
   "settingsMcpCopy": "Copy configuration",
   "settingsMcpCopied": "MCP configuration copied",
+  "recognitionRepaired": "Gave a time to {count} cues of zero length",
+  "@recognitionRepaired": {"placeholders":{"count":{"type":"int"}}},
+  "warnWordsSkipped": "Subtitles created; word timings were unusable and were skipped ({detail})",
+  "@warnWordsSkipped": {"placeholders":{"detail":{}}},
+  "translationBesideSource": "Same folder as the subtitles or video",
   "recognitionOutput": "Transcription output",
   "recognitionDirectory": "Save folder",
   "recognitionBesideMedia": "Same folder as the video",
@@ -56,10 +61,7 @@
   "@recognitionSaveFailed": {"placeholders":{"detail":{}}},
   "recognitionFormatInvalid": "Choose SRT, VTT or ASS for transcription output",
   "resultOpenFolder": "Open output folder",
-  "translationPreparing": "Reading context and preparing segments",
   "translationRunning": "Translation in progress",
-  "translationDraftNote": "Batch preview · not yet accepted",
-  "translationLastBatch": "Translation preview",
   "recognitionProgressArea": "Transcription progress",
   "mygo.appName": "OneSub",
   "menuExportSubtitles": "Export subtitles",
@@ -97,6 +99,7 @@
   "a11yComposeProgress": "Export progress",
   "statusDone": "Done",
   "statusFailed": "Not completed",
+  "statusCancelled": "Cancelled",
   "statusCleared": "Workbench cleared",
   "statusCueCount": "{count, plural, one {# cue} other {# cues}}",
   "@statusCueCount": {
@@ -132,6 +135,7 @@
   "playerUnmute": "Unmute",
   "playerVolume": "Volume",
   "playerSpeed": "Playback speed",
+  "playerLoop": "Loop",
   "playerVolumeValue": "Volume {volume}%",
   "@playerVolumeValue": {
     "placeholders": {
@@ -144,7 +148,6 @@
   "tabTranslation": "Translation",
   "tabBilingual": "Bilingual",
   "listSearch": "Search subtitles",
-  "listReview": "Review translation",
   "listUnsaved": "Unsaved",
   "listSave": "Save",
   "listSaveAs": "Save as",
@@ -294,34 +297,9 @@
   "translationStyle": "Translation style",
   "translationReloadStyles": "Reload styles",
   "translationStyleFolder": "Style folder",
-  "translationOptimizeTimeline": "Improve segmentation before translating",
+  "translationOptimizeTimeline": "Rebuild timing by sense groups",
   "translationGlossary": "Glossary",
   "translationGlossaryPlaceholder": "source term = translation",
-  "translationScope": "{total} cues · {target} · {skipped} skipped",
-  "@translationScope": {
-    "placeholders": {
-      "total": {
-        "type": "int"
-      },
-      "target": {
-        "type": "String"
-      },
-      "skipped": {
-        "type": "int"
-      }
-    }
-  },
-  "translationPrivacy": "Only subtitles, timing evidence and the glossary are sent; no audio or video.",
-  "translationTimelineNote": "Segmentation is reviewed first. Without word timestamps cues are not split.",
-  "translationCostNote": "At most {count} requests. The price is set by the provider; check its bill.",
-  "@translationCostNote": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "translationStart": "Start translation",
   "translationProgress": "Translating {done} / {total}",
   "@translationProgress": {
     "placeholders": {
@@ -334,8 +312,25 @@
     }
   },
   "translationChecking": "Checking the translation",
-  "translationAwaitingReview": "Translation awaits review",
-  "translationAccepted": "Translation applied",
+  "translationAnalyzing": "Reading the whole source",
+  "translationSegmenting": "Rebuilding timing by sense groups {done} / {total}",
+  "@translationSegmenting": {"placeholders":{"done":{"type":"int"},"total":{"type":"int"}}},
+  "translationUsage": "{requests} requests · {input} tokens in · {output} out",
+  "@translationUsage": {"placeholders":{"requests":{"type":"int"},"input":{"type":"int"},"output":{"type":"int"}}},
+  "translationThinking": "Thinking: {text}",
+  "@translationThinking": {"placeholders":{"text":{}}},
+  "translationWaiting": "Waiting for the model · {seconds} s",
+  "@translationWaiting": {"placeholders":{"seconds":{"type":"int"}}},
+  "translationLive": "Live translation",
+  "translationRetry": "Sending again ({attempt}/{max}) in {seconds} s: {reason}",
+  "@translationRetry": {"placeholders":{"attempt":{"type":"int"},"max":{"type":"int"},"seconds":{"type":"int"},"reason":{}}},
+  "translationResults": "Check results",
+  "translationDone": "Translated {count} subtitles · saved {name} · {warnings} warnings",
+  "@translationDone": {"placeholders":{"count":{"type":"int"},"name":{},"warnings":{"type":"int"}}},
+  "translationDoneUnsaved": "Translated {count} subtitles; the check found {errors} errors, so no file was saved",
+  "@translationDoneUnsaved": {"placeholders":{"count":{"type":"int"},"errors":{"type":"int"}}},
+  "translationDoneNoFile": "Translated {count} subtitles; save the translation with Save As",
+  "@translationDoneNoFile": {"placeholders":{"count":{"type":"int"}}},
   "reviewSummary": "{translated} translated · {changes} segmentation changes · {errors} errors · {warnings} warnings",
   "@reviewSummary": {
     "placeholders": {
@@ -354,8 +349,6 @@
     }
   },
   "reviewTimelineNote": "Timing comes from source evidence; check meaning and sync.",
-  "reviewLater": "Review later",
-  "reviewAccept": "Accept translation",
   "profileGeneral": "General",
   "profile3d": "3D / motion / VFX",
   "profileDrama": "Film / series / anime",
@@ -510,7 +503,6 @@
   "errCompose": "Export failed: {detail}",
   "errMissingGlyphs": "The font lacks characters: {chars}",
   "errTranslationStale": "REVISION_CONFLICT: the subtitles changed; translate again",
-  "errTranslationChecks": "Resolve the translation check errors first",
   "errProfileRemoved": "The chosen style was removed; choose another",
   "errSaveFile": "The subtitle file could not be saved: {detail}",
   "errPublishExists": "Not written; use a new file name on a local disk. No existing file was replaced: {detail}",
@@ -731,35 +723,40 @@
   "errProfileMetadata": "Style {name} has no SKILL.md metadata",
   "errProfileContent": "Style {name} has no name or content",
   "errProfileMissing": "Translation style {id} was removed; choose another",
-  "errSegmentRegion": "A timing region is too long; check the subtitles first",
-  "errSegmentCoverage": "The timing candidate does not cover this batch",
+  "errProfileReference": "Style {name} names an invalid reference file: {reference}",
+  "@errProfileReference": {"placeholders":{"name":{},"reference":{}}},
   "errEndpointInvalid": "Invalid endpoint",
   "errEndpointParts": "The endpoint cannot contain credentials, a query or a fragment",
   "errEndpointHttps": "Remote services must use HTTPS; local services may use HTTP",
   "errSkillFile": "Skill file missing: {path}",
-  "errRequestLimit": "The request limit was reached; nothing more was sent",
-  "errOutcomeUnknown": "OUTCOME_UNKNOWN: the request result is unknown and may be billed; not resent: {detail}",
-  "errTranslateHttp": "The translation service returned HTTP {status, number, ::group-off}; not retried",
-  "@errTranslateHttp": {
-    "placeholders": {
-      "status": {
-        "type": "int"
-      }
-    }
-  },
-  "errOutcomeInterrupted": "OUTCOME_UNKNOWN: reading the response was interrupted and may be billed; not resent",
-  "errTranslateSize": "The translation response exceeds 2 MiB",
+  "errRequestLimit": "This translation reached its request limit. Start again to continue; finished subtitles are kept.",
+  "errTranslateHttp": "The translation service returned HTTP {status, number, ::group-off}: {detail}",
+  "@errTranslateHttp": {"placeholders":{"status":{"type":"int"},"detail":{}}},
+  "errTranslateAuth": "The translation service refused the API key (HTTP {status, number, ::group-off}): {detail}",
+  "@errTranslateAuth": {"placeholders":{"status":{"type":"int"},"detail":{}}},
+  "errTranslateNotFound": "The service address or the model was not found (HTTP 404): {detail}",
+  "@errTranslateNotFound": {"placeholders":{"detail":{}}},
+  "errTranslateNetwork": "Cannot reach the translation service: {detail}",
+  "@errTranslateNetwork": {"placeholders":{"detail":{}}},
+  "errTranslateIdle": "The translation service sent nothing for 4 minutes",
+  "errTranslateStream": "The translation service reported an error: {detail}",
+  "@errTranslateStream": {"placeholders":{"detail":{}}},
+  "errTranslateIncomplete": "{count} subtitles could not be translated. Start the translation again to continue; finished subtitles are kept.",
+  "@errTranslateIncomplete": {"placeholders":{"count":{"type":"int"}}},
+  "errSummaryInvalid": "The model did not return a usable summary of the source",
+  "errOutcomeInterrupted": "The translation service's answer stopped before it was complete",
+  "errTranslateSize": "The translation response exceeds 8 MiB",
   "errTranslateJson": "The translation service response is not valid JSON",
   "errTranslateRefused": "The translation service refused the request: {reason}",
-  "errTranslateTruncated": "The translation result is missing, truncated or did not end normally",
-  "errTranslateStructure": "Invalid translation candidate: {detail}",
-  "errTranslateExtra": "The translation candidate contains extra content",
-  "errCueTooLong": "A subtitle is too long; check the imported content first",
-  "errSummarySize": "The summary exceeds its limit",
   "errTranslateModel": "Choose a translation model",
   "errTranslateTarget": "Choose a target language",
   "errNothingToTranslate": "Nothing to translate; hand edits and protected content were skipped",
-  "errTranslateMissing": "The translation result lacks subtitles; the original was not copied in",
-  "errTranslateLines": "Invalid IDs, order or text in the translation result",
-  "warnNumbers": "Check numbers: {id}"
+  "warnNumbers": "Subtitle {index}: check the numbers {numbers}",
+  "@warnNumbers": {"placeholders":{"index":{"type":"int"},"numbers":{}}},
+  "warnCacheWrite": "Results cannot be kept for resuming: {detail}",
+  "@warnCacheWrite": {"placeholders":{"detail":{}}},
+  "warnSegmentKept": "{from}–{to}: original segmentation kept (the model changed the words)",
+  "@warnSegmentKept": {"placeholders":{"from":{},"to":{}}},
+  "reasonJoined": "Fragment joined to its sense group",
+  "reasonDivided": "Divided at a sense-group boundary"
 }

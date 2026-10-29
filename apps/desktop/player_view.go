@@ -68,6 +68,10 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 						}
 					}
 				}).Label(locales.PlayerSpeed()).Tooltip(locales.PlayerSpeed()).Disabled(disabled).FontFeatures("tnum")
+				// Loop playback, off until chosen, for this session.
+				if ui.Toggle(c, &a.loop, "").Label(locales.PlayerLoop()).Tooltip(locales.PlayerLoop()).Padding(c.Theme().Space(2)).Disabled(disabled).Children(func() { icon(c, "repeat") }).Changed() {
+					a.evalPlayer(a.rateScript())
+				}
 			}).Gap(em(c, 2)).Shrink(0)
 			ui.Row(c).Gap(em(c, 6)).AlignItems(ui.Center).Shrink(0).Children(func() {
 				ui.Text(c, stamp(a.position)).FontFeatures("tnum").SingleLine()
@@ -184,7 +188,7 @@ func (a *NativeApp) setPlaybackRate(rate float64) {
 	a.evalPlayer(a.rateScript())
 }
 func (a *NativeApp) rateScript() string {
-	return fmt.Sprintf("video.defaultPlaybackRate=%g;video.playbackRate=%g;", a.playbackRate(), a.playbackRate())
+	return fmt.Sprintf("video.defaultPlaybackRate=%g;video.playbackRate=%g;video.loop=%t;", a.playbackRate(), a.playbackRate(), a.loop)
 }
 
 // rateLabel writes a speed as players do: 0.75×, 1×, 2×.

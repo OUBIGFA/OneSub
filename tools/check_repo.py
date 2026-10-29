@@ -18,7 +18,7 @@ MAX_BYTES = 1024 * 1024
 # Only the maintainer-supplied branding source may be binary. A fixed digest
 # prevents this exception from becoming a general asset/secret bypass.
 APPROVED_BINARY = {
-    "apps/desktop/branding/logo.png": "ad0d5219f8e70fb8138eea649d1f43de00f8ff5e3a884e9c2a64db5974eaa233",
+    "apps/desktop/branding/logo.png": "3dc212ad601d33ffd934e1f874b389220ecb8234862172488a4cb705cf79f9b3",
 }
 CREDENTIAL = re.compile(
     r"(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{50,}"

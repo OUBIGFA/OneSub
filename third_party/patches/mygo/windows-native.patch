@@ -313,3 +313,43 @@
  
  // The highlights of menu items cover their pixels inside fully, those past
  // the rounded corners not at all, and those the corners cross partly.
+--- a/internal/windows/surface.go
++++ b/internal/windows/surface.go
+@@ -505,6 +505,15 @@
+ 		procEndPaint.Call(hwnd, uintptr(unsafe.Pointer(&ps)))
+ 		return 0, true
+ 	case wmEraseBkgnd:
++		// Under the web views' visuals is this window's own bitmap, which
++		// shows where a page has not yet followed its place as it grows (a
++		// split dragged fast): fill it with the window's background color,
++		// not leave it as it was made, white.
++		if s.layer != nil && s.w.bgBrush != 0 {
++			var r rect
++			procGetClientRect.Call(hwnd, uintptr(unsafe.Pointer(&r)))
++			procFillRect.Call(wp, uintptr(unsafe.Pointer(&r)), s.w.bgBrush)
++		}
+ 		return 1, true
+ 	case wmSize:
+ 		if s.layer != nil {
+@@ -514,6 +523,8 @@
+ 				v.placeEmbedded()
+ 			}
+ 			s.layer.commit()
++			// A grown window has bitmap no one erased yet.
++			procInvalidateRectW.Call(hwnd, 0, 1)
+ 		}
+ 		s.send(platform.SurfaceEvent{Kind: platform.SurfaceResize})
+ 		// Draw at once, so the content follows the window while it is
+--- a/internal/windows/webview_embed.go
++++ b/internal/windows/webview_embed.go
+@@ -147,7 +147,9 @@
+ 			// renderer again (Native), and frames drawn in memory go
+ 			// through the compositor.
+ 			s.send(platform.SurfaceEvent{Kind: platform.SurfaceRenew})
+-			procInvalidateRectW.Call(s.hwnd, 0, 0)
++			// Erase too: the bitmap under the web views takes the window's
++			// background color (surface.go, wmEraseBkgnd).
++			procInvalidateRectW.Call(s.hwnd, 0, 1)
+ 		}
+ 	}
+ 	v := &window{

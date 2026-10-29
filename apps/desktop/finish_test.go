@@ -98,7 +98,7 @@ func TestPlaybackSpeed(t *testing.T) {
 	if err := tt.ChooseMenuItem("1.5×"); err != nil {
 		t.Fatal(err)
 	}
-	if a.playbackRate() != 1.5 || a.rateScript() != "video.defaultPlaybackRate=1.5;video.playbackRate=1.5;" || !tt.HasText("1.5×") {
+	if a.playbackRate() != 1.5 || a.rateScript() != "video.defaultPlaybackRate=1.5;video.playbackRate=1.5;video.loop=false;" || !tt.HasText("1.5×") {
 		t.Fatal(a.rateScript(), tt.Texts())
 	}
 	speed, _ := tt.Find("播放速度")
@@ -108,7 +108,7 @@ func TestPlaybackSpeed(t *testing.T) {
 	}
 }
 
-// The editor, the style and recognition with translation start at 1:2:1,
+// The editor, the style and recognition with translation start at 1:2:2,
 // and the panes keep the sizes the user drags them to.
 func TestPaneSizesAreRemembered(t *testing.T) {
 	a := withStyleCatalog(t)
@@ -119,8 +119,8 @@ func TestPaneSizesAreRemembered(t *testing.T) {
 	if ratio := (style.X - editor.X) / (work.X - style.X); ratio < 0.45 || ratio > 0.55 {
 		t.Fatal("editor and style are not 1:2", editor, style, work)
 	}
-	if ratio := (1500 - work.X) / (style.X - editor.X); ratio < 0.9 || ratio > 1.1 {
-		t.Fatal("recognition and translation not as wide as the editor", editor, work)
+	if ratio := (1500 - work.X) / (style.X - editor.X); ratio < 1.8 || ratio > 2.2 {
+		t.Fatal("recognition and translation not twice the editor", editor, work)
 	}
 	a.bottomSplit, a.splitX = 45, 55
 	tt.Frame()
@@ -148,16 +148,23 @@ func TestEditorNamesTheCueOnItsFirstLine(t *testing.T) {
 	}
 }
 
-// Translated batches appear in the list as they arrive, as a preview that
-// changes no subtitle.
-func TestTranslationBatchesShowAsTheyArrive(t *testing.T) {
+// While a translation runs, the list shows every subtitle with its
+// translation as the model writes it, and changes no subtitle.
+func TestTranslationShowsEachSubtitleAsItIsWritten(t *testing.T) {
 	a := withStyleCatalog(t)
 	a.busy, a.translationRunning = true, true
-	a.translationProgress = translator.Progress{Stage: "translate", Done: 1, Total: 2}
-	a.translationDraft = []subtitle.Cue{{ID: "c1", Position: 0, Text: "译文一", StartMs: 0, EndMs: 2000}}
+	a.translationLive = newTranslationLive()
+	units := []subtitle.Cue{{ID: "u1", Text: "First line", StartMs: 0, EndMs: 2000}, {ID: "u2", Text: "Second line", StartMs: 2000, EndMs: 4000}}
+	a.translationLive.apply(translator.Event{Stage: "translate", Total: 2, Units: units})
+	a.translationLive.apply(translator.Event{Stage: "translate", Done: 1, Total: 2, Requests: 1, Input: 1200, Output: 40, Updates: []translator.UnitText{{Index: 0, Text: "第一行", Final: true}, {Index: 1, Text: "第二"}}})
 	tt := settled(a.view, 1600, 1000)
-	if !tt.HasText("译文一") || !tt.HasText("翻译 1 / 2") || a.snapshot.Document.Cues[0].Text != "source" {
-		t.Fatal(tt.Texts())
+	for _, text := range []string{"翻译 1 / 2", "第一行", "第二", "First line", "1 次请求 · 输入 1,200 · 输出 40 tokens"} {
+		if !tt.HasText(text) {
+			t.Fatal(text, tt.Texts())
+		}
+	}
+	if a.snapshot.Document.Cues[0].Text != "source" {
+		t.Fatal("a subtitle changed before the translation was checked")
 	}
 }
 
@@ -220,5 +227,22 @@ func TestStripTrailingPunctuation(t *testing.T) {
 	}
 	if got := stripTrailingPunctuation("太好了！", "!"); got != "太好了！" {
 		t.Error("full-width mark of a kept ASCII mark removed", got)
+	}
+}
+
+// Loop playback is off until chosen, beside the transport, and applies to
+// the page.
+func TestLoopPlayback(t *testing.T) {
+	a := nativeForTest(t)
+	a.mediaURL = "http://127.0.0.1/video"
+	tt := settled(a.view, 1400, 900)
+	if a.loop {
+		t.Fatal("loop on by default")
+	}
+	if err := tt.Click("循环播放"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.loop || !strings.HasSuffix(a.rateScript(), "video.loop=true;") {
+		t.Fatal(a.rateScript())
 	}
 }

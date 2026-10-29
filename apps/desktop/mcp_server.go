@@ -15,6 +15,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/translator"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -173,7 +174,7 @@ func (s mcpServer) transcribe(ctx context.Context, req *mcp.CallToolRequest, in 
 		}
 		prefs.RecognitionDir = in.OutputDir
 	}
-	srt, words, cleanup, err := s.tools.recognize(ctx, prefs, in.MediaPath, func(step recognitionStep) {
+	srt, _, cleanup, err := s.tools.recognize(ctx, prefs, in.MediaPath, func(step recognitionStep) {
 		done, total := float64(step.Done), float64(step.Total)
 		if step.Total < 2 {
 			done, total = 0, 0
@@ -194,7 +195,7 @@ func (s mcpServer) transcribe(ctx context.Context, req *mcp.CallToolRequest, in 
 			return nil, subtitleOut{}, err
 		}
 	}
-	data, err := s.tools.recognitionFile(ctx, srt, words, prefs, style, 0)
+	data, repaired, err := s.tools.recognitionFile(ctx, srt, prefs, style, 0)
 	if err != nil {
 		return nil, subtitleOut{}, err
 	}
@@ -206,7 +207,11 @@ func (s mcpServer) transcribe(ctx context.Context, req *mcp.CallToolRequest, in 
 	if err != nil {
 		return nil, subtitleOut{}, err
 	}
-	return nil, subtitleOut{SubtitlePath: path, Cues: len(doc.Cues)}, nil
+	out := subtitleOut{SubtitlePath: path, Cues: len(doc.Cues)}
+	if repaired > 0 {
+		out.Warnings = []string{locales.RecognitionRepaired(repaired)}
+	}
+	return nil, out, nil
 }
 
 type translateIn struct {
@@ -245,14 +250,31 @@ func (s mcpServer) translate(ctx context.Context, req *mcp.CallToolRequest, in t
 		return nil, subtitleOut{}, err
 	}
 	root, checker := s.translationTools()
-	config := translator.Config{Endpoint: prefs.ProviderURL, API: prefs.ProviderAPI, Model: prefs.ProviderModel, Key: key, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(s.tools.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests)}
-	result, err := translator.Translate(ctx, config, doc, func(done, total int) {
-		progress(ctx, req, float64(done), float64(total), fmt.Sprintf("%d/%d", done, total))
-	})
+	config := translator.Config{Endpoint: prefs.ProviderURL, API: prefs.ProviderAPI, Model: prefs.ProviderModel, Key: key, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(s.tools.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests), CacheDir: filepath.Join(s.tools.dataRoot, "cache", "translation")}
+	// Progress names the stage and the subtitles translated, as the window
+	// shows them. MCP progress must only increase, and the stages count
+	// different things, so the value counts notifications and the message
+	// carries the counts.
+	reported, sent := "", 0
+	config.Observe = func(ev translator.Event) {
+		message := locales.TranslationAnalyzing()
+		switch ev.Stage {
+		case "segment":
+			message = locales.TranslationSegmenting(ev.Done, ev.Total)
+		case "translate":
+			message = locales.TranslationProgress(ev.Done, ev.Total)
+		}
+		if message != reported {
+			reported = message
+			sent++
+			progress(ctx, req, float64(sent), 0, message)
+		}
+	}
+	result, err := translator.Translate(ctx, config, doc)
 	if err != nil {
 		return nil, subtitleOut{}, err
 	}
-	checks, err := checker.Check(ctx, result.Source, result.Document, prefs.TargetLanguage)
+	checks, err := checker.Check(ctx, doc, result.Document, prefs.TargetLanguage, !result.Report.Rebuilt)
 	if err != nil {
 		return nil, subtitleOut{}, err
 	}
@@ -272,8 +294,12 @@ func (s mcpServer) translate(ctx context.Context, req *mcp.CallToolRequest, in t
 	path := in.OutputPath
 	if path == "" {
 		ext := strings.TrimPrefix(filepath.Ext(in.SubtitlePath), ".")
-		stem := strings.TrimSuffix(filepath.Base(in.SubtitlePath), filepath.Ext(in.SubtitlePath)) + "." + prefs.TargetLanguage
-		path, err = publishBeside(filepath.Dir(in.SubtitlePath), stem, ext, data)
+		stem := strings.TrimSuffix(filepath.Base(in.SubtitlePath), filepath.Ext(in.SubtitlePath)) + "-" + translationSuffix(prefs.TargetLanguage)
+		dir := prefs.TranslationDir
+		if dir == "" {
+			dir = filepath.Dir(in.SubtitlePath)
+		}
+		path, err = publishBeside(dir, stem, ext, data)
 	} else {
 		err = subtitle.Publish(path, data)
 	}

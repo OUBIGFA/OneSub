@@ -10,6 +10,8 @@ import (
 func (a *NativeApp) reloadTranslationProfiles() {
 	profiles, err := translator.Profiles(filepath.Join(a.dataRoot, "translation-styles"))
 	if err != nil {
+		// Shown in the settings; an empty list is not loaded again each frame.
+		a.translationProfiles = []translator.Profile{}
 		a.profilesError = err.Error()
 		return
 	}

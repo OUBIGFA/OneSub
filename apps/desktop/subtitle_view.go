@@ -37,7 +37,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 				a.followRow = -1
 			}
 			if a.translationCandidate != nil {
-				ui.Button(c, locales.ListReview()).OnClick(func() { a.translationReview = true })
+				ui.Button(c, locales.TranslationResults()).OnClick(func() { a.translationReview = true })
 			}
 			unsaved := a.trackUnsaved(a.subtitleTab)
 			if unsaved {
