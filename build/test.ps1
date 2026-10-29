@@ -6,6 +6,9 @@ $env:GOROOT = $GoRoot
 $env:PATH = "$GoRoot/bin;$env:PATH"
 $env:GOMODCACHE = Join-Path $root '.local/gomodcache'
 $env:GOCACHE = Join-Path $root '.local/gocache'
+$patchedMod = & python (Join-Path $root 'tools/prepare_mygo.py')
+if ($LASTEXITCODE -ne 0) { throw 'MyGo menu patch preparation failed' }
+$env:GOFLAGS = "`"-modfile=$patchedMod`""
 $env:PYTHONUTF8 = '1'
 $env:ONESUB_SUBTITLE_WORKER = Join-Path $root 'build/output/subtitle-core/OneSub.SubtitleCore.exe'
 $env:ONESUB_STYLE_WORKER = Join-Path $root 'build/output/style-core/OneSub.StyleCore.exe'
@@ -32,6 +35,8 @@ try {
         # Message accessors are generated from locales/*.json and not tracked.
         & go run github.com/egoist/mygo/cmd/mygo generate
         if ($LASTEXITCODE -ne 0) { throw 'Message catalog generation failed' }
+        & go test github.com/egoist/mygo/internal/windows -run TestOneSubPopup -count=1
+        if ($LASTEXITCODE -ne 0) { throw 'MyGo menu metric tests failed' }
         & go test @Packages -count=1
         if ($LASTEXITCODE -ne 0) { throw 'Go tests failed' }
     } finally { Pop-Location }

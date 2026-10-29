@@ -2,6 +2,8 @@
 
 Input is the reviewed upstream catalog.rs at the revision below. The converter
 fails if an expected entry cannot be read, rather than dropping a model silently.
+Labels are product names, the same in every interface language; the settings
+name each model's role beside it.
 """
 import argparse
 import hashlib
@@ -16,9 +18,9 @@ MODELS = [
     ("qwen3_asr_06b_int8_files", "Qwen3-ASR-0.6B-int8", "Qwen3-ASR 0.6B INT8", "asr", "eclipse005", "Qwen3-ASR-0.6B-int8", 3),
     ("qwen3_asr_17b_int8_files", "Qwen3-ASR-1.7B-int8", "Qwen3-ASR 1.7B INT8", "asr", "eclipse005", "Qwen3-ASR-1.7B-int8", 3),
     ("omni_asr_ctc_300m_files", "omniASR-CTC-300M-v2-hf", "CTC 300M", "aligner", "eclipse005", "omniASR-CTC-300M-v2", 6),
-    ("qwen_align_files", "Qwen3-ForcedAligner-0.6B-hf", "Qwen 对齐器 0.6B", "aligner", "Qwen", "Qwen3-ForcedAligner-0.6B-hf", 4),
-    ("htdemucs_ft_files", "htdemucs_ft", "HTDemucs 人声分离", "separation", "eclipse005", "htdemucs", 1),
-    ("sensevoice_small_files", "SenseVoiceSmall", "SenseVoiceSmall 热词", "hotword", "iic", "SenseVoiceSmall", 4),
+    ("qwen_align_files", "Qwen3-ForcedAligner-0.6B-hf", "Qwen3-ForcedAligner 0.6B", "aligner", "Qwen", "Qwen3-ForcedAligner-0.6B-hf", 4),
+    ("htdemucs_ft_files", "htdemucs_ft", "HTDemucs ft", "separation", "eclipse005", "htdemucs", 1),
+    ("sensevoice_small_files", "SenseVoiceSmall", "SenseVoiceSmall", "hotword", "iic", "SenseVoiceSmall", 4),
 ]
 
 

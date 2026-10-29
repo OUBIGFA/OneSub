@@ -91,3 +91,28 @@ func cueAt(cues []subtitle.Cue, seconds float64) int {
 	}
 	return -1
 }
+
+// cueNear is the cue at seconds or, between cues, the last one that started
+// before it; the first cue when none has.
+func cueNear(cues []subtitle.Cue, seconds float64) int {
+	if i := cueAt(cues, seconds); i >= 0 {
+		return i
+	}
+	ms := int64(math.Round(seconds * 1000))
+	before, first := -1, -1
+	for i, cue := range cues {
+		if cue.ReadOnly {
+			continue
+		}
+		if first < 0 {
+			first = i
+		}
+		if cue.StartMs <= ms && (before < 0 || cue.StartMs >= cues[before].StartMs) {
+			before = i
+		}
+	}
+	if before >= 0 {
+		return before
+	}
+	return first
+}

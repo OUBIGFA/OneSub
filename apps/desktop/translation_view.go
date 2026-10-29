@@ -26,6 +26,10 @@ type translationCandidate struct {
 func (a *NativeApp) translationSettingsView(c *ui.Context) {
 	settingsGroup(c, locales.TranslationService(), func() {
 		ui.Form(c, func() {
+			// Both protocols are OpenAI's own names, the same in every language.
+			ui.Field(c, locales.TranslationApi(), func() {
+				idSelect(c, &a.settings.ProviderAPI, []option{{translator.APIChatCompletions, "OpenAI Chat Completions"}, {translator.APIResponses, "OpenAI Responses"}}).Label(locales.TranslationApi()).OnChange(a.saveSettings)
+			})
 			ui.Field(c, locales.TranslationEndpoint(), func() {
 				address := ui.TextInput(c, &a.settings.ProviderURL).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).OnChange(func() {
 					a.providerKey = ""
@@ -80,13 +84,10 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 		})
 	})
 	settingsGroup(c, locales.TranslationOptions(), func() {
-		ui.Grid(c).Columns(2).Gap(20).Children(func() {
-			ui.Field(c, locales.TranslationTarget(), func() {
-				ui.Select(c, &a.settings.TargetLanguage, []string{"zh-CN", "en", "ja", "ko", "zh-TW"}).Label(locales.TranslationTarget()).OnChange(a.saveSettings)
-			})
-			ui.Field(c, locales.TranslationRequestLimit(), func() {
-				ui.NumberInput(c, &a.settings.MaxRequests, 1, 10000, 1).Label(locales.TranslationRequestLimit()).OnChange(a.saveSettings)
-			})
+		// The target language is chosen beside the subtitles, where a
+		// translation starts.
+		ui.Field(c, locales.TranslationRequestLimit(), func() {
+			ui.NumberInput(c, &a.settings.MaxRequests, 1, 10000, 1).Label(locales.TranslationRequestLimit()).AlignSelf(ui.Start).OnChange(a.saveSettings)
 		})
 	})
 	settingsGroup(c, locales.TranslationStyle(), func() {
@@ -114,16 +115,26 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 		if a.profilesError != "" {
 			ui.Text(c, a.profilesError).TextColor(c.Theme().Warning)
 		}
-		ui.Checkbox(c, &a.settings.OptimizeTimeline, locales.TranslationOptimizeTimeline()).OnChange(a.saveSettings)
 		ui.TextArea(c, &a.settings.Glossary).Height(52).Label(locales.TranslationGlossary()).Placeholder(locales.TranslationGlossaryPlaceholder()).OnChange(a.saveSettings)
 	})
 }
 
 func (a *NativeApp) translationView(c *ui.Context) {
 	ui.Modal(c, &a.translationConfirm, func() {
-		ui.Text(c, locales.ActionTranslate())
+		ui.Column(c).Width(em(c, 560)).Gap(em(c, 12)).Children(a.translationConfirmContent(c))
+	})
+	ui.Modal(c, &a.translationReview, func() {
+		ui.Column(c).Width(em(c, 760)).Gap(em(c, 12)).Children(a.translationReviewContent(c))
+	})
+}
+
+// translationConfirmContent says what is sent and to where before anything
+// is sent.
+func (a *NativeApp) translationConfirmContent(c *ui.Context) func() {
+	return func() {
+		dialogTitle(c, locales.ActionTranslate())
 		ui.Text(c, a.settings.ProviderModel)
-		ui.Text(c, a.settings.ProviderURL)
+		muted(c, a.settings.ProviderURL)
 		if a.snapshot != nil {
 			total, locked := 0, 0
 			for _, cue := range a.snapshot.Document.Cues {
@@ -140,19 +151,24 @@ func (a *NativeApp) translationView(c *ui.Context) {
 			ui.Text(c, locales.TranslationTimelineNote()).TextColor(c.Theme().TextMuted)
 		}
 		ui.Text(c, locales.TranslationCostNote(int(a.settings.MaxRequests))).TextColor(c.Theme().TextMuted)
-		ui.Row(c).Gap(8).Children(func() {
+		ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Margin(em(c, 8), 0, 0, 0).Children(func() {
 			ui.Button(c, locales.ActionCancel()).OnClick(func() { a.translationConfirm = false })
 			ui.PrimaryButton(c, locales.TranslationStart()).OnClick(func() { a.translationConfirm = false; a.startTranslation() })
 		})
-	})
-	ui.Modal(c, &a.translationReview, func() {
+	}
+}
+
+// translationReviewContent shows the checks, the result beside its source
+// and the chosen line in full before the translation is accepted.
+func (a *NativeApp) translationReviewContent(c *ui.Context) func() {
+	return func() {
 		candidate := a.translationCandidate
 		if candidate == nil {
 			return
 		}
-		ui.Text(c, locales.ListReview())
+		dialogTitle(c, locales.ListReview())
 		ui.Text(c, locales.ReviewSummary(candidate.Result.Report.Translated, candidate.Result.Report.TimelineChanges, len(candidate.Checks.Errors), len(candidate.Checks.Warnings)+len(candidate.Result.Report.Warnings)))
-		ui.Scroll(c).Height(130).Width(720).Children(func() {
+		ui.Scroll(c).Height(em(c, 130)).Children(func() {
 			for _, item := range candidate.Checks.Errors {
 				ui.Text(c, item).TextColor(c.Theme().Danger)
 			}
@@ -175,7 +191,7 @@ func (a *NativeApp) translationView(c *ui.Context) {
 				text = subtitle.SourceText(cue)
 			}
 			ui.Text(c, text).SingleLine()
-		}).Height(200).Label(locales.A11yReviewList())
+		}).Height(em(c, 200)).Label(locales.A11yReviewList())
 		if a.translationSelected >= 0 && a.translationSelected < len(cues) {
 			cue := cues[a.translationSelected]
 			ui.Text(c, stamp(float64(cue.StartMs)/1000)+" → "+stamp(float64(cue.EndMs)/1000))
@@ -185,15 +201,15 @@ func (a *NativeApp) translationView(c *ui.Context) {
 				ui.Text(c, cue.SourceRange.Reason).TextColor(c.Theme().Warning)
 			}
 		}
-		ui.Row(c).Gap(8).Children(func() {
+		ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Children(func() {
 			ui.Button(c, locales.ReviewLater()).OnClick(func() { a.translationReview = false })
 			ui.PrimaryButton(c, locales.ReviewAccept()).Disabled(len(candidate.Checks.Errors) > 0 || a.busy).OnClick(a.acceptTranslation)
 		})
-	})
+	}
 }
 
 func (a *NativeApp) startTranslation() {
-	if a.snapshot == nil {
+	if a.busy || a.snapshot == nil {
 		return
 	}
 	a.commitEdit(true)
@@ -212,7 +228,16 @@ func (a *NativeApp) startTranslation() {
 	if value := os.Getenv("ONESUB_SKILL_WORKER"); value != "" {
 		executable = value
 	}
-	config := translator.Config{Endpoint: prefs.ProviderURL, Model: prefs.ProviderModel, Key: key, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(a.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests)}
+	config := translator.Config{Endpoint: prefs.ProviderURL, API: prefs.ProviderAPI, Model: prefs.ProviderModel, Key: key, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(a.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests)}
+	config.Observe = func(p translator.Progress) {
+		a.win.Update(func() {
+			a.translationProgress = p
+			a.translationDraft = append(a.translationDraft, p.Preview...)
+		})
+	}
+	a.translationRunning = true
+	a.translationProgress = translator.Progress{Stage: "context"}
+	a.translationDraft, a.draftShown, a.draftList = nil, 0, ui.ListState{}
 	checker := translator.Checker{Executable: executable, SkillRoot: root, Scratch: a.worker.Scratch, Subtitle: a.worker}
 	a.run(locales.ActionTranslate(), func(ctx context.Context) (func(), error) {
 		// Always translate the retained source, not a previous machine translation.
@@ -230,7 +255,7 @@ func (a *NativeApp) startTranslation() {
 		if err != nil {
 			return nil, err
 		}
-		a.win.Update(func() { a.status = locales.TranslationChecking() })
+		a.win.Update(func() { a.status = locales.TranslationChecking(); a.translationProgress.Stage = "checking" })
 		checks, err := checker.Check(ctx, result.Source, result.Document, prefs.TargetLanguage)
 		if err != nil {
 			return nil, err

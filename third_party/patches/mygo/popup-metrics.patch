@@ -1,0 +1,315 @@
+--- a/internal/windows/menu.go
++++ b/internal/windows/menu.go
+@@ -125,7 +125,7 @@
+ 		if !drawn {
+ 			return nil
+ 		}
+-		l.owner, l.column, l.icons, l.menu, l.pos = owner, column, icons, h, pos
++		l.owner, l.column, l.icons, l.menu, l.pos, l.dpi = owner, column, icons, h, pos, dpi
+ 		looks = append(looks, l)
+ 		ownerDraw(h, pos, l.ftype(), b.menus.addLook(l))
+ 		return l
+@@ -276,7 +276,7 @@
+ 		}
+ 		procAppendMenuW.Call(popup, flags, item, uintptr(unsafe.Pointer(&buf[0])))
+ 		if fluentMenus() {
+-			l := &menuLook{owner: owner, label: string(utf16Decode(buf)), submenu: flags&mfPopup != 0, first: i == 0, last: i == count-1}
++			l := &menuLook{owner: owner, label: string(utf16Decode(buf)), submenu: flags&mfPopup != 0, first: i == 0, last: i == count-1, dpi: dpiOf(w.hwnd)}
+ 			ownerDraw(popup, i, 0, w.b.menus.addLook(l))
+ 		}
+ 	}
+--- a/internal/windows/menudraw.go
++++ b/internal/windows/menudraw.go
+@@ -34,7 +34,7 @@
+ 	dtCalcRect             = 0x400
+ 	dtRight                = 0x002
+ 	srcCopy                = 0x00CC0020
+-	smCxMenuCheck          = 71
++	dtNoClip               = 0x100
+ 	spiGetNonClientMetrics = 0x0029
+ 	layoutRTL              = 0x1
+ )
+@@ -47,6 +47,7 @@
+ 	procSetMenuInfo                = user32.NewProc("SetMenuInfo")
+ 	procGetSysColor                = user32.NewProc("GetSysColor")
+ 	procSystemParametersInfoForDpi = user32.NewProc("SystemParametersInfoForDpi")
++	procGetTextExtentPoint32W      = gdi32.NewProc("GetTextExtentPoint32W")
+ )
+ 
+ // Popup items' metrics, in DIPs, after WinUI's MenuFlyoutItem: a highlight
+@@ -97,6 +98,8 @@
+ 	// menu and pos are the menu holding the item and its position there.
+ 	menu uintptr
+ 	pos  int
++	// dpi belongs to the popup's monitor, not its (possibly hidden) owner.
++	dpi int
+ }
+ 
+ // ftype returns the type the item has besides MFT_OWNERDRAW.
+@@ -218,6 +221,8 @@
+ type menuFonts struct {
+ 	text, glyphs uintptr
+ 	fluent       bool // the glyphs are Segoe Fluent Icons'
++	// extra is the width Windows adds to every owner-drawn item.
++	extra int32
+ }
+ 
+ // logFont is LOGFONTW.
+@@ -255,8 +260,8 @@
+ 	if r, _, _ := procSystemParametersInfoForDpi.Call(spiGetNonClientMetrics, uintptr(ncm.Size), uintptr(unsafe.Pointer(&ncm)), 0, uintptr(dpi)); r != 0 {
+ 		lf = ncm.MenuFont
+ 	}
++	f := menuFonts{extra: ownerDrawExtra(&lf)}
+ 	lf.Height = int32(math.Round(float64(lf.Height) * 14 / 12))
+-	f := menuFonts{}
+ 	if string(utf16Decode(lf.FaceName[:])) == "Segoe UI" {
+ 		v := lf
+ 		v.FaceName = [32]uint16{}
+@@ -291,6 +296,32 @@
+ 		procDeleteObject.Call(f.glyphs)
+ 	}
+ 	b.menuFonts = nil
++}
++
++// ownerDrawExtra returns the width Windows adds to each owner-drawn item of
++// a popup menu whose system menu font is lf: twice that font's average
++// character width, as GdiGetCharDimensions measures it (the mean advance
++// of the Latin alphabet, rounded). With Segoe UI this equals
++// SM_CXMENUCHECK-1; with Microsoft YaHei UI, the menu font of Chinese
++// Windows, SM_CXMENUCHECK is 2 pixels larger, so taking that off made
++// every item 2 pixels narrower than its label. 0, so that items are only
++// wider, when the font cannot be measured.
++func ownerDrawExtra(lf *logFont) int32 {
++	font, _, _ := procCreateFontIndirectW.Call(uintptr(unsafe.Pointer(lf)))
++	if font == 0 {
++		return 0
++	}
++	defer procDeleteObject.Call(font)
++	dc, _, _ := procGetDC.Call(0)
++	defer procReleaseDC.Call(0, dc)
++	old, _, _ := procSelectObject.Call(dc, font)
++	defer procSelectObject.Call(dc, old)
++	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
++	var size struct{ CX, CY int32 }
++	if r, _, _ := procGetTextExtentPoint32W.Call(dc, uintptr(unsafe.Pointer(u16(alphabet))), uintptr(len(alphabet)), uintptr(unsafe.Pointer(&size))); r == 0 {
++		return 0
++	}
++	return 2 * ((size.CX/26 + 1) / 2)
+ }
+ 
+ // The glyphs of Segoe Fluent Icons, also in Segoe MDL2 Assets.
+@@ -356,21 +387,38 @@
+ 	procSetMenuInfo.Call(menu, uintptr(unsafe.Pointer(&mi)))
+ }
+ 
+-// textWidth measures text in a font, with its mnemonic's & left out.
+-func textWidth(dc, font uintptr, text string) int32 {
++// textSize measures the font's actual line box as well as its advance.
++// Accessibility text scaling can make that box taller than a 32 DIP row.
++func textSize(dc, font uintptr, text string) (int32, int32) {
+ 	if text == "" {
+-		return 0
++		return 0, 0
+ 	}
+ 	old, _, _ := procSelectObject.Call(dc, font)
+ 	defer procSelectObject.Call(dc, old)
+ 	var r rect
+ 	s := u16(text)
+ 	procDrawTextW.Call(dc, uintptr(unsafe.Pointer(s)), ^uintptr(0), uintptr(unsafe.Pointer(&r)), dtCalcRect|dtSingleLine)
+-	return r.Right - r.Left
++	return r.Right - r.Left, r.Bottom - r.Top
++}
++
++func textWidth(dc, font uintptr, text string) int32 {
++	w, _ := textSize(dc, font, text)
++	return w
++}
++
++func (l *menuLook) popupDPI(hwnd uintptr) int {
++	if l.dpi > 0 {
++		return l.dpi
++	}
++	return dpiOf(hwnd)
++}
++
++func popupItemHeight(dpi int, textHeight, top, bottom int32) uint32 {
++	return uint32(max(toPx(menuItemHeight, dpi), textHeight+toPx(menuInset*2, dpi)) + top + bottom)
+ }
+ 
+ func (b *Backend) measureItem(hwnd uintptr, l *menuLook, mis *measureItemStruct) {
+-	dpi := dpiOf(hwnd)
++	dpi := l.popupDPI(hwnd)
+ 	top, bottom := l.padding(dpi)
+ 	if l.separator {
+ 		mis.ItemWidth, mis.ItemHeight = 0, uint32(toPx(menuSeparatorHeight, dpi)+top+bottom)
+@@ -379,7 +427,8 @@
+ 	f := b.menuFace(dpi)
+ 	dc, _, _ := procGetDC.Call(0)
+ 	defer procReleaseDC.Call(0, dc)
+-	w := toPx(menuInset+menuPadding, dpi)*2 + textWidth(dc, f.text, l.label)
++	labelWidth, labelHeight := textSize(dc, f.text, l.label)
++	w := toPx(menuInset+menuPadding, dpi)*2 + labelWidth
+ 	if l.column {
+ 		w += toPx(menuMarkColumn, dpi)
+ 	}
+@@ -392,14 +441,14 @@
+ 	if l.submenu {
+ 		w += toPx(menuAccelGap/2+menuChevron, dpi)
+ 	}
+-	// Windows adds the width of its checks to that of every item.
+-	check, _, _ := procGetSystemMetricsForDpi.Call(smCxMenuCheck, uintptr(dpi))
+-	w = max(w-int32(check)+1, 0)
+-	mis.ItemWidth, mis.ItemHeight = uint32(w), uint32(toPx(menuItemHeight, dpi)+top+bottom)
++	// Windows widens every owner-drawn item by an amount of its own: take
++	// it off, so that the menu is as wide as its widest item needs.
++	w = max(w-f.extra, 0)
++	mis.ItemWidth, mis.ItemHeight = uint32(w), popupItemHeight(dpi, labelHeight, top, bottom)
+ }
+ 
+ func (b *Backend) drawItem(hwnd uintptr, l *menuLook, d *drawItemStruct) {
+-	dpi := dpiOf(hwnd)
++	dpi := l.popupDPI(hwnd)
+ 	p := b.menuPalette()
+ 	r := d.Item
+ 	state := d.ItemState
+@@ -481,7 +530,10 @@
+ 		}
+ 		old, _, _ := procSelectObject.Call(dc, f.text)
+ 		defer procSelectObject.Call(dc, old)
+-		flags := uintptr(dtSingleLine | dtVCenter)
++		// Glyphs may reach a pixel past their advance, on either side, as
++		// Microsoft YaHei UI's do: the item's own bitmap bounds the text,
++		// which is not clipped to its advance within the padding.
++		flags := uintptr(dtSingleLine | dtVCenter | dtNoClip)
+ 		if state&odsNoAccel != 0 {
+ 			flags |= dtHidePrefix
+ 		}
+@@ -492,7 +544,7 @@
+ 		if l.accel != "" {
+ 			procSetTextColor.Call(dc, uintptr(secondary))
+ 			s := u16(l.accel)
+-			procDrawTextW.Call(dc, uintptr(unsafe.Pointer(s)), ^uintptr(0), uintptr(unsafe.Pointer(&text)), dtSingleLine|dtVCenter|dtRight|dtNoPrefix)
++			procDrawTextW.Call(dc, uintptr(unsafe.Pointer(s)), ^uintptr(0), uintptr(unsafe.Pointer(&text)), dtSingleLine|dtVCenter|dtRight|dtNoPrefix|dtNoClip)
+ 		}
+ 	})
+ 	// Windows draws the arrow of a submenu after the item, in its colors:
+--- a/internal/windows/menudraw_test.go
++++ b/internal/windows/menudraw_test.go
+@@ -2,7 +2,116 @@
+ 
+ package windows
+ 
+-import "testing"
++import (
++	"runtime"
++	"syscall"
++	"testing"
++	"unsafe"
++)
++
++// The labels of a real popup menu fit in the items Windows lays out. It
++// widens owner-drawn items by an amount of its own, which measureItem
++// takes off: taking off more cut the end of the widest label, as the right
++// edge of 设 in 保存为新预设 on Chinese Windows.
++func TestOneSubPopupItemWidth(t *testing.T) {
++	if !fluentMenus() {
++		t.Skip("Windows 10 draws the items of its menus")
++	}
++	runtime.LockOSThread()
++	defer runtime.UnlockOSThread()
++	labels := []string{"保存为新预设", "重命名", "删除", "打开 OneSub", "Save as new preset", "Quit"}
++	var (
++		b     Backend
++		menu  uintptr
++		width int32
++	)
++	procGetMenuItemRect := user32.NewProc("GetMenuItemRect")
++	proc := syscall.NewCallback(func(hwnd, m, wp, lp uintptr) uintptr {
++		switch uint32(m) {
++		case wmMeasureItem, wmDrawItem:
++			if r, ok := b.menuItemMessage(hwnd, uint32(m), wp, lp); ok {
++				return r
++			}
++		case wmTimer:
++			// The menu shows: read its first item, then close it.
++			procKillTimer.Call(hwnd, wp)
++			var r rect
++			if ok, _, _ := procGetMenuItemRect.Call(0, menu, 0, uintptr(unsafe.Pointer(&r))); ok != 0 {
++				width = r.Right - r.Left
++			}
++			procEndMenu.Call()
++			return 0
++		}
++		r, _, _ := procDefWindowProcW.Call(hwnd, m, wp, lp)
++		return r
++	})
++	instance, _, _ := procGetModuleHandleW.Call(0)
++	class := u16("OneSubPopupItemWidthTest")
++	wc := wndClassEx{WndProc: proc, Instance: instance, ClassName: class}
++	wc.Size = uint32(unsafe.Sizeof(wc))
++	procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
++	hwnd, _, _ := procCreateWindowExW.Call(0, uintptr(unsafe.Pointer(class)), 0, wsPopup, 0, 0, 0, 0, 0, 0, instance, 0)
++	if hwnd == 0 {
++		t.Fatal("no owner window")
++	}
++	defer procDestroyWindow.Call(hwnd)
++	dpi := dpiOf(hwnd)
++	menu, _, _ = procCreatePopupMenu.Call()
++	defer procDestroyMenu.Call(menu)
++	for i, label := range labels {
++		procAppendMenuW.Call(menu, mfString, uintptr(i+1), uintptr(unsafe.Pointer(u16(label))))
++		ownerDraw(menu, i, 0, b.menus.addLook(&menuLook{label: label, dpi: dpi, first: i == 0, last: i == len(labels)-1}))
++	}
++	defer b.dropMenuFonts()
++	procSetTimer.Call(hwnd, 1, 200, 0)
++	procTrackPopupMenuEx.Call(menu, tpmReturnCmd|tpmRightButton, 100, 100, hwnd, 0)
++	f := b.menuFace(dpi)
++	dc, _, _ := procGetDC.Call(0)
++	defer procReleaseDC.Call(0, dc)
++	need := int32(0)
++	for _, label := range labels {
++		need = max(need, toPx(menuInset+menuPadding, dpi)*2+textWidth(dc, f.text, label))
++	}
++	if width < need || width > need+toPx(2, dpi) {
++		t.Fatalf("items are %d pixels wide; the widest label needs %d", width, need)
++	}
++}
++
++// A hidden tray owner has no useful per-monitor DPI. Measurement and paint
++// must use the monitor recorded when the popup was built.
++func TestOneSubPopupMonitorDPI(t *testing.T) {
++	for _, dpi := range []int{96, 144, 192} {
++		l := menuLook{dpi: dpi}
++		if got := l.popupDPI(0); got != dpi {
++			t.Fatalf("DPI = %d, want %d", got, dpi)
++		}
++	}
++}
++
++// Use actual GDI measurements, including Chinese fallback glyphs. Large
++// accessibility fonts must enlarge the row instead of being clipped to 32 DIP.
++func TestOneSubPopupFontBounds(t *testing.T) {
++	for _, dpi := range []int{96, 144, 192} {
++		for _, size := range []int{14, 48, 64} {
++			font := createFont(-toPx(size, dpi), "Microsoft YaHei UI")
++			if font == 0 {
++				t.Fatal("font unavailable")
++			}
++			b := Backend{menuFonts: map[int]menuFonts{dpi: {text: font}}}
++			l := &menuLook{label: "打开 OneSub · 退出", dpi: dpi, first: true, last: true}
++			var measured measureItemStruct
++			b.measureItem(0, l, &measured)
++			dc, _, _ := procGetDC.Call(0)
++			_, h := textSize(dc, font, l.label)
++			procReleaseDC.Call(0, dc)
++			top, bottom := l.padding(dpi)
++			if int32(measured.ItemHeight)-top-bottom < h+toPx(menuInset*2, dpi) {
++				t.Fatalf("DPI %d size %d: row %d clips text %d", dpi, size, measured.ItemHeight, h)
++			}
++			b.dropMenuFonts()
++		}
++	}
++}
+ 
+ // The highlights of menu items cover their pixels inside fully, those past
+ // the rounded corners not at all, and those the corners cross partly.

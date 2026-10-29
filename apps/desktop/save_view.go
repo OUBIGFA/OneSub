@@ -259,7 +259,10 @@ func (a *NativeApp) finishSavePrompt(choice string) {
 	}
 }
 
-func (a *NativeApp) unsavedLines(c *ui.Context) {
+// unsavedText names each track with unsaved changes and what saving does
+// to it, one line each.
+func (a *NativeApp) unsavedText() string {
+	lines := []string{}
 	for track, unsaved := range a.unsaved {
 		if !unsaved {
 			continue
@@ -272,22 +275,28 @@ func (a *NativeApp) unsavedLines(c *ui.Context) {
 		if a.savedPath[track] != "" {
 			line = locales.SaveOverwrite(name, filepath.Base(a.savedPath[track]))
 		}
-		ui.Text(c, line).TextColor(c.Theme().TextMuted)
+		lines = append(lines, line)
 	}
+	return strings.Join(lines, "\n")
 }
 
+// savePromptView asks in MyGo's alert, whose last button is the default and
+// whose Escape cancels.
 func (a *NativeApp) savePromptView(c *ui.Context) {
-	ui.Modal(c, &a.savePromptOpen, func() {
-		ui.Column(c).Width(520).Gap(14).Children(func() {
-			ui.Text(c, locales.SavePromptTitle()).FontSize(18).FontWeight(600)
-			a.unsavedLines(c)
-			ui.Row(c).Gap(12).Justify(ui.End).Children(func() {
-				ui.Button(c, locales.ActionCancel()).OnClick(func() { a.finishSavePrompt("cancel") })
-				ui.Button(c, locales.SaveDiscard()).OnClick(func() { a.finishSavePrompt("discard") })
-				ui.PrimaryButton(c, locales.SaveConfirm()).OnClick(func() { a.finishSavePrompt("save") })
-			})
-		})
-	})
+	if !a.savePromptOpen {
+		return
+	}
+	open := true
+	switch ui.AlertDialog(c, &open, locales.SavePromptTitle(), a.unsavedText(), locales.ActionCancel(), locales.SaveDiscard(), locales.SaveConfirm()) {
+	case 1:
+		a.finishSavePrompt("discard")
+	case 2:
+		a.finishSavePrompt("save")
+	default:
+		if !open {
+			a.finishSavePrompt("cancel")
+		}
+	}
 }
 
 func (a *NativeApp) requestExport() {
@@ -309,38 +318,30 @@ func (a *NativeApp) requestClear() {
 // clearView is the second confirmation for clearing the workbench, with the
 // save choice included when a track has unsaved changes.
 func (a *NativeApp) clearView(c *ui.Context) {
-	ui.Modal(c, &a.clearOpen, func() {
-		ui.Column(c).Width(500).Gap(14).Children(func() {
-			ui.Text(c, locales.ClearTitle()).FontSize(18).FontWeight(600)
-			ui.Text(c, locales.ClearBody()).TextColor(c.Theme().TextMuted)
-			unsaved := a.unsaved[0] || a.unsaved[1]
+	if !a.clearOpen {
+		return
+	}
+	if !a.unsaved[0] && !a.unsaved[1] {
+		if ui.AlertDialog(c, &a.clearOpen, locales.ClearTitle(), locales.ClearBody(), locales.ActionCancel(), locales.ClearConfirm()) == 1 {
+			a.clearWorkbench()
+		}
+		return
+	}
+	switch ui.AlertDialog(c, &a.clearOpen, locales.ClearTitle(), locales.ClearBody()+"\n"+a.unsavedText(), locales.ActionCancel(), locales.ClearDiscard(), locales.ClearSave()) {
+	case 1:
+		a.clearWorkbench()
+	case 2:
+		tracks := []int{}
+		for track, unsaved := range a.unsaved {
 			if unsaved {
-				a.unsavedLines(c)
+				tracks = append(tracks, track)
 			}
-			ui.Row(c).Gap(12).Justify(ui.End).Children(func() {
-				ui.Button(c, locales.ActionCancel()).OnClick(func() { a.clearOpen = false })
-				if unsaved {
-					ui.Button(c, locales.ClearDiscard()).OnClick(func() { a.clearOpen = false; a.clearWorkbench() })
-					ui.PrimaryButton(c, locales.ClearSave()).OnClick(func() {
-						a.clearOpen = false
-						tracks := []int{}
-						for track, unsaved := range a.unsaved {
-							if unsaved {
-								tracks = append(tracks, track)
-							}
-						}
-						a.saveTracks(tracks, false, a.clearWorkbench)
-					})
-				} else {
-					ui.PrimaryButton(c, locales.ClearConfirm()).OnClick(func() { a.clearOpen = false; a.clearWorkbench() })
-				}
-			})
-		})
-	})
+		}
+		a.saveTracks(tracks, false, a.clearWorkbench)
+	}
 }
 
-// clearWorkbench closes the project and the video. No file is deleted; the
-// project stays in the app's data and under 打开工程.
+// clearWorkbench closes the project and the video. No file is deleted.
 func (a *NativeApp) clearWorkbench() {
 	if a.busy {
 		return

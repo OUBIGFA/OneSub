@@ -45,18 +45,6 @@
       "bytes": 313
     },
     {
-      "path": "apps/desktop/icons/skip-back.svg",
-      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/skip-back.svg",
-      "sha256": "ddf0b2217a4d6b0bf5d6ad4bbdbe87fd99bfa97e66a98d5076d4ed6d220f2a37",
-      "bytes": 293
-    },
-    {
-      "path": "apps/desktop/icons/skip-forward.svg",
-      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/skip-forward.svg",
-      "sha256": "b65ffd2761db5fc66ea36cdcdd32d4c818bf06cb98139731498c3802bbcc6127",
-      "bytes": 292
-    },
-    {
       "path": "apps/desktop/icons/undo-2.svg",
       "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/undo-2.svg",
       "sha256": "efad2edbbd2be6038cc23fd64df2d012fad5cc6460dfbf227cfa3d990e9e897f",
@@ -111,12 +99,6 @@
       "bytes": 476
     },
     {
-      "path": "apps/desktop/icons/file.svg",
-      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/file.svg",
-      "sha256": "f54212286d0c013328f165f342a054f92f494c1598da1beaf33f48b6d46bdbcc",
-      "bytes": 321
-    },
-    {
       "path": "apps/desktop/icons/eraser.svg",
       "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/eraser.svg",
       "sha256": "503094bdc45fa1dcab39209da8028dc2fe4ac8876a87c37b4b976fd8d6ee53bd",
@@ -127,6 +109,66 @@
       "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/chevron-down.svg",
       "sha256": "66ea878e72ed3488bb3b464c39dfdccee8d1f78e560dccea40e5e12da0e87e87",
       "bytes": 236
+    },
+    {
+      "path": "apps/desktop/icons/align-center.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/align-center.svg",
+      "sha256": "8f0c548d9e7a2dd20bdc826101d3a45366f8b3d26ddd08561a3d87d718a7857c",
+      "bytes": 279
+    },
+    {
+      "path": "apps/desktop/icons/align-left.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/align-left.svg",
+      "sha256": "0023fac7527cb21f84b2e25737a5839507430099d74af054eb198f5d836a860e",
+      "bytes": 279
+    },
+    {
+      "path": "apps/desktop/icons/align-right.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/align-right.svg",
+      "sha256": "fd9e93099fb853767b97c41c8ff54615fb02068320245f65aa36b19468506f74",
+      "bytes": 279
+    },
+    {
+      "path": "apps/desktop/icons/bold.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/bold.svg",
+      "sha256": "79217276da6c19176d70060a93c792b2b30aae18a95fb0690c263a71851aed96",
+      "bytes": 293
+    },
+    {
+      "path": "apps/desktop/icons/ellipsis.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/ellipsis.svg",
+      "sha256": "4f495cc72013ffdfec677f03b33a150f7b4dd741979283fd6853a09024bca112",
+      "bytes": 312
+    },
+    {
+      "path": "apps/desktop/icons/file-down.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/file-down.svg",
+      "sha256": "5ae3f6e123ee47182883504c7bd2a84f05b2dbd1b308b679abd38c32a7000bac",
+      "bytes": 375
+    },
+    {
+      "path": "apps/desktop/icons/italic.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/italic.svg",
+      "sha256": "dcce4f9719febb8b04b030133c1d4ad82f68d13932ac806fbee620422000ac83",
+      "bytes": 332
+    },
+    {
+      "path": "apps/desktop/icons/locate-fixed.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/locate-fixed.svg",
+      "sha256": "3a10953374c6e811d8da564f87943cf52f47e284c6173ff211ffedc083b90430",
+      "bytes": 446
+    },
+    {
+      "path": "apps/desktop/icons/rotate-cw.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/rotate-cw.svg",
+      "sha256": "ddcfe6d87240475946935e77411cd4d15a06f3d28a9b921bafed224ebe953668",
+      "bytes": 299
+    },
+    {
+      "path": "apps/desktop/icons/underline.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/underline.svg",
+      "sha256": "f83a0a4cc2f4e3a8616dd27b8a4c5a9e60e577a9791c08353eaa2fdc8370f6cb",
+      "bytes": 289
     }
   ]
 }

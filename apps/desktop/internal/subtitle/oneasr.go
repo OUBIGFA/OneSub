@@ -34,13 +34,14 @@ func AttachOneAsrWords(doc Document, data []byte) (Document, []string, error) {
 	}
 	words := []Word{}
 	for _, w := range wire.Words {
-		if w.Start < 0 || w.End <= w.Start || math.IsNaN(w.Start) || math.IsInf(w.End, 0) {
+		if w.Start < 0 || w.End < w.Start || math.IsNaN(w.Start) || math.IsNaN(w.End) || math.IsInf(w.Start, 0) || math.IsInf(w.End, 0) || w.End*1000 > 9007199254740991 {
 			return Document{}, nil, errors.New(locales.ErrWordsTiming())
 		}
-		if len(words) > 0 && w.Start*1000 < float64(words[len(words)-1].StartMs) {
+		start, end := int64(math.Round(w.Start*1000)), int64(math.Round(w.End*1000))
+		if len(words) > 0 && start < words[len(words)-1].StartMs {
 			return Document{}, nil, errors.New(locales.ErrWordsOrder())
 		}
-		words = append(words, Word{Text: w.Text, StartMs: int64(math.Round(w.Start * 1000)), EndMs: int64(math.Round(w.End * 1000))})
+		words = append(words, Word{Text: w.Text, StartMs: start, EndMs: end})
 	}
 	out := doc
 	out.Cues = append([]Cue{}, doc.Cues...)
@@ -53,6 +54,13 @@ func AttachOneAsrWords(doc Document, data []byte) (Document, []string, error) {
 			word := words[j]
 			if word.StartMs < cue.StartMs || word.EndMs > cue.EndMs {
 				continue
+			}
+			// OneAsr v1.3.0 deliberately retains zero-duration aligner tokens.
+			// They are valid evidence, but not safe split anchors. Preserve this
+			// whole cue (including the token's text), without inventing duration.
+			if word.EndMs == word.StartMs || (len(selected) > 0 && word.StartMs < selected[len(selected)-1].EndMs) {
+				selected = nil
+				break
 			}
 			at := strings.Index(text[offset:], word.Text)
 			if word.Text == "" || at < 0 || strings.TrimSpace(text[offset:offset+at]) != "" {

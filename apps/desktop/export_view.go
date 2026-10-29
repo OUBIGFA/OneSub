@@ -20,63 +20,97 @@ func outputModes() []option {
 	}
 }
 
-// These choices are shared by preview, compose and subtitle export. Language
-// order and visual priority are separate, as in professional bilingual editors.
-func (a *NativeApp) outputFields(c *ui.Context) {
+// outputFields are the subtitle content choices shared by the preview,
+// video export and subtitle export. Language order and visual priority are
+// separate, as in professional bilingual editors. In dialogs (keepRoom) the
+// bilingual choices stay in place, disabled, so that choosing the content
+// never resizes the dialog.
+func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) {
 	o := a.settings.SubtitleOutput.Normalized()
+	modes := []string{"source", "translation", "bilingual"}
+	mode := 0
+	for i, m := range modes {
+		if m == o.Mode {
+			mode = i
+		}
+	}
 	ui.Field(c, locales.OutputContent(), func() {
-		idSelect(c, &o.Mode, outputModes()).Label(locales.OutputContent()).OnChange(func() {
+		if ui.Segmented(c, &mode, locales.TabSource(), locales.TabTranslation(), locales.TabBilingual()).Label(locales.OutputContent()).AlignSelf(ui.Start).Changed() {
+			o.Mode = modes[mode]
 			a.settings.SubtitleOutput = o
 			a.saveSettings()
-		})
+		}
 	})
-	if o.Mode != "bilingual" {
+	bilingual := o.Mode == "bilingual"
+	if !bilingual && !keepRoom {
 		return
 	}
-	ui.Row(c).Wrap().Gap(20).Children(func() {
-		order := "translation-first"
-		if o.SourceFirst {
-			order = "source-first"
+	order := "translation-first"
+	if o.SourceFirst {
+		order = "source-first"
+	}
+	// In a dialog the choices span its form; in the style panel they keep
+	// their own width, as its other controls do.
+	fit := func(e ui.Element) {
+		if !keepRoom {
+			e.AlignSelf(ui.Start)
 		}
-		ui.Field(c, locales.OutputOrder(), func() {
-			idSelect(c, &order, []option{{"translation-first", locales.OutputTranslationFirst()}, {"source-first", locales.OutputSourceFirst()}}).Label(locales.OutputOrder()).OnChange(func() {
-				o.SourceFirst = order == "source-first"
-				a.settings.SubtitleOutput = o
-				a.saveSettings()
-			})
-		})
-		ui.Field(c, locales.OutputPrimary(), func() {
-			idSelect(c, &o.Primary, []option{{"translation", locales.TabTranslation()}, {"source", locales.TabSource()}}).Label(locales.OutputPrimary()).OnChange(func() {
-				a.settings.SubtitleOutput = o
-				a.saveSettings()
-			})
-		})
+	}
+	ui.Field(c, locales.OutputOrder(), func() {
+		fit(idSelect(c, &order, []option{{"translation-first", locales.OutputTranslationFirst()}, {"source-first", locales.OutputSourceFirst()}}).Label(locales.OutputOrder()).Disabled(!bilingual).OnChange(func() {
+			o.SourceFirst = order == "source-first"
+			a.settings.SubtitleOutput = o
+			a.saveSettings()
+		}))
+	})
+	ui.Field(c, locales.OutputPrimary(), func() {
+		fit(idSelect(c, &o.Primary, []option{{"translation", locales.TabTranslation()}, {"source", locales.TabSource()}}).Label(locales.OutputPrimary()).Disabled(!bilingual).OnChange(func() {
+			a.settings.SubtitleOutput = o
+			a.saveSettings()
+		}))
 	})
 }
 
+// exportView has one fixed size: every choice keeps its place, and the
+// note below them has a fixed room.
 func (a *NativeApp) exportView(c *ui.Context) {
 	ui.Modal(c, &a.exportOpen, func() {
-		ui.Column(c).Width(620).Gap(24).Children(func() {
-			ui.Text(c, locales.MenuExportSubtitles()).FontSize(18).FontWeight(600)
-			ui.Form(c, func() {
-				a.outputFields(c)
-				formats := []string{"srt", "vtt", "ass"}
-				if a.snapshot != nil && a.snapshot.Document.Format == "ssa" {
-					formats = append(formats, "ssa")
-				}
-				ui.Field(c, locales.ExportFormat(), func() { ui.Select(c, &a.exportFormat, formats).Label(locales.ExportFormat()) })
-			})
-			if a.exportFormat == "srt" || a.exportFormat == "vtt" {
-				ui.Text(c, locales.ExportPlainNote()).TextColor(c.Theme().TextMuted)
+		ui.Column(c).Width(em(c, 560)).Height(em(c, 384)).Gap(em(c, 20)).Children(func() {
+			dialogTitle(c, locales.MenuExportSubtitles())
+			formats := []string{"srt", "vtt", "ass"}
+			if a.snapshot != nil && a.snapshot.Document.Format == "ssa" {
+				formats = append(formats, "ssa")
 			}
+			format, labels := 0, []string{}
+			for i, f := range formats {
+				labels = append(labels, strings.ToUpper(f))
+				if f == a.exportFormat {
+					format = i
+				}
+			}
+			ui.Form(c, func() {
+				a.outputFields(c, true)
+				ui.Field(c, locales.ExportFormat(), func() {
+					if ui.Segmented(c, &format, labels...).Label(locales.ExportFormat()).AlignSelf(ui.Start).Changed() {
+						a.exportFormat = formats[format]
+					}
+				})
+			})
 			var err error
 			if a.snapshot != nil {
 				_, err = subtitle.SelectOutput(a.snapshot.Document, a.settings.SubtitleOutput)
 			}
-			if err != nil {
-				ui.Text(c, err.Error()).TextColor(c.Theme().Warning)
-			}
-			ui.Row(c).Gap(12).Justify(ui.End).Children(func() {
+			note := ui.Column(c).Height(em(c, 48)).Shrink(0)
+			note.Children(func() {
+				switch {
+				case err != nil:
+					ui.Text(c, err.Error()).TextColor(c.Theme().Warning)
+				case a.exportFormat == "srt" || a.exportFormat == "vtt":
+					muted(c, locales.ExportPlainNote())
+				}
+			})
+			ui.Spacer(c)
+			ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Children(func() {
 				ui.Button(c, locales.ActionCancel()).OnClick(func() { a.exportOpen = false })
 				ui.PrimaryButton(c, locales.ExportConfirm()).Disabled(err != nil || a.snapshot == nil || a.busy).OnClick(func() { a.exportOpen = false; a.exportSubtitle() })
 			})

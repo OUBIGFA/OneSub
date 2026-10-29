@@ -56,12 +56,18 @@ type NativeApp struct {
 	settingsTab                           int
 	settingsError                         bool
 	errorText, status                     string
+	errorShown                            string    // the error the status bar shows, since errorSince
+	errorSince                            time.Time // when it began to show
+	playerError                           string    // the page's last error code
+	rate                                  float64   // the playback speed; 0 is normal
 	busy                                  bool
 	choosingFile                          bool
 	cancel                                context.CancelFunc
 	pending                               *importing.Loaded
 	candidatesOpen                        bool
 	splitX, splitY, bottomSplit           float32
+	styleSplit                            float32 // the style's share of the room right of the editor
+	workflowTab                           int     // 0 recognition, 1 translation
 	list                                  ui.ListState
 	selected                              int
 	query                                 string
@@ -85,6 +91,8 @@ type NativeApp struct {
 	observedStyle                         string
 	prefsSaveDue                          time.Time
 	activeCue                             int
+	followPaused                          bool    // the user scrolled the list away from the playhead
+	followRow, locateCue                  int     // the row last centered; a cue to center, or -1
 	frameAspect                           float64 // the video's display width / height
 	modelStates                           map[string]string
 	modelSelection                        string
@@ -94,6 +102,14 @@ type NativeApp struct {
 	quitAfterTask                         bool
 	composeOpen                           bool
 	composeRunning                        bool
+	recognitionRunning                    bool
+	recognitionStarted                    time.Time
+	recognitionStep                       recognitionStep
+	translationRunning                    bool
+	translationProgress                   translator.Progress
+	translationDraft                      []subtitle.Cue // the batches translated so far, a preview
+	draftList                             ui.ListState
+	draftShown                            int // the preview rows the list has followed
 	composeProgress                       media.ComposeProgress
 	lastOutput                            string
 	styleClient                           styles.Client
@@ -106,6 +122,8 @@ type NativeApp struct {
 	presetDialog                          string // "", "save", "rename" or "delete"
 	presetDialogLayer                     int
 	presetName                            string
+	styleWidths                           [3]float32 // the style sections' widths in the last frame
+	styleRoom                             float32    // the width the style sections have
 	subtitleTab                           int
 	openOnReady                           []string
 	providerKey, keyStatus                string
@@ -121,16 +139,6 @@ type NativeApp struct {
 	translationSelected                   int
 }
 
-func iconButton(c *ui.Context, label, icon string) ui.Element {
-	return ui.Button(c, "").Label(label).Tooltip(label).Children(func() { ui.Icon(c, icons[icon]); ui.Text(c, label).SingleLine() })
-}
-
-// toolIcon is an icon-only native button; the tooltip and accessible name
-// carry the action.
-func toolIcon(c *ui.Context, label, icon string) ui.Element {
-	return ui.Button(c, "").Label(label).Tooltip(label).Children(func() { ui.Icon(c, icons[icon]) })
-}
-
 func stamp(seconds float64) string {
 	if math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds < 0 {
 		seconds = 0
@@ -139,54 +147,21 @@ func stamp(seconds float64) string {
 	return fmt.Sprintf("%02d:%02d:%02d.%03d", ms/3600000, ms/60000%60, ms/1000%60, ms%1000)
 }
 func (a *NativeApp) view(c *ui.Context) {
-	theme := *c.Theme()
-	theme.FontSize = 15
+	theme, look := studioTheme(c.Theme(), c.Preferences().HighContrast)
 	c.SetTheme(&theme)
-	if c.Vibrancy() {
-		c.Root().Background(ui.Transparent)
-	}
+	a.keepPaneMinimums(c)
 	ui.Column(c).Fill().Children(func() {
-		ui.Toolbar(c, func() {
-			// A Lucide chevron marks the menu; MyGo's MenuButton draws its own
-			// arrow but cannot show the file icon before the label.
-			ui.Button(c, "").Label(locales.MenuFile()).Tooltip(locales.MenuFile()).Children(func() {
-				ui.Icon(c, icons["file"])
-				ui.Text(c, locales.MenuFile()).SingleLine()
-				ui.Icon(c, icons["chevron-down"]).Size(14, 14)
-			}).Menu(func(m *ui.Menu) {
-				if m.Item(locales.MenuOpenProject()).Disabled(a.busy).Chosen() {
-					a.openProject()
-				}
-				if m.Item(locales.MenuExportSubtitles()).Disabled(a.snapshot == nil || a.busy).Chosen() {
-					a.requestExport()
-				}
-			})
-			iconButton(c, locales.ActionAddFiles(), "folder-open").Disabled(a.busy).OnClick(a.pickFiles)
-			iconButton(c, locales.ActionClearWorkbench(), "eraser").Disabled(a.busy || a.snapshot == nil).OnClick(a.requestClear)
-			ui.Spacer(c)
-			toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
-			ui.PrimaryButton(c, locales.ActionCompose()).Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" || len(a.snapshot.Document.Cues) == 0).OnClick(a.compose)
-		}).Padding(10, 14).Background(c.Theme().Surface).Label(locales.A11yToolbar())
+		a.topBar(c, look)
 		ui.Divider(c)
 		ui.SplitVerticalPercent(c, &a.splitY, func() {
 			ui.SplitPercent(c, &a.splitX, func() { a.playerView(c) }, func() { a.subtitlesView(c) }).Fill()
 		}, func() {
-			ui.SplitPercent(c, &a.bottomSplit, func() { a.editorView(c) }, func() { a.stylePanel(c) }).Fill()
+			ui.SplitPercent(c, &a.bottomSplit, func() { a.editorView(c) }, func() {
+				ui.SplitPercent(c, &a.styleSplit, func() { a.stylePanel(c) }, func() { a.workflowPanel(c) }).Fill()
+			}).Fill()
 		}).Grow(1)
 		ui.Divider(c)
-		ui.Row(c).Height(46).Padding(6, 12).Gap(12).Label(locales.A11yStatusBar()).Children(func() {
-			if a.errorText != "" {
-				ui.Text(c, a.errorText).TextColor(c.Theme().Danger).Grow(1).SingleLine().Tooltip(a.errorText)
-			} else {
-				ui.Text(c, a.status).Grow(1).SingleLine()
-			}
-			if a.busy && a.cancel != nil && !a.choosingFile && !a.composeRunning {
-				ui.Button(c, locales.ActionCancelTask()).OnClick(func() { a.cancel() })
-			}
-			if a.snapshot != nil {
-				ui.Text(c, locales.StatusCueCount(len(a.snapshot.Document.Cues))).SingleLine()
-			}
-		})
+		a.statusBar(c, look)
 	})
 	a.settingsView(c)
 	a.modelManagerView(c)
@@ -198,6 +173,12 @@ func (a *NativeApp) view(c *ui.Context) {
 	a.clearView(c)
 	a.presetDialogView(c)
 	a.observeStyle(c.Now())
+	// The panes keep the sizes the user drags them to, saved once the drag
+	// stops, as the other preferences.
+	if w, h, e, s := float64(a.splitX), float64(a.splitY), float64(a.bottomSplit), float64(a.styleSplit); w != a.settings.PlayerWidth || h != a.settings.TopHeight || e != a.settings.EditorWidth || s != a.settings.StyleWidth {
+		a.settings.PlayerWidth, a.settings.TopHeight, a.settings.EditorWidth, a.settings.StyleWidth = w, h, e, s
+		a.prefsSaveDue = c.Now().Add(400 * time.Millisecond)
+	}
 	if !a.prefsSaveDue.IsZero() {
 		if !c.Now().Before(a.prefsSaveDue) {
 			a.saveSettings()
@@ -227,6 +208,76 @@ func (a *NativeApp) view(c *ui.Context) {
 	}
 }
 
+// keepPaneMinimums keeps each pane the room its controls need, in both
+// languages and at the smallest window: a divider dragged further stops
+// there, before the panes are laid out.
+func (a *NativeApp) keepPaneMinimums(c *ui.Context) {
+	width, height := c.Size()
+	height -= em(c, 44+32) // the tool bar and the status bar
+	keep := func(percent *float32, room, first, second float32) {
+		if room > first+second {
+			*percent = min(max(*percent, first/room*100), 100-second/room*100)
+		}
+	}
+	keep(&a.splitX, width, em(c, 500), em(c, 360))
+	keep(&a.splitY, height, em(c, 320), em(c, 180))
+	keep(&a.bottomSplit, width, em(c, 220), em(c, 360+260))
+	keep(&a.styleSplit, width*(100-a.bottomSplit)/100, em(c, 360), em(c, 260))
+}
+
+// topBar holds the actions on the whole workbench: adding and clearing on
+// the left; settings and the two outputs on the right, video export last as
+// the one primary action, where editors put Export.
+func (a *NativeApp) topBar(c *ui.Context, look studio) {
+	ui.Toolbar(c, func() {
+		iconButton(c, locales.ActionAddFiles(), "folder-open").Disabled(a.busy).OnClick(a.pickFiles)
+		iconButton(c, locales.ActionClearWorkbench(), "eraser").Disabled(a.busy || a.snapshot == nil).OnClick(a.requestClear)
+		ui.Spacer(c)
+		toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
+		iconButton(c, locales.MenuExportSubtitles(), "file-down").Disabled(a.busy || a.snapshot == nil || len(a.snapshot.Document.Cues) == 0).OnClick(a.requestExport)
+		primaryIconButton(c, locales.ActionCompose(), "clapperboard").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" || len(a.snapshot.Document.Cues) == 0).OnClick(a.compose)
+	}).Gap(em(c, 8)).Padding(em(c, 6), em(c, 12)).Background(look.chrome).Label(locales.A11yToolbar())
+}
+
+// errorDuration is how long the status bar shows an error before it goes
+// back to the last status.
+const errorDuration = 8 * time.Second
+
+// statusBar reports the last result in caption text. An error shows in the
+// danger color, with its full text in the tooltip, for errorDuration.
+func (a *NativeApp) statusBar(c *ui.Context, look studio) {
+	if a.errorText != a.errorShown {
+		a.errorShown, a.errorSince = a.errorText, c.Now()
+	}
+	if a.errorText != "" {
+		if left := errorDuration - c.Now().Sub(a.errorSince); left > 0 {
+			c.After(left)
+		} else {
+			a.errorText, a.errorShown = "", ""
+		}
+	}
+	ui.Row(c).Height(em(c, 32)).Padding(0, em(c, 12)).Gap(em(c, 12)).AlignItems(ui.Center).Background(look.chrome).FontSize(em(c, captionSize)).Label(locales.A11yStatusBar()).Children(func() {
+		if a.errorText != "" {
+			ui.Text(c, a.errorText).TextColor(c.Theme().Danger).Grow(1).SingleLine().Tooltip(a.errorText)
+		} else {
+			muted(c, a.status).Grow(1).SingleLine()
+		}
+		if a.busy && a.cancel != nil && !a.choosingFile && !a.composeRunning && !a.recognitionRunning && !a.translationRunning {
+			ui.Button(c, locales.ActionCancelTask()).Padding(em(c, 2), em(c, 10)).OnClick(func() { a.cancel() })
+		}
+		if a.lastOutput != "" && !a.busy {
+			ui.Button(c, locales.ResultOpenFolder()).Padding(em(c, 2), em(c, 10)).OnClick(func() {
+				if err := mygo.Shell.OpenPath(filepath.Dir(a.lastOutput)); err != nil {
+					a.errorText = err.Error()
+				}
+			})
+		}
+		if a.snapshot != nil {
+			muted(c, locales.StatusCueCount(len(a.snapshot.Document.Cues))).SingleLine()
+		}
+	})
+}
+
 // run owns one cancellable operation. Closing to tray does not end this context.
 // Callers that replace the workbench ask about unsaved subtitle files first.
 func (a *NativeApp) run(label string, work func(context.Context) (func(), error)) {
@@ -245,6 +296,8 @@ func (a *NativeApp) run(label string, work func(context.Context) (func(), error)
 		a.win.Update(func() {
 			a.busy = false
 			a.composeRunning = false
+			a.recognitionRunning = false
+			a.translationRunning = false
 			a.cancel = nil
 			if err != nil {
 				a.errorText = err.Error()
@@ -319,6 +372,14 @@ func (a *NativeApp) importFiles(ctx context.Context, paths []string, wordEvidenc
 		next.Close()
 		return nil, err
 	}
+	if len(wordEvidence) > 0 {
+		// Retain the unmodified aligner artifact independently of the safe
+		// split anchors attached to cues; zero-width tokens are not discarded.
+		if err = os.WriteFile(filepath.Join(state.Path, "originals", "oneasr-words.json"), wordEvidence[0], 0600); err != nil {
+			next.Close()
+			return nil, err
+		}
+	}
 	url, previewErr := a.preview.Register(loaded.Selection.Media)
 	return func() {
 		a.replaceProject(next, state, url)
@@ -326,11 +387,6 @@ func (a *NativeApp) importFiles(ctx context.Context, paths []string, wordEvidenc
 		a.candidatesOpen = len(selection.Candidates) > 0
 		a.duration = float64(loaded.Media.DurationMs()) / 1000
 		a.frameAspect = loaded.Media.FrameAspect()
-		a.settings.RecentProjects = append([]string{state.Path}, a.settings.RecentProjects...)
-		if len(a.settings.RecentProjects) > 20 {
-			a.settings.RecentProjects = a.settings.RecentProjects[:20]
-		}
-		a.saveSettings()
 		a.errorText = strings.Join(loaded.Warnings, locales.ListSeparator())
 		if previewErr != nil {
 			a.errorText = previewErr.Error()
@@ -358,48 +414,9 @@ func (a *NativeApp) replaceProject(next *project.Store, state project.Snapshot, 
 	a.paused = true
 	a.loadVideo()
 }
-func (a *NativeApp) openProject() {
-	if a.guardUnsaved(a.openProject) {
-		return
-	}
-	a.run(locales.MenuOpenProject(), func(ctx context.Context) (func(), error) {
-		paths, err := a.openDialog(mygo.OpenDialogOptions{Parent: a.win, Title: locales.MenuOpenProject(), Directory: true})
-		if err != nil || len(paths) == 0 {
-			return nil, err
-		}
-		next, err := project.Open(paths[0])
-		if err != nil {
-			return nil, err
-		}
-		state, err := next.Snapshot()
-		if err != nil {
-			next.Close()
-			return nil, err
-		}
-		url, previewErr := a.preview.Register(state.Manifest.MediaPath)
-		aspect := 0.0
-		if info, err := media.Probe(ctx, a.probe, state.Manifest.MediaPath); err == nil {
-			aspect = info.FrameAspect()
-		}
-		return func() {
-			a.replaceProject(next, state, url)
-			a.frameAspect = aspect
-			for _, cue := range state.Document.Cues {
-				if cue.Translated {
-					a.subtitleTab = 1
-					a.loadDraft()
-					break
-				}
-			}
-			if previewErr != nil {
-				a.errorText = locales.ErrVideoMoved()
-			}
-		}, nil
-	})
-}
 func (a *NativeApp) candidatesView(c *ui.Context) {
 	ui.Modal(c, &a.candidatesOpen, func() {
-		ui.Text(c, locales.CandidatesTitle())
+		dialogTitle(c, locales.CandidatesTitle())
 		if a.pending != nil {
 			for _, candidate := range a.pending.Selection.Candidates {
 				path := candidate
@@ -428,32 +445,31 @@ func (a *NativeApp) saveSettings() {
 	}
 }
 func (a *NativeApp) settingsView(c *ui.Context) {
-	width, _ := c.Size()
+	width, height := c.Size()
 	ui.Modal(c, &a.settingsOpen, func() {
-		ui.Text(c, locales.SettingsTitle()).FontSize(18).FontWeight(600)
+		dialogTitle(c, locales.SettingsTitle())
 		ui.Tabs(c, &a.settingsTab, locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsTranslation()).Label(locales.A11ySettingsTabs())
-		// Overlapping native grid cells reserve the tallest page's intrinsic
-		// height. Invisible pages retain layout, but not input or accessibility.
-		ui.Grid(c).Columns(1).Width(min(940, width-96)).Label(locales.A11ySettingsContent()).Children(func() {
-			for tab := 0; tab < 3; tab++ {
-				page := ui.Column(c.Key(tab)).RowStart(1).ColumnStart(1).Gap(28).Padding(12, 0).AlignSelf(ui.Start)
-				if tab != a.settingsTab {
-					page.Invisible()
+		// The pages keep one size; only a window too short for them scrolls
+		// them, rather than cut them or the Close button off.
+		ui.Scroll(c).MaxHeight(height - em(c, 230)).Children(func() {
+			// Overlapping native grid cells reserve the tallest page's intrinsic
+			// height. Invisible pages retain layout, but not input or accessibility.
+			ui.Grid(c).Columns(1).Width(min(em(c, 940), width-96)).Label(locales.A11ySettingsContent()).Children(func() {
+				for tab := 0; tab < 3; tab++ {
+					page := ui.Column(c.Key(tab)).RowStart(1).ColumnStart(1).Gap(em(c, 28)).Padding(em(c, 12), 0).AlignSelf(ui.Start)
+					if tab != a.settingsTab {
+						page.Invisible()
+					}
+					page.Children(func() { a.settingsContent(c, tab) })
 				}
-				page.Children(func() { a.settingsContent(c, tab) })
-			}
+			})
 		})
 		ui.Row(c).Justify(ui.End).Children(func() {
 			ui.Button(c, locales.ActionClose()).OnClick(func() { a.saveSettings(); a.settingsOpen = false })
 		})
 	})
 }
-func (a *NativeApp) modelPath(id string) string {
-	if path := a.settings.ModelPaths[id]; path != "" {
-		return path
-	}
-	return filepath.Join(a.dataRoot, "models", id)
-}
+func (a *NativeApp) modelPath(id string) string { return a.toolset().modelPath(a.settings, id) }
 func (a *NativeApp) pickModelDir(m models.Model) {
 	a.run(locales.TaskChooseModelFolder(), func(context.Context) (func(), error) {
 		paths, err := a.openDialog(mygo.OpenDialogOptions{Parent: a.win, Title: m.Label, Directory: true, DefaultPath: a.modelPath(m.ID)})
@@ -507,7 +523,7 @@ func (a *NativeApp) loadVideo() {
 		return
 	}
 	value, _ := json.Marshal(a.mediaURL)
-	a.evalPlayer("video.pause();setSubtitles(null);window.previewError='';video.src=" + string(value) + ";video.load();" + a.volumeScript())
+	a.evalPlayer("video.pause();setSubtitles(null);window.previewError='';video.src=" + string(value) + ";video.load();" + a.volumeScript() + a.rateScript())
 }
 func (a *NativeApp) requestExit() {
 	if a.busy {
@@ -585,6 +601,14 @@ func (a *NativeApp) activate() {
 }
 
 func main() {
+	// "OneSub.exe mcp" is the MCP server a client starts, beside a window
+	// that may be open: it takes no instance lock and shows nothing.
+	if len(os.Args) == 2 && os.Args[1] == mcpArgument {
+		if err := serveMCP(); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	// Claim the application before any worker, data store or tray is created.
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
@@ -625,12 +649,14 @@ func main() {
 	// The interface language is chosen before any web view exists: WebView2
 	// keeps the language of its environment, which the first web view makes.
 	mygo.App.SetLocale(prefs.UILanguage)
+	// The title bar, the menus and the native view follow the saved appearance.
+	mygo.Theme.SetSource(mygo.ThemeSource(prefs.Appearance))
 	preview, err := media.NewServer()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer preview.Close()
-	a := &NativeApp{resources: resources, dataRoot: data, settings: prefs, settingsError: prefsErr != nil, preview: preview, worker: subtitle.Client{Executable: filepath.Join(resources, "subtitle-core", "OneSub.SubtitleCore.exe"), Scratch: scratch}, probe: filepath.Join(resources, "media-tools", "ffprobe.exe"), ffmpeg: filepath.Join(resources, "media-tools", "ffmpeg.exe"), splitX: 60, splitY: 64, bottomSplit: 42, selected: -1, paused: true, activeCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
+	a := &NativeApp{resources: resources, dataRoot: data, settings: prefs, settingsError: prefsErr != nil, preview: preview, worker: subtitle.Client{Executable: filepath.Join(resources, "subtitle-core", "OneSub.SubtitleCore.exe"), Scratch: scratch}, probe: filepath.Join(resources, "media-tools", "ffprobe.exe"), ffmpeg: filepath.Join(resources, "media-tools", "ffmpeg.exe"), splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), bottomSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, followRow: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
 	if prefsErr != nil {
 		a.errorText = locales.ErrSettingsUnreadable()
 	}
@@ -666,7 +692,9 @@ func main() {
 	mygo.App.WhenReady(func() {
 		display := mygo.Screen.DisplayNearestPoint(mygo.Screen.CursorScreenPoint())
 		bounds := initialWindowBounds(display.WorkArea)
-		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "OneSub", X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: bounds.Height, MinWidth: min(900, bounds.Width), MinHeight: min(640, bounds.Height), StateKey: "main", Vibrancy: mygo.VibrancyMica, Content: ui.View(a.view)})
+		// Under the native view and the player's page is black: where the page
+		// lags behind a fast resize of its pane, black shows, as the page is.
+		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "OneSub", X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: bounds.Height, MinWidth: min(900, bounds.Width), MinHeight: min(640, bounds.Height), StateKey: "main", BackgroundColor: "#000000", Content: ui.View(a.view)})
 		// Black fills the player until its page paints, as the page itself is.
 		a.player, err = a.win.NewWebView(mygo.WebViewOptions{URL: "/", BackgroundColor: "#000000"})
 		if err != nil {
@@ -675,7 +703,7 @@ func main() {
 			a.player.Page().OnDOMReady(func() {
 				a.win.Update(func() {
 					a.playerReady = true
-					a.evalPlayer(a.volumeScript())
+					a.evalPlayer(a.volumeScript() + a.rateScript())
 					a.loadVideo()
 				})
 			})
@@ -736,11 +764,19 @@ func (a *NativeApp) syncPlayer() {
 			continue
 		}
 		a.win.Update(func() {
+			// Playing again follows the playhead again, from its cue.
+			if a.paused && !result.Paused {
+				a.followPaused, a.followRow, a.activeCue = false, -1, -1
+			}
 			a.position = result.Position
 			a.duration = result.Duration
 			a.paused = result.Paused
-			if result.Error != "" {
-				a.errorText = playerErrorText(result.Error)
+			// A page error shows once, as it happens, not again every poll.
+			if result.Error != a.playerError {
+				a.playerError = result.Error
+				if result.Error != "" {
+					a.errorText = playerErrorText(result.Error)
+				}
 			}
 		})
 	}

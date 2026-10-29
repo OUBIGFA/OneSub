@@ -1,0 +1,71 @@
+{
+  "name": "flag-icons",
+  "version": "7.6.0",
+  "repository": "https://github.com/lipis/flag-icons",
+  "spdx": "MIT",
+  "license": "third_party/licenses/flag-icons.txt",
+  "modifications": "none",
+  "usage": "Unmodified language-region flags drawn in their own colors by MyGo ui.Image beside language names; not a UI control library",
+  "files": [
+    {
+      "path": "apps/desktop/flags/cn.svg",
+      "source": "https://unpkg.com/flag-icons@7.6.0/flags/4x3/cn.svg",
+      "sha256": "981da9bdf82d48e31691f20578cefcb26cf7d0bd95e4ebd5c0df00bdfe988c1a",
+      "bytes": 813
+    },
+    {
+      "path": "apps/desktop/flags/gb.svg",
+      "source": "https://unpkg.com/flag-icons@7.6.0/flags/4x3/gb.svg",
+      "sha256": "c8be1e7208798a4ae692ee1e937065d498bb29e741943f6172b29118b8ed8066",
+      "bytes": 504
+    },
+    {
+      "path": "apps/desktop/flags/jp.svg",
+      "source": "https://unpkg.com/flag-icons@7.6.0/flags/4x3/jp.svg",
+      "sha256": "bfea80baf9989383dc4bf7ca594ed95be0df0ff125bfc88d0bfa878eb0198022",
+      "bytes": 470
+    },
+    {
+      "path": "apps/desktop/flags/kr.svg",
+      "source": "https://unpkg.com/flag-icons@7.6.0/flags/4x3/kr.svg",
+      "sha256": "7a6cd5b51d0e2841ed8b79b1147ad8a66cf3c09f6344d4a63b5e4413ffa5d15b",
+      "bytes": 1061
+    },
+    {
+      "path": "apps/desktop/flags/de.svg",
+      "source": "https://unpkg.com/flag-icons@7.6.0/flags/4x3/de.svg",
+      "sha256": "efd480af5a154a7651f29da23ee0d09dbc892410fb4041898ddf8face336c575",
+      "bytes": 221
+    },
+    {
+      "path": "apps/desktop/flags/fr.svg",
+      "source": "https://unpkg.com/flag-icons@7.6.0/flags/4x3/fr.svg",
+      "sha256": "a526851c372e3372b1596be71af355ea72b1650bbc4c06e6e2c226900d3de6cc",
+      "bytes": 241
+    },
+    {
+      "path": "apps/desktop/flags/es.svg",
+      "source": "https://unpkg.com/flag-icons@7.6.0/flags/4x3/es.svg",
+      "sha256": "f9cfaff858e95f830733ade9591037b5322dfb5827a53b70956a3d190bb49b9a",
+      "bytes": 80958
+    },
+    {
+      "path": "apps/desktop/flags/it.svg",
+      "source": "https://unpkg.com/flag-icons@7.6.0/flags/4x3/it.svg",
+      "sha256": "9fa88118818d9b64838f578e2babcca3d0630aed21b5c33b34aff7ac5ce506bc",
+      "bytes": 289
+    },
+    {
+      "path": "apps/desktop/flags/pt.svg",
+      "source": "https://unpkg.com/flag-icons@7.6.0/flags/4x3/pt.svg",
+      "sha256": "a7a2cf0b44aaaaf4f3bdc0ee0fa308ec7085bdfedd3f72da1473d43fd2a569fb",
+      "bytes": 8001
+    },
+    {
+      "path": "apps/desktop/flags/ru.svg",
+      "source": "https://unpkg.com/flag-icons@7.6.0/flags/4x3/ru.svg",
+      "sha256": "7100aaae51ff3b6a2bf0ca932b3bc518bdc760814725e7cca31d821a26c3dd7c",
+      "bytes": 225
+    }
+  ]
+}

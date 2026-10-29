@@ -18,34 +18,40 @@ const editCommitDelay = 600 * time.Millisecond
 
 func (a *NativeApp) subtitlesView(c *ui.Context) {
 	ui.Column(c).Fill().Children(func() {
-		// The translate action sits on the left; equal flexible cells keep
-		// the source/translation tabs centred as one group.
-		ui.Row(c).Padding(8, 12).AlignItems(ui.Center).Children(func() {
-			ui.Row(c).Grow(1).Basis(0).Children(func() {
-				iconButton(c, locales.ActionTranslate(), "languages").Disabled(a.busy || a.snapshot == nil || len(a.snapshot.Document.Cues) == 0).OnClick(a.translate)
-			})
-			previousTab := a.subtitleTab
-			ui.Tabs(c, &a.subtitleTab, locales.TabSource(), locales.TabTranslation()).Label(locales.A11ySubtitleTabs()).OnChange(func() {
-				nextTab := a.subtitleTab
-				a.subtitleTab = previousTab
-				a.changeSubtitleTab(nextTab)
-			})
-			ui.Row(c).Grow(1).Basis(0)
+		hasCues := a.snapshot != nil && len(a.snapshot.Document.Cues) > 0
+		// The translate action on the left; the original/translation switch
+		// in the middle; going back to the playhead on the right.
+		panelHeader(c, nil, func() {
+			tab := a.subtitleTab
+			if ui.Segmented(c, &tab, locales.TabSource(), locales.TabTranslation()).Label(locales.A11ySubtitleTabs()).Changed() {
+				a.changeSubtitleTab(tab)
+			}
+		}, func() {
+			ui.Toolbar(c, func() {
+				toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
+			}).Padding(0)
 		})
-		ui.Toolbar(c, func() {
-			ui.TextInput(c, &a.query).Placeholder(locales.ListSearch()).Label(locales.ListSearch()).Grow(1)
+		ui.Divider(c)
+		ui.Row(c).Padding(em(c, 8), em(c, 12)).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
+			if ui.SearchField(c, &a.query).Placeholder(locales.ListSearch()).Label(locales.ListSearch()).Grow(1).Changed() {
+				a.followRow = -1
+			}
 			if a.translationCandidate != nil {
 				ui.Button(c, locales.ListReview()).OnClick(func() { a.translationReview = true })
 			}
 			unsaved := a.trackUnsaved(a.subtitleTab)
 			if unsaved {
-				ui.Text(c, locales.ListUnsaved()).TextColor(c.Theme().Warning).SingleLine()
+				ui.Badge(c, locales.ListUnsaved()).Background(c.Theme().Warning.Alpha(0.16)).TextColor(c.Theme().Warning)
 			}
 			iconButton(c, locales.ListSave(), "save").Disabled(a.busy || a.snapshot == nil || !unsaved).OnClick(func() { a.saveTrack(a.subtitleTab, false) })
 			ui.Button(c, locales.ListSaveAs()).Disabled(a.busy || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
-		}).Padding(8, 12).Label(locales.A11ySubtitleActions())
-		if a.snapshot == nil || len(a.snapshot.Document.Cues) == 0 {
-			ui.Column(c).Grow(1).Center().Children(func() { ui.Text(c, locales.ListEmpty()).TextColor(c.Theme().TextMuted) })
+		})
+		if a.translationRunning {
+			a.translationProgressView(c)
+			return
+		}
+		if !hasCues {
+			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.ListEmpty()) })
 			return
 		}
 		cues := a.snapshot.Document.Cues
@@ -55,19 +61,22 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 				rows = append(rows, i)
 			}
 		}
-		selected := -1
-		for i, index := range rows {
-			if index == a.selected {
-				selected = i
+		rowOf := func(index int) int {
+			for row, i := range rows {
+				if i == index {
+					return row
+				}
 			}
+			return -1
 		}
+		selected := rowOf(a.selected)
 		a.list.Selected = &selected
 		a.list.Key = func(i int) any { return cues[rows[i]].ID }
 		maximum := 1
 		for _, cue := range cues {
 			maximum = max(maximum, cue.Position+1)
 		}
-		cols := []ui.TableColumn{numberColumn(c, maximum), {Title: locales.ListColumnStart(), Width: 128}, {Title: locales.ListColumnEnd(), Width: 128}, {Title: locales.ListColumnText()}}
+		cols := []ui.TableColumn{numberColumn(c, maximum), timeColumn(c, locales.ListColumnStart()), timeColumn(c, locales.ListColumnEnd()), {Title: locales.ListColumnText()}}
 		table := ui.Table(c, &a.list, cols, len(rows), func(row, col int) {
 			index := rows[row]
 			cue := cues[index]
@@ -77,18 +86,34 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			if index == a.selected && a.editPending {
 				text, start, end = a.draft, a.start, a.end
 			}
+			// Secondary columns are muted, but on the accent of the chosen
+			// row they take its text color.
+			cell := func(value string) {
+				t := ui.Text(c, value).FontFeatures("tnum").SingleLine()
+				if index != a.selected {
+					t.TextColor(c.Theme().TextMuted)
+				}
+			}
 			switch col {
 			case 0:
-				ui.Text(c, fmt.Sprint(cue.Position+1)).SingleLine()
+				cell(fmt.Sprint(cue.Position + 1))
 			case 1:
-				ui.Text(c, stamp(start)).SingleLine()
+				cell(stamp(start))
 			case 2:
-				ui.Text(c, stamp(end)).SingleLine()
+				cell(stamp(end))
 			default:
 				// Every line is shown; rows grow to their text.
 				ui.Text(c, text)
 			}
 		}).Grow(1).Label(locales.A11ySubtitleList())
+		// A hand scroll while the video plays stops the list following it;
+		// the scroll still happens. The cue at the playhead stays chosen.
+		table.HandleInput(func(ev ui.InputEvent) bool {
+			if ev.Kind == ui.InputScroll && !a.paused {
+				a.followPaused = true
+			}
+			return false
+		})
 		if (table.Changed() || table.Submitted()) && selected >= 0 && selected < len(rows) {
 			action := a.settings.SingleClickAction
 			if table.Submitted() {
@@ -96,63 +121,124 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			}
 			a.selectSubtitle(rows[selected], action)
 		}
-		// While the video plays the list follows it, also after the user
-		// scrolled away. Typing keeps its cue; the list still scrolls.
+		// Dragging the scroll bar moves the followed row out of view, which
+		// stops following as a hand scroll does. The rows in view are those of
+		// the last frame, so this comes before this frame asks to scroll.
+		if !a.paused && !a.followPaused && a.followRow >= 0 {
+			if first, last := a.list.Visible(); last >= first && (a.followRow < first || a.followRow > last) {
+				a.followPaused = true
+			}
+		}
+		if a.locateCue >= 0 {
+			if row := rowOf(a.locateCue); row >= 0 {
+				a.list.ScrollTo(row, ui.Center)
+				a.followRow = row
+			}
+			a.locateCue = -1
+		}
+		// While the video plays the cue at the playhead is chosen; the list
+		// keeps it in the middle until the user scrolls away. Typing keeps
+		// the cue being edited.
 		if a.settings.FollowPlayback && !a.paused && !a.savePromptOpen {
 			active := cueAt(cues, a.position)
 			if active >= 0 && active != a.activeCue {
 				a.activeCue = active
-				for row, index := range rows {
-					if index != active {
-						continue
-					}
+				if row := rowOf(active); row >= 0 {
 					if !a.editing && !a.composing {
 						a.commitEdit(true)
-						a.selected = index
+						a.selected = active
 						a.loadDraft()
 					}
-					a.list.ScrollIntoView(row)
-					break
+					if !a.followPaused {
+						a.list.ScrollTo(row, ui.Center)
+						a.followRow = row
+					}
 				}
 			}
 		}
 	})
 }
 
+// locateCurrent chooses the cue at the playhead, shows it in the middle of
+// the list and follows playback again. A search hiding it is cleared.
+func (a *NativeApp) locateCurrent() {
+	if a.snapshot == nil {
+		return
+	}
+	cues := a.snapshot.Document.Cues
+	index := cueNear(cues, a.position)
+	if index < 0 {
+		return
+	}
+	if !strings.Contains(strings.ToLower(cueDisplayText(cues[index], a.subtitleTab)), strings.ToLower(a.query)) {
+		a.query = ""
+	}
+	a.followPaused, a.followRow = false, -1
+	a.activeCue = index
+	if !a.editing && !a.composing && index != a.selected {
+		a.commitEdit(true)
+		a.selected = index
+		a.loadDraft()
+	}
+	a.locateCue = index
+}
+
+// timeColumn fits a timestamp in the active font, digits of one width.
+func timeColumn(c *ui.Context, title string) ui.TableColumn {
+	width, _ := c.MeasureText(0, ui.Span{Text: stamp(0)})
+	width += 2*c.Theme().Space(2.5) + 4
+	return ui.TableColumn{Title: title, Width: width, MinWidth: width}
+}
+
 func (a *NativeApp) editorView(c *ui.Context) {
 	valid := a.snapshot != nil && a.selected >= 0 && a.selected < len(a.snapshot.Document.Cues)
-	ui.Scroll(c).Fill().Background(c.Theme().Surface).Children(func() {
-		ui.Column(c).Padding(18, 20).Gap(12).Children(func() {
-			// The same header height as the style panel keeps both titles level.
-			ui.Row(c).Height(34).Gap(12).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, locales.EditorTitle()).FontWeight(600)
-				if valid {
-					ui.Text(c, locales.EditorCueNumber(a.snapshot.Document.Cues[a.selected].Position+1)).TextColor(c.Theme().TextMuted).SingleLine()
-				}
-				ui.Spacer(c)
+	ui.Column(c).Fill().Children(func() {
+		panelHeader(c, func() { panelTitle(c, locales.EditorTitle()) }, nil, func() {
+			ui.Toolbar(c, func() {
 				toolIcon(c, locales.EditorUndo(), "undo-2").Disabled(a.busy || a.snapshot == nil || !(a.snapshot.CanUndo || a.editPending)).OnClick(func() { a.undo(false) })
 				toolIcon(c, locales.EditorRedo(), "redo-2").Disabled(a.busy || a.snapshot == nil || !a.snapshot.CanRedo).OnClick(func() { a.undo(true) })
+			}).Padding(0).Gap(em(c, 2))
+		})
+		ui.Divider(c)
+		if !valid {
+			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.EditorNone()) })
+			return
+		}
+		cue := a.snapshot.Document.Cues[a.selected]
+		readonly := cue.ReadOnly || a.busy
+		fixedTiming := readonly || a.snapshot.Document.Format == "ass" || a.snapshot.Document.Format == "ssa"
+		// A short panel scrolls rather than hide the text; a tall one gives
+		// the text box the room left.
+		ui.Scroll(c).Grow(1).Children(func() {
+			ui.Column(c).MinHeightPercent(100).Padding(em(c, 12), em(c, panelPad)).Gap(em(c, 12)).Children(func() {
+				// The cue being edited heads the editor, centered over its fields.
+				ui.Text(c, locales.EditorCueNumber(cue.Position+1)).FontWeight(600).FontFeatures("tnum").SingleLine().AlignSelf(ui.Center)
+				// Each label stays with its value when the row wraps.
+				pair := func(label string, value func()) {
+					ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+						muted(c, label).SingleLine()
+						value()
+					})
+				}
+				ui.Row(c).GapX(em(c, 16)).GapY(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
+					pair(locales.EditorStart(), func() {
+						ui.NumberInput(c, &a.start, 0, 9007199254740, 0.001).Label(locales.EditorStart()).Disabled(fixedTiming).OnChange(func() { a.changed(c.Now()) })
+					})
+					pair(locales.EditorEnd(), func() {
+						ui.NumberInput(c, &a.end, 0, 9007199254740, 0.001).Label(locales.EditorEnd()).Disabled(fixedTiming).OnChange(func() { a.changed(c.Now()) })
+					})
+					pair(locales.EditorDuration(), func() {
+						ui.Text(c, locales.EditorSeconds(math.Max(0, a.end-a.start))).FontFeatures("tnum").SingleLine()
+					})
+				})
+				// The text speaks for itself; the name is for assistive technology.
+				area := ui.TextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(em(c, 64)).ReadOnly(readonly).Label(locales.A11yCueText())
+				a.composing = area.Composing()
+				a.editing = area.Focused()
+				if area.Changed() {
+					a.changed(c.Now())
+				}
 			})
-			if !valid {
-				ui.Column(c).Height(160).Center().Children(func() { ui.Text(c, locales.EditorNone()).TextColor(c.Theme().TextMuted) })
-				return
-			}
-			cue := a.snapshot.Document.Cues[a.selected]
-			readonly := cue.ReadOnly || a.busy
-			fixedTiming := readonly || a.snapshot.Document.Format == "ass" || a.snapshot.Document.Format == "ssa"
-			ui.Row(c).Gap(12).Wrap().AlignItems(ui.Center).Children(func() {
-				ui.Text(c, locales.EditorStart())
-				ui.NumberInput(c, &a.start, 0, 9007199254740, 0.001).Width(150).Label(locales.EditorStart()).Disabled(fixedTiming).OnChange(func() { a.changed(c.Now()) })
-				ui.Text(c, locales.EditorEnd())
-				ui.NumberInput(c, &a.end, 0, 9007199254740, 0.001).Width(150).Label(locales.EditorEnd()).Disabled(fixedTiming).OnChange(func() { a.changed(c.Now()) })
-			})
-			// The text speaks for itself; the name is for assistive technology.
-			area := ui.TextArea(c.Key(cue.ID), &a.draft).Height(110).ReadOnly(readonly).Label(locales.A11yCueText())
-			a.composing = area.Composing()
-			a.editing = area.Focused()
-			if area.Changed() {
-				a.changed(c.Now())
-			}
 		})
 	})
 }
@@ -265,5 +351,10 @@ func (a *NativeApp) selectSubtitle(index int, action string) {
 	a.commitEdit(true)
 	a.selected = index
 	a.loadDraft()
+	// A cue chosen to seek to is where playback goes on: follow it again.
+	if action != "none" && action != "" {
+		a.followPaused = false
+		a.followRow = -1
+	}
 	a.seekSubtitle(action)
 }

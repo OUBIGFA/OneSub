@@ -10,8 +10,8 @@ import (
 
 // Native sections share one spacing rhythm; no nested cards or drawn controls.
 func settingsGroup(c *ui.Context, title string, content func()) {
-	ui.Column(c).Gap(12).Children(func() {
-		ui.Text(c, title).FontSize(16).FontWeight(600)
+	ui.Column(c).Gap(em(c, 12)).Children(func() {
+		ui.Text(c, title).FontSize(em(c, headingSize)).FontWeight(600)
 		ui.Divider(c)
 		content()
 	})
@@ -42,6 +42,12 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 						a.saveSettings()
 					})
 				})
+				ui.Field(c, locales.SettingsAppearance(), func() {
+					idSelect(c, &a.settings.Appearance, appearances()).Width(260).Label(locales.SettingsAppearance()).OnChange(func() {
+						mygo.Theme.SetSource(mygo.ThemeSource(a.settings.Appearance))
+						a.saveSettings()
+					})
+				})
 				ui.Field(c, locales.SettingsCloseWindow(), func() {
 					idSelect(c, &behavior, []option{{"exit", locales.SettingsCloseExit()}, {"tray", locales.SettingsCloseTray()}}).Width(260).Label(locales.SettingsCloseWindow()).OnChange(func() {
 						a.settings.CloseToTray = behavior == "tray"
@@ -57,41 +63,32 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 			})
 			ui.Checkbox(c, &a.settings.FollowPlayback, locales.SettingsFollowPlayback()).OnChange(func() { a.activeCue = -1; a.saveSettings() })
 		})
-	case 1:
-		ui.Grid(c).Columns(2).Gap(36).Children(func() {
-			ui.Column(c).Gap(24).Children(func() {
-				settingsGroup(c, locales.SettingsModels(), func() {
-					a.recognitionModelField(c, locales.ModelKindAsr(), "asr", &a.settings.AsrModel)
-					a.recognitionModelField(c, locales.ModelKindAligner(), "aligner", &a.settings.Aligner)
-				})
-				settingsGroup(c, locales.SettingsAuxModels(), func() {
-					hotword, demucs := "SenseVoiceSmall", "htdemucs_ft"
-					a.recognitionModelField(c, locales.ModelKindHotword(), "hotword", &hotword)
-					a.recognitionModelField(c, locales.ModelKindDemucs(), "demucs", &demucs)
-				})
+		// The configuration an MCP client needs to start OneSub's server,
+		// to copy into the agent's settings as it is.
+		settingsGroup(c, locales.SettingsMcp(), func() {
+			config := mcpConfig()
+			muted(c, locales.SettingsMcpNote())
+			ui.Text(c, config).Font("monospace").Selectable().Label(locales.SettingsMcp())
+			ui.Button(c, locales.SettingsMcpCopy()).AlignSelf(ui.Start).OnClick(func() {
+				mygo.Clipboard.WriteText(config)
+				a.status = locales.SettingsMcpCopied()
 			})
-			ui.Column(c).Gap(28).Children(func() {
-				settingsGroup(c, locales.SettingsRecognitionOptions(), func() {
-					ui.Form(c, func() {
-						ui.Field(c, locales.SettingsBackend(), func() {
-							ui.Select(c, &a.settings.Backend, []string{"auto", "gpu", "cpu"}).Label(locales.SettingsBackend()).OnChange(a.saveSettings)
-						})
-						ui.Field(c, locales.SettingsSourceLanguage(), func() {
-							ui.Select(c, &a.settings.Language, []string{"zh", "en", "yue", "ja", "ko", "de", "fr", "es", "it", "pt", "ru"}).Label(locales.SettingsSourceLanguage()).OnChange(a.saveSettings)
-						})
-						ui.Field(c, locales.SettingsChunk(), func() {
-							ui.NumberInput(c, &a.settings.ChunkSeconds, 30, 180, 1).Label(locales.SettingsChunk()).OnChange(a.saveSettings)
-						})
-						ui.Field(c, locales.SettingsMaxTokens(), func() {
-							ui.NumberInput(c, &a.settings.MaxTokens, 1, 32768, 1).Label(locales.SettingsMaxTokens()).OnChange(a.saveSettings)
-						})
-					})
-				})
-				settingsGroup(c, locales.SettingsAudioHotwords(), func() {
-					ui.Checkbox(c, &a.settings.VocalSeparation, locales.SettingsVocalSeparation()).OnChange(a.saveSettings)
-					ui.Field(c, locales.SettingsHotwords(), func() {
-						ui.TextInput(c, &a.settings.Hotwords).Placeholder(locales.SettingsHotwordsPlaceholder()).Label(locales.SettingsHotwords()).OnChange(a.saveSettings)
-					})
+		})
+	case 1:
+		// The models and their folders. The options of a recognition and its
+		// output are beside the subtitles, in recognition and translation.
+		ui.Grid(c).Columns(2).Gap(em(c, 36)).AlignItems(ui.Start).Children(func() {
+			settingsGroup(c, locales.SettingsModels(), func() {
+				a.recognitionModelField(c, locales.ModelKindAsr(), "asr", &a.settings.AsrModel)
+				a.recognitionModelField(c, locales.ModelKindAligner(), "aligner", &a.settings.Aligner)
+			})
+			settingsGroup(c, locales.SettingsAuxModels(), func() {
+				hotword, demucs := "SenseVoiceSmall", "htdemucs_ft"
+				a.recognitionModelField(c, locales.ModelKindDemucs(), "separation", &demucs)
+				ui.Checkbox(c, &a.settings.VocalSeparation, locales.SettingsVocalSeparation()).OnChange(a.saveSettings)
+				a.recognitionModelField(c, locales.ModelKindHotword(), "hotword", &hotword)
+				ui.Field(c, locales.SettingsHotwords(), func() {
+					ui.TextInput(c, &a.settings.Hotwords).Placeholder(locales.SettingsHotwordsPlaceholder()).Label(locales.SettingsHotwords()).OnChange(a.saveSettings)
 				})
 			})
 		})
@@ -138,8 +135,8 @@ func (a *NativeApp) modelManagerView(c *ui.Context) {
 			ui.Text(c, err.Error())
 			return
 		}
-		ui.Column(c).Width(660).Gap(24).Children(func() {
-			ui.Text(c, model.Label).FontSize(18).FontWeight(600)
+		ui.Column(c).Width(em(c, 660)).Gap(em(c, 24)).Children(func() {
+			dialogTitle(c, model.Label)
 			settingsGroup(c, locales.ModelFiles(), func() {
 				ui.Text(c, locales.ModelSize(float64(model.Size())/1e9))
 				ui.Text(c, a.modelPath(model.ID)).Selectable().Label(locales.A11yModelFolder())

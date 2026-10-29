@@ -14,7 +14,6 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/ui"
 )
 
 func withStyleCatalog(t *testing.T) *NativeApp {
@@ -34,9 +33,9 @@ func withStyleCatalog(t *testing.T) *NativeApp {
 	return a
 }
 
-func TestWorkbenchRegionsAndInlineMargins(t *testing.T) {
+func TestWorkbenchRegionsAndStyleSections(t *testing.T) {
 	a := withStyleCatalog(t)
-	tt := ui.NewTester(a.view, 1700, 1000)
+	tt := settled(a.view, 1700, 1000)
 	video, ok := tt.Find("视频播放区")
 	if !ok {
 		t.Fatal(tt.Texts())
@@ -50,19 +49,41 @@ func TestWorkbenchRegionsAndInlineMargins(t *testing.T) {
 	if original.X <= video.X || editor.Y <= original.Y || style.X <= editor.X || math.Abs(float64(style.Y-editor.Y)) > 1 {
 		t.Fatal(video, original, editor, style)
 	}
-	left, ok := tt.Find("左边距")
-	if !ok {
-		t.Fatal("missing left margin")
+	for _, label := range []string{"左边距", "右边距", "垂直边距"} {
+		if _, ok := tt.Find(label); !ok {
+			t.Fatal("missing margin", label)
+		}
 	}
-	right, ok := tt.Find("右边距")
-	if !ok || left.Y != right.Y {
-		t.Fatal("margins not inline", left, right)
+	// The sections sit side by side where the style panel has the room,
+	// once the first frame measured them, and stack where it has not.
+	wide := settled(a.view, 2600, 1000)
+	wide.Frame()
+	text, _ := wide.Find("文字")
+	look, _ := wide.Find("外观")
+	layout, _ := wide.Find("布局")
+	if text.Y != look.Y || look.Y != layout.Y || !(text.X < look.X && look.X < layout.X) {
+		t.Fatal("sections not side by side", text, look, layout)
+	}
+	// They spread across the panel: even spaces between them, and the last
+	// one ends at the panel's edge.
+	first, second := look.X-(text.X+text.W), layout.X-(look.X+look.W)
+	work, _ := wide.Find("识别与翻译")
+	if math.Abs(float64(first-second)) > 1 || layout.X+layout.W < work.X-48 {
+		t.Fatal("sections not spread evenly", text, look, layout)
+	}
+	narrow := settled(a.view, 1000, 1000)
+	narrow.Frame()
+	text, _ = narrow.Find("文字")
+	layout, _ = narrow.Find("布局")
+	if layout.Y <= text.Y {
+		t.Fatal("sections overflow a narrow panel", text, layout, a.styleWidths, a.styleRoom)
 	}
 	for _, label := range []string{"更新预览", "更多样式", "属性"} {
 		if tt.HasText(label) {
 			t.Fatal("obsolete tab/manual preview", label)
 		}
 	}
+	tt = settled(a.view, 1700, 1000)
 	before := a.previewRevision
 	if err := tt.Click("粗体"); err != nil {
 		t.Fatal(err)
@@ -140,7 +161,7 @@ func TestSourceAndTranslationTabsRemainDistinct(t *testing.T) {
 func TestAppearanceShowsTheChosenBorderParameters(t *testing.T) {
 	a := withStyleCatalog(t)
 	a.currentStyle.BorderStyle = 1
-	tt := ui.NewTester(a.view, 1700, 1000)
+	tt := settled(a.view, 1700, 1000)
 	for _, label := range []string{"描边宽度", "描边颜色", "阴影距离", "阴影颜色"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Fatal("outline mode lacks", label)
@@ -173,9 +194,12 @@ func TestUserPresetsAreCopies(t *testing.T) {
 	a.stylePreset = builtin.ID
 	a.currentStyle = builtin.Style
 	a.currentStyle.FontSize = 31
-	tt := ui.NewTester(a.view, 1700, 1000)
-	if err := tt.Click("保存为新预设"); err != nil {
+	tt := settled(a.view, 1700, 1000)
+	if err := tt.Click("预设操作"); err != nil {
 		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("保存为新预设"); err != nil {
+		t.Fatal(err, tt.Menu())
 	}
 	tt.Frame()
 	if a.presetDialog != "save" || !tt.HasText("预设名称") {
@@ -202,9 +226,13 @@ func TestUserPresetsAreCopies(t *testing.T) {
 	}
 	a.stylePreset = builtin.ID
 	tt.Frame()
-	if err := tt.Click("重命名"); err == nil && a.presetDialog != "" {
+	if err := tt.Click("预设操作"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem("重命名"); err == nil || a.presetDialog != "" {
 		t.Fatal("built-in preset renamable")
 	}
+	tt.CloseMenu()
 	a.stylePreset = a.settings.UserPresets[0].ID
 	a.presetDialog, a.presetDialogLayer = "delete", 0
 	tt.Frame()

@@ -8,15 +8,14 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/translator"
-	"github.com/egoist/mygo/ui"
 )
 
 func TestNativeTranslationSettingsAndReviewCommit(t *testing.T) {
 	a := nativeForTest(t)
 	a.settingsOpen = true
 	a.settingsTab = 2
-	tt := ui.NewTester(a.view, 1280, 840)
-	for _, label := range []string{"API Key", "保存 Key", "目标语言", "API 请求上限"} {
+	tt := settled(a.view, 1280, 840)
+	for _, label := range []string{"API Key", "保存 Key", "API 请求上限"} {
 		if !tt.HasText(label) {
 			t.Fatal("missing setting", label)
 		}
@@ -44,7 +43,7 @@ func TestNativeTranslationSettingsAndReviewCommit(t *testing.T) {
 	candidate.Cues[0].TranslationSource = "Hello"
 	a.translationCandidate = &translationCandidate{ProjectID: state.Manifest.ID, Revision: 0, Result: translator.Result{Document: candidate, Report: translator.Report{Translated: 1}}, Checks: translator.Findings{Blocks: 1}}
 	a.translationReview = true
-	tt = ui.NewTester(a.view, 1280, 840)
+	tt = settled(a.view, 1280, 840)
 	if err = tt.Click("接受译文"); err != nil {
 		t.Fatal(err)
 	}

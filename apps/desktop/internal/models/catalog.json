@@ -148,7 +148,7 @@
     },
     {
       "id": "Qwen3-ForcedAligner-0.6B-hf",
-      "label": "Qwen 对齐器 0.6B",
+      "label": "Qwen3-ForcedAligner 0.6B",
       "kind": "aligner",
       "files": [
         {
@@ -179,7 +179,7 @@
     },
     {
       "id": "htdemucs_ft",
-      "label": "HTDemucs 人声分离",
+      "label": "HTDemucs ft",
       "kind": "separation",
       "files": [
         {
@@ -192,7 +192,7 @@
     },
     {
       "id": "SenseVoiceSmall",
-      "label": "SenseVoiceSmall 热词",
+      "label": "SenseVoiceSmall",
       "kind": "hotword",
       "files": [
         {
