@@ -214,7 +214,7 @@ func (a *NativeApp) styleControls(c *ui.Context, layer int) {
 		width, _ := c.Size()
 		room = width*(100-a.bottomSplit)/100*a.styleSplit/100 - 2*em(c, panelPad)
 	}
-	gap := em(c, 24)
+	gap := em(c, 16)
 	perLine := len(sections)
 	for perLine > 1 && !a.sectionsFit(perLine, len(sections), room, gap) {
 		perLine--
@@ -289,7 +289,7 @@ func (a *NativeApp) textSection(c *ui.Context, style *styles.Style) {
 		ui.Fieldset(c, locales.StyleText(), func() {
 			ui.Field(c, locales.StyleFontShort(), func() {
 				ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Children(func() {
-					ui.Combobox(c, &style.FontName, fonts).Label(locales.StyleFont()).Width(em(c, 200))
+					ui.Combobox(c, &style.FontName, fonts).Label(locales.StyleFont()).Width(em(c, 176))
 					ui.Toolbar(c, func() {
 						toolIcon(c, locales.StyleReloadFonts(), "rotate-cw").Disabled(a.fontCatalogLoading).OnClick(a.reloadFonts)
 					}).Padding(0)

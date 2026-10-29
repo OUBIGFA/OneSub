@@ -15,11 +15,12 @@ import (
 // settings, a click away.
 func (a *NativeApp) workflowPanel(c *ui.Context) {
 	ui.Column(c).Fill().Label(locales.WorkflowTitle()).Children(func() {
-		panelHeader(c, func() { panelTitle(c, locales.WorkflowTitle()) }, nil, nil)
+		// The two tasks switch in the header, as the list's original and
+		// translation do.
+		panelHeader(c, func() { panelTitle(c, locales.WorkflowTitle()) }, func() {
+			ui.Segmented(c, &a.workflowTab, locales.WorkflowRecognize(), locales.WorkflowTranslate()).Label(locales.WorkflowTitle())
+		}, nil)
 		ui.Divider(c)
-		ui.Row(c).Padding(em(c, 12), em(c, panelPad), 0, em(c, panelPad)).Shrink(0).Children(func() {
-			ui.Segmented(c, &a.workflowTab, locales.WorkflowRecognize(), locales.WorkflowTranslate()).Label(locales.WorkflowTitle()).Grow(1)
-		})
 		ui.Scroll(c).Grow(1).Children(func() {
 			ui.Column(c).Padding(em(c, 12), em(c, panelPad)).Gap(em(c, 12)).Children(func() {
 				if a.workflowTab == 0 {
@@ -50,7 +51,7 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 	})
 	ui.Row(c).Gap(em(c, 12)).Wrap().Children(func() {
 		ui.Field(c, locales.SettingsBackend(), func() {
-			ui.Select(c, &a.settings.Backend, []string{"auto", "gpu", "cpu"}).Label(locales.SettingsBackend()).OnChange(a.saveSettings)
+			idSelect(c, &a.settings.Backend, []option{{"auto", locales.BackendAuto()}, {"gpu", "GPU"}, {"cpu", "CPU"}}).Label(locales.SettingsBackend()).OnChange(a.saveSettings)
 		})
 		ui.Field(c, locales.ExportFormat(), func() {
 			idSelect(c, &a.settings.RecognitionFormat, []option{{"srt", "SRT"}, {"vtt", "VTT"}, {"ass", "ASS"}}).Label(locales.ExportFormat()).OnChange(a.saveSettings)
@@ -100,11 +101,12 @@ func (a *NativeApp) translateTab(c *ui.Context) {
 		languageSelect(c, &a.settings.TargetLanguage, targetLanguages(), a.busy).Label(locales.TranslationTarget()).OnChange(a.saveSettings)
 	})
 	ui.Field(c, locales.TranslationModel(), func() {
-		model := a.settings.ProviderModel
-		if model == "" {
-			model = locales.WorkflowNoService()
+		// No service yet is the one thing to fix first: it says so.
+		if model := a.settings.ProviderModel; model != "" {
+			muted(c, model).SingleLine().Tooltip(model)
+		} else {
+			ui.Text(c, locales.WorkflowNoService()).TextColor(c.Theme().Warning)
 		}
-		muted(c, model).SingleLine().Tooltip(model)
 	})
 	ui.Checkbox(c, &a.settings.OptimizeTimeline, locales.TranslationOptimizeTimeline()).OnChange(a.saveSettings)
 	ui.Button(c, locales.WorkflowService()).AlignSelf(ui.Start).OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen, a.settingsTab = true, 2 })

@@ -115,7 +115,9 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 		if a.profilesError != "" {
 			ui.Text(c, a.profilesError).TextColor(c.Theme().Warning)
 		}
-		ui.TextArea(c, &a.settings.Glossary).Height(52).Label(locales.TranslationGlossary()).Placeholder(locales.TranslationGlossaryPlaceholder()).OnChange(a.saveSettings)
+		ui.Field(c, locales.TranslationGlossary(), func() {
+			ui.TextArea(c, &a.settings.Glossary).Height(em(c, 64)).Label(locales.TranslationGlossary()).Placeholder(locales.TranslationGlossaryPlaceholder()).OnChange(a.saveSettings)
+		})
 	})
 }
 
