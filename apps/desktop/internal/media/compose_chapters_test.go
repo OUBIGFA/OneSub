@@ -210,7 +210,7 @@ func TestChapterValidationChecksTitlesAndTimes(t *testing.T) {
 		{"sample-not-clipped", source, true, false},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			if got := chaptersPreserved(source, scenario.output, scenario.sample); got != scenario.want {
+			if got := chaptersPreserved(source, scenario.output, 0, scenario.sample); got != scenario.want {
 				t.Fatal("incorrect chapter preservation result", got, scenario.want)
 			}
 		})
@@ -236,7 +236,8 @@ func TestLocalChapterMediaLosslessSample(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.Streams["video"] != 1 || report.Streams["audio"] < 1 || math.Abs(float64(report.DurationMs-5000)) > 250 || report.OutputSHA256 == "" {
+	expectedVideo := streamCounts(info.Streams)["video"]
+	if report.Streams["video"] != expectedVideo || report.Streams["audio"] < 1 || math.Abs(float64(report.DurationMs-5000)) > 250 || report.OutputSHA256 == "" {
 		t.Fatal("local sample did not retain audiovisual content and validation", report.Streams, report.DurationMs)
 	}
 }

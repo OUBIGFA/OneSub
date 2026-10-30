@@ -28,15 +28,18 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 		case !ready:
 			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.StyleLoading()) })
 		default:
-			ui.Scroll(c).Grow(1).Children(func() {
-				content := ui.Column(c).Padding(em(c, 12), em(c, panelPad)).Gap(em(c, 16))
-				// The room the sections have, from the last frame's layout.
+			ui.Scroll(c).Grow(1).TrackScroll(&a.styleScroll).Children(func() {
+				content := ui.Column(c).Padding(em(c, 12), em(c, panelPad)).Gap(em(c, 20))
 				a.styleRoom = content.Bounds().W - 2*em(c, panelPad)
 				content.Children(func() {
-					if !ass {
-						ui.Row(c).Justify(ui.End).Children(func() { a.presetControls(c, layer) })
-					}
-					ui.Form(c, func() { a.outputFields(c, false) })
+					line(c, func() {
+						a.outputFields(c, false)
+						if !ass {
+							ui.Field(c, locales.StylePreset(), func() {
+								ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() { a.presetControls(c, layer) })
+							})
+						}
+					})
 					if ass {
 						muted(c, locales.StyleKeepAss())
 						return
@@ -46,6 +49,7 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 					}
 					a.styleControls(c, layer)
 				})
+				measurePanelContent(c, content, &a.styleHeight)
 			})
 		}
 	})
@@ -189,92 +193,25 @@ func percent(c *ui.Context, label string, value *float64) {
 	})
 }
 
-// Both layers edit SmartSub's existing schema. Bilingual block placement is
-// shared; secondary typography and appearance remain independently editable.
-//
-// The sections, the text, its appearance and the main layer's layout, are
-// each as wide as their fields and spread across the panel's whole width:
-// the room left over is shared equally on both sides of the thin lines
-// between them, so the spaces are even and the last section ends at the
-// panel's edge. As many sit side by side as the panel has room for, by
-// their widths in the last frame, which their content alone sets; the
-// others go on new lines, under a line across.
+// Both layers edit SmartSub's existing schema. Wide panes use three equal
+// native grid columns. Narrower panes group short parameters into wrapping
+// rows, instead of stacking three tall one-field-per-line inspectors.
 func (a *NativeApp) styleControls(c *ui.Context, layer int) {
 	style, _ := a.layerStyle(layer)
-	sections := []func(){
-		func() { a.textSection(c, style) },
-		func() { a.appearanceSection(c, style) },
+	columns := 1
+	if a.styleRoom >= em(c, 960) {
+		columns = 3
 	}
-	if layer == 0 {
-		sections = append(sections, func() { a.layoutSection(c, style) })
-	}
-	room := a.styleRoom
-	if room <= 0 {
-		width, _ := c.Size()
-		room = width*a.styleSplit/100 - 2*em(c, panelPad)
-	}
-	gap := em(c, 16)
-	perLine := len(sections)
-	for perLine > 1 && !a.sectionsFit(perLine, len(sections), room, gap) {
-		perLine--
-	}
-	lines := ui.Column(c).Gap(em(c, 20))
-	// Until every section was measured, the sections are laid out but not
-	// shown: they appear at once where they belong, a frame or two later.
-	for i := range sections {
-		if a.styleWidths[i] == 0 {
-			lines.Invisible()
-		}
-	}
-	lines.Children(func() {
-		for first := 0; first < len(sections); first += perLine {
-			if first > 0 {
-				ui.Divider(c)
-			}
-			ui.Row(c.Key(fmt.Sprint("line-", first))).AlignItems(ui.Stretch).Children(func() {
-				for i := first; i < min(first+perLine, len(sections)); i++ {
-					if i > first {
-						// A vertical line, as tall as the line, centered in
-						// the space between two sections.
-						ui.Spacer(c).MinWidth(gap)
-						ui.Divider(c)
-						ui.Spacer(c).MinWidth(gap)
-					}
-					box := ui.Column(c.Key(fmt.Sprint("section-", i))).Shrink(0).Children(sections[i])
-					// A section the last frame lacked has no width yet: keep
-					// the one it had, or none, which stacks the sections.
-					if w := box.Bounds().W; w > 0 && w != a.styleWidths[i] {
-						a.styleWidths[i] = w
-						c.After(0)
-					}
-				}
-			})
+	ui.Grid(c).Columns(columns).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
+		a.textSection(c, style)
+		a.appearanceSection(c, style)
+		if layer == 0 {
+			a.layoutSection(c, style)
 		}
 	})
 	if layer == 1 {
 		muted(c, locales.StyleSecondaryLayout())
 	}
-}
-
-// sectionsFit reports whether count sections, n to a line, fit in room. A
-// section not measured yet fits beside no other.
-func (a *NativeApp) sectionsFit(n, count int, room, gap float32) bool {
-	for start := 0; start < count; start += n {
-		width := float32(0)
-		for i := start; i < min(start+n, count); i++ {
-			if a.styleWidths[i] == 0 {
-				return false
-			}
-			if i > start {
-				width += 2*gap + 1
-			}
-			width += a.styleWidths[i]
-		}
-		if width > room {
-			return false
-		}
-	}
-	return true
 }
 
 func (a *NativeApp) textSection(c *ui.Context, style *styles.Style) {
@@ -284,9 +221,9 @@ func (a *NativeApp) textSection(c *ui.Context, style *styles.Style) {
 			fonts = append(fonts, font.Name)
 		}
 	}
-	ui.Form(c, func() {
-		ui.Fieldset(c, locales.StyleText(), func() {
-			ui.Field(c, locales.StyleFontShort(), func() {
+	ui.Fieldset(c, locales.StyleText(), func() {
+		line(c, func() {
+			inlineField(c, locales.StyleFontShort(), func() {
 				ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Children(func() {
 					ui.Combobox(c, &style.FontName, fonts).Label(locales.StyleFont()).Width(em(c, 176))
 					ui.Toolbar(c, func() {
@@ -294,17 +231,17 @@ func (a *NativeApp) textSection(c *ui.Context, style *styles.Style) {
 					}).Padding(0)
 				})
 			})
-			ui.Field(c, locales.StyleFontSize(), func() { number(c, locales.StyleFontSize(), &style.FontSize, 10, 72, 1) })
-			ui.Field(c, locales.StyleColor(), func() { colorWell(c, locales.StyleTextColor(), &style.PrimaryColor) })
-			ui.Field(c, locales.StyleEmphasis(), func() {
+			inlineField(c, locales.StyleFontSize(), func() { number(c, locales.StyleFontSize(), &style.FontSize, 10, 72, 1) })
+			inlineField(c, locales.StyleColor(), func() { colorWell(c, locales.StyleTextColor(), &style.PrimaryColor) })
+			inlineField(c, locales.StyleEmphasis(), func() {
 				ui.ToggleGroup(c, func() {
 					ui.Toggle(c, &style.Bold, "").Label(locales.StyleBold()).Tooltip(locales.StyleBold()).Children(func() { icon(c, "bold") })
 					ui.Toggle(c, &style.Italic, "").Label(locales.StyleItalic()).Tooltip(locales.StyleItalic()).Children(func() { icon(c, "italic") })
 					ui.Toggle(c, &style.Underline, "").Label(locales.StyleUnderline()).Tooltip(locales.StyleUnderline()).Children(func() { icon(c, "underline") })
 				}).Label(locales.StyleEmphasis()).AlignSelf(ui.Start)
 			})
-		})
-	})
+		}).AlignItems(ui.Center)
+	}).Margin(0)
 }
 
 // boxOpacity is SmartSub's default opacity of the background box. A box
@@ -313,17 +250,16 @@ func (a *NativeApp) textSection(c *ui.Context, style *styles.Style) {
 const boxOpacity = 50
 
 func (a *NativeApp) appearanceSection(c *ui.Context, style *styles.Style) {
-	ui.Form(c, func() {
-		// Outline and box each show only their own parameters. In SmartSub's
-		// mapping the back colour is the shadow in outline mode and the box
-		// in box mode, so it is named after what it paints.
-		ui.Fieldset(c, locales.StyleAppearance(), func() {
+	ui.Fieldset(c, locales.StyleAppearance(), func() {
+		line(c, func() {
+			// SmartSub maps BackColor to either a shadow or a background box.
+			// Only the parameters for the selected border mode are presented.
 			box := style.BorderStyle == 3
 			border := 0
 			if box {
 				border = 1
 			}
-			ui.Field(c, locales.StyleBorder(), func() {
+			inlineField(c, locales.StyleBorder(), func() {
 				if ui.Segmented(c, &border, locales.StyleBorderOutline(), locales.StyleBorderBox()).Label(locales.StyleBorder()).AlignSelf(ui.Start).Changed() {
 					style.BorderStyle = 1
 					if border == 1 {
@@ -335,35 +271,34 @@ func (a *NativeApp) appearanceSection(c *ui.Context, style *styles.Style) {
 				}
 			})
 			if box {
-				ui.Field(c, locales.StylePadding(), func() { number(c, locales.StyleBoxPadding(), &style.Outline, 0, 10, .1) })
-				ui.Field(c, locales.StyleBackground(), func() { colorWell(c, locales.StyleBoxColor(), &style.BackColor) })
-				ui.Field(c, locales.StyleBoxOpacityShort(), func() { percent(c, locales.StyleBoxOpacity(), &style.BackOpacity) })
+				inlineField(c, locales.StylePadding(), func() { number(c, locales.StyleBoxPadding(), &style.Outline, 0, 10, .1) })
+				inlineField(c, locales.StyleBackground(), func() { colorWell(c, locales.StyleBoxColor(), &style.BackColor) })
+				inlineField(c, locales.StyleBoxOpacityShort(), func() { percent(c, locales.StyleBoxOpacity(), &style.BackOpacity) })
 				return
 			}
-			// A color and its size share a row: the color well, then the value.
-			ui.Field(c, locales.StyleBorderOutline(), func() {
+			inlineField(c, locales.StyleBorderOutline(), func() {
 				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
 					colorWell(c, locales.StyleOutlineColor(), &style.OutlineColor)
 					number(c, locales.StyleOutlineWidth(), &style.Outline, 0, 10, .1)
 				})
 			})
-			ui.Field(c, locales.StyleShadow(), func() {
+			inlineField(c, locales.StyleShadow(), func() {
 				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
 					colorWell(c, locales.StyleShadowColor(), &style.BackColor)
 					number(c, locales.StyleShadowDistance(), &style.Shadow, 0, 10, .1)
 				})
 			})
-			ui.Field(c, locales.StyleShadowOpacityShort(), func() { percent(c, locales.StyleShadowOpacity(), &style.BackOpacity) })
-		})
-	})
+			inlineField(c, locales.StyleShadowOpacityShort(), func() { percent(c, locales.StyleShadowOpacity(), &style.BackOpacity) })
+		}).AlignItems(ui.Center)
+	}).Margin(0)
 }
 
 func (a *NativeApp) layoutSection(c *ui.Context, style *styles.Style) {
-	ui.Form(c, func() {
-		ui.Fieldset(c, locales.StyleLayout(), func() {
+	ui.Fieldset(c, locales.StyleLayout(), func() {
+		line(c, func() {
 			// ASS numpad alignment: rows from the bottom, columns from the left.
 			row, column := (style.Alignment-1)/3, (style.Alignment-1)%3
-			ui.Field(c, locales.StyleAlign(), func() {
+			inlineField(c, locales.StyleAlign(), func() {
 				ui.ToggleGroup(c, func() {
 					for i, name := range []string{"align-left", "align-center", "align-right"} {
 						on := column == i
@@ -374,15 +309,15 @@ func (a *NativeApp) layoutSection(c *ui.Context, style *styles.Style) {
 					}
 				}).Label(locales.StyleAlign()).AlignSelf(ui.Start)
 			})
-			ui.Field(c, locales.StylePosition(), func() {
+			inlineField(c, locales.StylePosition(), func() {
 				ui.Segmented(c, &row, locales.PositionBottom(), locales.PositionMiddle(), locales.PositionTop()).Label(locales.StylePosition()).AlignSelf(ui.Start)
 			})
 			style.Alignment = row*3 + column + 1
-			ui.Field(c, locales.StyleMarginLeft(), func() { number(c, locales.StyleMarginLeft(), &style.MarginL, 0, 384, 1) })
-			ui.Field(c, locales.StyleMarginRight(), func() { number(c, locales.StyleMarginRight(), &style.MarginR, 0, 384, 1) })
-			ui.Field(c, locales.StyleMarginVertical(), func() { number(c, locales.StyleMarginVertical(), &style.MarginV, 0, 288, 1) })
-		})
-	})
+			inlineField(c, locales.StyleMarginLeft(), func() { number(c, locales.StyleMarginLeft(), &style.MarginL, 0, 384, 1) })
+			inlineField(c, locales.StyleMarginRight(), func() { number(c, locales.StyleMarginRight(), &style.MarginR, 0, 384, 1) })
+			inlineField(c, locales.StyleMarginVertical(), func() { number(c, locales.StyleMarginVertical(), &style.MarginV, 0, 288, 1) })
+		}).AlignItems(ui.Center)
+	}).Margin(0)
 }
 
 // presetDialogView names a new or renamed preset, or confirms a deletion

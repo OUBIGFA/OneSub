@@ -1,4 +1,4 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation)
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$WorkflowLayout)
 $ErrorActionPreference = 'Stop'
 if($SubtitleMenus -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport)){throw 'Run subtitle menu presentation as a separate scenario'}
 if($LayoutNavigation -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport -or $SubtitleMenus)){throw 'Run layout/navigation as a separate scenario'}
@@ -10,6 +10,7 @@ using System;
 using System.Runtime.InteropServices;
 public static class SmokeNative {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int command);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   public delegate bool Visitor(IntPtr h, IntPtr p);
   [DllImport("user32.dll")] public static extern bool EnumWindows(Visitor fn, IntPtr p);
@@ -257,6 +258,7 @@ try {
         $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {$_.Current.Name}
         throw 'Same-name subtitle was not loaded'
     }
+    if($WorkflowLayout){[void][SmokeNative]::ShowWindow($p.MainWindowHandle,3);Start-Sleep -Milliseconds 800}
     # UIA is an explicit mode for a locked/remote desktop, not a passing
     # keyboard test. Default runs still require real foreground Space input.
     if($UIAPlayback){Click-UI '播放'}else{Press-PlaybackSpace}
@@ -280,11 +282,32 @@ try {
     if(Find-UI '设置分类'){
         foreach($tab in @('识别与模型','翻译服务')){
             Select-Tab '设置分类' $tab
-            if($tab -eq '翻译服务' -and (-not (Find-UI '并发批数') -or -not (Find-UI '每批字幕数'))){throw 'Translation scheduling controls are missing'}
+            if($tab -eq '翻译服务' -and ((Find-UI '并发批数') -or (Find-UI '每批字幕数'))){throw 'Task scheduling is still in service settings'}
             & $ScreenshotTool $p.Id (Join-Path $workPath ("settings-"+$tab+'.png'))
         }
     }
     Click-UI '关闭'
+    if($WorkflowLayout) {
+        foreach($tab in @('语音识别','AI 翻译')) {
+            Select-Tab '识别与翻译' $tab
+            foreach($panelName in @('字幕样式面板','识别与翻译')) {
+                $panel=Find-UI $panelName
+                $nodes=$panel.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+                foreach($node in $nodes) {
+                    $scroll=$null
+                    if($node.TryGetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern,[ref]$scroll) -and $scroll.Current.VerticallyScrollable){throw "Maximized parameters scroll: $panelName / $tab"}
+                }
+            }
+            if($tab -eq 'AI 翻译') {
+                $a=(Find-UI '并发批数').Current.BoundingRectangle
+                $b=(Find-UI '每批字幕数').Current.BoundingRectangle
+                if([Math]::Abs($a.Y-$b.Y) -gt 1 -or $a.Right -ge $b.Left){throw 'Batching controls are not side by side'}
+                if(-not (Find-UI 'AI 服务')){throw 'AI service group missing'}
+            }
+            Capture-Navigation ("workflow-"+$tab+'.png')
+        }
+        Write-Output 'PASS: maximized parameter panes do not scroll; batching is side by side on the workbench'
+    }
     if($LayoutNavigation) {
         for($i=0;$i -lt 100;$i++){
             if((Find-UI '一键识别并翻译') -and (Find-UI '字幕样式面板') -and (Find-UI '字幕编辑面板') -and (Find-UI '返回顶部')){break}

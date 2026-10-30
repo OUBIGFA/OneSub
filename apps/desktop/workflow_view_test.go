@@ -3,14 +3,17 @@ package main
 import (
 	"fmt"
 	"math"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
+	"github.com/egoist/mygo/ui"
 )
 
-// Fields use their content width. A wide recognition panel keeps output
-// location beside the format/chunk/token controls, not against the far edge.
+// Output location stays beside the format; recognition parameters and
+// subtitle output have distinct headings rather than arbitrary row breaks.
 func TestWorkflowFieldsStayCompactAndAligned(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
@@ -60,16 +63,74 @@ func TestWorkflowFolderActionsStayInsideNarrowPanels(t *testing.T) {
 	}
 }
 
-// The translation tab uses the same compact directory group, next to the
-// model rather than as a full-width row with distant actions.
-func TestTranslationFolderStaysNextToModel(t *testing.T) {
-	a := nativeForTest(t)
-	a.workflowTab = 1
-	a.settings.ProviderModel = "example-model"
-	tt := settled(a.workflowPanel, 1000, 500)
-	model, _ := tt.Find(locales.TranslationModel())
-	directory, _ := tt.Find(locales.RecognitionDirectory())
-	if math.Abs(float64(model.Y-directory.Y)) > 1 || directory.X <= model.X || directory.X-model.X > 400 {
-		t.Fatal("model and folder separated", model, directory)
+// Batching shares one row with the chosen service and model whenever it
+// fits. Changes survive reload even during a task.
+func TestTranslationSchedulingOnWorkbench(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			a := nativeForTest(t)
+			a.workflowTab = 1
+			a.settings.ProviderModel = "example-model"
+			tt := settled(a.workflowPanel, 800, 650)
+			concurrency, _ := tt.Find(locales.TranslationConcurrency())
+			batch, _ := tt.Find(locales.TranslationBatchSize())
+			model, _ := tt.Find(locales.TranslationModel())
+			directory, _ := tt.Find(locales.RecognitionDirectory())
+			if math.Abs(float64(concurrency.Y-batch.Y)) > 1 || math.Abs(float64(concurrency.Y-model.Y)) > 1 || directory.Y <= concurrency.Y {
+				t.Fatal("batching is not in the service row", concurrency, batch, model, directory)
+			}
+			a.busy = true
+			tt.Frame()
+			for _, field := range []struct{ label, value string }{{locales.TranslationConcurrency(), "4"}, {locales.TranslationBatchSize(), "35"}} {
+				if err := tt.Click(field.label); err != nil {
+					t.Fatal(err)
+				}
+				tt.Key(ui.Cmd, ui.KeyA)
+				tt.Type(field.value)
+				tt.Key(0, ui.KeyEnter)
+			}
+			prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
+			if err != nil || prefs.TranslationConcurrency != 4 || prefs.TranslationBatchSize != 35 {
+				t.Fatal("workbench scheduling changes were not saved", prefs.TranslationConcurrency, prefs.TranslationBatchSize, err)
+			}
+		})
+	}
+}
+
+// Exercise real native layout with populated styles and both task tabs. A
+// max-sized desktop must fit its parameter content, not hide the scrollbar
+// while still clipping fields. Saved divider ratios remain user-owned.
+func TestDesktopParametersFitWithoutScrolling(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		for _, size := range [][2]int{{1920, 1040}, {2560, 1400}, {3440, 1392}} {
+			t.Run(fmt.Sprintf("%s/%dx%d", language, size[0], size[1]), func(t *testing.T) {
+				inLocale(t, language, func() {
+					a := withStyleCatalog(t)
+					a.snapshot.Manifest.MediaPath = "test.mp4"
+					tt := settled(a.view, size[0], size[1])
+					for range 8 {
+						tt.Frame()
+					}
+					for tab := 0; tab < 2; tab++ {
+						a.workflowTab = tab
+						for range 4 {
+							tt.Frame()
+						}
+						if a.workflowScroll.MaxY > 1 || a.styleScroll.MaxY > 1 {
+							t.Fatal("desktop parameter content overflows", tab, a.workflowScroll, a.styleScroll, a.workflowHeight, a.styleHeight)
+						}
+						for _, label := range []string{locales.StyleMarginVertical(), locales.RecognitionResetFolder()} {
+							r, ok := tt.Find(label)
+							if !ok || r.Y+r.H > float32(size[1])-32 || r.X+r.W > float32(size[0]) {
+								t.Fatal("parameter clipped", label, r)
+							}
+						}
+					}
+					if float64(a.splitY) != settings.Default().TopHeight {
+						t.Fatal("content fit overwrote user divider preference")
+					}
+				})
+			})
+		}
 	}
 }

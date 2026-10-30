@@ -140,8 +140,11 @@ try {
  Set-DialogPath $output
  [void](Wait-UI '视频合成进度')
  & $ScreenshotTool $p.Id (Join-Path $workPath 'compose-progress.png')
- for($i=0;$i -lt 600;$i++){if(Test-Path ($output+'.onesub.json')){break};Start-Sleep -Milliseconds 200}
- if(-not(Test-Path ($output+'.onesub.json'))){throw 'Composition did not publish verified output'}
+ for($i=0;$i -lt 600;$i++){if(Test-Path -LiteralPath $output){break};Start-Sleep -Milliseconds 200}
+ if(-not(Test-Path -LiteralPath $output)){throw 'Composition did not publish verified output'}
+ if(Test-Path -LiteralPath ($output+'.onesub.json')){throw 'Composition left a sidecar beside the video'}
+ $reports=@(Get-ChildItem (Join-Path $env:ONESUB_DATA_ROOT 'projects') -Filter 'compose-*.json' -Recurse)
+ if($reports.Count -ne 1){throw 'Validation report missing from recovery project'}
  Start-Sleep -Seconds 1
  & $ScreenshotTool $p.Id (Join-Path $workPath 'workbench.png')
  Write-Output 'PASS: single instance visible/minimized/tray; live edit and list save; independent source/translation; unsaved prompt on clearing; equal settings; file dialog bounds; real composition/player progress'

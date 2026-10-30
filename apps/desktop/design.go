@@ -150,3 +150,33 @@ func dialogTitle(c *ui.Context, text string) ui.Element {
 func muted(c *ui.Context, text string) ui.Element {
 	return ui.Text(c, text).TextColor(c.Theme().TextMuted)
 }
+
+// parameterGroup separates meaning with a heading and breathing room, not
+// cards. Optional management actions sit with the settings they manage.
+func parameterGroup(c *ui.Context, title string, action, fields func()) {
+	ui.Column(c).Gap(em(c, 10)).Children(func() {
+		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+			panelTitle(c, title)
+			ui.Spacer(c)
+			if action != nil {
+				action()
+			}
+		})
+		fields()
+	})
+}
+
+// A short parameter uses a native Form's inline label. The enclosing line
+// wraps the whole field, never leaving its label separated from its control.
+func inlineField(c *ui.Context, label string, control func()) ui.Element {
+	return ui.Form(c, func() { ui.Field(c, label, control) }).AlignSelf(ui.Start)
+}
+
+// Measure the natural content inside a scroll area, not the clipped viewport.
+// The main split can then reserve enough height without shrinking typography.
+func measurePanelContent(c *ui.Context, content ui.Element, height *float32) {
+	if h := content.Bounds().H; h > 0 && h != *height {
+		*height = h
+		c.After(0)
+	}
+}

@@ -21,8 +21,9 @@ import (
 // text, only fail to move a boundary.
 
 const (
-	windowChars   = 3000 // source characters per segmentation request
-	windowCues    = 80
+	// windowMs is the source duration one segmentation request covers: a
+	// 30-minute video is one batch, an hour at most two.
+	windowMs      = int64(30 * 60 * 1000)
 	minSimilarity = 0.96 // VideoCaptioner's bar for "only line breaks changed"
 	// maxJoinGap is the longest pause a joined subtitle may span, in ms. A
 	// longer one is a real pause, cut as VideoCaptioner's MAX_GAP cuts it:
@@ -145,48 +146,59 @@ func (e *engine) rebuild(ctx context.Context, doc subtitle.Document, summary any
 	return ranges, nil
 }
 
-// segmentWindows groups runs of ordinary cues into requests of a bounded
-// size, each ending at the largest pause near its limit, as VideoCaptioner
-// chooses its split points.
+// segmentWindows groups runs of ordinary cues into requests covering
+// about windowMs of the timeline each: a 30-minute video is one batch, an
+// hour at most two. A run is cut into round(duration/windowMs) windows
+// whose boundaries land at the cue boundary nearest its target time — the
+// largest pause when several are equally near, as VideoCaptioner chooses
+// its split points.
 func segmentWindows(atoms []subtitle.Atom, spans []cueSpan) [][]cueSpan {
 	windows := [][]cueSpan{}
-	current := []cueSpan{}
-	chars := 0
-	flush := func() {
-		if len(current) > 0 {
-			windows = append(windows, current)
+	run := []cueSpan{}
+	split := func() {
+		if len(run) == 0 {
+			return
 		}
-		current, chars = nil, 0
+		start, end := atoms[run[0].first].StartMs, atoms[run[len(run)-1].last].EndMs
+		n := int((end - start + windowMs/2) / windowMs)
+		if n < 1 {
+			n = 1
+		}
+		// Whole cues at least: never more windows than cues.
+		if n > len(run) {
+			n = len(run)
+		}
+		prev := 0
+		for i := 1; i < n; i++ {
+			target := start + (end-start)*int64(i)/int64(n)
+			best, bestDist, bestGap := -1, int64(0), int64(0)
+			for k := prev; k < len(run)-1; k++ {
+				dist := atoms[run[k+1].first].StartMs - target
+				if dist < 0 {
+					dist = -dist
+				}
+				gap := atoms[run[k+1].first].StartMs - atoms[run[k].last].EndMs
+				if best < 0 || dist < bestDist || (dist == bestDist && gap > bestGap) {
+					best, bestDist, bestGap = k, dist, gap
+				}
+			}
+			if best < 0 {
+				break
+			}
+			windows = append(windows, run[prev:best+1])
+			prev = best + 1
+		}
+		windows = append(windows, run[prev:])
+		run = nil
 	}
 	for _, s := range spans {
 		if atoms[s.first].Protected {
-			flush()
+			split()
 			continue
 		}
-		current = append(current, s)
-		for i := s.first; i <= s.last; i++ {
-			chars += len(atoms[i].Text)
-		}
-		if len(current) < windowCues && chars < windowChars {
-			continue
-		}
-		cut, widest := len(current)-1, int64(-1)
-		for k := max(0, len(current)-11); k < len(current)-1; k++ {
-			if gap := atoms[current[k+1].first].StartMs - atoms[current[k].last].EndMs; gap > widest {
-				cut, widest = k, gap
-			}
-		}
-		rest := append([]cueSpan(nil), current[cut+1:]...)
-		current = current[:cut+1]
-		flush()
-		current = rest
-		for _, r := range rest {
-			for i := r.first; i <= r.last; i++ {
-				chars += len(atoms[i].Text)
-			}
-		}
+		run = append(run, s)
 	}
-	flush()
+	split()
 	return windows
 }
 

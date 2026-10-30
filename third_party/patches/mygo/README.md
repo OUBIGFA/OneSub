@@ -1,4 +1,4 @@
-# MyGo Windows 原生层补丁
+# MyGo 原生层与动画计时补丁
 
 上游：`egoist/mygo`，修订 `558e498142b0e91b8e659f7e1f9aae5a455108f3`，MIT，许可见 [mygo.txt](../../licenses/mygo.txt)。不替换菜单或绘制应用自有控件；保留 MyGo / Windows 的菜单渲染和行为。
 
@@ -13,6 +13,12 @@
 - **放大文字**：原菜单行固定 32 DIP，字体随系统辅助功能文字大小放大。现在取固定行高与“文字行高＋内边距”的较大值。
 
 `tools/prepare_mygo.py` 校验五个上游文件 SHA-256，把锁定依赖复制到忽略目录（只复制内容、不删除旧副本）、应用补丁，再以生成的 `-modfile` 定向替换 MyGo。Go 不允许覆盖模块缓存的 overlay；三个统一构建/测试入口因此共用该生成模块文件，不修改模块缓存或已跟踪的 `go.mod/go.sum`，不跟踪完整上游源码副本。上游变化时哈希不符即停止，需重新评估补丁。
+
+## Blocks 动画计时
+
+`loading-clock.patch` 只为 `plugins/loading/loading.go` 增加可选 `StopDuration`：暂停时，计时速度从 1 平缓降至 0；按绝对时间积分，不随帧率改变最终相位；重新启动从可见相位接续。零值保留上游即时暂停语义。`spinners.go` 的 Blocks 几何、关键帧、默认周期和绘制完全不改，仍由 MyGo 原生插件渲染；OneSub 将单个实例放大至等待区域，再用 MyGo `AnimatePose` 延迟淡出。
+
+上游 `plugins/loading/loading.go` SHA-256：`fe346a269c6110c054de510aa53aae625e0113b6efbab45e2216c6eb0fa081b9`。`tools/prepare_mygo.py` 同时验证该基线并应用两份补丁；`build/test.ps1` 执行插件全部上游测试及新增的渐停／恢复计时测试。`StopDuration` 不改变系统减少动画设置；背景退出不会阻塞任务结果。
 
 ## 验收边界
 

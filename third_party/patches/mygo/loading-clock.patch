@@ -1,0 +1,122 @@
+--- a/plugins/loading/loading.go
++++ b/plugins/loading/loading.go
+@@ -42,6 +42,10 @@
+ 	// Paused stops the indicator where it is, and it goes on from there
+ 	// once false again, as CSS's paused animation-play-state.
+ 	Paused bool
++	// StopDuration eases the animation clock to rest when Paused becomes
++	// true. Zero preserves the upstream immediate pause. Drawing/keyframes
++	// remain unchanged; elapsed time integrates a linear 1-to-0 speed ramp.
++	StopDuration time.Duration
+ 	// Easing is how the indicators that turn (Arc, Atom, Clock, Comet,
+ 	// Dual, Orbit, Radar, Ring, Snake and Trace) turn: Linear by default.
+ 	Easing Easing
+@@ -150,12 +154,27 @@
+ // timer is how long an indicator has run: since start, or held while
+ // paused.
+ type timer struct {
+-	start  time.Time
+-	held   time.Duration
+-	paused bool
++	start        time.Time
++	held         time.Duration
++	paused       bool
++	pauseAt      time.Time
++	stopDuration time.Duration
+ 	// sh is the shape the indicator draws with, its storage kept from
+ 	// frame to frame.
+ 	sh shape
++}
++
++// elapsed evaluates the clock at an absolute time, independent of paint rate.
++// Resuming during a gradual stop continues from the currently visible phase.
++func (k *timer) elapsed(now time.Time) time.Duration {
++	if !k.paused {
++		return now.Sub(k.start)
++	}
++	if k.stopDuration <= 0 {
++		return k.held
++	}
++	d := min(max(now.Sub(k.pauseAt), 0), k.stopDuration)
++	return k.held + time.Duration(float64(d)*(1-float64(d)/(2*float64(k.stopDuration))))
+ }
+ 
+ // show creates an indicator of s with the options given, at most one.
+@@ -186,21 +205,20 @@
+ 	k := ui.Local(e, timerKey{}, func() timer { return timer{start: now} })
+ 	switch {
+ 	case o.Paused && !k.paused:
+-		k.held, k.paused = now.Sub(k.start), true
++		k.held = k.elapsed(now)
++		k.paused, k.pauseAt, k.stopDuration = true, now, o.StopDuration
+ 	case !o.Paused && k.paused:
+-		k.start, k.paused = now.Add(-k.held), false
++		k.start, k.paused = now.Add(-k.elapsed(now)), false
+ 	}
+ 	e.Draw(func(p *ui.Painter, r ui.Rect) {
+ 		d := drawing{p: p, sh: &k.sh, color: color, o: o, still: still}
+ 		d.s = min(r.H, r.W/s.aspect)
+ 		d.x, d.y = r.X+(r.W-d.s*s.aspect)/2, r.Y+(r.H-d.s)/2
+ 		if !still {
+-			ran := k.held
+-			if !k.paused {
+-				ran = p.Now().Sub(k.start)
++			if !k.paused || p.Now().Before(k.pauseAt.Add(k.stopDuration)) {
+ 				p.AnimationFrame()
+ 			}
+-			d.cycles = float64(ran) / float64(cycle)
++			d.cycles = float64(k.elapsed(p.Now())) / float64(cycle)
+ 		}
+ 		s.draw(&d)
+ 	})
+--- /dev/null
++++ b/plugins/loading/onesub_clock_test.go
+@@ -0,0 +1,48 @@
++package loading
++
++import (
++	"testing"
++	"time"
++)
++
++func TestOneSubGradualPauseClock(t *testing.T) {
++	now := time.Unix(100, 0)
++	k := timer{paused: true, held: 2 * time.Second, pauseAt: now, stopDuration: time.Second}
++	for _, test := range []struct{ at, want time.Duration }{
++		{0, 2 * time.Second}, {500 * time.Millisecond, 2375 * time.Millisecond},
++		{time.Second, 2500 * time.Millisecond}, {5 * time.Second, 2500 * time.Millisecond},
++	} {
++		if got := k.elapsed(now.Add(test.at)); got != test.want {
++			t.Fatal(test.at, got, test.want)
++		}
++	}
++}
++
++func TestOneSubBlocksGradualPauseAndResume(t *testing.T) {
++	o := Options{Duration: time.Second, StopDuration: 500 * time.Millisecond}
++	tt := tester(Spinner{"Blocks", Blocks}, &o)
++	tt.Advance(300 * time.Millisecond)
++	o.Paused = true
++	start := at(tt)
++	tt.Advance(250 * time.Millisecond)
++	if !differ(start, at(tt)) || !tt.FramePending() {
++		t.Fatal("gradual pause stopped immediately")
++	}
++	tt.Advance(250 * time.Millisecond)
++	held := at(tt)
++	if tt.FramePending() {
++		t.Fatal("settled blocks keep requesting frames")
++	}
++	tt.Advance(time.Second)
++	if differ(held, at(tt)) {
++		t.Fatal("blocks still move after settling")
++	}
++	o.Paused = false
++	if differ(held, at(tt)) {
++		t.Fatal("resuming jumps to another phase")
++	}
++	tt.Advance(150 * time.Millisecond)
++	if !differ(held, at(tt)) {
++		t.Fatal("resuming did not restart the animation")
++	}
++}

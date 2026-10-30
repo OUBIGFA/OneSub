@@ -62,6 +62,7 @@ type NativeApp struct {
 	rate                                 float64   // the playback speed; 0 is normal
 	loop                                 bool      // the video starts again at its end
 	busy                                 bool
+	waiting                              waitingState
 	choosingFile                         bool
 	cancel                               context.CancelFunc
 	pending                              *importing.Loaded
@@ -69,6 +70,9 @@ type NativeApp struct {
 	splitX, splitY, styleSplit           float32
 	editorSplit                          float32 // the editor's share of the room right of the style
 	workflowTab                          int     // 0 recognition, 1 translation
+	workflowScroll, styleScroll          ui.ScrollState
+	workflowHeight, styleHeight          float32 // natural parameter content heights
+	toolbarHeight                        float32 // measured native toolbar, including text scale
 	list                                 ui.ListState
 	selected                             int
 	query                                string
@@ -122,8 +126,7 @@ type NativeApp struct {
 	presetDialog                         string // "", "save", "rename" or "delete"
 	presetDialogLayer                    int
 	presetName                           string
-	styleWidths                          [3]float32 // the style sections' widths in the last frame
-	styleRoom                            float32    // the width the style sections have
+	styleRoom                            float32 // available width inside the style panel
 	subtitleTab                          int
 	editRebuiltSource                    bool
 	insertOpen                           bool
@@ -243,14 +246,25 @@ func (a *NativeApp) view(c *ui.Context) {
 func (a *NativeApp) paneSizes(c *ui.Context) (player, top, style, editor float32) {
 	player, top, style, editor = a.splitX, a.splitY, a.styleSplit, a.editorSplit
 	width, height := c.Size()
-	height -= em(c, 44+32) // the tool bar and the status bar
+	toolbar := a.toolbarHeight
+	if toolbar == 0 {
+		toolbar = em(c, 44)
+	}
+	// Two horizontal rules and the split's own one-DIP line are not part
+	// of either pane. Include them instead of leaving a phantom scrollbar.
+	height -= toolbar + em(c, 32) + 3
 	keep := func(percent *float32, room, first, second float32) {
 		if room >= first+second {
 			*percent = min(max(*percent, first/room*100), 100-second/room*100)
 		}
 	}
 	keep(&player, width, em(c, 500), em(c, 360))
-	keep(&top, height, em(c, 320), em(c, 180))
+	// Give the taller parameter page its natural height when the window
+	// permits it. This is only a displayed constraint: shrinking/expanding
+	// the window must not overwrite the user's saved divider proportion.
+	bottom := max(em(c, 180), max(a.workflowHeight, a.styleHeight)+em(c, headerSize)+1)
+	bottom = min(bottom, max(em(c, 180), height-em(c, 320)))
+	keep(&top, height, em(c, 320), bottom)
 	keep(&style, width, em(c, 340), em(c, 260+300))
 	keep(&editor, width*(100-style)/100, em(c, 260), em(c, 300))
 	return
@@ -268,7 +282,7 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 		}
 		return iconButton(c, label, name)
 	}
-	ui.Toolbar(c, func() {
+	bar := ui.Toolbar(c, func() {
 		ui.Grid(c).ColumnTracks(ui.Fr(1), ui.FitContent(), ui.Fr(1)).Grow(1).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Gap(em(c, 8)).Children(func() {
 				iconButton(c, locales.ActionAddFiles(), "folder-open").Disabled(a.busy).OnClick(a.pickFiles)
@@ -282,6 +296,7 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 			})
 		})
 	}).Gap(em(c, 8)).Padding(em(c, 6), em(c, 12)).Background(look.chrome).Label(locales.A11yToolbar())
+	measurePanelContent(c, bar, &a.toolbarHeight)
 }
 
 // errorDuration is how long the status bar shows an error before it goes

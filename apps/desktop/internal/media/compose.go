@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -47,6 +46,7 @@ type ComposeReport struct {
 	Version      int            `json:"version"`
 	Source       string         `json:"source"`
 	SourceSHA256 string         `json:"sourceSha256"`
+	SourceStart  float64        `json:"sourceStartSeconds"`
 	Output       string         `json:"output"`
 	OutputSHA256 string         `json:"outputSha256"`
 	ASSSHA256    string         `json:"subtitleSha256"`
@@ -85,10 +85,11 @@ func compositionStreams(info Info) []Stream {
 	return streams
 }
 
-// chaptersPreserved checks the actual content, not just the number of chapter
-// carriers. FFmpeg clips chapters to the requested five-second sample; a full
-// export must retain every chapter's title and boundaries (within 1 ms).
-func chaptersPreserved(source, output []Chapter, sample bool) bool {
+// chaptersPreserved compares chapter times on the same zero-based input
+// timeline FFmpeg uses for every stream. Chapters before that origin are
+// clipped/dropped, as in FFmpeg's chapter mapping; five-second samples clip
+// again at their end. A container may renumber IDs, but not change titles.
+func chaptersPreserved(source, output []Chapter, origin float64, sample bool) bool {
 	matched := 0
 	for _, chapter := range source {
 		start, startErr := strconv.ParseFloat(chapter.StartTime, 64)
@@ -96,6 +97,10 @@ func chaptersPreserved(source, output []Chapter, sample bool) bool {
 		if startErr != nil || endErr != nil || math.IsNaN(start) || math.IsNaN(end) || math.IsInf(start, 0) || math.IsInf(end, 0) || end < start {
 			return false
 		}
+		if end < origin {
+			continue
+		}
+		start, end = max(0, start-origin), end-origin
 		if sample {
 			if start >= 5 {
 				continue
@@ -126,10 +131,6 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 	ext := strings.ToLower(filepath.Ext(options.Destination))
 	if ext != ".mkv" && ext != ".mp4" {
 		return nil, errors.New(locales.ErrComposeContainer())
-	}
-	start, _ := strconv.ParseFloat(info.Format.StartTime, 64)
-	if math.Abs(start) > .001 {
-		return nil, errors.New(locales.ErrComposeStartTime())
 	}
 	mainVideo := []Stream{}
 	covers := []Stream{}
@@ -172,6 +173,10 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 			}
 		}
 	}
+	// FFmpeg's default input handling subtracts the container start from
+	// all its streams together. Nonzero PTS is normal (AAC priming, edit
+	// lists, MPEG-TS); neither per-stream PTS-STARTPTS nor a player seek
+	// belongs here, since either can destroy the relative A/V timing.
 	args := []string{"-hide_banner", "-nostdin", "-v", "error", "-i", options.Source}
 	if options.Mode == "soft" {
 		args = append(args, "-i", assPath)
@@ -237,7 +242,10 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 	if options.Sample {
 		args = append(args, "-t", "5")
 	}
-	return append(args, "-progress", "pipe:1", "-nostats", "-y", partial), nil
+	// Negative decode timestamps from B frames are not a presentation
+	// offset. Do not let the muxer shift the whole output a second time,
+	// moving the new subtitle track away from the frozen subtitle times.
+	return append(args, "-avoid_negative_ts", "disabled", "-progress", "pipe:1", "-nostats", "-y", partial), nil
 }
 
 // losslessPixelFormat keeps the source's chroma layout and bit depth when
@@ -317,6 +325,12 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	if err != nil {
 		return report, err
 	}
+	if info.Format.StartTime != "" {
+		report.SourceStart, err = strconv.ParseFloat(info.Format.StartTime, 64)
+		if err != nil || math.IsNaN(report.SourceStart) || math.IsInf(report.SourceStart, 0) {
+			return report, errors.New(locales.ErrComposeStartTime())
+		}
+	}
 	scratch, err := os.MkdirTemp(scratchRoot, "compose-")
 	if err != nil {
 		return report, err
@@ -364,10 +378,10 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 		return report, err
 	}
 	partial := temporary.Name()
+	defer os.Remove(partial)
 	if err = temporary.Close(); err != nil {
 		return report, err
 	}
-	defer os.Remove(partial)
 	args, err := ComposeArgs(options, info, assPath, partial)
 	if err != nil {
 		return report, err
@@ -384,6 +398,12 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 		stage = StageMux
 	}
 	duration := info.DurationMs()
+	// Matroska's Segment Duration is an end timestamp, unlike MOV/MP4's
+	// elapsed format duration. Its nonzero origin must be removed once
+	// for progress and validation, just as FFmpeg removes it from PTS.
+	if strings.Contains(info.Format.FormatName, "matroska") || strings.Contains(info.Format.FormatName, "webm") {
+		duration -= int64(math.Round(report.SourceStart * 1000))
+	}
 	if options.Sample && duration > 5000 {
 		duration = 5000
 	}
@@ -419,7 +439,7 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	if duration <= 0 || math.Abs(float64(output.DurationMs()-duration)) > 250 {
 		return report, errors.New(locales.ErrComposeDuration())
 	}
-	if !chaptersPreserved(info.Chapters, output.Chapters, options.Sample) {
+	if !chaptersPreserved(info.Chapters, output.Chapters, report.SourceStart, options.Sample) {
 		return report, errors.New(locales.ErrComposeChapters())
 	}
 	// Full decode is intentionally stronger than merely finding streams in headers.
@@ -437,22 +457,7 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	if err = os.Link(partial, options.Destination); err != nil {
 		return report, apperr.Wrap(locales.ErrComposePublish(err.Error()), err)
 	}
-	// The report is independent of the media file: report-write failure is surfaced
-	// with the validated video preserved, never followed by another encode.
-	raw, err := json.MarshalIndent(report, "", "  ")
-	if err != nil {
-		return report, err
-	}
-	reportFile, err := os.OpenFile(options.Destination+".onesub.json", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-	if err != nil {
-		return report, apperr.Wrap(locales.ErrComposeReport(err.Error()), err)
-	}
-	_, err = reportFile.Write(raw)
-	if syncErr := reportFile.Sync(); err == nil {
-		err = syncErr
-	}
-	if closeErr := reportFile.Close(); err == nil {
-		err = closeErr
-	}
-	return report, err
+	// Reports belong to the caller's recovery project, not beside a user's
+	// video. The destination receives only the validated media file.
+	return report, nil
 }

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	"github.com/google/uuid"
 )
 
 // Compose choices are stored by ID in settings, so the dialog opens with the
@@ -171,10 +174,32 @@ func (a *NativeApp) startCompose(sample bool) {
 			subtitleMode = "soft"
 		}
 		options := media.ComposeOptions{Source: state.Manifest.MediaPath, Destination: output, Mode: subtitleMode, Quality: quality, Sample: sample, Language: language, Revision: state.Revision}
-		_, err = media.Compose(ctx, a.ffmpeg, a.probe, filepath.Join(a.dataRoot, "cache", "worker"), options, document, progress)
+		report, err := media.Compose(ctx, a.ffmpeg, a.probe, filepath.Join(a.dataRoot, "cache", "worker"), options, document, progress)
 		if err != nil {
 			return nil, apperr.Wrap(locales.ErrCompose(err.Error()), err)
 		}
-		return func() { a.lastOutput = output; a.status = locales.StatusExported(filepath.Base(output)) }, nil
+		reportErr := saveComposeReport(state.Path, report)
+		return func() {
+			a.lastOutput, a.status = output, locales.StatusExported(filepath.Base(output))
+			if reportErr != nil {
+				// The validated video is already published. Keep it reachable
+				// instead of reporting a failed encode and inviting a rerun.
+				a.errorText = locales.ErrComposeReport(reportErr.Error())
+			}
+		}, nil
 	})
+}
+
+// saveComposeReport retains validation evidence inside the recovery project;
+// media/output directories contain only the user's requested deliverables.
+func saveComposeReport(projectPath string, report media.ComposeReport) error {
+	artifacts := filepath.Join(projectPath, "artifacts")
+	if err := os.MkdirAll(artifacts, 0700); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
+	}
+	return subtitle.Publish(filepath.Join(artifacts, "compose-"+uuid.NewString()+".json"), data)
 }
