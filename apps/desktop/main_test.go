@@ -55,7 +55,7 @@ func nativeForTest(t *testing.T) *NativeApp {
 		icons[strings.TrimSuffix(e.Name(), ".svg")] = ui.MustParseSVG(data)
 	}
 	prefs := settings.Default()
-	return &NativeApp{dataRoot: t.TempDir(), settings: prefs, splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), bottomSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, followRow: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
+	return &NativeApp{dataRoot: t.TempDir(), settings: prefs, splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, followRow: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
 }
 
 // storeApp opens a real project store with the given cues as the workbench.

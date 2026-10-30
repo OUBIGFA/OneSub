@@ -200,6 +200,7 @@ P1 固定尺寸圆角底板用 ASS 矢量路径；自适应几何延后。硬字
 导出任务先冻结 ComposePlan：来源哈希、revision、ASS/字体版本、输入流、时间/坐标变换、目标容器、字幕模式、音视频编码、章节、附件、语言和 default/forced、损失报告及输出路径。
 
 - MKV 软封装推荐 ASS/SRT；字体附件先查授权。MP4 软字幕转 mov_text，样式损失须确认。
+- QuickTime/MP4 的文本章节轨在 ffprobe 中可表现为 `data/bin_data`、`text` 或 `tx3g` 标签。确认章节已解析后，通过 `-map_chapters 0` 写入目标容器；MP4 重新生成章节载体，MKV 使用章节元数据，不要求两种容器的 `data` 流数量相同。发布前逐章核对标题、起止时间和数量；5 秒样片核对相应截取范围。未知数据流仍拒绝，不能仅凭 `handler_name` 或存在章节就丢弃任意 `data` 流。行为依据为 FFmpeg [mov_read_chapters](https://github.com/FFmpeg/FFmpeg/blob/n8.1/libavformat/mov.c) 与 [章节映射](https://ffmpeg.org/ffmpeg.html)；合成报告分别记录物理流数量与章节数量。
 - 默认保留兼容音轨，无法保留的流必须明确选替代容器或转码；不静默丢流。
 - 新增默认字幕时消除 default 冲突，不改变 forced 语义；内部 BCP 47 与容器语言标签用显式映射，未知值为 und，不猜测语言。
 - 硬烧录：规范化 PTS/旋转/SAR → 可选遮盖 → ASS → 编码；不可同时 `-c:v copy`。不以 `-shortest` 掩盖尾部丢失。

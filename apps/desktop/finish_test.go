@@ -108,26 +108,17 @@ func TestPlaybackSpeed(t *testing.T) {
 	}
 }
 
-// The editor, the style and recognition with translation start at 2:2:1,
-// and the panes keep the sizes the user drags them to.
+// After the layout update, both lower dividers and the player divider keep
+// the sizes the user chooses, saved once the drag stops.
 func TestPaneSizesAreRemembered(t *testing.T) {
 	a := withStyleCatalog(t)
-	tt := settled(a.view, 1500, 1000)
-	editor, _ := tt.Find("字幕编辑面板")
-	style, _ := tt.Find("字幕样式面板")
-	work, _ := tt.Find("识别与翻译")
-	if ratio := (style.X - editor.X) / (work.X - style.X); ratio < 0.95 || ratio > 1.05 {
-		t.Fatal("editor and style are not 2:2", editor, style, work)
-	}
-	if ratio := (1500 - work.X) / (style.X - editor.X); ratio < 0.45 || ratio > 0.55 {
-		t.Fatal("workflow not half the editor", editor, work)
-	}
-	a.bottomSplit, a.splitX = 45, 55
+	tt := settled(a.view, 1800, 1000)
+	a.styleSplit, a.editorSplit, a.splitX = 25, 60, 55
 	tt.Frame()
 	tt.Advance(time.Second)
 	prefs, err := settings.Load(a.dataRoot + "/settings.json")
-	if err != nil || prefs.EditorWidth != 45 || prefs.PlayerWidth != 55 {
-		t.Fatal(prefs.EditorWidth, prefs.PlayerWidth, err)
+	if err != nil || prefs.StyleWidth != 25 || prefs.EditorWidth != 60 || prefs.PlayerWidth != 55 {
+		t.Fatal(prefs.StyleWidth, prefs.EditorWidth, prefs.PlayerWidth, err)
 	}
 }
 
@@ -139,12 +130,12 @@ func TestEditorNamesTheCueOnItsFirstLine(t *testing.T) {
 	title, _ := tt.Find("字幕编辑")
 	number, ok := tt.Find("序号 1")
 	duration, _ := tt.Find("时长")
-	style, _ := tt.Find("字幕样式面板")
+	editor, _ := tt.Find("字幕编辑面板")
 	if !ok || number.Y <= title.Y || number.Y >= duration.Y {
 		t.Fatal("cue number not between header and timing", title, number, duration)
 	}
-	if middle := number.X + number.W/2; middle < style.X/2-20 || middle > style.X/2+20 {
-		t.Fatal("cue number not centered", number, style)
+	if delta := number.X + number.W/2 - editor.X - editor.W/2; delta < -1 || delta > 1 {
+		t.Fatal("cue number not centered", number, editor)
 	}
 }
 
@@ -200,6 +191,11 @@ func TestDefaultStyleHasNoShadow(t *testing.T) {
 		t.Fatal(a.styleCatalog.DefaultStyle)
 	}
 	tt := settled(a.view, 1600, 1000)
+	panel, _ := tt.Find("字幕样式面板")
+	box, _ := tt.Find("背景框")
+	// The narrower style pane stacks sections; reach the border controls
+	// through its native scroll area instead of clicking off-screen text.
+	tt.Scroll(panel.X+panel.W/2, panel.Y+panel.H/2, 0, max(0, box.Y+box.H-panel.Y-panel.H+16))
 	if err := tt.Click("背景框"); err != nil {
 		t.Fatal(err)
 	}

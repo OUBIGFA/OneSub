@@ -156,6 +156,8 @@
   "listSave": "Save",
   "listSaveAs": "Save as",
   "listLocate": "Go to the current subtitle",
+  "listTop": "Back to top",
+  "listBottom": "Go to bottom",
   "listEmpty": "No subtitles loaded",
   "listColumnStart": "Start",
   "listColumnEnd": "End",
@@ -542,7 +544,7 @@
     }
   },
   "errComposeDuration": "Output duration differs from the source",
-  "errComposeChapters": "Output chapter count differs",
+  "errComposeChapters": "Output chapter count, titles or timings differ from the source",
   "errComposeDecode": "Output decode check failed: {detail}",
   "errComposePublish": "Not published; no existing file was replaced: {detail}",
   "errComposeReport": "The video was written, but its report could not be saved: {detail}",
@@ -815,7 +817,7 @@
   "subtitleTranslationOptional": "Translation (optional)",
   "subtitleInserted": "Subtitle inserted",
   "subtitleDeleted": "Subtitle deleted",
-  "actionRecognizeTranslate": "Transcribe and translate",
+  "actionRecognizeTranslate": "One-click transcribe & translate",
   "processingInterrupted": "Processing interrupted. Continue when ready.",
   "recognitionRestartNote": "Continue processing restarts the unfinished recognition step"
 }

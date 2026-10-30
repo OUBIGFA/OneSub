@@ -42,9 +42,9 @@ function Click-UI($name) {
  $node.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
 }
 try {
- [void](Wait-UI '识别并翻译')
- for($i=0;$i -lt 100;$i++){$node=Find-UI '识别并翻译';if($node -and $node.Current.IsEnabled){break};Start-Sleep -Milliseconds 100}
- Click-UI '识别并翻译'
+ [void](Wait-UI '一键识别并翻译')
+ for($i=0;$i -lt 100;$i++){$node=Find-UI '一键识别并翻译';if($node -and $node.Current.IsEnabled){break};Start-Sleep -Milliseconds 100}
+ Click-UI '一键识别并翻译'
  [void](Wait-UI '取消任务')
  Click-UI '取消任务'
  [void](Wait-UI '继续处理' 30)

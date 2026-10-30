@@ -78,8 +78,8 @@ type Settings struct {
 	DoubleClickAction      string                 `json:"doubleClickAction"`
 	FollowPlayback         bool                   `json:"followPlayback"`
 	// The workbench panes, in percent: the player's width beside the list,
-	// the upper area's height, and the editor's width beside the style.
-	// StyleWidth is the style's share of the room right of the editor,
+	// the upper area's height, and the style's width in the lower area.
+	// EditorWidth is the editor's share of the room right of the style,
 	// beside recognition and translation.
 	PlayerWidth float64 `json:"playerWidth"`
 	TopHeight   float64 `json:"topHeight"`
@@ -93,10 +93,10 @@ type Settings struct {
 
 // version is that of the settings written now. Version 1 had full volume
 // and SmartSub's shadow as defaults; Load moves them to version 2's.
-const version = 4
+const version = 5
 
 func Default() Settings {
-	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "zh", RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 40, StyleWidth: 200.0 / 3, StripPunctuation: true, KeepPunctuation: "?"}
+	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "zh", RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 400.0 / 7, StyleWidth: 30, StripPunctuation: true, KeepPunctuation: "?"}
 }
 func Load(path string) (Settings, error) {
 	s := Default()
@@ -134,14 +134,12 @@ func Load(path string) (Settings, error) {
 	return s, nil
 }
 
-// upgrade moves the untouched defaults of earlier versions to the current
-// ones. Version 2 has half volume and the default style without a shadow;
-// version 4 sizes editor, style and workflow 2:2:1. Only known former defaults
-// migrate; a layout the user dragged to another ratio stays as chosen.
+// Version 5 swaps style and editor and applies the new 1.5:2:1.5 lower layout
+// once on upgrade. The old percentages belonged to different split positions;
+// upper panes and all unrelated preferences remain intact. Later drags persist.
 func upgrade(s *Settings) {
-	if s.EditorWidth == 20 && s.StyleWidth == 50 || s.Version < 3 && s.EditorWidth == 25 && s.StyleWidth > 66.6 && s.StyleWidth < 66.7 {
-		s.EditorWidth, s.StyleWidth = 40, 200.0/3
-	}
+	d := Default()
+	s.EditorWidth, s.StyleWidth = d.EditorWidth, d.StyleWidth
 	if s.Version >= 2 {
 		s.Version = version
 		return

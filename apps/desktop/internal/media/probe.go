@@ -19,6 +19,7 @@ type Stream struct {
 	Index         int               `json:"index"`
 	CodecType     string            `json:"codec_type"`
 	CodecName     string            `json:"codec_name"`
+	CodecTag      string            `json:"codec_tag_string"`
 	Width         int               `json:"width"`
 	Height        int               `json:"height"`
 	Channels      int               `json:"channels"`
@@ -34,12 +35,20 @@ type Stream struct {
 		AttachedPic int `json:"attached_pic"`
 	} `json:"disposition"`
 }
+
+// Chapter times are ffprobe's seconds, independent of a container's time base.
+// IDs may be renumbered on remux, so preservation compares titles and times.
+type Chapter struct {
+	ID        int               `json:"id"`
+	StartTime string            `json:"start_time"`
+	EndTime   string            `json:"end_time"`
+	Tags      map[string]string `json:"tags"`
+}
+
 type Info struct {
-	Streams  []Stream `json:"streams"`
-	Chapters []struct {
-		ID int `json:"id"`
-	} `json:"chapters"`
-	Format struct {
+	Streams  []Stream  `json:"streams"`
+	Chapters []Chapter `json:"chapters"`
+	Format   struct {
 		Duration   string `json:"duration"`
 		StartTime  string `json:"start_time"`
 		FormatName string `json:"format_name"`

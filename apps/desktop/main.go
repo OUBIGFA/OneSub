@@ -66,8 +66,8 @@ type NativeApp struct {
 	cancel                               context.CancelFunc
 	pending                              *importing.Loaded
 	candidatesOpen                       bool
-	splitX, splitY, bottomSplit          float32
-	styleSplit                           float32 // the style's share of the room right of the editor
+	splitX, splitY, styleSplit           float32
+	editorSplit                          float32 // the editor's share of the room right of the style
 	workflowTab                          int     // 0 recognition, 1 translation
 	list                                 ui.ListState
 	selected                             int
@@ -156,17 +156,29 @@ func stamp(seconds float64) string {
 func (a *NativeApp) view(c *ui.Context) {
 	theme, look := studioTheme(c.Theme(), c.Preferences().HighContrast)
 	c.SetTheme(&theme)
-	a.keepPaneMinimums(c)
+	x, y, style, editor := a.paneSizes(c)
 	ui.Column(c).Fill().Children(func() {
 		a.topBar(c, look)
 		ui.Divider(c)
-		ui.SplitVerticalPercent(c, &a.splitY, func() {
-			ui.SplitPercent(c, &a.splitX, func() { a.playerView(c) }, func() { a.subtitlesView(c) }).Fill()
+		ui.SplitVerticalPercent(c, &y, func() {
+			ui.SplitPercent(c, &x, func() { a.playerView(c) }, func() { a.subtitlesView(c) }).Fill().OnChange(func() {
+				a.splitX = x
+				a.splitX, _, _, _ = a.paneSizes(c)
+			})
 		}, func() {
-			ui.SplitPercent(c, &a.bottomSplit, func() { a.editorView(c) }, func() {
-				ui.SplitPercent(c, &a.styleSplit, func() { a.stylePanel(c) }, func() { a.workflowPanel(c) }).Fill()
-			}).Fill()
-		}).Grow(1)
+			ui.SplitPercent(c, &style, func() { a.stylePanel(c) }, func() {
+				ui.SplitPercent(c, &editor, func() { a.editorView(c) }, func() { a.workflowPanel(c) }).Fill().OnChange(func() {
+					a.editorSplit = editor
+					_, _, _, a.editorSplit = a.paneSizes(c)
+				})
+			}).Fill().OnChange(func() {
+				a.styleSplit = style
+				_, _, a.styleSplit, _ = a.paneSizes(c)
+			})
+		}).Grow(1).OnChange(func() {
+			a.splitY = y
+			_, a.splitY, _, _ = a.paneSizes(c)
+		})
 		ui.Divider(c)
 		a.statusBar(c, look)
 	})
@@ -184,7 +196,7 @@ func (a *NativeApp) view(c *ui.Context) {
 	a.observeStyle(c.Now())
 	// The panes keep the sizes the user drags them to, saved once the drag
 	// stops, as the other preferences.
-	if w, h, e, s := float64(a.splitX), float64(a.splitY), float64(a.bottomSplit), float64(a.styleSplit); w != a.settings.PlayerWidth || h != a.settings.TopHeight || e != a.settings.EditorWidth || s != a.settings.StyleWidth {
+	if w, h, e, s := float64(a.splitX), float64(a.splitY), float64(a.editorSplit), float64(a.styleSplit); w != a.settings.PlayerWidth || h != a.settings.TopHeight || e != a.settings.EditorWidth || s != a.settings.StyleWidth {
 		a.settings.PlayerWidth, a.settings.TopHeight, a.settings.EditorWidth, a.settings.StyleWidth = w, h, e, s
 		a.prefsSaveDue = c.Now().Add(400 * time.Millisecond)
 	}
@@ -225,10 +237,11 @@ func (a *NativeApp) view(c *ui.Context) {
 	}
 }
 
-// keepPaneMinimums keeps each pane the room its controls need, in both
-// languages and at the smallest window: a divider dragged further stops
-// there, before the panes are laid out.
-func (a *NativeApp) keepPaneMinimums(c *ui.Context) {
+// paneSizes clamps only the displayed shares, so startup or a narrow window
+// cannot overwrite the user's proportions. Split OnChange callbacks also use
+// these bounds to persist actual divider gestures, never temporary resizing.
+func (a *NativeApp) paneSizes(c *ui.Context) (player, top, style, editor float32) {
+	player, top, style, editor = a.splitX, a.splitY, a.styleSplit, a.editorSplit
 	width, height := c.Size()
 	height -= em(c, 44+32) // the tool bar and the status bar
 	keep := func(percent *float32, room, first, second float32) {
@@ -236,24 +249,38 @@ func (a *NativeApp) keepPaneMinimums(c *ui.Context) {
 			*percent = min(max(*percent, first/room*100), 100-second/room*100)
 		}
 	}
-	keep(&a.splitX, width, em(c, 500), em(c, 360))
-	keep(&a.splitY, height, em(c, 320), em(c, 180))
-	keep(&a.bottomSplit, width, em(c, 260), em(c, 340+300))
-	keep(&a.styleSplit, width*(100-a.bottomSplit)/100, em(c, 340), em(c, 300))
+	keep(&player, width, em(c, 500), em(c, 360))
+	keep(&top, height, em(c, 320), em(c, 180))
+	keep(&style, width, em(c, 340), em(c, 260+300))
+	keep(&editor, width*(100-style)/100, em(c, 260), em(c, 300))
+	return
 }
 
-// topBar holds the actions on the whole workbench: adding and clearing on
-// the left; settings and the two outputs on the right, video export last as
-// the one primary action, where editors put Export.
+// Equal flexible sides center the primary workflow action in the whole
+// toolbar, not just in the space left by unequal command groups.
 func (a *NativeApp) topBar(c *ui.Context, look studio) {
+	width, _ := c.Size()
+	// Keep the central label and every action reachable at minimum width;
+	// secondary commands use their native icon buttons with full tooltips.
+	command := func(label, name string) ui.Element {
+		if width < em(c, 1100) {
+			return toolIcon(c, label, name)
+		}
+		return iconButton(c, label, name)
+	}
 	ui.Toolbar(c, func() {
-		iconButton(c, locales.ActionAddFiles(), "folder-open").Disabled(a.busy).OnClick(a.pickFiles)
-		iconButton(c, a.processingLabel(), "languages").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(a.processMedia)
-		iconButton(c, locales.ActionClearWorkbench(), "eraser").Disabled(a.busy || a.snapshot == nil).OnClick(a.requestClear)
-		ui.Spacer(c)
-		toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
-		iconButton(c, locales.MenuExportSubtitles(), "file-down").Disabled(a.busy || a.snapshot == nil || len(a.snapshot.Document.Cues) == 0).OnClick(a.requestExport)
-		primaryIconButton(c, locales.ActionCompose(), "clapperboard").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" || len(a.snapshot.Document.Cues) == 0).OnClick(a.compose)
+		ui.Grid(c).ColumnTracks(ui.Fr(1), ui.FitContent(), ui.Fr(1)).Grow(1).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(em(c, 8)).Children(func() {
+				iconButton(c, locales.ActionAddFiles(), "folder-open").Disabled(a.busy).OnClick(a.pickFiles)
+				command(locales.ActionClearWorkbench(), "eraser").Disabled(a.busy || a.snapshot == nil).OnClick(a.requestClear)
+			})
+			primaryIconButton(c, a.processingLabel(), "languages").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(a.processMedia)
+			ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Children(func() {
+				toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
+				command(locales.MenuExportSubtitles(), "file-down").Disabled(a.busy || a.snapshot == nil || len(a.snapshot.Document.Cues) == 0).OnClick(a.requestExport)
+				command(locales.ActionCompose(), "clapperboard").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" || len(a.snapshot.Document.Cues) == 0).OnClick(a.compose)
+			})
+		})
 	}).Gap(em(c, 8)).Padding(em(c, 6), em(c, 12)).Background(look.chrome).Label(locales.A11yToolbar())
 }
 
@@ -689,7 +716,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer preview.Close()
-	a := &NativeApp{resources: resources, dataRoot: data, settings: prefs, settingsError: prefsErr != nil, preview: preview, worker: subtitle.Client{Executable: filepath.Join(resources, "subtitle-core", "OneSub.SubtitleCore.exe"), Scratch: scratch}, probe: filepath.Join(resources, "media-tools", "ffprobe.exe"), ffmpeg: filepath.Join(resources, "media-tools", "ffmpeg.exe"), splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), bottomSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, followRow: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
+	a := &NativeApp{resources: resources, dataRoot: data, settings: prefs, settingsError: prefsErr != nil, preview: preview, worker: subtitle.Client{Executable: filepath.Join(resources, "subtitle-core", "OneSub.SubtitleCore.exe"), Scratch: scratch}, probe: filepath.Join(resources, "media-tools", "ffprobe.exe"), ffmpeg: filepath.Join(resources, "media-tools", "ffmpeg.exe"), splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, followRow: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
 	if prefsErr != nil {
 		a.errorText = locales.ErrSettingsUnreadable()
 	}

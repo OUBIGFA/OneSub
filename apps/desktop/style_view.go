@@ -211,7 +211,7 @@ func (a *NativeApp) styleControls(c *ui.Context, layer int) {
 	room := a.styleRoom
 	if room <= 0 {
 		width, _ := c.Size()
-		room = width*(100-a.bottomSplit)/100*a.styleSplit/100 - 2*em(c, panelPad)
+		room = width*a.styleSplit/100 - 2*em(c, panelPad)
 	}
 	gap := em(c, 16)
 	perLine := len(sections)

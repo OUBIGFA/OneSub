@@ -1,6 +1,7 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus)
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation)
 $ErrorActionPreference = 'Stop'
 if($SubtitleMenus -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport)){throw 'Run subtitle menu presentation as a separate scenario'}
+if($LayoutNavigation -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport -or $SubtitleMenus)){throw 'Run layout/navigation as a separate scenario'}
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Windows.Forms
@@ -51,6 +52,9 @@ public static class SmokeNative {
     return items;
   }
   public static bool RightClick(IntPtr window, int pid, int x, int y) {
+    return PointerClick(window,pid,x,y,true);
+  }
+  public static bool PointerClick(IntPtr window, int pid, int x, int y, bool right) {
     // Send native pointer messages only to this test instance's MyGo surface.
     IntPtr surface=IntPtr.Zero;
     EnumChildWindows(window,(child,p)=>{
@@ -63,7 +67,7 @@ public static class SmokeNative {
     var point=new Point{X=x,Y=y};
     if(!ScreenToClient(surface,ref point))return false;
     var coords=new IntPtr((point.Y<<16)|(point.X&0xffff));
-    return PostMessage(surface,512,IntPtr.Zero,coords)&&PostMessage(surface,516,new IntPtr(2),coords)&&PostMessage(surface,517,IntPtr.Zero,coords);
+    return PostMessage(surface,512,IntPtr.Zero,coords)&&PostMessage(surface,right?516u:513u,new IntPtr(right?2:1),coords)&&PostMessage(surface,right?517u:514u,IntPtr.Zero,coords);
   }
   public static bool Choose(int pid, string path) {
     bool done=false;
@@ -95,6 +99,15 @@ $sourceText = if ($TranslationEndpoint) { 'Hello, world' } elseif ($BilingualExp
 [IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:02,900`n$sourceText`n",[Text.UTF8Encoding]::new($false))
 if($InterruptTranslation){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:01,400`n$sourceText`n`n2`n00:00:01,500 --> 00:00:02,900`nGood morning`n",[Text.UTF8Encoding]::new($false))}
 if($SubtitleMenus){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:00,900`nFirst subtitle`n`n2`n00:00:01,000 --> 00:00:01,900`nSecond subtitle`n`n3`n00:00:02,000 --> 00:00:02,900`nThird subtitle`n",[Text.UTF8Encoding]::new($false))}
+if($LayoutNavigation){
+    $body=[Text.StringBuilder]::new()
+    for($i=0;$i -lt 120;$i++){
+        $start=[TimeSpan]::FromMilliseconds($i*20).ToString('hh\:mm\:ss\,fff')
+        $end=[TimeSpan]::FromMilliseconds(($i+1)*20).ToString('hh\:mm\:ss\,fff')
+        [void]$body.Append("$($i+1)`n$start --> $end`nNavigation subtitle $('{0:000}' -f ($i+1))`n`n")
+    }
+    [IO.File]::WriteAllText($subtitle,$body.ToString(),[Text.UTF8Encoding]::new($false))
+}
 & ffmpeg -v error -f lavfi -i 'testsrc2=size=320x180:rate=10:duration=3' -c:v libx264 -pix_fmt yuv420p $video
 if($LASTEXITCODE -ne 0){throw 'Fixture creation failed'}
 $env:ONESUB_DATA_ROOT = Join-Path $workPath 'data'
@@ -196,6 +209,30 @@ function Wait-SubtitleMenu {
     }
     throw 'Native subtitle menu did not appear'
 }
+function Wait-VisibleSubtitle($text) {
+    # Search only the virtual table, not the editor's copy of a selected cue.
+    for($i=0;$i -lt 100;$i++) {
+        $list=Find-UI '字幕列表'
+        if($list) {
+            $row=$list.FindFirst([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$text))
+            if($row) {
+                $r=$row.Current.BoundingRectangle;$bounds=$list.Current.BoundingRectangle
+                if(-not $r.IsEmpty -and $r.Height -gt 0 -and $r.Top -ge $bounds.Top -and $r.Bottom -le $bounds.Bottom){return}
+            }
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    throw "Subtitle not visible in the table: $text"
+}
+function Capture-Navigation($file) {
+    # UIA invocation leaves keyboard focus/tooltip adornments on the button.
+    # A pointer click on the inert style header clears them without selecting
+    # another subtitle or changing the viewport being captured.
+    $header=(Find-UI '字幕样式面板').Current.BoundingRectangle
+    if(-not [SmokeNative]::PointerClick($p.MainWindowHandle,$p.Id,[int]($header.X+$header.Width/2),[int]($header.Y+12),$false)){throw 'Could not clear navigation focus adornments'}
+    Start-Sleep -Milliseconds 300
+    & $ScreenshotTool $p.Id (Join-Path $workPath $file)
+}
 function Choose-Path($path){
     for($i=0;$i -lt 100;$i++) { if([SmokeNative]::Choose($p.Id,$path)){return};Start-Sleep -Milliseconds 100 }
     throw 'File dialog did not appear'
@@ -248,6 +285,30 @@ try {
         }
     }
     Click-UI '关闭'
+    if($LayoutNavigation) {
+        for($i=0;$i -lt 100;$i++){
+            if((Find-UI '一键识别并翻译') -and (Find-UI '字幕样式面板') -and (Find-UI '字幕编辑面板') -and (Find-UI '返回顶部')){break}
+            Start-Sleep -Milliseconds 100
+        }
+        $style=(Find-UI '字幕样式面板').Current.BoundingRectangle
+        $editor=(Find-UI '字幕编辑面板').Current.BoundingRectangle
+        $workflow=(Find-UI '识别与翻译').Current.BoundingRectangle
+        if(-not ($style.X -lt $editor.X -and $editor.X -lt $workflow.X) -or [Math]::Abs($editor.Width/$style.Width-4/3) -gt .02 -or [Math]::Abs($workflow.Width/$style.Width-1) -gt .02){throw 'Lower panes are not style/editor/workflow at 1.5:2:1.5'}
+        $bar=(Find-UI '主操作').Current.BoundingRectangle
+        $primary=(Find-UI '一键识别并翻译').Current.BoundingRectangle
+        if([Math]::Abs($primary.X+$primary.Width/2-$bar.X-$bar.Width/2) -gt 2){throw 'One-click action is not centered in the toolbar'}
+        $draft=(Find-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+        $top=(Find-UI '返回顶部').Current.BoundingRectangle
+        $bottom=(Find-UI '返回底部').Current.BoundingRectangle
+        Click-UI '返回底部';Wait-VisibleSubtitle 'Navigation subtitle 120'
+        if((Find-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne $draft){throw 'Bottom navigation changed the selected subtitle'}
+        Capture-Navigation 'list-bottom.png'
+        Click-UI '返回顶部';Wait-VisibleSubtitle 'Navigation subtitle 001'
+        if((Find-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne $draft){throw 'Top navigation changed the selected subtitle'}
+        if((Find-UI '返回顶部').Current.BoundingRectangle -ne $top -or (Find-UI '返回底部').Current.BoundingRectangle -ne $bottom){throw 'Floating buttons moved with the rows'}
+        Capture-Navigation 'layout-navigation.png'
+        Write-Output 'PASS: centered one-click toolbar action; style/editor/workflow 1.5:2:1.5; floating top/bottom navigation; selected subtitle unchanged'
+    }
     if($SubtitleMenus) {
         # Invoke closes the modal asynchronously. Wait for the workbench's
         # UIA nodes before measuring, as Select-Tab does after dialog changes.

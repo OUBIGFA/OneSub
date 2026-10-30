@@ -46,7 +46,7 @@ func TestWorkbenchRegionsAndStyleSections(t *testing.T) {
 	}
 	editor, _ := tt.Find("字幕编辑")
 	style, _ := tt.Find("字幕样式")
-	if original.X <= video.X || editor.Y <= original.Y || style.X <= editor.X || math.Abs(float64(style.Y-editor.Y)) > 1 {
+	if original.X <= video.X || editor.Y <= original.Y || style.X >= editor.X || math.Abs(float64(style.Y-editor.Y)) > 1 {
 		t.Fatal(video, original, editor, style)
 	}
 	for _, label := range []string{"左边距", "右边距", "垂直边距"} {
@@ -56,7 +56,7 @@ func TestWorkbenchRegionsAndStyleSections(t *testing.T) {
 	}
 	// The sections sit side by side where the style panel has the room,
 	// once the first frame measured them, and stack where it has not.
-	wide := settled(a.view, 2600, 1000)
+	wide := settled(a.stylePanel, 1200, 1000)
 	wide.Frame()
 	text, _ := wide.Find("文字")
 	look, _ := wide.Find("外观")
@@ -67,8 +67,8 @@ func TestWorkbenchRegionsAndStyleSections(t *testing.T) {
 	// They spread across the panel: even spaces between them, and the last
 	// one ends at the panel's edge.
 	first, second := look.X-(text.X+text.W), layout.X-(look.X+look.W)
-	work, _ := wide.Find("识别与翻译")
-	if math.Abs(float64(first-second)) > 1 || layout.X+layout.W < work.X-48 {
+	stylePanel, _ := wide.Find("字幕样式面板")
+	if math.Abs(float64(first-second)) > 1 || layout.X+layout.W < stylePanel.X+stylePanel.W-48 {
 		t.Fatal("sections not spread evenly", text, look, layout)
 	}
 	narrow := settled(a.view, 1000, 1000)
