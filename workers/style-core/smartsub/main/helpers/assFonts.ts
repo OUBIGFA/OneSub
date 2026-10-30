@@ -14,6 +14,9 @@ export function resolveAssFonts(
   report?: FontFallbackReport,
 ): { content: string; fontNames: string[] } {
   const fontNames = new Set([defaultFont]);
+  // Named style resets select that style's font, not the event's default.
+  // Keep declarations intact while collecting every actually used family.
+  const styleFonts = new Map<string, string>();
   let format: string[] = [];
   let section = '';
   const contentWithFonts = content
@@ -29,6 +32,12 @@ export function resolveAssFonts(
           .toLowerCase()
           .split(',')
           .map((field) => field.trim());
+      if ((section === '[v4+ styles]' || section === '[v4 styles]') && /^\s*Style\s*:/i.test(line)) {
+        const values = line.slice(line.indexOf(':') + 1).split(',').map(value => value.trim());
+        const name = values[format.indexOf('name')];
+        const font = values[format.indexOf('fontname')];
+        if (name && font) styleFonts.set(name, font);
+      }
       if (section !== '[events]' || !/^\s*Dialogue\s*:/i.test(line))
         return line;
       const textIndex = format.indexOf('text');
@@ -39,7 +48,11 @@ export function resolveAssFonts(
         start = line.indexOf(',', start) + 1;
         if (!start) throw new Error('Invalid ASS dialogue');
       }
-      let activeFont = defaultFont;
+      const eventFields = line.slice(line.indexOf(':') + 1, start - 1).split(',');
+      const eventStyle = eventFields[format.indexOf('style')]?.trim();
+      const eventFont = styleFonts.get(eventStyle ?? '') ?? defaultFont;
+      let activeFont = eventFont;
+      fontNames.add(activeFont);
       let drawing = false;
       const text = line
         .slice(start)
@@ -51,12 +64,14 @@ export function resolveAssFonts(
                 const name = tag.slice(3).trim();
                 activeFont = name
                   ? resolveBurnFontName(name, false, context)
-                  : defaultFont;
+                  : eventFont;
                 fontNames.add(activeFont);
                 return `\\fn${activeFont}`;
               }
               if (tag.startsWith('\\r')) {
-                activeFont = defaultFont;
+                const styleName = tag.slice(2).trim();
+                activeFont = styleName ? (styleFonts.get(styleName) ?? eventFont) : eventFont;
+                fontNames.add(activeFont);
                 drawing = false;
               }
               const mode = /^\\p(\d+)\s*$/.exec(tag);

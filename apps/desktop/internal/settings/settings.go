@@ -63,7 +63,8 @@ type Settings struct {
 	TranslationDir         string                 `json:"translationDir"` // empty: beside the subtitle or the media
 	TranslationRecovery    string                 `json:"translationRecovery,omitempty"`
 	Processing             *PendingProcessing     `json:"processing,omitempty"`
-	OutputDir              string                 `json:"outputDir"`
+	ComposeAskPath         bool                   `json:"composeAskPath"` // prompt for each export when true
+	OutputDir              string                 `json:"outputDir"`      // empty: source video directory
 	LastStyle              *styles.Style          `json:"lastStyle,omitempty"`
 	StylePreset            string                 `json:"stylePreset,omitempty"` // preset ID
 	UserPresets            []UserPreset           `json:"userPresets,omitempty"`

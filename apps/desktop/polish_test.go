@@ -206,7 +206,7 @@ func TestVolumeAndMuteAreRemembered(t *testing.T) {
 	a := nativeForTest(t)
 	a.setVolume(35, false, time.Now())
 	a.toggleMute(time.Now())
-	if !a.settings.Muted || a.volumeScript() != "video.volume=0.350;video.muted=true;" {
+	if !a.settings.Muted || a.volumeScript() != "video.volume=0.000;video.muted=true;" {
 		t.Fatal(a.volumeScript())
 	}
 	a.saveSettings()

@@ -17,9 +17,10 @@ func (a *NativeApp) reloadFonts() {
 		a.win.Update(func() {
 			a.fontCatalogLoading = false
 			if err != nil {
-				a.errorText = err.Error()
+				a.showError("fonts", err.Error())
 				return
 			}
+			a.clearError("fonts")
 			first := len(a.styleCatalog.Presets) == 0
 			a.styleCatalog = catalog
 			if first {
@@ -29,9 +30,10 @@ func (a *NativeApp) reloadFonts() {
 					a.currentStyle = *a.settings.LastStyle
 					a.stylePreset = a.presetID(a.settings.StylePreset)
 				}
-				a.secondaryStyle = catalog.DefaultStyle
-				// 80% of the main size, kept to one decimal for the size field.
-				a.secondaryStyle.FontSize = math.Round(a.secondaryStyle.FontSize*8) / 10
+				a.secondaryStyle = a.currentStyle
+				// An unconfigured secondary layer inherits the chosen primary
+				// typography at 80%; saved independent secondary styles stay intact.
+				a.secondaryStyle.FontSize = math.Round(a.currentStyle.FontSize*8) / 10
 				a.secondaryPreset = "default"
 				if a.settings.SecondaryStyle != nil {
 					a.secondaryStyle = *a.settings.SecondaryStyle

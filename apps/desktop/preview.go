@@ -101,9 +101,10 @@ func (a *NativeApp) refreshSubtitles() {
 				return
 			}
 			if err != nil {
-				a.errorText = err.Error()
+				a.showError("preview", err.Error())
 				return
 			}
+			a.clearError("preview")
 			a.evalPlayer("setSubtitles(" + string(payload) + ")")
 		})
 	}()

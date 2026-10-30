@@ -107,6 +107,7 @@ func TestDesktopParametersFitWithoutScrolling(t *testing.T) {
 				inLocale(t, language, func() {
 					a := withStyleCatalog(t)
 					a.snapshot.Manifest.MediaPath = "test.mp4"
+					a.splitY = 35 // user provides room; content never forces the divider
 					tt := settled(a.view, size[0], size[1])
 					for range 8 {
 						tt.Frame()
@@ -117,7 +118,7 @@ func TestDesktopParametersFitWithoutScrolling(t *testing.T) {
 							tt.Frame()
 						}
 						if a.workflowScroll.MaxY > 1 || a.styleScroll.MaxY > 1 {
-							t.Fatal("desktop parameter content overflows", tab, a.workflowScroll, a.styleScroll, a.workflowHeight, a.styleHeight)
+							t.Fatal("desktop parameter content overflows", tab, a.workflowScroll, a.styleScroll)
 						}
 						for _, label := range []string{locales.StyleMarginVertical(), locales.RecognitionResetFolder()} {
 							r, ok := tt.Find(label)
@@ -126,7 +127,7 @@ func TestDesktopParametersFitWithoutScrolling(t *testing.T) {
 							}
 						}
 					}
-					if float64(a.splitY) != settings.Default().TopHeight {
+					if a.splitY != 35 {
 						t.Fatal("content fit overwrote user divider preference")
 					}
 				})

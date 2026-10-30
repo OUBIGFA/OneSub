@@ -19,7 +19,7 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 		}, nil)
 		ui.Divider(c)
 		ui.Scroll(c).Grow(1).TrackScroll(&a.workflowScroll).Children(func() {
-			content := ui.Grid(c).Columns(1).Padding(em(c, 12), em(c, panelPad)).Children(func() {
+			ui.Grid(c).Columns(1).Padding(em(c, 12), em(c, panelPad)).Children(func() {
 				for tab := 0; tab < 2; tab++ {
 					page := ui.Column(c.Key(tab)).RowStart(1).ColumnStart(1).Gap(em(c, 20)).AlignSelf(ui.Start)
 					if tab != a.workflowTab {
@@ -34,7 +34,6 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 					})
 				}
 			})
-			measurePanelContent(c, content, &a.workflowHeight)
 		})
 	})
 }

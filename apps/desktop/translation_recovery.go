@@ -137,7 +137,7 @@ func (a *NativeApp) retryTranslation() {
 	a.commitEdit(true)
 	task := *a.translationTask
 	if task.ProjectID != a.snapshot.Manifest.ID || task.Revision != a.snapshot.Revision {
-		a.errorText = locales.TranslationResumeStale()
+		a.showError(locales.ActionTranslate(), locales.TranslationResumeStale())
 		return
 	}
 	if a.settings.ProviderURL == "" || a.settings.ProviderModel == "" {
@@ -164,7 +164,9 @@ func (a *NativeApp) completeTranslationRecovery() {
 		return
 	}
 	if err := writeTranslationRecord(a.translationTask.ProjectPath, translationRecord{Finished: true}, false); err != nil {
-		a.errorText = locales.TranslationProgressWriteError(err.Error())
+		a.showError("translation-recovery", locales.TranslationProgressWriteError(err.Error()))
+	} else {
+		a.clearError("translation-recovery")
 	}
 	a.translationTask, a.translationLive = nil, nil
 	a.settings.TranslationRecovery = ""
@@ -220,7 +222,7 @@ func (a *NativeApp) restoreTranslationProgress() {
 				a.saveSettings()
 			}
 			if previewErr != nil {
-				a.errorText = previewErr.Error()
+				a.showError("player", previewErr.Error())
 			}
 		}, nil
 	})

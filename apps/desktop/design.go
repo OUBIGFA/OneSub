@@ -171,12 +171,3 @@ func parameterGroup(c *ui.Context, title string, action, fields func()) {
 func inlineField(c *ui.Context, label string, control func()) ui.Element {
 	return ui.Form(c, func() { ui.Field(c, label, control) }).AlignSelf(ui.Start)
 }
-
-// Measure the natural content inside a scroll area, not the clipped viewport.
-// The main split can then reserve enough height without shrinking typography.
-func measurePanelContent(c *ui.Context, content ui.Element, height *float32) {
-	if h := content.Bounds().H; h > 0 && h != *height {
-		*height = h
-		c.After(0)
-	}
-}

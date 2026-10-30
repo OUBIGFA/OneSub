@@ -43,14 +43,15 @@ func (a *NativeApp) rememberProcessing(stage string, translate bool) bool {
 		return false
 	}
 	if a.settingsError {
-		a.errorText = locales.ErrSettingsNeedRepair()
+		a.showError("settings", locales.ErrSettingsNeedRepair())
 		return false
 	}
 	a.settings.Processing = &settings.PendingProcessing{ProjectPath: a.snapshot.Path, Stage: stage, Translate: translate, SavedHash: a.savedHash, SavedPath: a.savedPath}
 	if err := settings.Save(filepath.Join(a.dataRoot, "settings.json"), a.settings); err != nil {
-		a.errorText = err.Error()
+		a.showError("settings", err.Error())
 		return false
 	}
+	a.clearError("settings")
 	return true
 }
 
@@ -94,7 +95,7 @@ func (a *NativeApp) restoreProcessing() {
 			a.saveSettings()
 			a.status = locales.ProcessingInterrupted()
 			if previewErr != nil {
-				a.errorText = previewErr.Error()
+				a.showError("player", previewErr.Error())
 			}
 		}, nil
 	})

@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -56,13 +58,14 @@ type NativeApp struct {
 	settingsTab                          int
 	settingsError                        bool
 	errorText, status                    string
+	errorScope                           string    // the operation whose error is currently displayed
+	mediaGeneration                      uint64    // rejects out-of-order media load commands
 	errorShown                           string    // the error the status bar shows, since errorSince
 	errorSince                           time.Time // when it began to show
 	playerError                          string    // the page's last error code
 	rate                                 float64   // the playback speed; 0 is normal
 	loop                                 bool      // the video starts again at its end
 	busy                                 bool
-	waiting                              waitingState
 	choosingFile                         bool
 	cancel                               context.CancelFunc
 	pending                              *importing.Loaded
@@ -71,7 +74,6 @@ type NativeApp struct {
 	editorSplit                          float32 // the editor's share of the room right of the style
 	workflowTab                          int     // 0 recognition, 1 translation
 	workflowScroll, styleScroll          ui.ScrollState
-	workflowHeight, styleHeight          float32 // natural parameter content heights
 	toolbarHeight                        float32 // measured native toolbar, including text scale
 	list                                 ui.ListState
 	selected                             int
@@ -259,12 +261,9 @@ func (a *NativeApp) paneSizes(c *ui.Context) (player, top, style, editor float32
 		}
 	}
 	keep(&player, width, em(c, 500), em(c, 360))
-	// Give the taller parameter page its natural height when the window
-	// permits it. This is only a displayed constraint: shrinking/expanding
-	// the window must not overwrite the user's saved divider proportion.
-	bottom := max(em(c, 180), max(a.workflowHeight, a.styleHeight)+em(c, headerSize)+1)
-	bottom = min(bottom, max(em(c, 180), height-em(c, 320)))
-	keep(&top, height, em(c, 320), bottom)
+	// Content must scroll inside a deliberately shortened pane, never
+	// override a user's drag with its measured natural height.
+	keep(&top, height, em(c, 320), em(c, 180))
 	keep(&style, width, em(c, 340), em(c, 260+300))
 	keep(&editor, width*(100-style)/100, em(c, 260), em(c, 300))
 	return
@@ -296,7 +295,10 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 			})
 		})
 	}).Gap(em(c, 8)).Padding(em(c, 6), em(c, 12)).Background(look.chrome).Label(locales.A11yToolbar())
-	measurePanelContent(c, bar, &a.toolbarHeight)
+	if h := bar.Bounds().H; h > 0 && h != a.toolbarHeight {
+		a.toolbarHeight = h
+		c.After(0)
+	}
 }
 
 // errorDuration is how long the status bar shows an error before it goes
@@ -313,7 +315,7 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 		if left := errorDuration - c.Now().Sub(a.errorSince); left > 0 {
 			c.After(left)
 		} else {
-			a.errorText, a.errorShown = "", ""
+			a.errorText, a.errorShown, a.errorScope = "", "", ""
 		}
 	}
 	ui.Row(c).Height(em(c, 32)).Padding(0, em(c, 12)).Gap(em(c, 12)).AlignItems(ui.Center).Background(look.chrome).FontSize(em(c, captionSize)).Label(locales.A11yStatusBar()).Children(func() {
@@ -328,7 +330,9 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 		if a.lastOutput != "" && !a.busy {
 			ui.Button(c, locales.ResultOpenFolder()).Padding(em(c, 2), em(c, 10)).OnClick(func() {
 				if err := mygo.Shell.OpenPath(filepath.Dir(a.lastOutput)); err != nil {
-					a.errorText = err.Error()
+					a.showError("output-folder", err.Error())
+				} else {
+					a.clearError("output-folder")
 				}
 			})
 		}
@@ -346,7 +350,7 @@ func (a *NativeApp) run(label string, work func(context.Context) (func(), error)
 	}
 	a.commitEdit(true)
 	a.busy = true
-	a.errorText = ""
+	a.clearError(label)
 	a.status = label
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancel = cancel
@@ -370,12 +374,14 @@ func (a *NativeApp) run(label string, work func(context.Context) (func(), error)
 				// Cancelling is the user's choice, not a failure.
 				a.status = locales.StatusCancelled()
 			case err != nil:
-				a.errorText = err.Error()
+				a.showError(label, err.Error())
 				a.status = locales.StatusFailed()
 			case apply != nil:
+				a.clearError(label)
 				a.status = locales.StatusDone()
 				apply()
 			default:
+				a.clearError(label)
 				a.status = ""
 			}
 			if a.quitAfterTask {
@@ -457,9 +463,9 @@ func (a *NativeApp) importFiles(ctx context.Context, paths []string, wordEvidenc
 		a.candidatesOpen = len(selection.Candidates) > 0
 		a.duration = float64(loaded.Media.DurationMs()) / 1000
 		a.frameAspect = loaded.Media.FrameAspect()
-		a.errorText = strings.Join(loaded.Warnings, locales.ListSeparator())
+		a.showError("import", strings.Join(loaded.Warnings, locales.ListSeparator()))
 		if previewErr != nil {
-			a.errorText = previewErr.Error()
+			a.showError("player", previewErr.Error())
 		}
 	}, nil
 }
@@ -512,11 +518,13 @@ func (a *NativeApp) candidatesView(c *ui.Context) {
 func (a *NativeApp) saveSettings() {
 	a.settings.SyncProvider()
 	if a.settingsError {
-		a.errorText = locales.ErrSettingsNeedRepair()
+		a.showError("settings", locales.ErrSettingsNeedRepair())
 		return
 	}
 	if err := settings.Save(filepath.Join(a.dataRoot, "settings.json"), a.settings); err != nil {
-		a.errorText = err.Error()
+		a.showError("settings", err.Error())
+	} else {
+		a.clearError("settings")
 	}
 }
 func (a *NativeApp) settingsView(c *ui.Context) {
@@ -581,11 +589,19 @@ func (a *NativeApp) evalPlayer(script string) {
 	if a.player == nil {
 		return
 	}
+	generation := a.mediaGeneration
 	go func() {
 		_, err := a.player.Page().Eval(script)
-		if err != nil {
-			a.win.Update(func() { a.errorText = locales.ErrPlayer(err.Error()) })
-		}
+		a.win.Update(func() {
+			if generation != a.mediaGeneration {
+				return
+			}
+			if err != nil {
+				a.showError("player-command", locales.ErrPlayer(err.Error()))
+			} else {
+				a.clearError("player-command")
+			}
+		})
 	}()
 }
 func (a *NativeApp) loadVideo() {
@@ -593,12 +609,11 @@ func (a *NativeApp) loadVideo() {
 		return
 	}
 	a.previewPending = true
-	if a.mediaURL == "" {
-		a.evalPlayer("video.pause();video.removeAttribute('src');video.load();setSubtitles(null);window.previewError=''")
-		return
-	}
+	a.mediaGeneration++
 	value, _ := json.Marshal(a.mediaURL)
-	a.evalPlayer("video.pause();setSubtitles(null);window.previewError='';video.src=" + string(value) + ";video.load();" + a.volumeScript() + a.rateScript())
+	// Load commands run asynchronously; a delayed older command cannot
+	// restore the previous video after clear or a second import.
+	a.evalPlayer(fmt.Sprintf("loadMedia(%s,%d);", value, a.mediaGeneration) + a.volumeScript() + a.rateScript())
 }
 func (a *NativeApp) requestExit() {
 	if a.busy {
@@ -626,7 +641,7 @@ func (a *NativeApp) requestExit() {
 	}
 	if a.store != nil {
 		if err := a.store.Close(); err != nil {
-			a.errorText = err.Error()
+			a.showError("project", err.Error())
 			return
 		}
 		a.store = nil
@@ -684,6 +699,20 @@ func main() {
 		}
 		return
 	}
+	// WebView2's DirectComposition video path can keep a stale first-frame
+	// clip even after DOM/native bounds agree. Use Chromium's composited
+	// presentation path without disabling hardware video decoding or MyGo's renderer.
+	// This environment change belongs only to this process and its WebView2
+	// children, never the user's system settings. See the verification note.
+	if runtime.GOOS == "windows" {
+		const flag = "--disable-direct-composition"
+		arguments := os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS")
+		if !slices.Contains(strings.Fields(arguments), flag) {
+			if err := os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", strings.TrimSpace(arguments+" "+flag)); err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
 	// Claim the application before any worker, data store or tray is created.
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
@@ -733,7 +762,7 @@ func main() {
 	defer preview.Close()
 	a := &NativeApp{resources: resources, dataRoot: data, settings: prefs, settingsError: prefsErr != nil, preview: preview, worker: subtitle.Client{Executable: filepath.Join(resources, "subtitle-core", "OneSub.SubtitleCore.exe"), Scratch: scratch}, probe: filepath.Join(resources, "media-tools", "ffprobe.exe"), ffmpeg: filepath.Join(resources, "media-tools", "ffmpeg.exe"), splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, followRow: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
 	if prefsErr != nil {
-		a.errorText = locales.ErrSettingsUnreadable()
+		a.showError("settings", locales.ErrSettingsUnreadable())
 	}
 	if configured := os.Getenv("ONESUB_SUBTITLE_WORKER"); configured != "" {
 		a.worker.Executable = configured
@@ -773,7 +802,7 @@ func main() {
 		// Black fills the player until its page paints, as the page itself is.
 		a.player, err = a.win.NewWebView(mygo.WebViewOptions{URL: "/", BackgroundColor: "#000000"})
 		if err != nil {
-			a.errorText = err.Error()
+			a.showError("player", err.Error())
 		} else {
 			a.player.Page().OnDOMReady(func() {
 				a.win.Update(func() {
@@ -784,7 +813,7 @@ func main() {
 			})
 		}
 		if err = a.makeTray(); err != nil {
-			a.errorText = locales.ErrTrayUnavailable()
+			a.showError("tray", locales.ErrTrayUnavailable())
 		}
 		a.win.OnFileDrop(func(e *mygo.FileDropEvent) {
 			a.importPaths(append([]string{}, e.Paths...))
@@ -835,7 +864,9 @@ func (a *NativeApp) syncPlayer() {
 			Duration float64 `json:"duration"`
 			Paused   bool    `json:"paused"`
 			Error    string  `json:"error"`
-		}](a.player.Page(), "({position:video.currentTime,duration:Number.isFinite(video.duration)?video.duration:0,paused:video.paused,error:window.previewError||''})")
+			Source   string  `json:"source"`
+			Aspect   float64 `json:"aspect"`
+		}](a.player.Page(), "({position:video.currentTime,duration:Number.isFinite(video.duration)?video.duration:0,paused:video.paused,error:window.previewError||'',source:video.getAttribute('src')||'',aspect:video.videoHeight?video.videoWidth/video.videoHeight:0})")
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
@@ -843,6 +874,12 @@ func (a *NativeApp) syncPlayer() {
 			continue
 		}
 		a.win.Update(func() {
+			if result.Source != a.mediaURL {
+				return // an older media poll cannot overwrite a newly loaded source
+			}
+			if result.Aspect > 0 {
+				a.frameAspect = result.Aspect
+			}
 			// Playing again follows the playhead again, from its cue.
 			if a.paused && !result.Paused {
 				a.followPaused, a.followRow, a.activeCue = false, -1, -1
@@ -853,9 +890,9 @@ func (a *NativeApp) syncPlayer() {
 			// A page error shows once, as it happens, not again every poll.
 			if result.Error != a.playerError {
 				a.playerError = result.Error
-				if result.Error != "" {
-					a.errorText = playerErrorText(result.Error)
-				}
+				a.showError("player", playerErrorText(result.Error))
+			} else if result.Error == "" {
+				a.clearError("player")
 			}
 		})
 	}

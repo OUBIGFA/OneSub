@@ -31,7 +31,7 @@ func (a *NativeApp) recognizeWithTranslation(translate bool) {
 			a.settingsOpen = true
 			a.settingsTab = 1
 		}
-		a.errorText = err.Error()
+		a.showError(locales.ActionRecognize(), err.Error())
 		return
 	}
 	if a.guardUnsaved(func() { a.recognizeWithTranslation(translate) }) {
