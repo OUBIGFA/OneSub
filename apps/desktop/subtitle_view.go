@@ -96,7 +96,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			maximum = max(maximum, cue.Position+1)
 		}
 		cols := []ui.TableColumn{numberColumn(c, maximum), timeColumn(c, locales.ListColumnStart()), timeColumn(c, locales.ListColumnEnd()), {Title: locales.ListColumnText()}}
-		table := ui.Table(c, &a.list, cols, len(rows), func(row, col int) {
+		table := subtitleTable(c, &a.list, cols, len(rows), func(row, col int) {
 			index := rows[row]
 			cue := cues[index]
 			// The row being edited shows the draft, so typing updates the
@@ -136,7 +136,11 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 					ui.Text(c, text)
 				})
 			}
-		}).Grow(1).Label(locales.A11ySubtitleList()).ContextMenu(func(m *ui.Menu) {
+		}, func(bool) {
+			// Reading another part of the list must not seek or edit a cue,
+			// nor be undone immediately by a pending playback locate.
+			a.followPaused, a.locateCue = true, -1
+		}).Label(locales.A11ySubtitleList()).ContextMenu(func(m *ui.Menu) {
 			// The blank list area and keyboard menu use the current selection.
 			a.list.Focus(c)
 			a.subtitleStructureMenu(m, a.selected)

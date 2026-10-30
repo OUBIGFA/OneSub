@@ -106,7 +106,7 @@ func toolIcon(c *ui.Context, label, name string) ui.Element {
 // way down to its own content, never further, and the middle shrinks, as a
 // file name does.
 func panelHeader(c *ui.Context, start, middle, end func()) {
-	row := ui.Row(c).Height(em(c, headerSize)).Padding(0, em(c, 12)).Gap(em(c, 4)).AlignItems(ui.Center).Shrink(0)
+	row := ui.Row(c).Height(em(c, headerSize)).Padding(0, em(c, 8)).Gap(em(c, 2)).AlignItems(ui.Center).Shrink(0)
 	widths := ui.Local(row, "sides", func() [2]float32 { return [2]float32{} })
 	row.Children(func() {
 		side := func(i int, justify ui.Align, gap float32, content func()) {

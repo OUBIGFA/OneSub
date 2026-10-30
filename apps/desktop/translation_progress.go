@@ -21,8 +21,9 @@ type translationLive struct {
 	final                   map[int]bool
 	thinking, retry         string
 	requests, input, output int
-	latest                  int // the row last written to
-	shown                   int // the row the list last followed
+	latest                  int  // the row last written to
+	shown                   int  // the row the list last followed
+	followPaused            bool // reading earlier rows until the user returns to the bottom
 	list                    ui.ListState
 	started                 time.Time
 	stopped, model          string
@@ -140,7 +141,7 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 		return
 	}
 	cols := []ui.TableColumn{numberColumn(c, len(l.units)), timeColumn(c, locales.ListColumnStart()), {Title: locales.TabSource()}, {Title: locales.TabTranslation()}}
-	ui.Table(c, &l.list, cols, len(l.units), func(row, col int) {
+	subtitleTable(c, &l.list, cols, len(l.units), func(row, col int) {
 		cue := l.units[row]
 		switch col {
 		case 0:
@@ -158,11 +159,16 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 				muted(c, l.texts[row])
 			}
 		}
-	}).Grow(1).Label(locales.TranslationLive())
-	// The list follows the newest translated row.
+	}, func(toEnd bool) {
+		l.followPaused, l.shown = !toEnd, l.latest
+	}).Label(locales.TranslationLive())
+	// New text must not pull someone reading the top back down. Returning
+	// to the bottom resumes following subsequent translation updates.
 	if l.latest > l.shown {
 		l.shown = l.latest
-		l.list.ScrollTo(l.latest, ui.Center)
+		if !l.followPaused {
+			l.list.ScrollTo(l.latest, ui.Center)
+		}
 	}
 }
 

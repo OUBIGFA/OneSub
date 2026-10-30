@@ -55,19 +55,70 @@ type ComposeReport struct {
 	Sample       bool           `json:"sample"`
 	DurationMs   int64          `json:"durationMs"`
 	Streams      map[string]int `json:"streams"`
+	Chapters     int            `json:"chapters"`
 	Checks       []string       `json:"checks"`
 }
 
-func streamCounts(info Info) map[string]int {
+func streamCounts(streams []Stream) map[string]int {
 	counts := map[string]int{}
-	for _, s := range info.Streams {
+	for _, s := range streams {
 		counts[s.CodecType]++
 	}
 	return counts
 }
 
+// compositionStreams excludes only QuickTime text chapter carriers identified
+// by FFmpeg's mov_read_chapters (data/bin_data with text or tx3g tag). Their
+// content is already in Chapters and is preserved through -map_chapters, not
+// raw stream copying: MP4 recreates a carrier, while MKV uses chapter metadata.
+// A handler name alone is not evidence; unknown data and missing chapters stay
+// in the plan and are rejected instead of being silently discarded.
+func compositionStreams(info Info) []Stream {
+	mov := strings.Contains(","+info.Format.FormatName+",", ",mov,")
+	streams := make([]Stream, 0, len(info.Streams))
+	for _, s := range info.Streams {
+		if mov && len(info.Chapters) > 0 && s.CodecType == "data" && s.CodecName == "bin_data" && (s.CodecTag == "text" || s.CodecTag == "tx3g") {
+			continue
+		}
+		streams = append(streams, s)
+	}
+	return streams
+}
+
+// chaptersPreserved checks the actual content, not just the number of chapter
+// carriers. FFmpeg clips chapters to the requested five-second sample; a full
+// export must retain every chapter's title and boundaries (within 1 ms).
+func chaptersPreserved(source, output []Chapter, sample bool) bool {
+	matched := 0
+	for _, chapter := range source {
+		start, startErr := strconv.ParseFloat(chapter.StartTime, 64)
+		end, endErr := strconv.ParseFloat(chapter.EndTime, 64)
+		if startErr != nil || endErr != nil || math.IsNaN(start) || math.IsNaN(end) || math.IsInf(start, 0) || math.IsInf(end, 0) || end < start {
+			return false
+		}
+		if sample {
+			if start >= 5 {
+				continue
+			}
+			end = min(end, 5)
+		}
+		if matched >= len(output) {
+			return false
+		}
+		got := output[matched]
+		gotStart, startErr := strconv.ParseFloat(got.StartTime, 64)
+		gotEnd, endErr := strconv.ParseFloat(got.EndTime, 64)
+		if startErr != nil || endErr != nil || !(math.Abs(gotStart-start) <= .001) || !(math.Abs(gotEnd-end) <= .001) || got.Tags["title"] != chapter.Tags["title"] {
+			return false
+		}
+		matched++
+	}
+	return matched == len(output)
+}
+
 // ComposeArgs is the auditable stream plan. Existing audio/subtitle/attachment
-// streams are never dropped silently. MP4-incompatible streams require MKV.
+// streams are never dropped silently. Chapter metadata has its own mapping;
+// unsupported data streams still fail preflight. MP4 attachments require MKV.
 func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]string, error) {
 	if options.Mode != "hard" && options.Mode != "soft" {
 		return nil, errors.New(locales.ErrComposeMode())
@@ -85,7 +136,7 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 	audio := []Stream{}
 	subs := []Stream{}
 	attachments := []Stream{}
-	for _, s := range info.Streams {
+	for _, s := range compositionStreams(info) {
 		switch s.CodecType {
 		case "video":
 			if s.Disposition.AttachedPic != 0 {
@@ -350,20 +401,25 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	if err != nil {
 		return report, err
 	}
-	expected := streamCounts(info)
+	expected := streamCounts(compositionStreams(info))
 	if options.Mode == "soft" {
 		expected["subtitle"]++
 	}
-	actual := streamCounts(output)
+	actual := streamCounts(compositionStreams(output))
 	for kind, count := range expected {
 		if actual[kind] != count {
 			return report, errors.New(locales.ErrComposeStreamCount(kind, count, actual[kind]))
 		}
 	}
+	for kind, count := range actual {
+		if expected[kind] != count {
+			return report, errors.New(locales.ErrComposeStreamCount(kind, expected[kind], count))
+		}
+	}
 	if duration <= 0 || math.Abs(float64(output.DurationMs()-duration)) > 250 {
 		return report, errors.New(locales.ErrComposeDuration())
 	}
-	if !options.Sample && len(info.Chapters) != len(output.Chapters) {
+	if !chaptersPreserved(info.Chapters, output.Chapters, options.Sample) {
 		return report, errors.New(locales.ErrComposeChapters())
 	}
 	// Full decode is intentionally stronger than merely finding streams in headers.
@@ -375,8 +431,9 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 		return report, err
 	}
 	report.DurationMs = output.DurationMs()
-	report.Streams = actual
-	report.Checks = []string{"streams", "duration", "chapters", "full audiovisual decode", "sha256"}
+	report.Streams = streamCounts(output.Streams)
+	report.Chapters = len(output.Chapters)
+	report.Checks = []string{"streams", "duration", "chapter titles and timings", "full audiovisual decode", "sha256"}
 	if err = os.Link(partial, options.Destination); err != nil {
 		return report, apperr.Wrap(locales.ErrComposePublish(err.Error()), err)
 	}

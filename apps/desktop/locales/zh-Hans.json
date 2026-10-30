@@ -128,6 +128,8 @@
   "listSave": "保存",
   "listSaveAs": "另存为",
   "listLocate": "回到当前字幕",
+  "listTop": "返回顶部",
+  "listBottom": "返回底部",
   "listEmpty": "未加载字幕",
   "listColumnStart": "开始",
   "listColumnEnd": "结束",
@@ -399,7 +401,7 @@
   "errFontChanged": "字体文件已改变，请重新生成样式",
   "errComposeStreamCount": "产物流数量不符：{kind}，应为 {expected}，实际 {actual}",
   "errComposeDuration": "产物时长与来源不符",
-  "errComposeChapters": "产物章节数量不符",
+  "errComposeChapters": "产物章节的数量、标题或时间与来源不符",
   "errComposeDecode": "产物解码检查失败：{detail}",
   "errComposePublish": "无法发布，已有文件未覆盖：{detail}",
   "errComposeReport": "视频已生成，但报告无法保存：{detail}",
@@ -608,7 +610,7 @@
   "subtitleTranslationOptional": "译文（选填）",
   "subtitleInserted": "已插入字幕",
   "subtitleDeleted": "已删除字幕",
-  "actionRecognizeTranslate": "识别并翻译",
+  "actionRecognizeTranslate": "一键识别并翻译",
   "processingInterrupted": "处理已中断，可继续处理",
   "recognitionRestartNote": "继续处理将重新执行未完成的识别步骤"
 }
