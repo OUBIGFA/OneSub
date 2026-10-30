@@ -40,7 +40,7 @@ func TestWorkbenchRegionsAndStyleSections(t *testing.T) {
 	if !ok {
 		t.Fatal(tt.Texts())
 	}
-	original, ok := tt.Find("原文")
+	original, ok := tt.Find("原始字幕")
 	if !ok {
 		t.Fatal(tt.Texts())
 	}

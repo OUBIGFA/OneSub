@@ -19,12 +19,8 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 	ready := hasCues && len(a.styleCatalog.Presets) > 0
 	ass := a.snapshot != nil && (a.snapshot.Document.Format == "ass" || a.snapshot.Document.Format == "ssa")
 	layer := a.editedLayer()
-	ui.Column(c).Fill().Children(func() {
-		panelHeader(c, func() { panelTitle(c, locales.StyleTitle()) }, nil, func() {
-			if ready && !ass {
-				a.presetControls(c, layer)
-			}
-		})
+	ui.Column(c).Fill().Label(locales.A11yStylePanel()).Children(func() {
+		panelHeader(c, nil, func() { panelTitle(c, locales.StyleTitle()) }, nil)
 		ui.Divider(c)
 		switch {
 		case !hasCues:
@@ -37,6 +33,9 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 				// The room the sections have, from the last frame's layout.
 				a.styleRoom = content.Bounds().W - 2*em(c, panelPad)
 				content.Children(func() {
+					if !ass {
+						ui.Row(c).Justify(ui.End).Children(func() { a.presetControls(c, layer) })
+					}
 					ui.Form(c, func() { a.outputFields(c, false) })
 					if ass {
 						muted(c, locales.StyleKeepAss())

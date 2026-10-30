@@ -1,4 +1,4 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged)
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -42,6 +42,7 @@ $video = Join-Path $workPath 'test.mp4'
 $subtitle = Join-Path $workPath 'test.srt'
 $sourceText = if ($TranslationEndpoint) { 'Hello, world' } else { '测试字幕' }
 [IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:02,900`n$sourceText`n",[Text.UTF8Encoding]::new($false))
+if($InterruptTranslation){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:01,400`n$sourceText`n`n2`n00:00:01,500 --> 00:00:02,900`nGood morning`n",[Text.UTF8Encoding]::new($false))}
 & ffmpeg -v error -f lavfi -i 'testsrc2=size=320x180:rate=10:duration=3' -c:v libx264 -pix_fmt yuv420p $video
 if($LASTEXITCODE -ne 0){throw 'Fixture creation failed'}
 $env:ONESUB_DATA_ROOT = Join-Path $workPath 'data'
@@ -70,8 +71,10 @@ if($OpenArgument){$launch.ArgumentList=@('"'+$video+'"')}
 $p=Start-Process @launch
 function Find-UI($name) {
     $p.Refresh()
-    if($p.HasExited -or -not $p.MainWindowHandle){return $null}
-    $root=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+    if($p.HasExited){return $null}
+    $handle=$p.MainWindowHandle
+    if($handle -eq [IntPtr]::Zero){return $null}
+    $root=[System.Windows.Automation.AutomationElement]::FromHandle($handle)
     if(-not $root){return $null}
     $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name)
     return $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$condition)
@@ -164,6 +167,25 @@ try {
         $translated=Join-Path $workPath 'test-zh.srt'
         if(Test-Path $translated){throw 'Partial translation was published before completion'}
         & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-live.png')
+        if($InterruptTranslation){
+            for($i=0;$i -lt 150;$i++){if(Find-UI '重试'){break};Start-Sleep -Milliseconds 100}
+            if(-not (Find-UI '重试') -or -not (Find-UI '你好，世界') -or -not (Find-UI '尚未完成')){throw 'Interruption hid completed or draft text'}
+            if(Test-Path $translated){throw 'Interrupted translation was published'}
+            & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-interrupted.png')
+            # Only the process this script launched, with isolated data and IPC,
+            # is stopped to exercise recovery after an unexpected application exit.
+            if([IO.Path]::GetFullPath($p.Path) -ne [IO.Path]::GetFullPath($Exe)){throw 'Test process identity changed'}
+            Stop-Process -Id $p.Id -Force
+            $p.WaitForExit()
+            $restart=$launch.Clone()
+            $restart.Remove('ArgumentList')
+            $restart.RedirectStandardError=Join-Path $workPath 'restart-stderr.log'
+            $p=Start-Process @restart
+            for($i=0;$i -lt 150;$i++){if(Find-UI '重试'){break};Start-Sleep -Milliseconds 100}
+            if(-not (Find-UI '重试') -or -not (Find-UI '你好，世界') -or -not (Find-UI '尚未完成')){throw 'Restart did not restore the translation'}
+            & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-restored.png')
+            Click-UI '重试'
+        }
         for($i=0;$i -lt 200;$i++){if(Test-Path $translated){break};Start-Sleep -Milliseconds 100}
         if(-not (Test-Path $translated)){throw 'Translation was not automatically saved'}
         if(-not [IO.File]::ReadAllText($translated).Contains('你好，世界')){throw 'Saved translation has no translated text'}
@@ -172,7 +194,7 @@ try {
         Start-Sleep -Seconds 2
         & $ScreenshotTool $p.Id (Join-Path $workPath 'translation.png')
         Click-UI '撤销'
-        Select-Tab '字幕语言' '原文'
+        Select-Tab '字幕语言' '原始字幕'
         for($i=0;$i -lt 100;$i++){if(Find-UI $sourceText){break};Start-Sleep -Milliseconds 100}
         if(-not (Find-UI $sourceText)){throw 'Translation undo did not restore the original'}
     }

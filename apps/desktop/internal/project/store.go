@@ -19,7 +19,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 1
+const schemaVersion = 2
 const maxSafeTime = int64(9007199254740991)
 
 type Manifest struct {
@@ -31,12 +31,13 @@ type Manifest struct {
 	SourceSHA256 string `json:"sourceSha256"`
 }
 type Snapshot struct {
-	Manifest Manifest          `json:"manifest"`
-	Path     string            `json:"path"`
-	Revision int64             `json:"revision"`
-	Document subtitle.Document `json:"document"`
-	CanUndo  bool              `json:"canUndo"`
-	CanRedo  bool              `json:"canRedo"`
+	Manifest       Manifest          `json:"manifest"`
+	Path           string            `json:"path"`
+	Revision       int64             `json:"revision"`
+	Document       subtitle.Document `json:"document"`
+	SourceDocument subtitle.Document `json:"sourceDocument"`
+	CanUndo        bool              `json:"canUndo"`
+	CanRedo        bool              `json:"canRedo"`
 }
 
 type Store struct {
@@ -45,6 +46,24 @@ type Store struct {
 	lock     *os.File
 	path     string
 	manifest Manifest
+}
+
+// TrackDocument separates the original segmentation from the rebuilt source
+// and translation. The fallback supports snapshots created by older clients.
+func (s Snapshot) TrackDocument(track int) subtitle.Document {
+	if track == 0 && s.SourceDocument.Cues != nil {
+		return s.SourceDocument
+	}
+	return s.Document
+}
+
+// OutputDocument selects the timeline before the language projection. Bilingual
+// output always pairs the rebuilt source with its translation, never raw cues.
+func (s Snapshot) OutputDocument(options subtitle.OutputOptions) subtitle.Document {
+	if options.Normalized().Mode == "source" && options.SourceTrack == "original" {
+		return s.TrackDocument(0)
+	}
+	return s.Document
 }
 
 // Create reserves a new directory; existing projects and their sources are never
@@ -126,12 +145,18 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	// No migration is attempted on an unknown schema; the existing files stay intact.
-	if m.Schema != schemaVersion || m.ID == "" {
+	if (m.Schema != 1 && m.Schema != schemaVersion) || m.ID == "" {
 		return nil, errors.New(locales.ErrProjectVersion())
 	}
 	s, err := connect(path, m, false)
 	if err != nil {
 		return nil, err
+	}
+	if m.Schema == 1 {
+		if err = s.upgradeOriginalTrack(); err != nil {
+			s.Close()
+			return nil, err
+		}
 	}
 	if _, err = s.Snapshot(); err != nil {
 		s.Close()
@@ -176,9 +201,10 @@ func (s *Store) initialize(doc subtitle.Document) error {
 	defer tx.Rollback()
 	_, err = tx.Exec(`CREATE TABLE state (singleton INTEGER PRIMARY KEY CHECK(singleton=1), revision INTEGER NOT NULL, cursor INTEGER NOT NULL, format TEXT NOT NULL, original TEXT NOT NULL);
  CREATE TABLE cues (id TEXT PRIMARY KEY, position INTEGER UNIQUE NOT NULL, body TEXT NOT NULL);
- CREATE TABLE history (seq INTEGER PRIMARY KEY, before_json TEXT NOT NULL, after_json TEXT NOT NULL);
+ CREATE TABLE source_cues (id TEXT PRIMARY KEY, position INTEGER UNIQUE NOT NULL, body TEXT NOT NULL);
+ CREATE TABLE history (seq INTEGER PRIMARY KEY, before_json TEXT NOT NULL, after_json TEXT NOT NULL, track TEXT NOT NULL DEFAULT 'working');
  CREATE TABLE commands (id TEXT PRIMARY KEY, revision INTEGER NOT NULL);
- PRAGMA user_version=1;`)
+ PRAGMA user_version=2;`)
 	if err != nil {
 		return err
 	}
@@ -195,6 +221,9 @@ func (s *Store) initialize(doc subtitle.Document) error {
 			return err
 		}
 		if _, err = tx.Exec("INSERT INTO cues VALUES(?,?,?)", cue.ID, cue.Position, string(raw)); err != nil {
+			return err
+		}
+		if _, err = tx.Exec("INSERT INTO source_cues VALUES(?,?,?)", cue.ID, cue.Position, string(raw)); err != nil {
 			return err
 		}
 	}
@@ -225,6 +254,28 @@ func (s *Store) Snapshot() (Snapshot, error) {
 			return result, err
 		}
 		result.Document.Cues = append(result.Document.Cues, cue)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return result, err
+	}
+	result.SourceDocument = subtitle.Document{Format: result.Document.Format, Original: result.Document.Original, Cues: []subtitle.Cue{}}
+	rows, err = s.db.Query("SELECT body FROM source_cues ORDER BY position")
+	if err != nil {
+		return result, err
+	}
+	for rows.Next() {
+		var raw string
+		var cue subtitle.Cue
+		if err = rows.Scan(&raw); err == nil {
+			err = json.Unmarshal([]byte(raw), &cue)
+		}
+		if err != nil {
+			rows.Close()
+			return result, err
+		}
+		result.SourceDocument.Cues = append(result.SourceDocument.Cues, cue)
 	}
 	err = rows.Err()
 	rows.Close()
@@ -263,8 +314,23 @@ func (s *Store) apply(commandID string, expected int64, edits []Edit, manual boo
 			return cursor, errors.New(locales.ErrNoEdits())
 		}
 		before, after := []subtitle.Cue{}, []subtitle.Cue{}
+		track, table := "working", "cues"
+		if manual && edits[0].Track == "original" {
+			track, table = "original", "source_cues"
+			// Source corrections before the first rebuild also become its input.
+			var same bool
+			if err := tx.QueryRow("SELECT NOT EXISTS(SELECT id,body FROM cues EXCEPT SELECT id,body FROM source_cues) AND NOT EXISTS(SELECT id,body FROM source_cues EXCEPT SELECT id,body FROM cues)").Scan(&same); err != nil {
+				return cursor, err
+			}
+			if same {
+				track = "both"
+			}
+		}
 		seen := map[string]bool{}
 		for _, e := range edits {
+			if (e.Track == "original") != (table == "source_cues") {
+				return cursor, errors.New(locales.ErrTrack())
+			}
 			if seen[e.ID] {
 				return cursor, errors.New(locales.ErrDuplicateEdit())
 			}
@@ -276,7 +342,7 @@ func (s *Store) apply(commandID string, expected int64, edits []Edit, manual boo
 				return cursor, errors.New(locales.ErrEditText())
 			}
 			var raw string
-			if err := tx.QueryRow("SELECT body FROM cues WHERE id=?", e.ID).Scan(&raw); err != nil {
+			if err := tx.QueryRow("SELECT body FROM "+table+" WHERE id=?", e.ID).Scan(&raw); err != nil {
 				return cursor, err
 			}
 			var cue subtitle.Cue
@@ -289,7 +355,7 @@ func (s *Store) apply(commandID string, expected int64, edits []Edit, manual boo
 			if !manual && (cue.TextLocked || cue.StartMs != e.StartMs || cue.EndMs != e.EndMs) {
 				return cursor, errors.New(locales.ErrCandidateLocked())
 			}
-			if e.Track != "" && e.Track != "source" && e.Track != "translation" {
+			if e.Track != "" && e.Track != "source" && e.Track != "translation" && e.Track != "original" {
 				return cursor, errors.New(locales.ErrTrack())
 			}
 			if !manual && e.Track != "" {
@@ -324,7 +390,7 @@ func (s *Store) apply(commandID string, expected int64, edits []Edit, manual boo
 			cue.StartMs, cue.EndMs = e.StartMs, e.EndMs
 			after = append(after, cue)
 		}
-		return recordHistory(tx, cursor, before, after)
+		return recordTrackHistory(tx, cursor, before, after, track)
 	})
 }
 
@@ -350,7 +416,11 @@ func (s *Store) SetTextLock(commandID string, expected int64, id string, locked 
 }
 
 func recordHistory(tx *sql.Tx, cursor int64, before, after []subtitle.Cue) (int64, error) {
-	if err := replaceCues(tx, before, after); err != nil {
+	return recordTrackHistory(tx, cursor, before, after, "working")
+}
+
+func recordTrackHistory(tx *sql.Tx, cursor int64, before, after []subtitle.Cue, track string) (int64, error) {
+	if err := replaceTrackCues(tx, before, after, track); err != nil {
 		return cursor, err
 	}
 	if _, err := tx.Exec("DELETE FROM history WHERE seq>?", cursor); err != nil {
@@ -364,7 +434,7 @@ func recordHistory(tx *sql.Tx, cursor int64, before, after []subtitle.Cue) (int6
 	if err != nil {
 		return cursor, err
 	}
-	_, err = tx.Exec("INSERT INTO history VALUES(?,?,?)", cursor+1, string(b), string(a))
+	_, err = tx.Exec("INSERT INTO history(seq,before_json,after_json,track) VALUES(?,?,?,?)", cursor+1, string(b), string(a), track)
 	return cursor + 1, err
 }
 
@@ -374,8 +444,8 @@ func (s *Store) Undo(commandID string, expected int64, redo bool) (int64, error)
 		if redo {
 			seq, next = cursor+1, cursor+1
 		}
-		var beforeRaw, afterRaw string
-		if err := tx.QueryRow("SELECT before_json,after_json FROM history WHERE seq=?", seq).Scan(&beforeRaw, &afterRaw); err != nil {
+		var beforeRaw, afterRaw, track string
+		if err := tx.QueryRow("SELECT before_json,after_json,track FROM history WHERE seq=?", seq).Scan(&beforeRaw, &afterRaw, &track); err != nil {
 			return cursor, errors.New(locales.ErrNothingToUndo())
 		}
 		var before, after []subtitle.Cue
@@ -386,15 +456,35 @@ func (s *Store) Undo(commandID string, expected int64, redo bool) (int64, error)
 			return cursor, err
 		}
 		if redo {
-			return next, replaceCues(tx, before, after)
+			return next, replaceTrackCues(tx, before, after, track)
 		}
-		return next, replaceCues(tx, after, before)
+		return next, replaceTrackCues(tx, after, before, track)
 	})
 }
 
 func replaceCues(tx *sql.Tx, before, cues []subtitle.Cue) error {
+	return replaceTableCues(tx, before, cues, "cues")
+}
+
+func replaceTrackCues(tx *sql.Tx, before, cues []subtitle.Cue, track string) error {
+	if track == "original" || track == "both" {
+		if err := replaceTableCues(tx, before, cues, "source_cues"); err != nil {
+			return err
+		}
+	}
+	if track == "working" || track == "both" {
+		return replaceCues(tx, before, cues)
+	}
+	if track != "original" {
+		return errors.New(locales.ErrTrack())
+	}
+	return nil
+}
+
+// table is selected inside the store, never supplied by an external caller.
+func replaceTableCues(tx *sql.Tx, before, cues []subtitle.Cue, table string) error {
 	for _, cue := range before {
-		if _, err := tx.Exec("DELETE FROM cues WHERE id=?", cue.ID); err != nil {
+		if _, err := tx.Exec("DELETE FROM "+table+" WHERE id=?", cue.ID); err != nil {
 			return err
 		}
 	}
@@ -403,7 +493,7 @@ func replaceCues(tx *sql.Tx, before, cues []subtitle.Cue) error {
 		if err != nil {
 			return err
 		}
-		if _, err = tx.Exec("INSERT INTO cues(id,position,body) VALUES(?,?,?)", cue.ID, cue.Position, string(raw)); err != nil {
+		if _, err = tx.Exec("INSERT INTO "+table+"(id,position,body) VALUES(?,?,?)", cue.ID, cue.Position, string(raw)); err != nil {
 			return err
 		}
 	}

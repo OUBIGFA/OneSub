@@ -1,10 +1,46 @@
 package settings
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+// Saved providers keep their own model and advertised limits after restart.
+func TestSavedProvidersSurviveRestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	raw := `{"version":3,"activeProvider":"b","providers":[{"id":"a","name":"Studio","url":"https://a.example/v1","api":"chat-completions","model":"a1"},{"id":"b","name":"Backup","url":"https://b.example/v1","api":"responses","model":"b1","models":[{"id":"b1","maxInputTokens":120000,"maxOutputTokens":8192,"contextWindow":128000}]}]}`
+	if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.ProviderURL != "https://b.example/v1" || s.ProviderModel != "b1" || s.ProviderAPI != "responses" {
+		t.Fatalf("selected provider not restored: %s %s %s", s.ProviderURL, s.ProviderModel, s.ProviderAPI)
+	}
+	if err := Save(path, s); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved struct {
+		Providers []struct {
+			Name   string
+			Models []struct{ MaxInputTokens, MaxOutputTokens, ContextWindow int }
+		}
+	}
+	if err := json.Unmarshal(data, &saved); err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Providers) != 2 || saved.Providers[1].Name != "Backup" || len(saved.Providers[1].Models) != 1 || saved.Providers[1].Models[0].MaxInputTokens != 120000 || saved.Providers[1].Models[0].MaxOutputTokens != 8192 || saved.Providers[1].Models[0].ContextWindow != 128000 {
+		t.Fatalf("provider data lost: %s", data)
+	}
+}
 
 func TestTrayAndPerModelPathsSurviveRestart(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")

@@ -18,12 +18,12 @@ const editCommitDelay = 600 * time.Millisecond
 
 func (a *NativeApp) subtitlesView(c *ui.Context) {
 	ui.Column(c).Fill().Children(func() {
-		hasCues := a.snapshot != nil && len(a.snapshot.Document.Cues) > 0
+		hasCues := len(a.activeDocument().Cues) > 0
 		// The translate action on the left; the original/translation switch
 		// in the middle; going back to the playhead on the right.
 		panelHeader(c, nil, func() {
 			tab := a.subtitleTab
-			if ui.Segmented(c, &tab, locales.TabSource(), locales.TabTranslation()).Label(locales.A11ySubtitleTabs()).Changed() {
+			if ui.Segmented(c, &tab, locales.TabOriginal(), locales.TabRebuilt()).Label(locales.A11ySubtitleTabs()).Changed() {
 				a.changeSubtitleTab(tab)
 			}
 		}, func() {
@@ -43,10 +43,10 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			if unsaved {
 				ui.Badge(c, locales.ListUnsaved()).Background(c.Theme().Warning.Alpha(0.16)).TextColor(c.Theme().Warning)
 			}
-			iconButton(c, locales.ListSave(), "save").Disabled(a.busy || a.snapshot == nil || !unsaved).OnClick(func() { a.saveTrack(a.subtitleTab, false) })
-			ui.Button(c, locales.ListSaveAs()).Disabled(a.busy || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
+			iconButton(c, locales.ListSave(), "save").Disabled(a.busy || a.showsTranslationProgress() || a.snapshot == nil || !unsaved).OnClick(func() { a.saveTrack(a.subtitleTab, false) })
+			ui.Button(c, locales.ListSaveAs()).Disabled(a.busy || a.showsTranslationProgress() || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
 		})
-		if a.translationRunning {
+		if a.showsTranslationProgress() {
 			a.translationProgressView(c)
 			return
 		}
@@ -54,10 +54,10 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.ListEmpty()) })
 			return
 		}
-		cues := a.snapshot.Document.Cues
+		cues := a.activeDocument().Cues
 		rows := []int{}
 		for i, cue := range cues {
-			if strings.Contains(strings.ToLower(cueDisplayText(cue, a.subtitleTab)), strings.ToLower(a.query)) {
+			if strings.Contains(strings.ToLower(cueDisplayText(cue, a.subtitleTab)+"\n"+cueDisplayText(cue, 0)), strings.ToLower(a.query)) {
 				rows = append(rows, i)
 			}
 		}
@@ -84,7 +84,10 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			// list before the edit reaches the project.
 			text, start, end := cueDisplayText(cue, a.subtitleTab), float64(cue.StartMs)/1000, float64(cue.EndMs)/1000
 			if index == a.selected && a.editPending {
-				text, start, end = a.draft, a.start, a.end
+				if a.editorTextTrack() == a.subtitleTab {
+					text = a.draft
+				}
+				start, end = a.start, a.end
 			}
 			// Secondary columns are muted, but on the accent of the chosen
 			// row they take its text color.
@@ -103,7 +106,16 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 				cell(stamp(end))
 			default:
 				// Every line is shown; rows grow to their text.
-				ui.Text(c, text)
+				ui.Column(c).Gap(em(c, 4)).Children(func() {
+					if a.subtitleTab == 1 {
+						source := cueDisplayText(cue, 0)
+						if index == a.selected && a.editPending && a.editRebuiltSource {
+							source = a.draft
+						}
+						muted(c, source)
+					}
+					ui.Text(c, text)
+				})
 			}
 		}).Grow(1).Label(locales.A11ySubtitleList())
 		// A hand scroll while the video plays stops the list following it;
@@ -165,7 +177,7 @@ func (a *NativeApp) locateCurrent() {
 	if a.snapshot == nil {
 		return
 	}
-	cues := a.snapshot.Document.Cues
+	cues := a.activeDocument().Cues
 	index := cueNear(cues, a.position)
 	if index < 0 {
 		return
@@ -191,9 +203,9 @@ func timeColumn(c *ui.Context, title string) ui.TableColumn {
 }
 
 func (a *NativeApp) editorView(c *ui.Context) {
-	valid := a.snapshot != nil && a.selected >= 0 && a.selected < len(a.snapshot.Document.Cues)
-	ui.Column(c).Fill().Children(func() {
-		panelHeader(c, func() { panelTitle(c, locales.EditorTitle()) }, nil, func() {
+	valid := !a.showsTranslationProgress() && a.snapshot != nil && a.selected >= 0 && a.selected < len(a.activeDocument().Cues)
+	ui.Column(c).Fill().Label(locales.A11yEditorPanel()).Children(func() {
+		panelHeader(c, nil, func() { panelTitle(c, locales.EditorTitle()) }, func() {
 			ui.Toolbar(c, func() {
 				toolIcon(c, locales.EditorUndo(), "undo-2").Disabled(a.busy || a.snapshot == nil || !(a.snapshot.CanUndo || a.editPending)).OnClick(func() { a.undo(false) })
 				toolIcon(c, locales.EditorRedo(), "redo-2").Disabled(a.busy || a.snapshot == nil || !a.snapshot.CanRedo).OnClick(func() { a.undo(true) })
@@ -204,7 +216,7 @@ func (a *NativeApp) editorView(c *ui.Context) {
 			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.EditorNone()) })
 			return
 		}
-		cue := a.snapshot.Document.Cues[a.selected]
+		cue := a.activeDocument().Cues[a.selected]
 		readonly := cue.ReadOnly || a.busy
 		fixedTiming := readonly || a.snapshot.Document.Format == "ass" || a.snapshot.Document.Format == "ssa"
 		// A short panel scrolls rather than hide the text; a tall one gives
@@ -220,7 +232,7 @@ func (a *NativeApp) editorView(c *ui.Context) {
 						value()
 					})
 				}
-				ui.Row(c).GapX(em(c, 16)).GapY(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
+				ui.Row(c).GapX(em(c, 16)).GapY(em(c, 8)).Wrap().AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 					pair(locales.EditorStart(), func() {
 						ui.NumberInput(c, &a.start, 0, 9007199254740, 0.001).Label(locales.EditorStart()).Disabled(fixedTiming).OnChange(func() { a.changed(c.Now()) })
 					})
@@ -232,6 +244,14 @@ func (a *NativeApp) editorView(c *ui.Context) {
 					})
 				})
 				// The text speaks for itself; the name is for assistive technology.
+				if a.subtitleTab == 1 {
+					textTrack := a.editorTextTrack()
+					if ui.Segmented(c, &textTrack, locales.TabSource(), locales.TabTranslation()).AlignSelf(ui.Center).Changed() {
+						a.commitEdit(true)
+						a.editRebuiltSource = textTrack == 0
+						a.loadDraft()
+					}
+				}
 				area := ui.TextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(em(c, 64)).ReadOnly(readonly).Label(locales.A11yCueText())
 				a.composing = area.Composing()
 				a.editing = area.Focused()
@@ -246,17 +266,17 @@ func (a *NativeApp) editorView(c *ui.Context) {
 // changed records that the draft differs from the stored cue and schedules
 // its commit after the typing pause.
 func (a *NativeApp) changed(now time.Time) {
-	if a.snapshot == nil || a.selected < 0 || a.selected >= len(a.snapshot.Document.Cues) {
+	if a.snapshot == nil || a.selected < 0 || a.selected >= len(a.activeDocument().Cues) {
 		return
 	}
-	cue := a.snapshot.Document.Cues[a.selected]
-	a.editPending = a.draft != cueDisplayText(cue, a.subtitleTab) || int64(math.Round(a.start*1000)) != cue.StartMs || int64(math.Round(a.end*1000)) != cue.EndMs
+	cue := a.activeDocument().Cues[a.selected]
+	a.editPending = a.draft != cueDisplayText(cue, a.editorTextTrack()) || int64(math.Round(a.start*1000)) != cue.StartMs || int64(math.Round(a.end*1000)) != cue.EndMs
 	a.editDue = now.Add(editCommitDelay)
 }
 func (a *NativeApp) loadDraft() {
-	if a.snapshot != nil && a.selected >= 0 && a.selected < len(a.snapshot.Document.Cues) {
-		cue := a.snapshot.Document.Cues[a.selected]
-		a.draft = cueDisplayText(cue, a.subtitleTab)
+	if a.snapshot != nil && a.selected >= 0 && a.selected < len(a.activeDocument().Cues) {
+		cue := a.activeDocument().Cues[a.selected]
+		a.draft = cueDisplayText(cue, a.editorTextTrack())
 		a.start = float64(cue.StartMs) / 1000
 		a.end = float64(cue.EndMs) / 1000
 	} else {
@@ -275,14 +295,17 @@ func (a *NativeApp) commitEdit(leaving bool) bool {
 	if !a.editPending {
 		return true
 	}
-	if a.store == nil || a.snapshot == nil || a.selected < 0 || a.selected >= len(a.snapshot.Document.Cues) {
+	if a.store == nil || a.snapshot == nil || a.selected < 0 || a.selected >= len(a.activeDocument().Cues) {
 		a.loadDraft()
 		return true
 	}
-	cue := a.snapshot.Document.Cues[a.selected]
-	track := "source"
+	cue := a.activeDocument().Cues[a.selected]
+	track := "original"
 	if a.subtitleTab == 1 {
-		track = "translation"
+		track = "source"
+		if !a.editRebuiltSource {
+			track = "translation"
+		}
 	}
 	_, err := a.store.Apply(uuid.NewString(), a.snapshot.Revision, []project.Edit{{ID: cue.ID, Text: a.draft, Track: track, StartMs: int64(math.Round(a.start * 1000)), EndMs: int64(math.Round(a.end * 1000))}})
 	if err != nil {
@@ -345,6 +368,11 @@ func (a *NativeApp) undo(redo bool) {
 func (a *NativeApp) changeSubtitleTab(tab int) {
 	a.commitEdit(true)
 	a.subtitleTab = tab
+	a.selected = min(a.selected, len(a.activeDocument().Cues)-1)
+	if a.selected < 0 && len(a.activeDocument().Cues) > 0 {
+		a.selected = 0
+	}
+	a.followRow, a.activeCue = -1, -1
 	a.loadDraft()
 }
 func (a *NativeApp) selectSubtitle(index int, action string) {

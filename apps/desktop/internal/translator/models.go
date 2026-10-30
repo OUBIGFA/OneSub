@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,9 +16,33 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
+// ModelInfo contains only limits advertised by this endpoint or entered from
+// its documentation. Zero means unknown, never a guessed model-family default.
+type ModelInfo struct {
+	ID              string `json:"id"`
+	MaxInputTokens  int    `json:"maxInputTokens,omitempty"`
+	MaxOutputTokens int    `json:"maxOutputTokens,omitempty"`
+	ContextWindow   int    `json:"contextWindow,omitempty"`
+	LimitsSource    string `json:"limitsSource,omitempty"`
+}
+
 // Models queries only the explicitly configured service, without redirects or
 // automatic retries. Unsupported discovery never disables manual model entry.
 func Models(ctx context.Context, endpointURL, key string, client *http.Client) ([]string, error) {
+	items, err := ModelCatalog(ctx, endpointURL, key, client)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		names = append(names, item.ID)
+	}
+	return names, nil
+}
+
+// ModelCatalog preserves the endpoint's advertised token limits. The standard
+// /models response may contain IDs only; those limits stay unknown.
+func ModelCatalog(ctx context.Context, endpointURL, key string, client *http.Client) ([]ModelInfo, error) {
 	api, err := endpoint(endpointURL)
 	if err != nil {
 		return nil, err
@@ -53,23 +78,50 @@ func Models(ctx context.Context, endpointURL, key string, client *http.Client) (
 		return nil, errors.New(locales.ErrModelsSize())
 	}
 	var result struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
+		Data []map[string]json.RawMessage `json:"data"`
 	}
 	if err = json.Unmarshal(data, &result); err != nil {
 		return nil, errors.New(locales.ErrModelsFormat())
 	}
-	names := []string{}
+	items := map[string]ModelInfo{}
 	for _, model := range result.Data {
-		if name := strings.TrimSpace(model.ID); name != "" && len(name) <= 1024 {
-			names = append(names, name)
+		var id string
+		if json.Unmarshal(model["id"], &id) != nil {
+			continue
 		}
+		id = strings.TrimSpace(id)
+		if id == "" || len(id) > 1024 {
+			continue
+		}
+		info := ModelInfo{ID: id, MaxInputTokens: declaredLimit(model, "max_input_tokens", "input_token_limit"), MaxOutputTokens: declaredLimit(model, "max_output_tokens", "max_completion_tokens", "output_token_limit"), ContextWindow: declaredLimit(model, "context_length", "context_window"), LimitsSource: api}
+		var top map[string]json.RawMessage
+		if json.Unmarshal(model["top_provider"], &top) == nil {
+			if info.ContextWindow == 0 {
+				info.ContextWindow = declaredLimit(top, "context_length", "context_window")
+			}
+			if info.MaxOutputTokens == 0 {
+				info.MaxOutputTokens = declaredLimit(top, "max_completion_tokens", "max_output_tokens")
+			}
+		}
+		items[id] = info
 	}
-	slices.Sort(names)
-	names = slices.Compact(names)
-	if len(names) == 0 {
+	models := make([]ModelInfo, 0, len(items))
+	for _, info := range items {
+		models = append(models, info)
+	}
+	slices.SortFunc(models, func(a, b ModelInfo) int { return strings.Compare(a.ID, b.ID) })
+	if len(models) == 0 {
 		return nil, errors.New(locales.ErrModelsEmpty())
 	}
-	return names, nil
+	return models, nil
+}
+
+func declaredLimit(fields map[string]json.RawMessage, names ...string) int {
+	for _, name := range names {
+		value := strings.Trim(string(fields[name]), "\"")
+		if n, err := strconv.ParseInt(value, 10, 32); err == nil && n > 0 {
+			return int(n)
+		}
+	}
+	return 0
 }

@@ -18,7 +18,8 @@ import (
 // styledDocument is the only renderer input path for both preview and compose.
 // Imported ASS retains its layout; ordinary subtitles use SmartSub's builder.
 func (a *NativeApp) styledDocument(ctx context.Context, state project.Snapshot, style, secondary styles.Style, options subtitle.OutputOptions, frameAspect float64) (styles.Document, error) {
-	selected, err := subtitle.SelectOutput(state.Document, options)
+	document := state.OutputDocument(options)
+	selected, err := subtitle.SelectOutput(document, options)
 	if err != nil {
 		return styles.Document{}, err
 	}
@@ -29,7 +30,7 @@ func (a *NativeApp) styledDocument(ctx context.Context, state project.Snapshot, 
 		}
 		return a.styleClient.Resolve(ctx, string(data), style)
 	}
-	return a.styleClient.BuildOutput(ctx, state.Document, style, secondary, options, frameAspect)
+	return a.styleClient.BuildOutput(ctx, document, style, secondary, options, frameAspect)
 }
 
 // Compare the complete style, not a hand-maintained list of fields. Every native

@@ -21,45 +21,48 @@ type UserPreset struct {
 }
 
 type Settings struct {
-	Version            int                    `json:"version"`
-	UILanguage         string                 `json:"uiLanguage"` // "" follows the system
-	Appearance         string                 `json:"appearance"` // "dark", "light" or "system"
-	CloseToTray        bool                   `json:"closeToTray"`
-	ModelPaths         map[string]string      `json:"modelPaths"`
-	AsrModel           string                 `json:"asrModel"`
-	Aligner            string                 `json:"aligner"`
-	Backend            string                 `json:"backend"`
-	Language           string                 `json:"language"`
-	ChunkSeconds       float64                `json:"chunkSeconds"`
-	MaxTokens          float64                `json:"maxTokens"`
-	VocalSeparation    bool                   `json:"vocalSeparation"`
-	Hotwords           string                 `json:"hotwords"`
-	ProviderAPI        string                 `json:"providerApi"` // translator.APIChatCompletions or APIResponses
-	ProviderURL        string                 `json:"providerUrl"`
-	ProviderModel      string                 `json:"providerModel"`
-	TargetLanguage     string                 `json:"targetLanguage"`
-	Glossary           string                 `json:"glossary"`
-	Domain3D           bool                   `json:"domain3D"`
-	TranslationProfile string                 `json:"translationProfile"`
-	OptimizeTimeline   bool                   `json:"optimizeTimeline"`
-	MaxRequests        float64                `json:"maxRequests"`
-	RecognitionFormat  string                 `json:"recognitionFormat"`
-	RecognitionDir     string                 `json:"recognitionDir"` // empty: beside the media
-	TranslationDir     string                 `json:"translationDir"` // empty: beside the subtitle or the media
-	OutputDir          string                 `json:"outputDir"`
-	LastStyle          *styles.Style          `json:"lastStyle,omitempty"`
-	StylePreset        string                 `json:"stylePreset,omitempty"` // preset ID
-	UserPresets        []UserPreset           `json:"userPresets,omitempty"`
-	SubtitleOutput     subtitle.OutputOptions `json:"subtitleOutput"`
-	SecondaryStyle     *styles.Style          `json:"secondaryStyle,omitempty"`
-	SecondaryPreset    string                 `json:"secondaryPreset,omitempty"`
-	ComposeMode        string                 `json:"composeMode"`
-	ComposeQuality     string                 `json:"composeQuality"`
-	Volume             float64                `json:"volume"` // percent
-	Muted              bool                   `json:"muted"`
-	SingleClickAction  string                 `json:"singleClickAction"`
-	DoubleClickAction  string                 `json:"doubleClickAction"`
-	FollowPlayback     bool                   `json:"followPlayback"`
+	Version             int                    `json:"version"`
+	UILanguage          string                 `json:"uiLanguage"` // "" follows the system
+	Appearance          string                 `json:"appearance"` // "dark", "light" or "system"
+	CloseToTray         bool                   `json:"closeToTray"`
+	ModelPaths          map[string]string      `json:"modelPaths"`
+	AsrModel            string                 `json:"asrModel"`
+	Aligner             string                 `json:"aligner"`
+	Backend             string                 `json:"backend"`
+	Language            string                 `json:"language"`
+	ChunkSeconds        float64                `json:"chunkSeconds"`
+	MaxTokens           float64                `json:"maxTokens"`
+	VocalSeparation     bool                   `json:"vocalSeparation"`
+	Hotwords            string                 `json:"hotwords"`
+	ProviderAPI         string                 `json:"providerApi"` // translator.APIChatCompletions or APIResponses
+	ProviderURL         string                 `json:"providerUrl"`
+	ProviderModel       string                 `json:"providerModel"`
+	ActiveProvider      string                 `json:"activeProvider,omitempty"`
+	Providers           []Provider             `json:"providers,omitempty"`
+	TargetLanguage      string                 `json:"targetLanguage"`
+	Glossary            string                 `json:"glossary"`
+	Domain3D            bool                   `json:"domain3D"`
+	TranslationProfile  string                 `json:"translationProfile"`
+	OptimizeTimeline    bool                   `json:"optimizeTimeline"`
+	MaxRequests         float64                `json:"maxRequests"`
+	RecognitionFormat   string                 `json:"recognitionFormat"`
+	RecognitionDir      string                 `json:"recognitionDir"` // empty: beside the media
+	TranslationDir      string                 `json:"translationDir"` // empty: beside the subtitle or the media
+	TranslationRecovery string                 `json:"translationRecovery,omitempty"`
+	OutputDir           string                 `json:"outputDir"`
+	LastStyle           *styles.Style          `json:"lastStyle,omitempty"`
+	StylePreset         string                 `json:"stylePreset,omitempty"` // preset ID
+	UserPresets         []UserPreset           `json:"userPresets,omitempty"`
+	SubtitleOutput      subtitle.OutputOptions `json:"subtitleOutput"`
+	SecondaryStyle      *styles.Style          `json:"secondaryStyle,omitempty"`
+	SecondaryPreset     string                 `json:"secondaryPreset,omitempty"`
+	ComposeMode         string                 `json:"composeMode"`
+	ComposeQuality      string                 `json:"composeQuality"`
+	Volume              float64                `json:"volume"` // percent
+	Muted               bool                   `json:"muted"`
+	SingleClickAction   string                 `json:"singleClickAction"`
+	DoubleClickAction   string                 `json:"doubleClickAction"`
+	FollowPlayback      bool                   `json:"followPlayback"`
 	// The workbench panes, in percent: the player's width beside the list,
 	// the upper area's height, and the editor's width beside the style.
 	// StyleWidth is the style's share of the room right of the editor,
@@ -79,7 +82,7 @@ type Settings struct {
 const version = 3
 
 func Default() Settings {
-	return Settings{Version: version, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "zh", RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 20, StyleWidth: 50, StripPunctuation: true, KeepPunctuation: "?"}
+	return Settings{SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "zh", RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 20, StyleWidth: 50, StripPunctuation: true, KeepPunctuation: "?"}
 }
 func Load(path string) (Settings, error) {
 	s := Default()
@@ -102,6 +105,7 @@ func Load(path string) (Settings, error) {
 	if s.ModelPaths == nil {
 		s.ModelPaths = map[string]string{}
 	}
+	s.restoreProviders()
 	s.Volume = max(0, min(100, s.Volume))
 	// A pane is never made too small to show or to drag back.
 	d := Default()
@@ -138,6 +142,7 @@ func upgrade(s *Settings) {
 	s.Version = version
 }
 func Save(path string, s Settings) error {
+	s.SyncProvider()
 	if s.RecognitionFormat != "srt" && s.RecognitionFormat != "vtt" && s.RecognitionFormat != "ass" {
 		return errors.New(locales.RecognitionFormatInvalid())
 	}

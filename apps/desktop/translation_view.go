@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,94 +25,138 @@ type translationCandidate struct {
 	Checks    translator.Findings `json:"checks"`
 }
 
+// The page uses two native forms and one compact parameter row. Every state
+// reserves the same space, including absent providers and status messages.
 func (a *NativeApp) translationSettingsView(c *ui.Context) {
-	settingsGroup(c, locales.TranslationService(), func() {
-		ui.Form(c, func() {
-			// Both protocols are OpenAI's own names, the same in every language.
-			ui.Field(c, locales.TranslationApi(), func() {
-				idSelect(c, &a.settings.ProviderAPI, []option{{translator.APIChatCompletions, "OpenAI Chat Completions"}, {translator.APIResponses, "OpenAI Responses"}}).Label(locales.TranslationApi()).OnChange(a.saveSettings)
-			})
-			ui.Field(c, locales.TranslationEndpoint(), func() {
-				address := ui.TextInput(c, &a.settings.ProviderURL).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).OnChange(func() {
-					a.providerKey = ""
-					a.keyStatus = ""
-					a.providerModels = nil
-					a.modelsError = ""
-					a.saveSettings()
+	ui.Column(c).Gap(em(c, 12)).Children(func() {
+		ui.Row(c).Gap(em(c, 8)).Children(func() {
+			a.providerSelect(c).Grow(1)
+			ui.Button(c, locales.TranslationAddProvider()).OnClick(a.addProvider)
+			ui.Button(c, locales.TranslationDeleteProvider()).Disabled(a.settings.Provider() == nil).OnClick(func() { a.providerDelete = true })
+		})
+		ui.Grid(c).Columns(2).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
+			ui.Form(c, func() {
+				ui.Field(c, locales.TranslationProviderName(), func() {
+					p := a.settings.Provider()
+					name := ""
+					if p != nil {
+						name = p.Name
+					}
+					ui.TextInput(c, &name).Label(locales.TranslationProviderName()).Disabled(p == nil).OnChange(func() { p.Name = name; a.saveSettings() })
 				})
-				// Wait until editing ends; do not query partial hostnames as they are typed.
-				if a.settingsTab == 2 && !address.Focused() && a.settings.ProviderURL != a.modelsEndpoint {
-					a.fetchProviderModels()
-				}
-			})
-			ui.Field(c, locales.TranslationModel(), func() {
-				ui.Row(c).Gap(8).Children(func() {
-					ui.Combobox(c, &a.settings.ProviderModel, a.providerModels).Placeholder(locales.TranslationModelPlaceholder()).Label(locales.TranslationModel()).Grow(1).OnChange(a.saveSettings)
-					ui.Button(c, locales.TranslationFetchModels()).Disabled(a.modelsLoading || a.settings.ProviderURL == "").OnClick(a.fetchProviderModels)
+				ui.Field(c, locales.TranslationApi(), func() {
+					idSelect(c, &a.settings.ProviderAPI, []option{{translator.APIChatCompletions, "OpenAI Chat Completions"}, {translator.APIResponses, "OpenAI Responses"}}).Label(locales.TranslationApi()).OnChange(a.saveSettings)
 				})
+				ui.Field(c, locales.TranslationEndpoint(), func() {
+					address := ui.TextInput(c, &a.settings.ProviderURL).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).OnChange(func() {
+						a.providerKey, a.keyStatus, a.modelsError = "", "", ""
+						a.modelsGeneration++
+						a.modelsLoading = false
+						a.providerModels = nil
+						if p := a.settings.Provider(); p != nil {
+							p.Models = nil
+						}
+						a.saveSettings()
+					})
+					if a.settingsTab == 2 && !address.Focused() && a.settings.ProviderURL != a.modelsEndpoint {
+						a.fetchProviderModels()
+					}
+				})
+			}).Gap(em(c, 8))
+			ui.Form(c, func() {
+				ui.Field(c, locales.TranslationModel(), func() {
+					ui.Row(c).Gap(em(c, 8)).Children(func() {
+						a.providerModelSelect(c).Grow(1).MinWidth(0)
+						ui.Button(c, locales.TranslationFetchModels()).Disabled(a.modelsLoading || a.settings.ProviderURL == "").OnClick(a.fetchProviderModels)
+					})
+				})
+				ui.Field(c, "API Key", func() {
+					ui.TextInput(c, &a.providerKey).Password().Placeholder(locales.TranslationKeyPlaceholder()).Label("API Key")
+				})
+				ui.Field(c, "", func() {
+					ui.Row(c).Gap(em(c, 8)).Children(func() {
+						ui.Button(c, locales.TranslationSaveKey()).Disabled(a.providerKey == "" || a.settings.ProviderURL == "").OnClick(func() {
+							if err := security.SaveKey(a.settings.CredentialScope(), a.providerKey); err != nil {
+								a.errorText = err.Error()
+								return
+							}
+							a.providerKey = ""
+							a.keyStatus = locales.TranslationKeySaved()
+							a.modelsGeneration++
+							a.modelsLoading = false
+							a.modelsEndpoint = ""
+							a.fetchProviderModels()
+						})
+						ui.Button(c, locales.TranslationDeleteKey()).OnClick(func() {
+							if err := security.DeleteKey(a.settings.CredentialScope()); err != nil {
+								a.errorText = err.Error()
+								return
+							}
+							a.providerKey = ""
+							a.keyStatus = locales.TranslationKeyDeleted()
+							a.modelsGeneration++
+							a.modelsLoading = false
+							a.modelsEndpoint = ""
+						})
+					})
+				})
+			}).Gap(em(c, 8))
+		})
+		line(c, func() {
+			info := a.settings.ModelInfo()
+			for _, field := range []struct {
+				label string
+				get   func(*translator.ModelInfo) *int
+			}{
+				{locales.TranslationMaxInput(), func(m *translator.ModelInfo) *int { return &m.MaxInputTokens }},
+				{locales.TranslationMaxOutput(), func(m *translator.ModelInfo) *int { return &m.MaxOutputTokens }},
+				{locales.TranslationContextWindow(), func(m *translator.ModelInfo) *int { return &m.ContextWindow }},
+			} {
+				ui.Field(c, field.label, func() {
+					value := float64(0)
+					if info != nil {
+						value = float64(*field.get(info))
+					}
+					ui.NumberInput(c, &value, 0, 2147483647, 1).Label(field.label).Disabled(info == nil).OnChange(func() { *field.get(info) = int(value); info.LimitsSource = "manual"; a.saveSettings() })
+				})
+			}
+			ui.Field(c, locales.TranslationRequestLimit(), func() {
+				ui.NumberInput(c, &a.settings.MaxRequests, 1, 10000, 1).Label(locales.TranslationRequestLimit()).OnChange(a.saveSettings)
 			})
+		})
+		ui.Row(c).Height(em(c, 24)).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+			muted(c, locales.TranslationLimitsNote()).FontSize(em(c, captionSize))
+			notice := a.keyStatus
 			if a.modelsLoading {
-				ui.Text(c, locales.TranslationModelsLoading()).TextColor(c.Theme().TextMuted)
+				notice = locales.TranslationModelsLoading()
 			}
 			if a.modelsError != "" {
-				ui.Text(c, a.modelsError).TextColor(c.Theme().Warning)
+				notice = locales.TranslationModelsFailed()
 			}
-			ui.Field(c, "API Key", func() {
-				ui.Row(c).Gap(8).Children(func() {
-					ui.TextInput(c, &a.providerKey).Password().Placeholder(locales.TranslationKeyPlaceholder()).Label("API Key").Grow(1)
-					ui.Button(c, locales.TranslationSaveKey()).Disabled(a.providerKey == "").OnClick(func() {
-						if err := security.SaveKey(a.settings.ProviderURL, a.providerKey); err != nil {
+			muted(c, notice).FontSize(em(c, captionSize)).Tooltip(a.modelsError)
+		})
+		ui.Divider(c)
+		ui.Form(c, func() {
+			ui.Field(c, locales.TranslationStyle(), func() {
+				ui.Row(c).Gap(em(c, 8)).Children(func() {
+					a.styleSelect(c).Grow(1)
+					ui.Button(c, locales.TranslationReloadStyles()).OnClick(a.reloadTranslationProfiles)
+					ui.Button(c, locales.TranslationStyleFolder()).OnClick(func() {
+						path := filepath.Join(a.dataRoot, "translation-styles")
+						if err := os.MkdirAll(path, 0700); err != nil {
 							a.errorText = err.Error()
 							return
 						}
-						a.providerKey = ""
-						a.keyStatus = locales.TranslationKeySaved()
-						a.modelsEndpoint = ""
-						a.fetchProviderModels()
-					})
-					ui.Button(c, locales.TranslationDeleteKey()).OnClick(func() {
-						if err := security.DeleteKey(a.settings.ProviderURL); err != nil {
+						if err := mygo.Shell.OpenPath(path); err != nil {
 							a.errorText = err.Error()
-							return
 						}
-						a.providerKey = ""
-						a.keyStatus = locales.TranslationKeyDeleted()
 					})
 				})
+			}).Error(a.profilesError)
+			ui.Field(c, locales.TranslationGlossary(), func() {
+				ui.TextArea(c, &a.settings.Glossary).Height(em(c, 64)).Label(locales.TranslationGlossary()).Placeholder(locales.TranslationGlossaryPlaceholder()).OnChange(a.saveSettings)
 			})
-			if a.keyStatus != "" {
-				ui.Field(c, "", func() { ui.Text(c, a.keyStatus).TextColor(c.Theme().TextMuted) })
-			}
-		})
-	})
-	settingsGroup(c, locales.TranslationOptions(), func() {
-		// The target language is chosen beside the subtitles, where a
-		// translation starts.
-		ui.Field(c, locales.TranslationRequestLimit(), func() {
-			ui.NumberInput(c, &a.settings.MaxRequests, 1, 10000, 1).Label(locales.TranslationRequestLimit()).AlignSelf(ui.Start).OnChange(a.saveSettings)
-		})
-	})
-	settingsGroup(c, locales.TranslationStyle(), func() {
-		ui.Row(c).Gap(12).Children(func() {
-			a.styleSelect(c).Grow(1)
-			ui.Button(c, locales.TranslationReloadStyles()).OnClick(a.reloadTranslationProfiles)
-			ui.Button(c, locales.TranslationStyleFolder()).OnClick(func() {
-				path := filepath.Join(a.dataRoot, "translation-styles")
-				if err := os.MkdirAll(path, 0700); err != nil {
-					a.errorText = err.Error()
-					return
-				}
-				if err := mygo.Shell.OpenPath(path); err != nil {
-					a.errorText = err.Error()
-				}
-			})
-		})
-		if a.profilesError != "" {
-			ui.Text(c, a.profilesError).TextColor(c.Theme().Warning)
-		}
-		ui.Field(c, locales.TranslationGlossary(), func() {
-			ui.TextArea(c, &a.settings.Glossary).Height(em(c, 64)).Label(locales.TranslationGlossary()).Placeholder(locales.TranslationGlossaryPlaceholder()).OnChange(a.saveSettings)
-		})
+		}).Gap(em(c, 8))
 	})
 }
 
@@ -223,21 +268,53 @@ func (a *NativeApp) translationFile() string {
 // undoable step and is saved beside its source; one the checker finds
 // errors in is kept in the project, unsaved, with the errors shown.
 func (a *NativeApp) startTranslation() {
+	if a.busy || a.snapshot == nil || !a.commitEdit(true) {
+		return
+	}
+	prefs := a.settings
+	root, _ := a.skillTools()
+	config := translator.Config{Endpoint: prefs.ProviderURL, API: prefs.ProviderAPI, Model: prefs.ProviderModel, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(a.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests), CacheDir: filepath.Join(a.dataRoot, "cache", "translation")}
+	if info := prefs.ModelInfo(); info != nil {
+		config.MaxOutputTokens = info.MaxOutputTokens
+	}
+	task := &translationTask{ProjectID: a.snapshot.Manifest.ID, ProjectPath: a.snapshot.Path, Revision: a.snapshot.Revision, Source: a.snapshot.Document, Config: config, CredentialScope: prefs.CredentialScope(), Target: a.translationFile(), Format: a.trackFormats()[0], SavedHash: a.savedHash, SavedPath: a.savedPath}
+	if p := prefs.Provider(); p != nil {
+		task.ProviderName = p.Name
+	}
+	a.executeTranslationTask(task, newTranslationLive())
+}
+
+func (a *NativeApp) executeTranslationTask(task *translationTask, live *translationLive) {
 	if a.busy || a.snapshot == nil {
 		return
 	}
 	a.commitEdit(true)
 	state := *a.snapshot
-	prefs := a.settings
-	key, err := security.ReadKey(prefs.ProviderURL)
+	key, err := security.ReadKey(task.CredentialScope)
 	if err != nil {
 		a.errorText = err.Error()
 		return
 	}
 	root, executable := a.skillTools()
-	config := translator.Config{Endpoint: prefs.ProviderURL, API: prefs.ProviderAPI, Model: prefs.ProviderModel, Key: key, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(a.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests), CacheDir: filepath.Join(a.dataRoot, "cache", "translation")}
-	live := newTranslationLive()
+	config := task.Config
+	config.Key, config.Resume = key, live.resume
+	if err = a.rememberTranslationTask(task, live); err != nil {
+		a.errorText = err.Error()
+		return
+	}
+	baseRequests, baseInput, baseOutput := live.requests, live.input, live.output
+	var progressErr error
+	var stopTask context.CancelFunc
 	config.Observe = func(ev translator.Event) {
+		ev.Requests += baseRequests
+		ev.Input += baseInput
+		ev.Output += baseOutput
+		if err := writeTranslationRecord(task.ProjectPath, translationRecord{Event: &ev}, false); err != nil && progressErr == nil {
+			progressErr = fmt.Errorf("%s", locales.TranslationProgressWriteError(err.Error()))
+			if stopTask != nil {
+				stopTask()
+			}
+		}
 		a.win.Update(func() {
 			if a.translationLive == live {
 				live.apply(ev)
@@ -245,13 +322,29 @@ func (a *NativeApp) startTranslation() {
 		})
 	}
 	a.translationLive = live
+	a.translationTask = task
+	live.stopped, live.model = "", config.Model
+	a.changeSubtitleTab(1)
 	a.translationRunning = true
 	checker := translator.Checker{Executable: executable, SkillRoot: root, Scratch: a.worker.Scratch, Subtitle: a.worker}
-	target, format := a.translationFile(), a.trackFormats()[0]
-	a.run(locales.ActionTranslate(), func(ctx context.Context) (func(), error) {
+	target, format := task.Target, task.Format
+	a.run(locales.ActionTranslate(), func(ctx context.Context) (apply func(), runErr error) {
+		ctx, stopTask = context.WithCancel(ctx)
+		defer stopTask()
+		defer func() {
+			if runErr != nil {
+				note := runErr.Error()
+				if errors.Is(runErr, context.Canceled) {
+					note = locales.StatusCancelled()
+				}
+				if err := writeTranslationRecord(task.ProjectPath, translationRecord{Error: note}, false); err != nil {
+					runErr = fmt.Errorf("%s; %s", runErr, locales.TranslationProgressWriteError(err.Error()))
+				}
+			}
+		}()
 		// Always translate the retained source, not a previous machine translation.
 		// Locked hand edits stay in place and never enter the writable candidate set.
-		source := state.Document
+		source := task.Source
 		source.Cues = append([]subtitle.Cue{}, source.Cues...)
 		for i := range source.Cues {
 			if !source.Cues[i].TextLocked && !source.Cues[i].ReadOnly && source.Cues[i].Translated {
@@ -259,11 +352,17 @@ func (a *NativeApp) startTranslation() {
 			}
 		}
 		result, err := translator.Translate(ctx, config, source)
+		if progressErr != nil {
+			return nil, progressErr
+		}
+		if writeErr := writeTranslationRecord(task.ProjectPath, translationRecord{Result: &result}, false); writeErr != nil {
+			return nil, fmt.Errorf("%s", locales.TranslationProgressWriteError(writeErr.Error()))
+		}
 		if err != nil {
 			return nil, err
 		}
 		a.win.Update(func() { live.stage = "check" })
-		checks, err := checker.Check(ctx, source, result.Document, prefs.TargetLanguage, !result.Report.Rebuilt)
+		checks, err := checker.Check(ctx, source, result.Document, config.TargetLanguage, !result.Report.Rebuilt)
 		if err != nil {
 			return nil, err
 		}
@@ -294,20 +393,30 @@ func (a *NativeApp) startTranslation() {
 // undoable transaction, then saves it as a new file: an existing one is
 // never overwritten. The store repeats the revision and lock checks.
 func (a *NativeApp) applyTranslation(candidate *translationCandidate, target string, file []byte) {
+	fail := func(detail string) {
+		a.errorText = locales.TranslationApplyError(detail)
+		a.status = locales.StatusFailed()
+		if a.translationLive != nil {
+			a.translationLive.stopped = a.errorText
+		}
+	}
 	if a.snapshot == nil || candidate.ProjectID != a.snapshot.Manifest.ID || candidate.Revision != a.snapshot.Revision {
-		a.errorText = locales.ErrTranslationStale()
+		fail(locales.ErrTranslationStale())
 		return
 	}
 	if _, err := a.store.ApplyTranslationDocument(uuid.NewString(), candidate.Revision, candidate.Result.Document); err != nil {
-		a.errorText = err.Error()
+		fail(err.Error())
 		return
 	}
 	state, err := a.store.Snapshot()
 	if err != nil {
-		a.errorText = err.Error()
+		fail(err.Error())
 		return
 	}
 	a.setSnapshot(state)
+	// The accepted project is now visible and editable. Keep its recovery
+	// pointer until publishing finishes, in case the output write fails.
+	a.translationLive = nil
 	a.subtitleTab = 1
 	// Keep preview and export on the accepted translation, never an implicit
 	// source fallback. Users can explicitly switch to source or bilingual.
@@ -318,11 +427,13 @@ func (a *NativeApp) applyTranslation(candidate *translationCandidate, target str
 	a.translationSelected = 0
 	report, checks := candidate.Result.Report, candidate.Checks
 	if len(checks.Errors) > 0 {
+		a.completeTranslationRecovery()
 		a.status = locales.TranslationDoneUnsaved(report.Translated, len(checks.Errors))
 		a.translationReview = true
 		return
 	}
 	if file == nil {
+		a.completeTranslationRecovery()
 		a.status = locales.TranslationDoneNoFile(report.Translated)
 		return
 	}
@@ -334,6 +445,7 @@ func (a *NativeApp) applyTranslation(candidate *translationCandidate, target str
 		return
 	}
 	a.markSaved(1, path)
+	a.completeTranslationRecovery()
 	a.lastOutput = path
 	a.status = locales.TranslationDone(report.Translated, filepath.Base(path), len(checks.Warnings)+len(report.Warnings))
 }

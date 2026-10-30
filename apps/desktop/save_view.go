@@ -25,6 +25,9 @@ func trackHash(doc subtitle.Document, track int) string {
 	for _, cue := range doc.Cues {
 		text := subtitle.SourceText(cue)
 		if track == 1 {
+			// Rebuilt source edits are saved with the translation as bilingual
+			// subtitles, so either text can make this track unsaved.
+			fmt.Fprintf(h, "%s\x1d", subtitle.SourceText(cue))
 			text = "\x00"
 			if cue.Translated {
 				text = cue.Text
@@ -39,8 +42,8 @@ func trackHash(doc subtitle.Document, track int) string {
 // differ from their files.
 func (a *NativeApp) setSnapshot(state project.Snapshot) {
 	a.snapshot = &state
-	a.selected = min(a.selected, len(state.Document.Cues)-1)
-	if a.selected < 0 && len(state.Document.Cues) > 0 {
+	a.selected = min(a.selected, len(a.activeDocument().Cues)-1)
+	if a.selected < 0 && len(a.activeDocument().Cues) > 0 {
 		a.selected = 0
 	}
 	a.previewPending = true
@@ -48,14 +51,14 @@ func (a *NativeApp) setSnapshot(state project.Snapshot) {
 }
 func (a *NativeApp) refreshUnsaved() {
 	for track := range a.unsaved {
-		a.unsaved[track] = a.snapshot != nil && trackHash(a.snapshot.Document, track) != a.savedHash[track]
+		a.unsaved[track] = a.snapshot != nil && (track == 0 || a.trackHasContent(1)) && trackHash(a.snapshot.TrackDocument(track), track) != a.savedHash[track]
 	}
 }
 func (a *NativeApp) markSaved(track int, path string) {
 	a.savedPath[track] = path
 	a.savedHash[track] = ""
 	if a.snapshot != nil {
-		a.savedHash[track] = trackHash(a.snapshot.Document, track)
+		a.savedHash[track] = trackHash(a.snapshot.TrackDocument(track), track)
 	}
 	// Subtitles without a file of their own, as recognition results, stay
 	// unsaved until written somewhere.
@@ -129,6 +132,9 @@ func (a *NativeApp) defaultTrackPath(track int) string {
 }
 
 func (a *NativeApp) saveTrack(track int, saveAs bool) {
+	if track == 1 && a.showsTranslationProgress() {
+		return
+	}
 	a.saveTracks([]int{track}, saveAs, nil)
 }
 
@@ -148,7 +154,7 @@ func (a *NativeApp) saveTracks(tracks []int, saveAs bool, next func()) {
 			return func() {
 				for track, path := range written {
 					a.savedPath[track] = path
-					a.savedHash[track] = trackHash(state.Document, track)
+					a.savedHash[track] = trackHash(state.TrackDocument(track), track)
 				}
 				a.refreshUnsaved()
 				if len(written) > 0 {
@@ -194,7 +200,7 @@ func (a *NativeApp) saveTracks(tracks []int, saveAs bool, next func()) {
 				format = formats[0]
 				path += "." + format
 			}
-			data, err := a.encodeTrack(ctx, state.Document, track, format)
+			data, err := a.encodeTrack(ctx, state.TrackDocument(track), track, format)
 			if err != nil {
 				return finish(false), err
 			}
@@ -214,7 +220,10 @@ func (a *NativeApp) saveTracks(tracks []int, saveAs bool, next func()) {
 func (a *NativeApp) encodeTrack(ctx context.Context, doc subtitle.Document, track int, format string) ([]byte, error) {
 	mode := "source"
 	if track == 1 {
-		mode = "translation"
+		mode = "bilingual"
+		if doc.Format == "ass" || doc.Format == "ssa" {
+			mode = "translation"
+		}
 	}
 	document, err := subtitle.SelectOutput(doc, subtitle.OutputOptions{Mode: mode})
 	if err != nil {
@@ -271,9 +280,9 @@ func (a *NativeApp) unsavedText() string {
 		if !unsaved {
 			continue
 		}
-		name := locales.TabSource()
+		name := locales.TabOriginal()
 		if track == 1 {
-			name = locales.TabTranslation()
+			name = locales.TabRebuilt()
 		}
 		line := locales.SaveNewFile(name)
 		if a.savedPath[track] != "" {
@@ -304,6 +313,9 @@ func (a *NativeApp) savePromptView(c *ui.Context) {
 }
 
 func (a *NativeApp) requestExport() {
+	if a.subtitleTab == 0 {
+		a.settings.SubtitleOutput.Mode, a.settings.SubtitleOutput.SourceTrack = "source", "original"
+	}
 	a.commitEdit(true)
 	a.exportOpen = true
 }
@@ -362,6 +374,9 @@ func (a *NativeApp) clearWorkbench() {
 	a.loadDraft()
 	a.pending, a.candidatesOpen = nil, false
 	a.translationCandidate, a.translationReview = nil, false
+	a.translationTask, a.translationLive = nil, nil
+	a.settings.TranslationRecovery = ""
+	a.saveSettings()
 	a.savedHash, a.savedPath, a.unsaved = [2]string{}, [2]string{}, [2]bool{}
 	a.subtitleTab = 0
 	a.query = ""
