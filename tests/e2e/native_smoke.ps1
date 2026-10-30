@@ -1,5 +1,6 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport)
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus)
 $ErrorActionPreference = 'Stop'
+if($SubtitleMenus -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport)){throw 'Run subtitle menu presentation as a separate scenario'}
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Windows.Forms
@@ -17,6 +18,53 @@ public static class SmokeNative {
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, System.Text.StringBuilder b, int n);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, string text);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+  [StructLayout(LayoutKind.Sequential)] public struct Point { public int X,Y; }
+  [DllImport("user32.dll")] public static extern bool ScreenToClient(IntPtr h, ref Point p);
+  [DllImport("user32.dll", EntryPoint="SendMessageW")] public static extern IntPtr SendValue(IntPtr h,uint m,IntPtr w,IntPtr l);
+  [DllImport("user32.dll")] public static extern int GetMenuItemCount(IntPtr h);
+  [StructLayout(LayoutKind.Sequential)] public struct MenuItemInfo {
+    public uint Size,Mask,Type,State,ID;
+    public IntPtr SubMenu,Checked,Unchecked,Data,Text;
+    public uint Length;
+    public IntPtr Bitmap;
+  }
+  [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern bool GetMenuItemInfo(IntPtr menu,uint item,bool byPosition,ref MenuItemInfo info);
+  public static string[] MenuItems(int pid) {
+    string[] items=null;
+    EnumWindows((popup,p)=>{
+      uint id;GetWindowThreadProcessId(popup,out id);
+      var name=new System.Text.StringBuilder(128);GetClassName(popup,name,128);
+      if(id!=pid||name.ToString()!="#32768")return true;
+      IntPtr menu=SendValue(popup,0x1e1,IntPtr.Zero,IntPtr.Zero); // MN_GETHMENU
+      IntPtr buffer=Marshal.AllocHGlobal(1024);
+      try {
+        var labels=new System.Collections.Generic.List<string>();
+        for(uint i=0;i<GetMenuItemCount(menu);i++) {
+          var info=new MenuItemInfo{Size=(uint)Marshal.SizeOf(typeof(MenuItemInfo)),Mask=0x141,Text=buffer,Length=512};
+          if(!GetMenuItemInfo(menu,i,true,ref info))return false;
+          labels.Add((info.Type&0x800)!=0?"-":Marshal.PtrToStringUni(buffer).Split('\t')[0]);
+        }
+        items=labels.ToArray();
+      } finally {Marshal.FreeHGlobal(buffer);}
+      return false;
+    },IntPtr.Zero);
+    return items;
+  }
+  public static bool RightClick(IntPtr window, int pid, int x, int y) {
+    // Send native pointer messages only to this test instance's MyGo surface.
+    IntPtr surface=IntPtr.Zero;
+    EnumChildWindows(window,(child,p)=>{
+      uint id;GetWindowThreadProcessId(child,out id);
+      var name=new System.Text.StringBuilder(128);GetClassName(child,name,128);
+      if(id==pid&&name.ToString()=="MyGoSurface"){surface=child;return false;}
+      return true;
+    },IntPtr.Zero);
+    if(surface==IntPtr.Zero)return false;
+    var point=new Point{X=x,Y=y};
+    if(!ScreenToClient(surface,ref point))return false;
+    var coords=new IntPtr((point.Y<<16)|(point.X&0xffff));
+    return PostMessage(surface,512,IntPtr.Zero,coords)&&PostMessage(surface,516,new IntPtr(2),coords)&&PostMessage(surface,517,IntPtr.Zero,coords);
+  }
   public static bool Choose(int pid, string path) {
     bool done=false;
     EnumWindows((dialog,p)=>{
@@ -46,6 +94,7 @@ $subtitle = Join-Path $workPath 'test.srt'
 $sourceText = if ($TranslationEndpoint) { 'Hello, world' } elseif ($BilingualExport) { "Upper subtitle`n下行字幕" } else { '测试字幕' }
 [IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:02,900`n$sourceText`n",[Text.UTF8Encoding]::new($false))
 if($InterruptTranslation){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:01,400`n$sourceText`n`n2`n00:00:01,500 --> 00:00:02,900`nGood morning`n",[Text.UTF8Encoding]::new($false))}
+if($SubtitleMenus){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:00,900`nFirst subtitle`n`n2`n00:00:01,000 --> 00:00:01,900`nSecond subtitle`n`n3`n00:00:02,000 --> 00:00:02,900`nThird subtitle`n",[Text.UTF8Encoding]::new($false))}
 & ffmpeg -v error -f lavfi -i 'testsrc2=size=320x180:rate=10:duration=3' -c:v libx264 -pix_fmt yuv420p $video
 if($LASTEXITCODE -ne 0){throw 'Fixture creation failed'}
 $env:ONESUB_DATA_ROOT = Join-Path $workPath 'data'
@@ -130,6 +179,23 @@ function Select-Value($label) {
     else{$item.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()}
     Start-Sleep -Milliseconds 200
 }
+function Open-SubtitleMenu($label) {
+    $item=Find-UI $label
+    if(-not $item){throw "Subtitle missing: $label"}
+    $r=$item.Current.BoundingRectangle
+    if(-not [SmokeNative]::RightClick($p.MainWindowHandle,$p.Id,[int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2))){throw 'Test surface did not receive the right-click'}
+}
+function Wait-SubtitleMenu {
+    # Read the owner-drawn popup's Win32 labels, which UIA does not expose.
+    # This checks real menu presentation; command activation is covered by
+    # the native component tests and still needs interactive desktop input.
+    for($i=0;$i -lt 100;$i++) {
+        $items=[SmokeNative]::MenuItems($p.Id)
+        if($items){return $items}
+        Start-Sleep -Milliseconds 100
+    }
+    throw 'Native subtitle menu did not appear'
+}
 function Choose-Path($path){
     for($i=0;$i -lt 100;$i++) { if([SmokeNative]::Choose($p.Id,$path)){return};Start-Sleep -Milliseconds 100 }
     throw 'File dialog did not appear'
@@ -182,6 +248,25 @@ try {
         }
     }
     Click-UI '关闭'
+    if($SubtitleMenus) {
+        # Invoke closes the modal asynchronously. Wait for the workbench's
+        # UIA nodes before measuring, as Select-Tab does after dialog changes.
+        for($i=0;$i -lt 100;$i++){
+            if((Find-UI '插入／删除字幕') -and (Find-UI '字幕列表') -and (Find-UI '字幕编辑面板')){break}
+            Start-Sleep -Milliseconds 100
+        }
+        $menu=(Find-UI '插入／删除字幕').Current.BoundingRectangle
+        $list=(Find-UI '字幕列表').Current.BoundingRectangle
+        $editor=Find-UI '字幕编辑面板'
+        $name=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,'插入／删除字幕')
+        if($menu.Left -lt $list.Left -or $menu.Right -gt $list.Right -or $menu.Bottom -gt $list.Top -or $editor.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$name)){throw 'Structure menu is not confined to the subtitle list'}
+        & $ScreenshotTool $p.Id (Join-Path $workPath 'subtitle-list.png')
+        Open-SubtitleMenu 'Second subtitle'
+        $items=Wait-SubtitleMenu
+        if(($items -join '|') -ne '在前面插入字幕|在后面插入字幕|-|删除字幕'){throw "Incorrect native menu items: $items"}
+        # UIA publishes the next view after the synchronous native popup
+        # returns; selection and mutations are asserted by component tests.
+    }
     if ($TranslationEndpoint) {
         Select-Tab '识别与翻译' 'AI 翻译'
         Click-UI '开始翻译字幕'
@@ -241,8 +326,15 @@ try {
         if([IO.File]::ReadAllText($subtitle) -notmatch [regex]::Escape($sourceText)){throw 'Bilingual source was changed by export'}
     }
     $inputMode=if($UIAPlayback){'UIA (keyboard not exercised)'}else{'Space'}
-    Write-Output "PASS: import (argument=$OpenArgument), same-name subtitle, playback/pause=$inputMode, settings, translation=$([bool]$TranslationEndpoint), upper/lower export=$BilingualExport"
+    Write-Output "PASS: import (argument=$OpenArgument), same-name subtitle, playback/pause=$inputMode, settings, translation=$([bool]$TranslationEndpoint), upper/lower export=$BilingualExport, subtitle menu presentation=$SubtitleMenus"
+} catch {
+    Write-Output ("FAIL: native smoke: " + $_.Exception.Message)
+    throw
 } finally {
+    # A failed menu assertion must close this test-owned popup before WM_CLOSE;
+    # otherwise its native menu loop can keep the test window alive.
+    $p.Refresh()
+    if(-not $p.HasExited){[void][SmokeNative]::PostMessage($p.MainWindowHandle,31,[IntPtr]::Zero,[IntPtr]::Zero);Start-Sleep -Milliseconds 200}
     for($i=0;$i -lt 200;$i++){if(-not (Find-UI '取消任务')){break};Start-Sleep -Milliseconds 100}
     $p.Refresh()
     if(-not $p.HasExited){
@@ -252,6 +344,7 @@ try {
             # Undo leaves the generated translation file out of sync with
             # this disposable project. Dismiss only this test instance's guard.
             if(Find-UI '不保存'){Click-UI '不保存'}
+            elseif($i%10 -eq 0){$null=$p.CloseMainWindow()}
             Start-Sleep -Milliseconds 100
             $p.Refresh()
         }
