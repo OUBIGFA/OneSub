@@ -340,19 +340,19 @@ func (a *NativeApp) commitEdit(leaving bool) bool {
 			a.editDue = time.Time{}
 			return false
 		}
-		a.errorText = locales.ErrEditRestored(err.Error())
+		a.showError("edit", locales.ErrEditRestored(err.Error()))
 		a.loadDraft()
 		return true
 	}
 	state, err := a.store.Snapshot()
 	if err != nil {
-		a.errorText = err.Error()
+		a.showError("edit", err.Error())
 		return false
 	}
 	a.setSnapshot(state)
 	a.editPending = false
 	a.editDue = time.Time{}
-	a.errorText = ""
+	a.clearError("edit")
 	return true
 }
 func (a *NativeApp) undo(redo bool) {
@@ -368,14 +368,15 @@ func (a *NativeApp) undo(redo bool) {
 		return
 	}
 	if _, err := a.store.Undo(uuid.NewString(), a.snapshot.Revision, redo); err != nil {
-		a.errorText = err.Error()
+		a.showError("edit", err.Error())
 		return
 	}
 	state, err := a.store.Snapshot()
 	if err != nil {
-		a.errorText = err.Error()
+		a.showError("edit", err.Error())
 		return
 	}
+	a.clearError("edit")
 	a.setSnapshot(state)
 	if a.subtitleTab == 1 {
 		hasTranslation := false

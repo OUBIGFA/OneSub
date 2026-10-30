@@ -31,7 +31,7 @@ if($LASTEXITCODE -ne 0){throw 'Fixture failed'}
 $env:ONESUB_DATA_ROOT=Join-Path $workPath 'data'
 New-Item -ItemType Directory $env:ONESUB_DATA_ROOT | Out-Null
 # Controls are found by their Chinese names; pin the interface language.
-[IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),'{"version":1,"closeToTray":true,"uiLanguage":"zh-Hans"}',[Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),'{"version":1,"closeToTray":true,"uiLanguage":"zh-Hans","composeAskPath":true}',[Text.UTF8Encoding]::new($false))
 $env:ONESUB_FFMPEG=(Get-Command ffmpeg).Source
 $env:ONESUB_FFPROBE=(Get-Command ffprobe).Source
 if($Packaged){foreach($name in @('ONESUB_FFPROBE','ONESUB_FFMPEG','ONESUB_SUBTITLE_WORKER','ONESUB_STYLE_WORKER','ONESUB_SKILL_WORKER','ONESUB_SKILL_ROOT')){Remove-Item "Env:$name" -ErrorAction SilentlyContinue}}
@@ -117,12 +117,15 @@ try {
  if((Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne 'Unsaved change'){throw 'Cancel lost the edit'}
  # Confirm every settings tab keeps exactly the same content rectangle.
  Click-UI '设置';$initial=(Wait-UI '设置内容').Current.BoundingRectangle
- foreach($tab in @('识别与模型','翻译','常规')){Select-Tab $tab;$next=(Wait-UI '设置内容').Current.BoundingRectangle;if($next.Height -ne $initial.Height -or $next.Top -ne $initial.Top){throw "Settings changed size: $tab"}}
+ foreach($tab in @('识别与模型','翻译服务','常规')){Select-Tab $tab;$next=(Wait-UI '设置内容').Current.BoundingRectangle;if($next.Height -ne $initial.Height -or $next.Top -ne $initial.Top){throw "Settings changed size: $tab"}}
  Click-UI '关闭'
  # Compare internal panes as well as outer bounds when dialog/task status changes.
  $before=Rect
  $paneBefore=(Wait-UI '视频播放区').Current.BoundingRectangle
- Click-UI '添加文件';$d=Wait-Dialog
+ Click-UI '添加文件'
+ # The deliberately unsaved edits above must pass the application's guard
+ # before the file dialog can open. Cancelling that dialog retains the work.
+ Click-UI '不保存';$d=Wait-Dialog
  $paneDuring=(Wait-UI '视频播放区').Current.BoundingRectangle
  if($paneBefore -ne $paneDuring){throw "File dialog changed internal layout: $paneBefore -> $paneDuring"}
  $during=Rect

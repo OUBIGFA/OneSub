@@ -365,7 +365,7 @@ func (a *NativeApp) clearWorkbench() {
 	}
 	if a.store != nil {
 		if err := a.store.Close(); err != nil {
-			a.errorText = err.Error()
+			a.showError("project", err.Error())
 			return
 		}
 		a.store = nil
@@ -385,6 +385,10 @@ func (a *NativeApp) clearWorkbench() {
 	a.mediaURL = ""
 	a.position, a.duration, a.paused, a.activeCue, a.frameAspect = 0, 0, true, -1, 0
 	a.loadVideo()
-	a.errorText = ""
+	a.clearError("project")
+	a.clearError("player")
+	a.clearError("preview")
+	a.clearError("edit")
+	a.clearError("import")
 	a.status = locales.StatusCleared()
 }

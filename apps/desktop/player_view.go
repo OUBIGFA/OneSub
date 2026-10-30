@@ -23,27 +23,49 @@ func (a *NativeApp) playerView(c *ui.Context) {
 		panelHeader(c, nil, func() {
 			muted(c, name).SingleLine().Shrink(1).MinWidth(0).Tooltip(name)
 		}, nil)
-		wasWaiting := a.waiting.shown
-		waiting := a.waiting.visible(c, (a.busy || a.composeRunning || a.recognitionRunning) && !a.choosingFile)
-		if waiting && !wasWaiting {
-			// Do not leave audio playing behind a waiting scene that replaced
-			// its picture. Playback resumes only on the user's next action.
-			a.evalPlayer("video.pause()")
-		}
-		switch {
-		case waiting:
-			a.waitingView(c)
-		case a.player != nil:
-			// The page is always placed, black and laid out at the player's
-			// size, so a first video only changes its source.
-			ui.WebView(c, a.player).Grow(1).Children(func() { a.playerOverlay(c) })
-		default:
-			ui.Column(c).Grow(1).Center().Children(func() {
-				iconButton(c, locales.PlayerAddVideo(), "folder-open").Disabled(a.busy).OnClick(a.pickFiles)
-			})
-		}
+		a.playerSurface(c)
 		a.transportBar(c)
 	})
+}
+
+// playerSurface keeps the same WebView mounted throughout import and tasks.
+// Native letterboxing keeps its viewport at the media aspect, so WebView2's
+// asynchronous resize cannot stretch an old wide page into a tall rectangle.
+func (a *NativeApp) playerSurface(c *ui.Context) {
+	area := ui.Column(c).Grow(1).MinHeight(0).Center().Clip().Background(ui.RGB(0, 0, 0)).Label(locales.A11yPlayerSurface())
+	area.Children(func() {
+		if a.player != nil {
+			room := area.Bounds()
+			last := ui.Local(area, "viewport-room", func() ui.Rect { return ui.Rect{} })
+			if *last != room {
+				*last = room
+				c.After(0) // settle a changed native viewport before the next player poll
+			}
+			w, h := fitVideoViewport(room.W, room.H, a.frameAspect)
+			ui.WebView(c.Key("player-webview"), a.player).Size(w, h).Shrink(0).AlignSelf(ui.Center).Label(locales.A11yPlayerViewport())
+		}
+		// Controls and task progress overlay the fixed media area; they do
+		// not become children that contribute intrinsic height to the WebView.
+		ui.Column(c.Key("player-overlay")).Absolute().Top(0).Left(0).Right(0).Bottom(0).Children(func() {
+			switch {
+			case a.recognitionRunning:
+				ui.Column(c).Fill().Background(c.Theme().Background).Children(func() { a.recognitionProgressView(c) })
+			case a.composeRunning:
+				ui.Column(c).Fill().Background(c.Theme().Background).Children(func() { a.composeProgressView(c) })
+			default:
+				a.playerOverlay(c)
+			}
+		})
+	})
+}
+
+// Contain without changing the source's display aspect (including SAR).
+func fitVideoViewport(width, height float32, aspect float64) (float32, float32) {
+	if aspect <= 0 || math.IsNaN(aspect) || math.IsInf(aspect, 0) {
+		aspect = 16.0 / 9
+	}
+	w := min(max(0, width), max(0, height)*float32(aspect))
+	return w, w / float32(aspect)
 }
 
 // transportBar: the position across the whole picture, then the transport
@@ -91,7 +113,7 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 			ui.Toolbar(c, func() {
 				toolIcon(c, muteLabel, muteIcon).OnClick(func() { a.toggleMute(c.Now()) })
 			}).Shrink(0)
-			volume := a.settings.Volume
+			volume := a.audibleVolume()
 			ui.Slider(c, &volume, 0, 100).Width(em(c, 96)).MinWidth(em(c, 48)).Shrink(1).Label(locales.PlayerVolume()).Tooltip(locales.PlayerVolumeValue(int(math.Round(volume)))).OnChange(func() {
 				// Moving the volume is a request to hear it.
 				a.setVolume(volume, false, c.Now())
@@ -104,14 +126,17 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 // pointer there, so clicks toggle playback and the context menu is MyGo's,
 // in the app's language, never WebView2's media menu.
 func (a *NativeApp) playerOverlay(c *ui.Context) {
-	layer := ui.Column(c).Fill().Center()
+	// The empty player must own pointer/drop hit testing too. Otherwise
+	// WebView2 receives the first file drop as a browser navigation instead
+	// of the application's native import service (subsequent drops differ).
+	layer := ui.Column(c).Fill().Center().OnClick(a.togglePlayback)
 	if a.mediaURL == "" {
 		layer.Children(func() {
 			iconButton(c, locales.PlayerAddVideo(), "folder-open").Disabled(a.busy).OnClick(a.pickFiles)
 		})
 		return
 	}
-	layer.Label(locales.A11yVideo()).OnClick(a.togglePlayback).ContextMenu(func(m *ui.Menu) {
+	layer.Label(locales.A11yVideo()).ContextMenu(func(m *ui.Menu) {
 		disabled := a.composeRunning
 		playLabel := locales.PlayerPlay()
 		if !a.paused {
@@ -138,7 +163,7 @@ func (a *NativeApp) playerOverlay(c *ui.Context) {
 }
 
 func (a *NativeApp) playbackAvailable() bool {
-	return a.mediaURL != "" && !a.waiting.shown && !a.composeRunning && !a.recognitionRunning
+	return a.mediaURL != "" && !a.composeRunning && !a.recognitionRunning
 }
 
 func (a *NativeApp) togglePlayback() {
@@ -180,8 +205,18 @@ func (a *NativeApp) toggleMute(now time.Time) {
 	}
 	a.setVolume(a.settings.Volume, !a.settings.Muted, now)
 }
+
+// Keep the saved level while muted, but show and send the audible level as
+// zero. Unmuting restores the saved value; dragging the slider unmutes it.
+func (a *NativeApp) audibleVolume() float64 {
+	if a.settings.Muted {
+		return 0
+	}
+	return a.settings.Volume
+}
+
 func (a *NativeApp) volumeScript() string {
-	return fmt.Sprintf("video.volume=%.3f;video.muted=%t;", a.settings.Volume/100, a.settings.Muted)
+	return fmt.Sprintf("video.volume=%.3f;video.muted=%t;", a.audibleVolume()/100, a.settings.Muted)
 }
 
 // playbackRates are the speeds of the speed menu, slow to fast. The page's

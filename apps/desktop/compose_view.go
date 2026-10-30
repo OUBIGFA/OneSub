@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -43,7 +44,7 @@ func composeQualities() []option {
 // has a fixed room.
 func (a *NativeApp) composeView(c *ui.Context) {
 	ui.Modal(c, &a.composeOpen, func() {
-		ui.Column(c).Width(em(c, 600)).Height(em(c, 476)).Gap(em(c, 20)).Children(func() {
+		ui.Column(c).Width(em(c, 640)).Height(em(c, 548)).Gap(em(c, 16)).Children(func() {
 			dialogTitle(c, locales.ActionCompose())
 			hard := strings.HasPrefix(a.settings.ComposeMode, "hard")
 			ui.Form(c, func() {
@@ -54,6 +55,10 @@ func (a *NativeApp) composeView(c *ui.Context) {
 				ui.Field(c, locales.ComposeQuality(), func() {
 					idSelect(c, &a.settings.ComposeQuality, composeQualities()).Label(locales.ComposeQuality()).Disabled(!hard).OnChange(a.saveSettings)
 				})
+			})
+			line(c, func() {
+				folderField(c, a.settings.OutputDir, locales.RecognitionBesideMedia(), a.busy, a.pickComposeDir, func() { a.settings.OutputDir = ""; a.saveSettings() })
+				ui.Checkbox(c, &a.settings.ComposeAskPath, locales.ComposeAskPath()).OnChange(a.saveSettings)
 			})
 			var outputErr error
 			if a.snapshot != nil {
@@ -146,6 +151,7 @@ func (a *NativeApp) startCompose(sample bool) {
 		language = "mul"
 	}
 	quality := a.settings.ComposeQuality
+	outputDir, askPath := a.settings.OutputDir, a.settings.ComposeAskPath
 	a.composeRunning = true
 	a.composeProgress = media.ComposeProgress{Stage: media.StageChooseOutput, Fraction: -1}
 	a.evalPlayer("video.pause()")
@@ -154,9 +160,15 @@ func (a *NativeApp) startCompose(sample bool) {
 		if strings.HasSuffix(mode, "mkv") {
 			extension = "mkv"
 		}
-		output, err := a.saveDialog(mygo.SaveDialogOptions{Parent: a.win, Title: locales.ActionCompose(), DefaultPath: composeFilename(state.Manifest.MediaPath, extension, sample), Filters: []mygo.FileFilter{{Name: strings.ToUpper(extension), Extensions: []string{extension}}}})
-		if err != nil || output == "" {
+		output, err := composeOutputPath(state.Manifest.MediaPath, outputDir, extension, sample)
+		if err != nil {
 			return nil, err
+		}
+		if askPath {
+			output, err = a.saveDialog(mygo.SaveDialogOptions{Parent: a.win, Title: locales.ActionCompose(), DefaultPath: output, Filters: []mygo.FileFilter{{Name: strings.ToUpper(extension), Extensions: []string{extension}}}})
+			if err != nil || output == "" {
+				return nil, err
+			}
 		}
 		if !strings.EqualFold(filepath.Ext(output), "."+extension) {
 			output += "." + extension
@@ -184,9 +196,43 @@ func (a *NativeApp) startCompose(sample bool) {
 			if reportErr != nil {
 				// The validated video is already published. Keep it reachable
 				// instead of reporting a failed encode and inviting a rerun.
-				a.errorText = locales.ErrComposeReport(reportErr.Error())
+				a.showError("compose-report", locales.ErrComposeReport(reportErr.Error()))
+			} else {
+				a.clearError("compose-report")
 			}
 		}, nil
+	})
+}
+
+// Automatic exports use the source folder unless explicitly configured. A
+// collision chooses a new name; Compose's atomic publish still refuses a race.
+func composeOutputPath(source, directory, extension string, sample bool) (string, error) {
+	if directory == "" {
+		directory = filepath.Dir(source)
+	}
+	name := composeFilename(source, extension, sample)
+	stem := strings.TrimSuffix(name, filepath.Ext(name))
+	for suffix := 1; ; suffix++ {
+		candidate := name
+		if suffix > 1 {
+			candidate = fmt.Sprintf("%s (%d).%s", stem, suffix, extension)
+		}
+		path := filepath.Join(directory, candidate)
+		if _, err := os.Lstat(path); os.IsNotExist(err) {
+			return path, nil
+		} else if err != nil {
+			return "", err
+		}
+	}
+}
+
+func (a *NativeApp) pickComposeDir() {
+	a.run(locales.RecognitionChooseFolder(), func(context.Context) (func(), error) {
+		paths, err := a.openDialog(mygo.OpenDialogOptions{Parent: a.win, Title: locales.RecognitionChooseFolder(), Directory: true, DefaultPath: a.settings.OutputDir})
+		if err != nil || len(paths) == 0 {
+			return nil, err
+		}
+		return func() { a.settings.OutputDir = paths[0]; a.saveSettings() }, nil
 	})
 }
 

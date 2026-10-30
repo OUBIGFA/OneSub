@@ -106,11 +106,13 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 				})
 			}
 		})
-		fraction := float64(-1)
-		if (l.stage == "translate" || l.stage == "segment") && l.total > 0 {
-			fraction = float64(l.done) / float64(l.total)
-		}
-		ui.Progress(c, fraction).Label(label)
+		fraction := l.progress()
+		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+			ui.Progress(c, fraction).Grow(1).Label(label)
+			if fraction >= 0 && l.total > 0 {
+				ui.Text(c, locales.Percent(100*fraction)).FontFeatures("tnum")
+			}
+		})
 		// What the model is doing now: a retry and why, its reasoning, or
 		// the wait for its first words.
 		note := l.retry
@@ -170,6 +172,19 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 			l.list.ScrollTo(l.latest, ui.Center)
 		}
 	}
+}
+
+// Progress is accepted units/windows, never the amount of streamed text.
+// Interrupted analysis has no active job and must not keep an indeterminate
+// animation running. Unknown-duration running stages remain indeterminate.
+func (l *translationLive) progress() float64 {
+	if (l.stage == "translate" || l.stage == "segment") && l.total > 0 {
+		return min(1, max(0, float64(l.done)/float64(l.total)))
+	}
+	if l.stopped != "" {
+		return 0
+	}
+	return -1
 }
 
 func (a *NativeApp) showsTranslationProgress() bool {

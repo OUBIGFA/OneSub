@@ -50,7 +50,7 @@ func (a *NativeApp) openSubtitleInsert(anchor string, before bool) {
 	if anchor != "" {
 		at = slices.IndexFunc(cues, func(cue subtitle.Cue) bool { return cue.ID == anchor })
 		if at < 0 {
-			a.errorText = locales.ErrCuePosition()
+			a.showError("structure", locales.ErrCuePosition())
 			return
 		}
 		if !before {
@@ -77,7 +77,7 @@ func (a *NativeApp) insertSubtitle() {
 	}
 	_, err := a.store.InsertCue(uuid.NewString(), a.snapshot.Revision, a.subtitleTab == 0, project.Insertion{Position: a.insertPosition, Source: a.insertSource, Translation: a.insertTranslation, StartMs: int64(math.Round(a.insertStart * 1000)), EndMs: int64(math.Round(a.insertEnd * 1000))})
 	if err != nil {
-		a.errorText = err.Error()
+		a.showError("structure", err.Error())
 		return
 	}
 	a.insertOpen = false
@@ -95,7 +95,7 @@ func (a *NativeApp) deleteSubtitle(id string) {
 	}
 	at := slices.IndexFunc(a.activeDocument().Cues, func(cue subtitle.Cue) bool { return cue.ID == id })
 	if _, err := a.store.DeleteCue(uuid.NewString(), a.snapshot.Revision, a.subtitleTab == 0, id); err != nil {
-		a.errorText = err.Error()
+		a.showError("structure", err.Error())
 		return
 	}
 	a.refreshAfterStructure(at)
@@ -105,9 +105,10 @@ func (a *NativeApp) deleteSubtitle(id string) {
 func (a *NativeApp) refreshAfterStructure(index int) {
 	state, err := a.store.Snapshot()
 	if err != nil {
-		a.errorText = err.Error()
+		a.showError("structure", err.Error())
 		return
 	}
+	a.clearError("structure")
 	a.selected = index
 	a.setSnapshot(state)
 	a.loadDraft()

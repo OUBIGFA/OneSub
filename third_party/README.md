@@ -6,7 +6,7 @@
 
 实际翻译协议与分段流程参考的 VideoCaptioner、SmartSub 固定修订、源码位置和适配边界见 [组件复用核查第 7 节](../docs/research/implementation-reuse.md#7-翻译协议容错与分段参考)。它们不是新增运行时依赖；完整字幕技能快照仍为质量规则来源。
 
-等待背景直接复用已锁定 MyGo 的 `plugins/loading`（MIT），使用一个放大的 `Blocks` 实例，不自绘方块或关键帧；渐停计时的有限补丁见 [MyGo 补丁登记](patches/mygo/README.md)。界面层级参考 Impeccable 的公开设计说明，仅作为阅读证据，不复制或分发该项目技能与代码，见 [界面规范](../docs/ui-design.md)。
+界面层级参考 Impeccable 的公开设计说明，仅作为阅读证据，不复制或分发该项目技能与代码，见 [界面规范](../docs/ui-design.md)。
 
 实际引入组件时，先建立 `manifests/`，逐项记录：名称、用途、项目 URL、精确 SHA、下载 URL、文件 SHA-256/字节数、许可证文件、SPDX、版权、全部传递依赖、构建选项及修改范围。未解决项阻止该组件分发，不用空清单冒充已冻结。
 

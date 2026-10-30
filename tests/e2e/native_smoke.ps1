@@ -1,4 +1,4 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$WorkflowLayout)
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$WorkflowLayout, [switch]$ComposeOutput)
 $ErrorActionPreference = 'Stop'
 if($SubtitleMenus -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport)){throw 'Run subtitle menu presentation as a separate scenario'}
 if($LayoutNavigation -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport -or $SubtitleMenus)){throw 'Run layout/navigation as a separate scenario'}
@@ -17,6 +17,7 @@ public static class SmokeNative {
   [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr h, Visitor fn, IntPtr p);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);
   [DllImport("user32.dll")] public static extern int GetDlgCtrlID(IntPtr h);
+  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr h, int id);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, System.Text.StringBuilder b, int n);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, string text);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
@@ -76,12 +77,18 @@ public static class SmokeNative {
       uint id; GetWindowThreadProcessId(dialog,out id);
       var name=new System.Text.StringBuilder(128);GetClassName(dialog,name,128);
       if(id!=pid||name.ToString()!="#32770")return true;
+      // IFileDialog creates its HWND before applying the initial folder and
+      // filename. Wait for that initialization, as the polish test does.
+      System.Threading.Thread.Sleep(500);
       EnumChildWindows(dialog,(child,q)=>{
         var cl=new System.Text.StringBuilder(128);GetClassName(child,cl,128);
         int control=GetDlgCtrlID(child);
         if(cl.ToString()=="Edit"&&(control==1148||control==1001)){
           SendMessage(child,12,IntPtr.Zero,path);
-          PostMessage(dialog,273,new IntPtr(1),IntPtr.Zero);done=true;return false;
+          // Invoke the real dialog button after setting the filename.
+          var button=GetDlgItem(dialog,1);
+          if(button==IntPtr.Zero)return true;
+          SendValue(button,245,IntPtr.Zero,IntPtr.Zero);done=true;return false;
         }
         return true;
       },IntPtr.Zero);
@@ -109,7 +116,8 @@ if($LayoutNavigation){
     }
     [IO.File]::WriteAllText($subtitle,$body.ToString(),[Text.UTF8Encoding]::new($false))
 }
-& ffmpeg -v error -f lavfi -i 'testsrc2=size=320x180:rate=10:duration=3' -c:v libx264 -pix_fmt yuv420p $video
+$fixture=if($ComposeOutput){'testsrc2=size=1280x720:rate=30:duration=12'}else{'testsrc2=size=320x180:rate=10:duration=3'}
+& ffmpeg -v error -f lavfi -i $fixture -c:v libx264 -pix_fmt yuv420p $video
 if($LASTEXITCODE -ne 0){throw 'Fixture creation failed'}
 $env:ONESUB_DATA_ROOT = Join-Path $workPath 'data'
 New-Item -ItemType Directory $env:ONESUB_DATA_ROOT | Out-Null
@@ -270,6 +278,12 @@ try {
     if($UIAPlayback){Click-UI '暂停'}else{Press-PlaybackSpace}
     for($i=0;$i -lt 30;$i++){if(Find-UI '播放'){break};Start-Sleep -Milliseconds 100}
     if(-not (Find-UI '播放')){throw 'Playback did not pause'}
+    # Muting updates the native slider as well as the audio, and restores it.
+    $volume=(Find-UI '音量').GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern).Current.Value
+    Click-UI '静音';Start-Sleep -Milliseconds 300
+    if((Find-UI '音量').GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern).Current.Value -ne 0){throw 'Mute did not zero the volume slider'}
+    Click-UI '取消静音';Start-Sleep -Milliseconds 300
+    if((Find-UI '音量').GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern).Current.Value -ne $volume){throw 'Unmute did not restore the previous volume'}
     & $ScreenshotTool $p.Id (Join-Path $workPath 'editor.png')
     $bold=Find-UI '粗体'
     if($bold){
@@ -409,6 +423,16 @@ try {
         }
         if([IO.File]::ReadAllText($subtitle) -notmatch [regex]::Escape($sourceText)){throw 'Bilingual source was changed by export'}
     }
+    if($ComposeOutput) {
+        Click-UI '合成视频';Click-UI '开始合成'
+        $output=Join-Path $workPath 'test-OneSub.mp4'
+        for($i=0;$i -lt 600;$i++){if(Test-Path -LiteralPath $output){break};Start-Sleep -Milliseconds 100}
+        if(-not (Test-Path -LiteralPath $output)){throw 'Automatic export did not write beside source'}
+        if(Test-Path -LiteralPath ($output+'.onesub.json')){throw 'Video directory contains a report sidecar'}
+        Start-Sleep -Milliseconds 300
+        & $ScreenshotTool $p.Id (Join-Path $workPath 'compose-result.png')
+        Write-Output 'PASS: automatic composition beside source; no report sidecar'
+    }
     $inputMode=if($UIAPlayback){'UIA (keyboard not exercised)'}else{'Space'}
     Write-Output "PASS: import (argument=$OpenArgument), same-name subtitle, playback/pause=$inputMode, settings, translation=$([bool]$TranslationEndpoint), upper/lower export=$BilingualExport, subtitle menu presentation=$SubtitleMenus"
 } catch {
@@ -432,6 +456,11 @@ try {
             Start-Sleep -Milliseconds 100
             $p.Refresh()
         }
-        if(-not $p.WaitForExit(10000)){throw "Test window remains open: PID=$($p.Id)"}
+        if(-not $p.WaitForExit(10000)){
+            # This PID was created above with isolated state; never leave a
+            # failed file-dialog scenario blocking subsequent desktop tests.
+            $p.Kill();$p.WaitForExit()
+            throw "Test window did not close normally: PID=$($p.Id)"
+        }
     }
 }

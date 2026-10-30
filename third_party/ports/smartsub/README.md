@@ -22,6 +22,14 @@
 
 修改：可选参数 `bilingual` 增加 `Secondary` 样式行。每条字幕仍写成一个事件，用 `{\rDefault}` 和 `{\rSecondary}` 切换样式，`secondaryFirst` 决定上下顺序。块的对齐和边距沿用主样式。不传 `bilingual` 时输出与上游相同。
 
+## 双语字体解析
+
+文件：`main/helpers/assFonts.ts`；符号：`resolveAssFonts`。
+
+根因：字体解析只以传入的主字体初始化事件，将任何 `\r` 都重置为主字体，没有读取 ASS 样式表。`Secondary` 字体虽然存在于样式行，却不进入提供给 JASSUB／FFmpeg 的字体集合；缺字处理也可能覆盖到错误字体。
+
+修改：按 ASS `Format` 字段读取命名样式的字体；事件从自身 `Style` 的字体开始，裸 `\r` 回到该事件字体，`\rSecondary` 等命名重置使用对应样式。每次切换收集实际使用字体，不改写字号或其他样式字段。两层字体／字号、原译文对应与上下顺序分别测试，UI 明示主／次样式各自对应原文或译文。尚未配置的次样式从当前主样式继承字体，以 80% 字号初始化；用户保存的两套独立参数不被强制覆盖。
+
 ## 背景框精确边距
 
 文件：`main/helpers/assStyleBuilder.ts`；符号：`FontMeasure`、`wrapForBox`、`exactBoxEvents`、`buildAssDocument`。

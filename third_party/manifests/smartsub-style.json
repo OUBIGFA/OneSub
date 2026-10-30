@@ -3,7 +3,7 @@
   "revision": "f7ce2045aea53177a60236092487897da3c8cd06",
   "spdx": "MIT",
   "license": "third_party/licenses/smartsub.txt",
-  "modifications": "fontResolver exact-family alias priority; assStyleBuilder bilingual events and exact background box padding; see third_party/ports/smartsub/README.md; process adapter loads SmartSub font variants and measures fonts for the box",
+  "modifications": "fontResolver exact-family alias priority; assStyleBuilder bilingual events and exact background box padding; assFonts respects event/named style fonts and collects both bilingual families; see third_party/ports/smartsub/README.md; process adapter loads SmartSub font variants and measures fonts for the box",
   "files": [
     {
       "source": "main/helpers/assStyleBuilder.ts",
@@ -30,7 +30,8 @@
     {
       "source": "main/helpers/assFonts.ts",
       "destination": "workers/style-core/smartsub/main/helpers/assFonts.ts",
-      "sha256": "569cd222eab1ae7182fa4674ec6384f59d0c223fb72e34518b2b1ba4a239f252"
+      "upstreamSha256": "569cd222eab1ae7182fa4674ec6384f59d0c223fb72e34518b2b1ba4a239f252",
+      "sha256": "33669d377dbbd193799cb8f7cf13b2eadfd06e59f3da1c6a1095b3b1b5f62db1"
     },
     {
       "source": "main/helpers/assEmbeddedFonts.ts",

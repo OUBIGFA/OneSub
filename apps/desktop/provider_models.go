@@ -40,6 +40,7 @@ func (a *NativeApp) fetchProviderModels() {
 				a.modelsError = err.Error()
 				return
 			}
+			a.modelsError = ""
 			a.providerModels = nil
 			for _, item := range items {
 				a.providerModels = append(a.providerModels, item.ID)
@@ -129,9 +130,10 @@ func (a *NativeApp) providerDeleteView(c *ui.Context) {
 		return
 	}
 	if err := security.DeleteKey(a.settings.CredentialScope()); err != nil {
-		a.errorText = err.Error()
+		a.showError("provider-key", err.Error())
 		return
 	}
+	a.clearError("provider-key")
 	a.settings.Providers = slices.Delete(a.settings.Providers, i, i+1)
 	a.settings.ActiveProvider, a.settings.ProviderURL, a.settings.ProviderModel = "", "", ""
 	a.providerKey, a.keyStatus, a.modelsEndpoint, a.modelsError = "", "", "", ""

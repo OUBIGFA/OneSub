@@ -39,8 +39,6 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Message catalog generation failed' }
         & go test github.com/egoist/mygo/internal/windows -run TestOneSubPopup -count=1
         if ($LASTEXITCODE -ne 0) { throw 'MyGo menu metric tests failed' }
-        & go test github.com/egoist/mygo/plugins/loading -count=1
-        if ($LASTEXITCODE -ne 0) { throw 'MyGo loading animation tests failed' }
         & go test @Packages -count=1
         if ($LASTEXITCODE -ne 0) { throw 'Go tests failed' }
     } finally { Pop-Location }

@@ -78,9 +78,10 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 						ui.Row(c).Gap(em(c, 8)).Children(func() {
 							ui.Button(c, locales.TranslationSaveKey()).Disabled(a.providerKey == "" || a.settings.ProviderURL == "").OnClick(func() {
 								if err := security.SaveKey(a.settings.CredentialScope(), a.providerKey); err != nil {
-									a.errorText = err.Error()
+									a.showError("provider-key", err.Error())
 									return
 								}
+								a.clearError("provider-key")
 								a.providerKey = ""
 								a.keyStatus = locales.TranslationKeySaved()
 								a.modelsGeneration++
@@ -90,9 +91,10 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 							})
 							ui.Button(c, locales.TranslationDeleteKey()).OnClick(func() {
 								if err := security.DeleteKey(a.settings.CredentialScope()); err != nil {
-									a.errorText = err.Error()
+									a.showError("provider-key", err.Error())
 									return
 								}
+								a.clearError("provider-key")
 								a.providerKey = ""
 								a.keyStatus = locales.TranslationKeyDeleted()
 								a.modelsGeneration++
@@ -146,11 +148,13 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 						ui.Button(c, locales.TranslationStyleFolder()).OnClick(func() {
 							path := filepath.Join(a.dataRoot, "translation-styles")
 							if err := os.MkdirAll(path, 0700); err != nil {
-								a.errorText = err.Error()
+								a.showError("style-folder", err.Error())
 								return
 							}
 							if err := mygo.Shell.OpenPath(path); err != nil {
-								a.errorText = err.Error()
+								a.showError("style-folder", err.Error())
+							} else {
+								a.clearError("style-folder")
 							}
 						})
 					})
@@ -296,14 +300,14 @@ func (a *NativeApp) executeTranslationTask(task *translationTask, live *translat
 	state := *a.snapshot
 	key, err := security.ReadKey(task.CredentialScope)
 	if err != nil {
-		a.errorText = err.Error()
+		a.showError(locales.ActionTranslate(), err.Error())
 		return
 	}
 	root, executable := a.skillTools()
 	config := task.Config
 	config.Key, config.Resume = key, live.resume
 	if err = a.rememberTranslationTask(task, live); err != nil {
-		a.errorText = err.Error()
+		a.showError(locales.ActionTranslate(), err.Error())
 		return
 	}
 	baseRequests, baseInput, baseOutput := live.requests, live.input, live.output
@@ -398,7 +402,7 @@ func (a *NativeApp) executeTranslationTask(task *translationTask, live *translat
 // never overwritten. The store repeats the revision and lock checks.
 func (a *NativeApp) applyTranslation(candidate *translationCandidate, target string, file []byte) {
 	fail := func(detail string) {
-		a.errorText = locales.TranslationApplyError(detail)
+		a.showError(locales.ActionTranslate(), locales.TranslationApplyError(detail))
 		a.status = locales.StatusFailed()
 		if a.translationLive != nil {
 			a.translationLive.stopped = a.errorText
@@ -417,6 +421,7 @@ func (a *NativeApp) applyTranslation(candidate *translationCandidate, target str
 		fail(err.Error())
 		return
 	}
+	a.clearError(locales.ActionTranslate())
 	a.setSnapshot(state)
 	// The accepted project is now visible and editable. Keep its recovery
 	// pointer until publishing finishes, in case the output write fails.
@@ -444,7 +449,7 @@ func (a *NativeApp) applyTranslation(candidate *translationCandidate, target str
 	stem := strings.TrimSuffix(filepath.Base(target), filepath.Ext(target))
 	path, err := publishBeside(filepath.Dir(target), stem, strings.TrimPrefix(filepath.Ext(target), "."), file)
 	if err != nil {
-		a.errorText = err.Error()
+		a.showError(locales.ActionTranslate(), err.Error())
 		a.status = locales.TranslationDoneNoFile(report.Translated)
 		return
 	}

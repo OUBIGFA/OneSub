@@ -187,7 +187,7 @@ func (a *NativeApp) finishRecognition(ctx context.Context, source, srt string, w
 		if saveErr != nil {
 			a.markSaved(0, "")
 			a.rememberProcessing("save-recognition", continueTranslation)
-			a.errorText = locales.RecognitionSaveFailed(saveErr.Error())
+			a.showError(locales.ActionRecognize(), locales.RecognitionSaveFailed(saveErr.Error()))
 			a.status = locales.StatusFailed()
 			return
 		}

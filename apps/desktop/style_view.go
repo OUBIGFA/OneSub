@@ -45,11 +45,14 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 						return
 					}
 					if a.settings.SubtitleOutput.Normalized().Mode == "bilingual" {
-						ui.Segmented(c, &a.styleLayer, locales.StylePrimaryLayer(), locales.StyleSecondaryLayer()).Label(locales.A11yStyleLayers()).AlignSelf(ui.Start)
+						primary, secondary := locales.TabTranslation(), locales.TabSource()
+						if a.settings.SubtitleOutput.Normalized().Primary == "source" {
+							primary, secondary = secondary, primary
+						}
+						ui.Segmented(c, &a.styleLayer, locales.StyleLayerOf(locales.StylePrimaryLayer(), primary), locales.StyleLayerOf(locales.StyleSecondaryLayer(), secondary)).Label(locales.A11yStyleLayers()).AlignSelf(ui.Start)
 					}
 					a.styleControls(c, layer)
 				})
-				measurePanelContent(c, content, &a.styleHeight)
 			})
 		}
 	})
