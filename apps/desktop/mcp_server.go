@@ -251,6 +251,7 @@ func (s mcpServer) translate(ctx context.Context, req *mcp.CallToolRequest, in t
 	}
 	root, checker := s.translationTools()
 	config := translator.Config{Endpoint: prefs.ProviderURL, API: prefs.ProviderAPI, Model: prefs.ProviderModel, Key: key, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(s.tools.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests), CacheDir: filepath.Join(s.tools.dataRoot, "cache", "translation")}
+	config.Concurrency, config.BatchSize = prefs.TranslationConcurrency, prefs.TranslationBatchSize
 	if info := prefs.ModelInfo(); info != nil {
 		config.MaxOutputTokens = info.MaxOutputTokens
 	}

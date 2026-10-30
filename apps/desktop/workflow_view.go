@@ -41,6 +41,9 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 func (a *NativeApp) recognizeTab(c *ui.Context) {
 	hasMedia := a.snapshot != nil && a.snapshot.Manifest.MediaPath != ""
 	startButton(c, locales.WorkflowStartRecognize(), "audio-lines", a.busy || !hasMedia, a.recognize)
+	if !a.busy && a.settings.Processing != nil && a.settings.Processing.Stage == "recognize" {
+		muted(c, locales.RecognitionRestartNote())
+	}
 	if hasMedia {
 		name := filepath.Base(a.snapshot.Manifest.MediaPath)
 		muted(c, name).SingleLine().Tooltip(name).AlignSelf(ui.Center)

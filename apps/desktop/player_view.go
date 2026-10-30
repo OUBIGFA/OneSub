@@ -59,7 +59,7 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 				if !a.paused {
 					label, name = locales.PlayerPause(), "pause"
 				}
-				toolIcon(c, label, name).Disabled(disabled).OnClick(a.togglePlayback)
+				toolIcon(c, label, name).Tooltip(locales.PlayerSpaceShortcut()).Disabled(disabled).OnClick(a.togglePlayback)
 				toolIcon(c, locales.PlayerForward(), "fast-forward").Disabled(disabled).OnClick(func() { a.seekBy(15) })
 				ui.MenuButton(c, rateLabel(a.playbackRate()), func(m *ui.Menu) {
 					for _, rate := range playbackRates {
@@ -136,6 +136,12 @@ func (a *NativeApp) togglePlayback() {
 	if a.mediaURL != "" && !a.composeRunning {
 		a.evalPlayer("video.paused ? video.play() : video.pause()")
 	}
+}
+
+// Native shortcut routing leaves spaces to text inputs and focused controls,
+// and suppresses workbench shortcuts behind a dialog.
+func (a *NativeApp) playbackShortcut(c *ui.Context) bool {
+	return a.mediaURL != "" && !a.composeRunning && !a.recognitionRunning && c.Shortcut(0, ui.KeySpace)
 }
 func (a *NativeApp) seekBy(seconds float64) {
 	if a.mediaURL == "" || a.composeRunning {

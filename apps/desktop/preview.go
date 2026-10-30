@@ -59,6 +59,11 @@ func (a *NativeApp) observeStyle(now time.Time) {
 }
 
 func (a *NativeApp) refreshSubtitles() {
+	if a.snapshot != nil && len(a.snapshot.OutputDocument(a.settings.SubtitleOutput).Cues) == 0 {
+		a.previewPending = false
+		a.evalPlayer("setSubtitles(null)")
+		return
+	}
 	if a.snapshot == nil || a.mediaURL == "" || !a.playerReady || len(a.snapshot.Document.Cues) == 0 {
 		a.previewPending = false
 		return

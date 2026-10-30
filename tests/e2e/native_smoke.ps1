@@ -1,11 +1,14 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation)
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+Add-Type -AssemblyName System.Windows.Forms
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
 public static class SmokeNative {
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   public delegate bool Visitor(IntPtr h, IntPtr p);
   [DllImport("user32.dll")] public static extern bool EnumWindows(Visitor fn, IntPtr p);
   [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr h, Visitor fn, IntPtr p);
@@ -40,7 +43,7 @@ if (Test-Path $workPath) { throw 'Use a fresh smoke directory' }
 New-Item -ItemType Directory $workPath | Out-Null
 $video = Join-Path $workPath 'test.mp4'
 $subtitle = Join-Path $workPath 'test.srt'
-$sourceText = if ($TranslationEndpoint) { 'Hello, world' } else { '测试字幕' }
+$sourceText = if ($TranslationEndpoint) { 'Hello, world' } elseif ($BilingualExport) { "Upper subtitle`n下行字幕" } else { '测试字幕' }
 [IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:02,900`n$sourceText`n",[Text.UTF8Encoding]::new($false))
 if($InterruptTranslation){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:01,400`n$sourceText`n`n2`n00:00:01,500 --> 00:00:02,900`nGood morning`n",[Text.UTF8Encoding]::new($false))}
 & ffmpeg -v error -f lavfi -i 'testsrc2=size=320x180:rate=10:duration=3' -c:v libx264 -pix_fmt yuv420p $video
@@ -119,9 +122,26 @@ function Select-Tab($container, $name) {
     }
     throw "Tab unavailable: $container / $name"
 }
+function Select-Value($label) {
+    $item=Find-UI $label
+    if(-not $item){throw "Selection unavailable: $label"}
+    $pattern=$null
+    if($item.TryGetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern,[ref]$pattern)){$pattern.Select()}
+    else{$item.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()}
+    Start-Sleep -Milliseconds 200
+}
 function Choose-Path($path){
     for($i=0;$i -lt 100;$i++) { if([SmokeNative]::Choose($p.Id,$path)){return};Start-Sleep -Milliseconds 100 }
     throw 'File dialog did not appear'
+}
+function Press-PlaybackSpace {
+    $p.Refresh()
+    [void][SmokeNative]::SetForegroundWindow($p.MainWindowHandle)
+    $list=Find-UI '字幕列表'
+    if(-not $list){throw 'Subtitle list unavailable for keyboard playback test'}
+    $list.SetFocus()
+    if([SmokeNative]::GetForegroundWindow() -ne $p.MainWindowHandle){throw 'Test window is not foreground; no keyboard input sent'}
+    [System.Windows.Forms.SendKeys]::SendWait(' ')
 }
 try {
     Start-Sleep -Seconds 4
@@ -134,13 +154,17 @@ try {
         $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {$_.Current.Name}
         throw 'Same-name subtitle was not loaded'
     }
-    Click-UI '播放'
+    # UIA is an explicit mode for a locked/remote desktop, not a passing
+    # keyboard test. Default runs still require real foreground Space input.
+    if($UIAPlayback){Click-UI '播放'}else{Press-PlaybackSpace}
     Start-Sleep -Seconds 2
     if(-not (Find-UI '暂停')){
         & $ScreenshotTool $p.Id (Join-Path $workPath 'failure.png')
-        throw 'The native play button did not start real video playback'
+        throw 'Playback did not start'
     }
-    Click-UI '暂停'
+    if($UIAPlayback){Click-UI '暂停'}else{Press-PlaybackSpace}
+    for($i=0;$i -lt 30;$i++){if(Find-UI '播放'){break};Start-Sleep -Milliseconds 100}
+    if(-not (Find-UI '播放')){throw 'Playback did not pause'}
     & $ScreenshotTool $p.Id (Join-Path $workPath 'editor.png')
     $bold=Find-UI '粗体'
     if($bold){
@@ -153,6 +177,7 @@ try {
     if(Find-UI '设置分类'){
         foreach($tab in @('识别与模型','翻译服务')){
             Select-Tab '设置分类' $tab
+            if($tab -eq '翻译服务' -and (-not (Find-UI '并发批数') -or -not (Find-UI '每批字幕数'))){throw 'Translation scheduling controls are missing'}
             & $ScreenshotTool $p.Id (Join-Path $workPath ("settings-"+$tab+'.png'))
         }
     }
@@ -168,8 +193,8 @@ try {
         if(Test-Path $translated){throw 'Partial translation was published before completion'}
         & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-live.png')
         if($InterruptTranslation){
-            for($i=0;$i -lt 150;$i++){if(Find-UI '重试'){break};Start-Sleep -Milliseconds 100}
-            if(-not (Find-UI '重试') -or -not (Find-UI '你好，世界') -or -not (Find-UI '尚未完成')){throw 'Interruption hid completed or draft text'}
+            for($i=0;$i -lt 150;$i++){if(Find-UI '继续处理'){break};Start-Sleep -Milliseconds 100}
+            if(-not (Find-UI '继续处理') -or -not (Find-UI '你好，世界') -or -not (Find-UI '尚未完成')){throw 'Interruption hid completed or draft text'}
             if(Test-Path $translated){throw 'Interrupted translation was published'}
             & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-interrupted.png')
             # Only the process this script launched, with isolated data and IPC,
@@ -181,14 +206,15 @@ try {
             $restart.Remove('ArgumentList')
             $restart.RedirectStandardError=Join-Path $workPath 'restart-stderr.log'
             $p=Start-Process @restart
-            for($i=0;$i -lt 150;$i++){if(Find-UI '重试'){break};Start-Sleep -Milliseconds 100}
-            if(-not (Find-UI '重试') -or -not (Find-UI '你好，世界') -or -not (Find-UI '尚未完成')){throw 'Restart did not restore the translation'}
+            for($i=0;$i -lt 150;$i++){if(Find-UI '继续处理'){break};Start-Sleep -Milliseconds 100}
+            if(-not (Find-UI '继续处理') -or -not (Find-UI '你好，世界') -or -not (Find-UI '尚未完成')){throw 'Restart did not restore the translation'}
             & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-restored.png')
-            Click-UI '重试'
+            Click-UI '继续处理'
         }
         for($i=0;$i -lt 200;$i++){if(Test-Path $translated){break};Start-Sleep -Milliseconds 100}
         if(-not (Test-Path $translated)){throw 'Translation was not automatically saved'}
         if(-not [IO.File]::ReadAllText($translated).Contains('你好，世界')){throw 'Saved translation has no translated text'}
+        if([IO.File]::ReadAllText($translated).Contains($sourceText)){throw 'Default translation save included source text'}
         if(-not [IO.File]::ReadAllText($subtitle).Contains($sourceText)){throw 'Source subtitle was overwritten'}
         if(-not (Find-UI '你好，世界')){throw 'Finished translation did not update the subtitle table'}
         Start-Sleep -Seconds 2
@@ -198,7 +224,24 @@ try {
         for($i=0;$i -lt 100;$i++){if(Find-UI $sourceText){break};Start-Sleep -Milliseconds 100}
         if(-not (Find-UI $sourceText)){throw 'Translation undo did not restore the original'}
     }
-    Write-Output "PASS: import (argument=$OpenArgument), same-name subtitle, real playback/pause, settings, translation=$([bool]$TranslationEndpoint)"
+    if($BilingualExport) {
+        foreach($choice in @(@{id='upper';label='仅上行字幕';kept='Upper subtitle';removed='下行字幕'},@{id='lower';label='仅下行字幕';kept='下行字幕';removed='Upper subtitle'})) {
+            Click-UI '导出字幕'
+            for($i=0;$i -lt 100;$i++){if(Find-UI '保留字幕行'){break};Start-Sleep -Milliseconds 100}
+            Select-Value $choice.label
+            & $ScreenshotTool $p.Id (Join-Path $workPath ("export-"+$choice.id+'.png'))
+            Click-UI '导出'
+            $output=Join-Path $workPath ("export-"+$choice.id+'.srt')
+            Choose-Path $output
+            for($i=0;$i -lt 100;$i++){if(Test-Path -LiteralPath $output){break};Start-Sleep -Milliseconds 100}
+            if(-not (Test-Path -LiteralPath $output)){throw 'Single-language export did not create a file'}
+            $saved=[IO.File]::ReadAllText($output)
+            if(-not $saved.Contains($choice.kept) -or $saved.Contains($choice.removed) -or -not $saved.Contains('00:00:00,100 --> 00:00:02,900')){throw 'Single-language export changed content or time'}
+        }
+        if([IO.File]::ReadAllText($subtitle) -notmatch [regex]::Escape($sourceText)){throw 'Bilingual source was changed by export'}
+    }
+    $inputMode=if($UIAPlayback){'UIA (keyboard not exercised)'}else{'Space'}
+    Write-Output "PASS: import (argument=$OpenArgument), same-name subtitle, playback/pause=$inputMode, settings, translation=$([bool]$TranslationEndpoint), upper/lower export=$BilingualExport"
 } finally {
     for($i=0;$i -lt 200;$i++){if(-not (Find-UI '取消任务')){break};Start-Sleep -Milliseconds 100}
     $p.Refresh()

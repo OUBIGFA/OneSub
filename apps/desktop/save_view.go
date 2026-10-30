@@ -25,9 +25,8 @@ func trackHash(doc subtitle.Document, track int) string {
 	for _, cue := range doc.Cues {
 		text := subtitle.SourceText(cue)
 		if track == 1 {
-			// Rebuilt source edits are saved with the translation as bilingual
-			// subtitles, so either text can make this track unsaved.
-			fmt.Fprintf(h, "%s\x1d", subtitle.SourceText(cue))
+			// File-level dirty state follows the translation-only save format.
+			// Rebuilt source corrections remain in the recovery project.
 			text = "\x00"
 			if cue.Translated {
 				text = cue.Text
@@ -220,10 +219,7 @@ func (a *NativeApp) saveTracks(tracks []int, saveAs bool, next func()) {
 func (a *NativeApp) encodeTrack(ctx context.Context, doc subtitle.Document, track int, format string) ([]byte, error) {
 	mode := "source"
 	if track == 1 {
-		mode = "bilingual"
-		if doc.Format == "ass" || doc.Format == "ssa" {
-			mode = "translation"
-		}
+		mode = "translation"
 	}
 	document, err := subtitle.SelectOutput(doc, subtitle.OutputOptions{Mode: mode})
 	if err != nil {
@@ -313,10 +309,15 @@ func (a *NativeApp) savePromptView(c *ui.Context) {
 }
 
 func (a *NativeApp) requestExport() {
+	a.commitEdit(true)
 	if a.subtitleTab == 0 {
 		a.settings.SubtitleOutput.Mode, a.settings.SubtitleOutput.SourceTrack = "source", "original"
+	} else if a.trackHasContent(1) {
+		// Translation export starts with one language even when the preview
+		// or previous video export used a bilingual layout.
+		a.settings.SubtitleOutput.Mode, a.settings.SubtitleOutput.SourceTrack = "translation", ""
 	}
-	a.commitEdit(true)
+	a.exportLines = "all"
 	a.exportOpen = true
 }
 
@@ -376,6 +377,7 @@ func (a *NativeApp) clearWorkbench() {
 	a.translationCandidate, a.translationReview = nil, false
 	a.translationTask, a.translationLive = nil, nil
 	a.settings.TranslationRecovery = ""
+	a.settings.Processing = nil
 	a.saveSettings()
 	a.savedHash, a.savedPath, a.unsaved = [2]string{}, [2]string{}, [2]bool{}
 	a.subtitleTab = 0

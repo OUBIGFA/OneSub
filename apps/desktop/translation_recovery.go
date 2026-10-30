@@ -147,6 +147,7 @@ func (a *NativeApp) retryTranslation() {
 	// The explicit Retry click authorizes using the currently selected service.
 	task.Config.Endpoint, task.Config.API, task.Config.Model = a.settings.ProviderURL, a.settings.ProviderAPI, a.settings.ProviderModel
 	task.Config.MaxRequests = int(a.settings.MaxRequests)
+	task.Config.Concurrency, task.Config.BatchSize = a.settings.TranslationConcurrency, a.settings.TranslationBatchSize
 	task.Config.MaxOutputTokens = 0
 	if info := a.settings.ModelInfo(); info != nil {
 		task.Config.MaxOutputTokens = info.MaxOutputTokens
@@ -167,12 +168,14 @@ func (a *NativeApp) completeTranslationRecovery() {
 	}
 	a.translationTask, a.translationLive = nil, nil
 	a.settings.TranslationRecovery = ""
+	a.settings.Processing = nil
 	a.saveSettings()
 }
 
 // Restore the interrupted task on startup without sending a request. Saved
 // hashes retain the file-level unsaved state independently from project edits.
 func (a *NativeApp) restoreTranslationProgress() {
+	pending := a.settings.Processing
 	path := a.settings.TranslationRecovery
 	if path == "" {
 		return
@@ -208,6 +211,7 @@ func (a *NativeApp) restoreTranslationProgress() {
 			a.loadDraft()
 			if !finished {
 				a.translationTask, a.translationLive = task, live
+				a.settings.Processing = pending
 				a.settings.TranslationRecovery = path
 				a.status = locales.TranslationInterrupted()
 				a.saveSettings()

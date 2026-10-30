@@ -140,7 +140,7 @@ func TestApplyFailureKeepsTranslationResultsVisible(t *testing.T) {
 func TestTranslateTabHoldsItsOptions(t *testing.T) {
 	a := withStyleCatalog(t)
 	a.workflowTab = 1
-	tt := settled(a.view, 1920, 1080)
+	tt := settled(a.workflowPanel, 800, 800)
 	for _, text := range []string{"开始翻译字幕", "目标语言", "翻译风格", "按意群重建时间轴", "保存目录"} {
 		if !tt.HasText(text) {
 			t.Fatal(text, tt.Texts())

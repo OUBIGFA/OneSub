@@ -205,7 +205,7 @@ func timeColumn(c *ui.Context, title string) ui.TableColumn {
 func (a *NativeApp) editorView(c *ui.Context) {
 	valid := !a.showsTranslationProgress() && a.snapshot != nil && a.selected >= 0 && a.selected < len(a.activeDocument().Cues)
 	ui.Column(c).Fill().Label(locales.A11yEditorPanel()).Children(func() {
-		panelHeader(c, nil, func() { panelTitle(c, locales.EditorTitle()) }, func() {
+		panelHeader(c, func() { a.subtitleActionsMenu(c) }, func() { panelTitle(c, locales.EditorTitle()) }, func() {
 			ui.Toolbar(c, func() {
 				toolIcon(c, locales.EditorUndo(), "undo-2").Disabled(a.busy || a.snapshot == nil || !(a.snapshot.CanUndo || a.editPending)).OnClick(func() { a.undo(false) })
 				toolIcon(c, locales.EditorRedo(), "redo-2").Disabled(a.busy || a.snapshot == nil || !a.snapshot.CanRedo).OnClick(func() { a.undo(true) })

@@ -77,7 +77,7 @@ func TestProviderSettingsKeepSizeAndVisibleControls(t *testing.T) {
 			if before != after {
 				t.Fatal("provider state resized settings", before, after)
 			}
-			for _, label := range []string{locales.TranslationProviderName(), locales.TranslationMaxInput(), locales.TranslationMaxOutput(), locales.TranslationContextWindow(), locales.TranslationGlossary(), locales.ActionClose()} {
+			for _, label := range []string{locales.TranslationProviderName(), locales.TranslationMaxInput(), locales.TranslationMaxOutput(), locales.TranslationContextWindow(), locales.TranslationConcurrency(), locales.TranslationBatchSize(), locales.TranslationGlossary(), locales.ActionClose()} {
 				box, ok := tt.Find(label)
 				if !ok || box.W == 0 || box.H == 0 || box.Y < 0 || box.Y+box.H > 640 {
 					t.Fatal("setting clipped", language, label, box)

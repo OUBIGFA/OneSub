@@ -100,6 +100,7 @@ type NativeApp struct {
 	modelOpen                            bool
 	exportOpen                           bool
 	exportFormat                         string
+	exportLines                          string // all, upper or lower; export-only projection
 	quitAfterTask                        bool
 	composeOpen                          bool
 	composeRunning                       bool
@@ -125,6 +126,10 @@ type NativeApp struct {
 	styleRoom                            float32    // the width the style sections have
 	subtitleTab                          int
 	editRebuiltSource                    bool
+	insertOpen                           bool
+	insertPosition                       int
+	insertStart, insertEnd               float64
+	insertSource, insertTranslation      string
 	openOnReady                          []string
 	providerKey, keyStatus               string
 	providerModels                       []string
@@ -175,6 +180,7 @@ func (a *NativeApp) view(c *ui.Context) {
 	a.savePromptView(c)
 	a.clearView(c)
 	a.presetDialogView(c)
+	a.insertSubtitleView(c)
 	a.observeStyle(c.Now())
 	// The panes keep the sizes the user drags them to, saved once the drag
 	// stops, as the other preferences.
@@ -209,6 +215,14 @@ func (a *NativeApp) view(c *ui.Context) {
 	if c.Shortcut(ui.Cmd, ui.KeyS) && !a.busy {
 		a.saveTrack(a.subtitleTab, false)
 	}
+	if a.playbackShortcut(c) {
+		a.togglePlayback()
+	}
+	if !a.busy && a.list.Shortcut(c, 0, ui.KeyDelete) {
+		if cues := a.activeDocument().Cues; a.selected >= 0 && a.selected < len(cues) {
+			a.deleteSubtitle(cues[a.selected].ID)
+		}
+	}
 }
 
 // keepPaneMinimums keeps each pane the room its controls need, in both
@@ -234,6 +248,7 @@ func (a *NativeApp) keepPaneMinimums(c *ui.Context) {
 func (a *NativeApp) topBar(c *ui.Context, look studio) {
 	ui.Toolbar(c, func() {
 		iconButton(c, locales.ActionAddFiles(), "folder-open").Disabled(a.busy).OnClick(a.pickFiles)
+		iconButton(c, a.processingLabel(), "languages").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(a.processMedia)
 		iconButton(c, locales.ActionClearWorkbench(), "eraser").Disabled(a.busy || a.snapshot == nil).OnClick(a.requestClear)
 		ui.Spacer(c)
 		toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
@@ -419,6 +434,7 @@ func (a *NativeApp) replaceProject(next *project.Store, state project.Snapshot, 
 	a.translationCandidate = nil
 	a.translationLive, a.translationTask = nil, nil
 	a.settings.TranslationRecovery = ""
+	a.settings.Processing = nil
 	a.saveSettings()
 	a.setSnapshot(state)
 	a.markSaved(0, a.originalSubtitlePath())
@@ -754,6 +770,8 @@ func main() {
 			a.importPaths(paths)
 		} else if a.settings.TranslationRecovery != "" {
 			a.restoreTranslationProgress()
+		} else if a.settings.Processing != nil {
+			a.restoreProcessing()
 		}
 		go a.syncPlayer()
 	})

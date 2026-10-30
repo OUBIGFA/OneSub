@@ -62,6 +62,8 @@ if __name__ == "__main__":
     parser.add_argument("--screenshot-tool", required=True)
     parser.add_argument("--packaged", action="store_true")
     parser.add_argument("--interrupt", action="store_true")
+    parser.add_argument("--pipeline-models-root")
+    parser.add_argument("--uia-playback", action="store_true", help="Use UI Automation on a locked desktop; does not test Space")
     args = parser.parse_args()
     Provider.interrupt = args.interrupt
     server = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
@@ -72,21 +74,31 @@ if __name__ == "__main__":
         # Execute the repository's UTF-8 source explicitly without changing it.
         def literal(value):
             return "'" + str(value).replace("'", "''") + "'"
-        script = Path(__file__).with_name("native_smoke.ps1").resolve()
+        script = Path(__file__).with_name("process_media.ps1" if args.pipeline_models_root else "native_smoke.ps1").resolve()
         invocation = (f"& ([scriptblock]::Create([IO.File]::ReadAllText({literal(script)}))) "
                       f"-Exe {literal(args.exe)} -Work {literal(args.work)} "
-                      f"-ScreenshotTool {literal(args.screenshot_tool)} -OpenArgument "
+                      f"-ScreenshotTool {literal(args.screenshot_tool)} "
                       f"-TranslationEndpoint 'http://127.0.0.1:{server.server_port}/v1'")
+        if args.pipeline_models_root:
+            invocation += f" -ModelsRoot {literal(args.pipeline_models_root)}"
+        else:
+            invocation += " -OpenArgument"
         if args.packaged:
             invocation += " -Packaged"
         if args.interrupt:
             invocation += " -InterruptTranslation"
+        if args.uia_playback and not args.pipeline_models_root:
+            invocation += " -UIAPlayback"
         command = ["powershell", "-NoProfile", "-Command", invocation]
         result = subprocess.run(command)
         if result.returncode:
             raise SystemExit(result.returncode)
         expected = 2 if args.interrupt else 1
-        assert Provider.requests == expected, Provider.requests
+        if args.pipeline_models_root:
+            assert Provider.requests >= 1, Provider.requests
+            expected = Provider.requests
+        else:
+            assert Provider.requests == expected, Provider.requests
         if args.interrupt:
             assert Provider.unit_requests == [["1", "2"], ["2"]], Provider.unit_requests
         print(f"PASS: desktop used {expected} local requests; restart/resume={args.interrupt}; no cloud quality claim")

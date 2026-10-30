@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,6 +85,48 @@ func TestTracksAreWrittenInTheirFormats(t *testing.T) {
 	read, err := a.worker.Read(context.Background(), path)
 	if err != nil || read.Cues[0].Text != "校正原文" || len(read.Cues) != 2 {
 		t.Fatal(read, err)
+	}
+}
+
+// Automatic saves, Save and Save As share encodeTrack: translations must
+// contain only translated text, regardless of preview/export preferences.
+func TestTranslationSavesOnlyTranslatedText(t *testing.T) {
+	a := draftApp(t)
+	a.worker = subtitle.Client{Executable: os.Getenv("ONESUB_SUBTITLE_WORKER"), Scratch: t.TempDir()}
+	doc := a.snapshot.Document
+	doc.Cues = append([]subtitle.Cue{}, doc.Cues...)
+	for i := range doc.Cues {
+		doc.Cues[i].TranslationSource = doc.Cues[i].Text
+		doc.Cues[i].Text, doc.Cues[i].Translated = "Translation only", true
+	}
+	a.settings.SubtitleOutput.Mode = "bilingual"
+	for _, format := range []string{"srt", "vtt"} {
+		data, err := a.encodeTrack(context.Background(), doc, 1, format)
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(t.TempDir(), "translated."+format)
+		if err = os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		read, err := a.worker.Read(context.Background(), path)
+		if err != nil || len(read.Cues) != 2 {
+			t.Fatal("saved translation could not be read", read, err)
+		}
+		for _, cue := range read.Cues {
+			if cue.Text != "Translation only" || strings.ContainsAny(cue.Text, "\r\n") {
+				t.Fatal("translation save included source or a second line", cue)
+			}
+		}
+	}
+	before := trackHash(doc, 1)
+	doc.Cues[0].TranslationSource = "Corrected rebuilt source"
+	if trackHash(doc, 1) != before {
+		t.Fatal("source-only edit changed the translation file digest")
+	}
+	doc.Cues[0].Text = "Edited translation"
+	if trackHash(doc, 1) == before {
+		t.Fatal("translated text edit did not change the file digest")
 	}
 }
 

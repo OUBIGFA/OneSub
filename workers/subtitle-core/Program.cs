@@ -25,6 +25,9 @@ try
         "write" => Codec.Write(JsonSerializer.Deserialize<Document>(
             File.ReadAllText(request.InputPath, Encoding.UTF8), json)
             ?? throw new InvalidDataException("E_PROTOCOL")),
+        "select-lines" => JsonSerializer.Serialize(Codec.SelectLines(JsonSerializer.Deserialize<LineSelection>(
+            File.ReadAllText(request.InputPath, Encoding.UTF8), json)
+            ?? throw new InvalidDataException("E_PROTOCOL")), json),
         _ => throw new InvalidDataException("E_PROTOCOL")
     };
     using (var output = new FileStream(request.OutputPath, FileMode.CreateNew, FileAccess.Write))
@@ -42,3 +45,4 @@ catch (Exception error)
 }
 
 record Request(int Protocol, string RequestId, string Operation, string InputPath, string OutputPath);
+record LineSelection(Document Document, string Line);

@@ -72,12 +72,33 @@ func (c Client) Read(ctx context.Context, path string) (Document, error) {
 }
 
 func (c Client) Write(ctx context.Context, doc Document) ([]byte, error) {
+	return c.documentOperation(ctx, "write", doc)
+}
+
+// SelectLines makes an explicit export projection through libse. It preserves
+// the source document and never applies extraction rules to ordinary saves.
+func (c Client) SelectLines(ctx context.Context, doc Document, line string) (Document, error) {
+	if line == "" || line == "all" {
+		return doc, nil
+	}
+	data, err := c.documentOperation(ctx, "select-lines", struct {
+		Document Document `json:"document"`
+		Line     string   `json:"line"`
+	}{doc, line})
+	var selected Document
+	if err == nil {
+		err = json.Unmarshal(data, &selected)
+	}
+	return selected, err
+}
+
+func (c Client) documentOperation(ctx context.Context, operation string, document any) ([]byte, error) {
 	dir, err := os.MkdirTemp(c.Scratch, "serialize-")
 	if err != nil {
 		return nil, err
 	}
 	defer os.RemoveAll(dir) // Only this invocation's generated artifacts.
-	data, err := json.Marshal(doc)
+	data, err := json.Marshal(document)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +106,7 @@ func (c Client) Write(ctx context.Context, doc Document) ([]byte, error) {
 	if err = os.WriteFile(input, data, 0600); err != nil {
 		return nil, err
 	}
-	return c.run(ctx, "write", input)
+	return c.run(ctx, operation, input)
 }
 
 // boundedBuffer prevents a broken helper from allocating unbounded stdout/stderr.
@@ -176,6 +197,10 @@ func workerMessage(message string) string {
 		return locales.ErrSubtitleVttBlank()
 	case "E_ASS_FORMAT":
 		return locales.ErrSubtitleAssFormat()
+	case "E_LINE_SELECTION":
+		return locales.ErrSubtitleLineSelection()
+	case "E_EMPTY_LINE":
+		return locales.ErrSubtitleSelectedLineEmpty()
 	case "E_CONTROL_SIZE", "E_INPUT_SIZE":
 		return locales.ErrSubtitleInputSize()
 	case "E_PROTOCOL":

@@ -12,7 +12,15 @@ import (
 // authority; there is no replacement recognition implementation in the UI.
 // Its result replaces the subtitles, so unsaved files are offered first.
 func (a *NativeApp) recognize() {
+	a.recognizeWithTranslation(false)
+}
+
+func (a *NativeApp) recognizeWithTranslation(translate bool) {
 	if a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" {
+		return
+	}
+	if translate && (a.settings.ProviderURL == "" || a.settings.ProviderModel == "") {
+		a.settingsOpen, a.settingsTab = true, 2
 		return
 	}
 	source := a.snapshot.Manifest.MediaPath
@@ -26,7 +34,10 @@ func (a *NativeApp) recognize() {
 		a.errorText = err.Error()
 		return
 	}
-	if a.guardUnsaved(a.recognize) {
+	if a.guardUnsaved(func() { a.recognizeWithTranslation(translate) }) {
+		return
+	}
+	if !a.rememberProcessing("recognize", translate) {
 		return
 	}
 	prefs, style, aspect := a.settings, a.currentStyle, a.frameAspect

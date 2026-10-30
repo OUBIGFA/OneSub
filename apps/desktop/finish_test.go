@@ -108,7 +108,7 @@ func TestPlaybackSpeed(t *testing.T) {
 	}
 }
 
-// The editor, the style and recognition with translation start at 1:2:2,
+// The editor, the style and recognition with translation start at 2:2:1,
 // and the panes keep the sizes the user drags them to.
 func TestPaneSizesAreRemembered(t *testing.T) {
 	a := withStyleCatalog(t)
@@ -116,11 +116,11 @@ func TestPaneSizesAreRemembered(t *testing.T) {
 	editor, _ := tt.Find("字幕编辑面板")
 	style, _ := tt.Find("字幕样式面板")
 	work, _ := tt.Find("识别与翻译")
-	if ratio := (style.X - editor.X) / (work.X - style.X); ratio < 0.45 || ratio > 0.55 {
-		t.Fatal("editor and style are not 1:2", editor, style, work)
+	if ratio := (style.X - editor.X) / (work.X - style.X); ratio < 0.95 || ratio > 1.05 {
+		t.Fatal("editor and style are not 2:2", editor, style, work)
 	}
-	if ratio := (1500 - work.X) / (style.X - editor.X); ratio < 1.8 || ratio > 2.2 {
-		t.Fatal("recognition and translation not twice the editor", editor, work)
+	if ratio := (1500 - work.X) / (style.X - editor.X); ratio < 0.45 || ratio > 0.55 {
+		t.Fatal("workflow not half the editor", editor, work)
 	}
 	a.bottomSplit, a.splitX = 45, 55
 	tt.Frame()
@@ -172,7 +172,7 @@ func TestTranslationShowsEachSubtitleAsItIsWritten(t *testing.T) {
 // A language is its flag, name and code, in the choice and in each option.
 func TestLanguagesShowFlagNameAndCode(t *testing.T) {
 	a := withStyleCatalog(t)
-	tt := settled(a.view, 1600, 1000)
+	tt := settled(a.workflowPanel, 800, 800)
 	if !tt.HasText("中国（普通话）-ZH") {
 		t.Fatal(tt.Texts())
 	}
