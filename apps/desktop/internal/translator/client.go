@@ -79,6 +79,7 @@ type service struct {
 	url, api, model, key string
 	client               *http.Client
 	maxRequests          int
+	maxOutputTokens      int
 	onRetry              func(note string)
 
 	mu                      sync.Mutex
@@ -161,7 +162,12 @@ func (s *service) call(ctx context.Context, r request, stream streamed) (reply, 
 			return got, nil
 		}
 		if ctx.Err() != nil {
-			return reply{}, ctx.Err()
+			return got, ctx.Err()
+		}
+		// A closed subtitle value is already recoverable. Stop this request so
+		// Retry can ask only for the remaining IDs, instead of billing it twice.
+		if pairs, _ := scanPairs(stripThinking(got.text)); len(pairs) > 0 {
+			return got, err
 		}
 		var status *httpError
 		if errors.As(err, &status) && (status.status == http.StatusBadRequest || status.status == http.StatusUnprocessableEntity) {
@@ -241,6 +247,9 @@ func (s *service) body(r request, mode int, usage bool) map[string]any {
 		input = append(input, r.messages...)
 		// Each request stands alone, so the service is asked not to store it.
 		body := map[string]any{"model": s.model, "instructions": r.system, "input": input, "stream": true, "store": false}
+		if s.maxOutputTokens > 0 {
+			body["max_output_tokens"] = s.maxOutputTokens
+		}
 		switch mode {
 		case modeSchema:
 			body["text"] = map[string]any{"format": format}
@@ -251,6 +260,9 @@ func (s *service) body(r request, mode int, usage bool) map[string]any {
 	}
 	messages := append([]message{{"system", r.system}}, r.messages...)
 	body := map[string]any{"model": s.model, "messages": messages, "stream": true}
+	if s.maxOutputTokens > 0 {
+		body["max_completion_tokens"] = s.maxOutputTokens
+	}
 	if usage {
 		body["stream_options"] = map[string]any{"include_usage": true}
 	}
@@ -299,7 +311,7 @@ func (s *service) send(ctx context.Context, r request, mode int, usage bool, str
 	}
 	got, err := s.read(response.Body, func() { idle.Reset(idleTimeout) }, stream)
 	if err != nil {
-		return reply{}, timedOut(err)
+		return got, timedOut(err)
 	}
 	return got, nil
 }
@@ -317,6 +329,9 @@ type answer struct {
 func (s *service) read(body io.Reader, alive func(), stream streamed) (reply, error) {
 	reader := bufio.NewReaderSize(body, 64<<10)
 	var a answer
+	partial := func(err error) (reply, error) {
+		return reply{text: a.content.String(), input: a.input, output: a.output}, err
+	}
 	started := false
 	done := false
 	for !done {
@@ -335,7 +350,7 @@ func (s *service) read(body io.Reader, alive func(), stream streamed) (reply, er
 			}
 			finished, eventErr := s.event([]byte(data), &a)
 			if eventErr != nil {
-				return reply{}, eventErr
+				return partial(eventErr)
 			}
 			done = finished
 			if a.content.Len()+a.thinking.Len() > maxAnswer {
@@ -349,12 +364,12 @@ func (s *service) read(body io.Reader, alive func(), stream streamed) (reply, er
 			break
 		}
 		if err != nil {
-			return reply{}, apperr.Wrap(locales.ErrTranslateNetwork(err.Error()), err)
+			return partial(apperr.Wrap(locales.ErrTranslateNetwork(err.Error()), err))
 		}
 	}
 	if a.finish == "" {
 		// The stream ended without saying how: cut on the way.
-		return reply{}, errors.New(locales.ErrOutcomeInterrupted())
+		return partial(errors.New(locales.ErrOutcomeInterrupted()))
 	}
 	return a.reply()
 }

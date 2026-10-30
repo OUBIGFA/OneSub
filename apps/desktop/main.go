@@ -108,6 +108,7 @@ type NativeApp struct {
 	recognitionStep                      recognitionStep
 	translationRunning                   bool
 	translationLive                      *translationLive // what the running translation has shown
+	translationTask                      *translationTask
 	composeProgress                      media.ComposeProgress
 	lastOutput                           string
 	styleClient                          styles.Client
@@ -123,11 +124,14 @@ type NativeApp struct {
 	styleWidths                          [3]float32 // the style sections' widths in the last frame
 	styleRoom                            float32    // the width the style sections have
 	subtitleTab                          int
+	editRebuiltSource                    bool
 	openOnReady                          []string
 	providerKey, keyStatus               string
 	providerModels                       []string
 	modelsEndpoint, modelsError          string
 	modelsLoading                        bool
+	modelsGeneration                     uint64
+	providerDelete                       bool
 	fontCatalogLoading                   bool
 	translationReview                    bool // the check results of the last translation are shown
 	translationCandidate                 *translationCandidate
@@ -167,6 +171,7 @@ func (a *NativeApp) view(c *ui.Context) {
 	a.exportView(c)
 	a.composeView(c)
 	a.translationView(c)
+	a.providerDeleteView(c)
 	a.savePromptView(c)
 	a.clearView(c)
 	a.presetDialogView(c)
@@ -213,13 +218,13 @@ func (a *NativeApp) keepPaneMinimums(c *ui.Context) {
 	width, height := c.Size()
 	height -= em(c, 44+32) // the tool bar and the status bar
 	keep := func(percent *float32, room, first, second float32) {
-		if room > first+second {
+		if room >= first+second {
 			*percent = min(max(*percent, first/room*100), 100-second/room*100)
 		}
 	}
 	keep(&a.splitX, width, em(c, 500), em(c, 360))
 	keep(&a.splitY, height, em(c, 320), em(c, 180))
-	keep(&a.bottomSplit, width, em(c, 220), em(c, 340+300))
+	keep(&a.bottomSplit, width, em(c, 260), em(c, 340+300))
 	keep(&a.styleSplit, width*(100-a.bottomSplit)/100, em(c, 340), em(c, 300))
 }
 
@@ -295,6 +300,12 @@ func (a *NativeApp) run(label string, work func(context.Context) (func(), error)
 			a.busy = false
 			a.composeRunning = false
 			a.recognitionRunning = false
+			if a.translationRunning && err != nil && a.translationLive != nil {
+				a.translationLive.stopped = err.Error()
+				if errors.Is(err, context.Canceled) {
+					a.translationLive.stopped = locales.StatusCancelled()
+				}
+			}
 			a.translationRunning = false
 			a.cancel = nil
 			switch {
@@ -406,6 +417,9 @@ func (a *NativeApp) replaceProject(next *project.Store, state project.Snapshot, 
 	a.subtitleTab = 0
 	a.selected = 0
 	a.translationCandidate = nil
+	a.translationLive, a.translationTask = nil, nil
+	a.settings.TranslationRecovery = ""
+	a.saveSettings()
 	a.setSnapshot(state)
 	a.markSaved(0, a.originalSubtitlePath())
 	a.markSaved(1, "")
@@ -438,6 +452,7 @@ func (a *NativeApp) candidatesView(c *ui.Context) {
 	})
 }
 func (a *NativeApp) saveSettings() {
+	a.settings.SyncProvider()
 	if a.settingsError {
 		a.errorText = locales.ErrSettingsNeedRepair()
 		return
@@ -737,6 +752,8 @@ func main() {
 			paths := a.openOnReady
 			a.openOnReady = nil
 			a.importPaths(paths)
+		} else if a.settings.TranslationRecovery != "" {
+			a.restoreTranslationProgress()
 		}
 		go a.syncPlayer()
 	})

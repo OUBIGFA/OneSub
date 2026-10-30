@@ -113,8 +113,8 @@ func TestPlaybackSpeed(t *testing.T) {
 func TestPaneSizesAreRemembered(t *testing.T) {
 	a := withStyleCatalog(t)
 	tt := settled(a.view, 1500, 1000)
-	editor, _ := tt.Find("字幕编辑")
-	style, _ := tt.Find("字幕样式")
+	editor, _ := tt.Find("字幕编辑面板")
+	style, _ := tt.Find("字幕样式面板")
 	work, _ := tt.Find("识别与翻译")
 	if ratio := (style.X - editor.X) / (work.X - style.X); ratio < 0.45 || ratio > 0.55 {
 		t.Fatal("editor and style are not 1:2", editor, style, work)
@@ -139,7 +139,7 @@ func TestEditorNamesTheCueOnItsFirstLine(t *testing.T) {
 	title, _ := tt.Find("字幕编辑")
 	number, ok := tt.Find("序号 1")
 	duration, _ := tt.Find("时长")
-	style, _ := tt.Find("字幕样式")
+	style, _ := tt.Find("字幕样式面板")
 	if !ok || number.Y <= title.Y || number.Y >= duration.Y {
 		t.Fatal("cue number not between header and timing", title, number, duration)
 	}
@@ -153,6 +153,7 @@ func TestEditorNamesTheCueOnItsFirstLine(t *testing.T) {
 func TestTranslationShowsEachSubtitleAsItIsWritten(t *testing.T) {
 	a := withStyleCatalog(t)
 	a.busy, a.translationRunning = true, true
+	a.subtitleTab = 1
 	a.translationLive = newTranslationLive()
 	units := []subtitle.Cue{{ID: "u1", Text: "First line", StartMs: 0, EndMs: 2000}, {ID: "u2", Text: "Second line", StartMs: 2000, EndMs: 4000}}
 	a.translationLive.apply(translator.Event{Stage: "translate", Total: 2, Units: units})

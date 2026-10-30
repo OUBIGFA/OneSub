@@ -53,7 +53,7 @@ func (a *NativeApp) seekSubtitle(action string) {
 	if a.mediaURL == "" || a.selected < 0 || a.snapshot == nil {
 		return
 	}
-	cue := a.snapshot.Document.Cues[a.selected]
+	cue := a.activeDocument().Cues[a.selected]
 	if script := subtitleSeekScript(action, cue.StartMs); script != "" {
 		a.activeCue = a.selected
 		a.evalPlayer(script)

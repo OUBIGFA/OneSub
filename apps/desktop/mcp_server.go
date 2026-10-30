@@ -241,7 +241,7 @@ func (s mcpServer) translate(ctx context.Context, req *mcp.CallToolRequest, in t
 		}
 		prefs.TargetLanguage = in.TargetLanguage
 	}
-	key, err := security.ReadKey(prefs.ProviderURL)
+	key, err := security.ReadKey(prefs.CredentialScope())
 	if err != nil {
 		return nil, subtitleOut{}, err
 	}
@@ -251,6 +251,9 @@ func (s mcpServer) translate(ctx context.Context, req *mcp.CallToolRequest, in t
 	}
 	root, checker := s.translationTools()
 	config := translator.Config{Endpoint: prefs.ProviderURL, API: prefs.ProviderAPI, Model: prefs.ProviderModel, Key: key, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(s.tools.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests), CacheDir: filepath.Join(s.tools.dataRoot, "cache", "translation")}
+	if info := prefs.ModelInfo(); info != nil {
+		config.MaxOutputTokens = info.MaxOutputTokens
+	}
 	// Progress names the stage and the subtitles translated, as the window
 	// shows them. MCP progress must only increase, and the stages count
 	// different things, so the value counts notifications and the message

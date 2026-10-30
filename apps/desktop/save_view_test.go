@@ -41,7 +41,7 @@ func TestUnsavedFileGuardsClosingActionsOnly(t *testing.T) {
 				t.Fatal("closing action did not ask")
 			}
 			tt := settled(a.view, 1400, 900)
-			if !tt.HasText("是否保存字幕修改？") || !tt.HasText("原文：覆盖 original.srt") {
+			if !tt.HasText("是否保存字幕修改？") || !tt.HasText("原始字幕：覆盖 original.srt") {
 				t.Fatal(tt.Texts())
 			}
 			a.finishSavePrompt(choice)

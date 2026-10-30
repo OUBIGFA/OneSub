@@ -123,6 +123,18 @@ func TestTranslationRefusesChangedRevision(t *testing.T) {
 	}
 }
 
+func TestApplyFailureKeepsTranslationResultsVisible(t *testing.T) {
+	a, _, candidate := translationApp(t)
+	a.subtitleTab = 1
+	a.translationLive = newTranslationLive()
+	a.translationLive.apply(translator.Event{Stage: "translate", Done: 1, Total: 1, Units: candidate.Result.Document.Cues, Updates: []translator.UnitText{{Index: 0, Text: "你好", Final: true}}})
+	a.store.Close()
+	a.applyTranslation(candidate, "", nil)
+	if a.errorText == "" || !a.showsTranslationProgress() || a.translationLive.texts[0] != "你好" {
+		t.Fatal("failed project write hid the translation", a.errorText)
+	}
+}
+
 // The translate tab chooses the language and the style on one line, then
 // the model, the folder and the sense-group timing.
 func TestTranslateTabHoldsItsOptions(t *testing.T) {

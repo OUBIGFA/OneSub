@@ -33,3 +33,18 @@ func cueDisplayText(cue subtitle.Cue, tab int) string {
 	}
 	return cue.Text
 }
+
+func (a *NativeApp) activeDocument() subtitle.Document {
+	if a.snapshot == nil {
+		return subtitle.Document{}
+	}
+	return a.snapshot.TrackDocument(a.subtitleTab)
+}
+
+// The rebuilt track has two editable texts on its own shared timeline.
+func (a *NativeApp) editorTextTrack() int {
+	if a.subtitleTab == 1 && !a.editRebuiltSource {
+		return 1
+	}
+	return 0
+}

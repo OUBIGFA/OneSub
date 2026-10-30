@@ -67,9 +67,9 @@ func TestTranslationFolderStaysNextToModel(t *testing.T) {
 	a.workflowTab = 1
 	a.settings.ProviderModel = "example-model"
 	tt := settled(a.workflowPanel, 1000, 500)
-	model, _ := tt.Find("example-model")
-	directory, _ := tt.Find(locales.TranslationBesideSource())
-	if math.Abs(float64(model.Y+model.H/2-directory.Y-directory.H/2)) > 1 || directory.X-model.X-model.W > 16 {
+	model, _ := tt.Find(locales.TranslationModel())
+	directory, _ := tt.Find(locales.RecognitionDirectory())
+	if math.Abs(float64(model.Y-directory.Y)) > 1 || directory.X <= model.X || directory.X-model.X > 400 {
 		t.Fatal("model and folder separated", model, directory)
 	}
 }

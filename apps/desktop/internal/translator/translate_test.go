@@ -54,8 +54,17 @@ func (f *fakeModel) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/v1/chat/completions" || r.Header.Get("Authorization") != "Bearer not-a-live-key" {
 		f.t.Error("wrong provider route", r.URL.Path)
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || !body.Stream || body.Messages[0].Role != "system" {
-		f.t.Error("not a streamed chat request", err)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		// A cancelled client may stop while sending its body. That is the
+		// cancellation test's transport event, not an invalid model request.
+		if r.Context().Err() == nil {
+			f.t.Error("not a streamed chat request", err)
+		}
+		return
+	}
+	if !body.Stream || len(body.Messages) == 0 || body.Messages[0].Role != "system" {
+		f.t.Error("not a streamed chat request")
+		return
 	}
 	s := seen{System: body.Messages[0].Content, Messages: body.Messages[1:], Usage: body.StreamOptions != nil}
 	if body.ResponseFormat != nil {
@@ -122,6 +131,52 @@ func serve(t *testing.T, reply func(s seen, n int) (string, string, int)) (*fake
 }
 
 func ok(s seen, _ int) (string, string, int) { return translated(s), "stop", 0 }
+
+// A failed later request must still return every accepted subtitle. The caller
+// can show and persist this result while the error remains visible.
+func TestInterruptedTranslationReturnsAcceptedSubtitles(t *testing.T) {
+	f, config := serve(t, func(s seen, n int) (string, string, int) {
+		if n > 1 {
+			return "invalid key", "", http.StatusUnauthorized
+		}
+		return translated(s), "stop", 0
+	})
+	config.Concurrency = 1
+	result, err := Translate(context.Background(), config, testDocument(35))
+	if err == nil {
+		t.Fatal("interruption reported success")
+	}
+	if len(result.Document.Cues) != 35 || !result.Document.Cues[0].Translated || result.Document.Cues[0].Text != "译文 0" || result.Document.Cues[34].Translated || result.Report.Translated != 30 {
+		t.Fatal("accepted subtitles disappeared", result.Report, result.Document.Cues[0])
+	}
+	if len(f.seen()) != 2 {
+		t.Fatal("unexpected retry", len(f.seen()))
+	}
+}
+
+func TestCutStreamResumesOnlyMissingUnitsWithAnotherModel(t *testing.T) {
+	f, config := serve(t, func(s seen, n int) (string, string, int) {
+		if n == 1 {
+			return `{"1":"完整译文","2":"未完成`, "", 0
+		}
+		return translated(s), "stop", 0
+	})
+	doc := testDocument(2)
+	first, err := Translate(context.Background(), config, doc)
+	if err == nil || first.Resume == nil || first.Resume.Completed[0] != "完整译文" || len(first.Resume.Completed) != 1 || len(f.seen()) != 1 {
+		t.Fatal("cut stream was not kept", err, first.Resume)
+	}
+	config.Model, config.CacheDir, config.Resume = "another-model", t.TempDir(), first.Resume
+	second, err := Translate(context.Background(), config, doc)
+	requests := f.seen()
+	if err != nil || len(requests) != 2 || len(requests[1].Payload.Units) != 1 || requests[1].Payload.Units[0].ID != "2" || second.Document.Cues[0].Text != "完整译文" || second.Report.Resumed != 1 {
+		t.Fatal("resume repeated completed units", err, requests, second.Report)
+	}
+	doc.Cues[0].Text = "Changed source"
+	if _, err = Translate(context.Background(), config, doc); err == nil || len(f.seen()) != 2 {
+		t.Fatal("stale progress reused")
+	}
+}
 
 func testDocument(count int) subtitle.Document {
 	doc := subtitle.Document{Format: "srt"}
@@ -559,8 +614,49 @@ func TestTranslateCancels(t *testing.T) {
 		cancel()
 		return translated(s), "stop", 0
 	})
+	// This case checks cancellation between batches, not midway through a
+	// second concurrent request reaching the fixture.
+	config.Concurrency = 1
 	_, err := Translate(ctx, config, testDocument(40))
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
+	}
+}
+
+func TestAdvertisedOutputLimitReachesBothProtocols(t *testing.T) {
+	for _, api := range []string{APIChatCompletions, APIResponses} {
+		t.Run(api, func(t *testing.T) {
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				var body struct {
+					Completion int `json:"max_completion_tokens"`
+					Output     int `json:"max_output_tokens"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Error(err)
+					return
+				}
+				w.Header().Set("Content-Type", "text/event-stream")
+				if api == APIResponses {
+					if body.Output != 8192 || body.Completion != 0 {
+						t.Error("wrong Responses output limit", body)
+					}
+					fmt.Fprint(w, "data: {\"type\":\"response.output_text.delta\",\"delta\":\"{\\\"1\\\":\\\"译文 0\\\"}\"}\n\n")
+					fmt.Fprint(w, "data: {\"type\":\"response.completed\",\"response\":{}}\n\n")
+				} else {
+					if body.Completion != 8192 || body.Output != 0 {
+						t.Error("wrong Chat output limit", body)
+					}
+					fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"{\\\"1\\\":\\\"译文 0\\\"}\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+				}
+			}))
+			defer server.Close()
+			config := Config{Endpoint: server.URL, API: api, Model: "limits-test", TargetLanguage: "zh-CN", SkillRoot: os.Getenv("ONESUB_SKILL_ROOT"), MaxRequests: 1, MaxOutputTokens: 8192, Client: server.Client()}
+			result, err := Translate(context.Background(), config, testDocument(1))
+			if err != nil || calls != 1 || !result.Document.Cues[0].Translated {
+				t.Fatal("limit-bearing request failed", err, calls)
+			}
+		})
 	}
 }

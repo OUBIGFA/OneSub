@@ -14,7 +14,8 @@ import (
 
 func outputModes() []option {
 	return []option{
-		{"source", locales.OutputSource()},
+		{"original", locales.TabOriginal()},
+		{"source", locales.OutputRebuiltSource()},
 		{"translation", locales.OutputTranslation()},
 		{"bilingual", locales.OutputBilingual()},
 	}
@@ -27,19 +28,19 @@ func outputModes() []option {
 // never resizes the dialog.
 func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) {
 	o := a.settings.SubtitleOutput.Normalized()
-	modes := []string{"source", "translation", "bilingual"}
-	mode := 0
-	for i, m := range modes {
-		if m == o.Mode {
-			mode = i
-		}
+	mode := o.Mode
+	if mode == "source" && o.SourceTrack == "original" {
+		mode = "original"
 	}
 	ui.Field(c, locales.OutputContent(), func() {
-		if ui.Segmented(c, &mode, locales.TabSource(), locales.TabTranslation(), locales.TabBilingual()).Label(locales.OutputContent()).AlignSelf(ui.Start).Changed() {
-			o.Mode = modes[mode]
+		idSelect(c, &mode, outputModes()).Label(locales.OutputContent()).AlignSelf(ui.Start).OnChange(func() {
+			o.Mode, o.SourceTrack = mode, ""
+			if mode == "original" {
+				o.Mode, o.SourceTrack = "source", "original"
+			}
 			a.settings.SubtitleOutput = o
 			a.saveSettings()
-		}
+		})
 	})
 	bilingual := o.Mode == "bilingual"
 	if !bilingual && !keepRoom {
@@ -98,7 +99,7 @@ func (a *NativeApp) exportView(c *ui.Context) {
 			})
 			var err error
 			if a.snapshot != nil {
-				_, err = subtitle.SelectOutput(a.snapshot.Document, a.settings.SubtitleOutput)
+				_, err = subtitle.SelectOutput(a.snapshot.OutputDocument(a.settings.SubtitleOutput), a.settings.SubtitleOutput)
 			}
 			note := ui.Column(c).Height(em(c, 48)).Shrink(0)
 			note.Children(func() {
@@ -119,7 +120,10 @@ func (a *NativeApp) exportView(c *ui.Context) {
 }
 
 func exportFilename(name, format string, options subtitle.OutputOptions) string {
-	suffix := map[string]string{"source": "source", "translation": "translated", "bilingual": "bi"}[options.Normalized().Mode]
+	suffix := map[string]string{"source": "rebuilt-source", "translation": "translated", "bilingual": "bilingual"}[options.Normalized().Mode]
+	if options.Normalized().Mode == "source" && options.SourceTrack == "original" {
+		suffix = "original"
+	}
 	return name + "-" + suffix + "." + format
 }
 
@@ -131,7 +135,7 @@ func (a *NativeApp) exportSubtitle() {
 	state, format := *a.snapshot, a.exportFormat
 	options, style, secondary, aspect := a.settings.SubtitleOutput, a.currentStyle, a.secondaryStyle, a.frameAspect
 	a.run(locales.MenuExportSubtitles(), func(ctx context.Context) (func(), error) {
-		document, err := subtitle.SelectOutput(state.Document, options)
+		document, err := subtitle.SelectOutput(state.OutputDocument(options), options)
 		if err != nil {
 			return nil, err
 		}

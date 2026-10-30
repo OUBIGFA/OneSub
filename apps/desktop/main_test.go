@@ -135,8 +135,8 @@ func TestActionsMovedBesideTheirContent(t *testing.T) {
 	}
 	a.settingsOpen = false
 	list, _ := tt.Find("字幕语言")
-	source, _ := tt.Find("原文")
-	translation, _ := tt.Find("译文")
+	source, _ := tt.Find("原始字幕")
+	translation, _ := tt.Find("重建字幕")
 	panelCentre := list.X + list.W/2
 	tabsCentre := (source.X + translation.X + translation.W) / 2
 	if d := tabsCentre - panelCentre; d > 30 || d < -30 {
@@ -280,7 +280,7 @@ func TestEnglishInterface(t *testing.T) {
 	inLocale(t, "en", func() {
 		a := storeApp(t, subtitle.Cue{ID: "c1", Text: "Hello", OriginalText: "Hello", StartMs: 0, EndMs: 1000})
 		tt := settled(a.view, 1400, 900)
-		for _, label := range []string{"Add files", "Clear workbench", "Export subtitles", "Transcribe & translate", "Transcribe subtitles", "Export video", "Original", "Translation", "Subtitle editor", "No. 1", "Save as", "Subtitle style"} {
+		for _, label := range []string{"Add files", "Clear workbench", "Export subtitles", "Transcribe & translate", "Transcribe subtitles", "Export video", "Original subtitles", "Rebuilt subtitles", "Subtitle editor", "No. 1", "Save as", "Subtitle style"} {
 			if !tt.HasText(label) {
 				t.Fatal("missing English text", label, tt.Texts())
 			}

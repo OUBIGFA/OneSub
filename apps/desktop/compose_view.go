@@ -54,7 +54,7 @@ func (a *NativeApp) composeView(c *ui.Context) {
 			})
 			var outputErr error
 			if a.snapshot != nil {
-				_, outputErr = subtitle.SelectOutput(a.snapshot.Document, a.settings.SubtitleOutput)
+				_, outputErr = subtitle.SelectOutput(a.snapshot.OutputDocument(a.settings.SubtitleOutput), a.settings.SubtitleOutput)
 			}
 			ui.Column(c).Height(em(c, 72)).Gap(em(c, 6)).Shrink(0).Children(func() {
 				switch {

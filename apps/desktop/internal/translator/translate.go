@@ -30,7 +30,8 @@ import (
 )
 
 type Config struct {
-	Endpoint, Model, Key, TargetLanguage, SkillRoot string
+	Endpoint, Model, TargetLanguage, SkillRoot string
+	Key                                        string `json:"-"`
 	// API is APIChatCompletions, the default when empty, or APIResponses.
 	API      string
 	Glossary string // the user's own renderings, "source = target" lines
@@ -40,11 +41,22 @@ type Config struct {
 	// OptimizeTimeline rebuilds an ordinary SRT's timeline by sense groups
 	// before translating (see segment.go).
 	OptimizeTimeline bool
-	MaxRequests      int    // requests a run may send, retries included
-	Concurrency      int    // requests at once; 2 when zero
-	CacheDir         string // validated results, for resuming; none when empty
-	Client           *http.Client
-	Observe          func(Event)
+	MaxRequests      int          // requests a run may send, retries included
+	MaxOutputTokens  int          // the selected provider's advertised output cap; zero: unspecified
+	Concurrency      int          // requests at once; 2 when zero
+	CacheDir         string       // validated results, for resuming; none when empty
+	Client           *http.Client `json:"-"`
+	Observe          func(Event)  `json:"-"`
+	Resume           *ResumeState `json:"-"`
+}
+
+// ResumeState keeps a frozen, validated segmentation and only completed texts.
+// It contains no key. The input digest prevents applying progress to other cues.
+type ResumeState struct {
+	InputHash string            `json:"inputHash"`
+	Units     subtitle.Document `json:"units"`
+	Completed map[int]string    `json:"completed"`
+	Context   json.RawMessage   `json:"context"`
 }
 
 type Report struct {
@@ -66,6 +78,7 @@ type Result struct {
 	Source   subtitle.Document `json:"source"`   // the subtitles to translate, in the source language
 	Document subtitle.Document `json:"document"` // the same subtitles, translated
 	Report   Report            `json:"report"`
+	Resume   *ResumeState      `json:"resume,omitempty"`
 }
 
 // Event is the real state of a run, for a live view. Units are sent once,
@@ -79,8 +92,9 @@ type Event struct {
 	Thinking    string // the end of the model's latest reasoning, if it shows any
 	Retry       string // why a request is sent again
 	Requests    int
-	Input       int // tokens sent so far
-	Output      int // tokens received so far
+	Input       int          // tokens sent so far
+	Output      int          // tokens received so far
+	Resume      *ResumeState // sent once with the frozen units and context
 }
 
 type UnitText struct {
@@ -329,12 +343,20 @@ func Translate(ctx context.Context, config Config, document subtitle.Document) (
 	}
 	e := &engine{config: config, cache: cache{config.CacheDir}, lang: lang, profile: profile, ruleSets: map[string]ruleSet{}, accepted: map[int]string{}}
 	e.svc = newService(route(base, config.API), config.API, config.Model, config.Key, config.Client, config.MaxRequests)
+	e.svc.maxOutputTokens = config.MaxOutputTokens
 	e.svc.onRetry = e.retryNote
 	e.report = Report{Skipped: []string{}, Warnings: []string{}, Rules: []RuleFile{langFile}}
 	e.cache.prune()
 	defer func() {
+		e.flushUpdates()
 		e.mu.Lock()
 		result.Report = e.report
+		if result.Resume != nil {
+			result.Resume.Completed = make(map[int]string, len(e.accepted))
+			for i, text := range e.accepted {
+				result.Resume.Completed[i] = text
+			}
+		}
 		e.mu.Unlock()
 		result.Report.Requests, result.Report.InputTokens, result.Report.OutputTokens = e.svc.usage()
 	}()
@@ -356,10 +378,13 @@ func Translate(ctx context.Context, config Config, document subtitle.Document) (
 		return result, errors.New(locales.ErrNothingToTranslate())
 	}
 	e.key = cacheKey(version, base, config.API, config.Model, config.TargetLanguage, profile.SHA256, profile.References, config.Glossary, langFile.SHA256, e.markup)
+	if config.Resume != nil && config.Resume.InputHash != cacheKey(document) {
+		return result, errors.New(locales.TranslationResumeStale())
+	}
 
 	// 1. The whole source, read before anything is decided.
 	var summary *overview
-	if size > contextChars {
+	if config.Resume == nil && size > contextChars {
 		e.stage("analyze", 0, 0)
 		if summary, err = e.analyze(ctx, doc); err != nil {
 			return result, err
@@ -367,7 +392,22 @@ func Translate(ctx context.Context, config Config, document subtitle.Document) (
 	}
 	// 2. The timeline, by sense groups or as it is.
 	var ranges []subtitle.SourceRange
-	if config.OptimizeTimeline && doc.Format == "srt" {
+	if config.Resume != nil {
+		if err = validateResume(doc, config.Resume); err != nil {
+			return result, err
+		}
+		for _, cue := range config.Resume.Units.Cues {
+			if cue.SourceRange != nil {
+				ranges = append(ranges, *cue.SourceRange)
+			} else {
+				one, rangeErr := sourceRanges(subtitle.Document{Format: doc.Format, Cues: []subtitle.Cue{cue}})
+				if rangeErr != nil {
+					return result, rangeErr
+				}
+				ranges = append(ranges, one...)
+			}
+		}
+	} else if config.OptimizeTimeline && doc.Format == "srt" {
 		var read any
 		if summary != nil {
 			read = summary
@@ -402,34 +442,52 @@ func Translate(ctx context.Context, config Config, document subtitle.Document) (
 			todo = append(todo, i)
 		}
 	}
-	e.mu.Lock()
-	e.stageNow = Event{Stage: "translate", Total: len(todo)}
-	e.emit(Event{Units: append([]subtitle.Cue{}, units.Cues...)})
-	e.mu.Unlock()
 	var shared any = summary
-	if summary == nil {
+	if config.Resume != nil && len(config.Resume.Context) > 0 {
+		if err = json.Unmarshal(config.Resume.Context, &shared); err != nil {
+			return result, err
+		}
+	} else if summary == nil {
 		lines := []unitLine{}
 		for _, i := range todo {
 			lines = append(lines, unitLine{ID: unitID(i), Text: units.Cues[i].Text})
 		}
 		shared = lines
 	}
+	result.Resume = &ResumeState{InputHash: cacheKey(document), Units: units, Context: json.RawMessage(marshal(shared))}
+	e.mu.Lock()
+	e.stageNow = Event{Stage: "translate", Total: len(todo)}
+	progress := *result.Resume
+	e.emit(Event{Units: append([]subtitle.Cue{}, units.Cues...), Resume: &progress})
+	e.mu.Unlock()
+	if config.Resume != nil {
+		for i, text := range config.Resume.Completed {
+			e.update(i, text, true, "")
+			e.report.Resumed++
+		}
+	}
 	failed, err := e.translateAll(ctx, units.Cues, todo, shared)
+	// Assemble accepted units even when a later request fails or is cancelled.
+	// Incomplete units stay visibly untranslated and cannot be exported as done.
+	for _, i := range todo {
+		text, accepted := e.accepted[i]
+		if !accepted {
+			continue
+		}
+		cue := &result.Document.Cues[i]
+		cue.TranslationSource = subtitle.SourceText(*cue)
+		cue.Translated = true
+		cue.Text = polish(text, lang)
+		if missing := missingNumbers(cue.TranslationSource, cue.Text); len(missing) > 0 {
+			e.report.Warnings = append(e.report.Warnings, locales.WarnNumbers(i+1, strings.Join(missing, locales.ListSeparator())))
+		}
+		e.report.Translated++
+	}
 	if err != nil {
 		return result, err
 	}
 	if len(failed) > 0 {
 		return result, errors.New(locales.ErrTranslateIncomplete(len(failed)))
-	}
-	for _, i := range todo {
-		cue := &result.Document.Cues[i]
-		cue.TranslationSource = subtitle.SourceText(*cue)
-		cue.Translated = true
-		cue.Text = polish(e.accepted[i], lang)
-		if missing := missingNumbers(cue.TranslationSource, cue.Text); len(missing) > 0 {
-			e.report.Warnings = append(e.report.Warnings, locales.WarnNumbers(i+1, strings.Join(missing, locales.ListSeparator())))
-		}
-		e.report.Translated++
 	}
 	return result, nil
 }
@@ -617,6 +675,12 @@ func (e *engine) translateAll(ctx context.Context, units []subtitle.Cue, todo []
 func (e *engine) translateBatch(ctx context.Context, units []subtitle.Cue, batch []int, shared any, contextKey string) ([]int, error) {
 	pending, problems := []int{}, []string{}
 	for _, i := range batch {
+		e.mu.Lock()
+		_, already := e.accepted[i]
+		e.mu.Unlock()
+		if already {
+			continue
+		}
 		var text string
 		if e.cache.get(cacheKey(contextKey, unitID(i), units[i].Text), &text) {
 			e.mu.Lock()
@@ -684,15 +748,27 @@ func (e *engine) translateUnits(ctx context.Context, units []subtitle.Cue, group
 	}
 	schema := map[string]any{"type": "object", "properties": properties, "required": required, "additionalProperties": false}
 	r := request{system: system, messages: []message{{"user", marshal(payload)}}, schema: schema}
+	finished := map[int]string{}
 	got, err := e.svc.call(ctx, r, func(content, thinking string) {
 		pairs, partial := scanPairs(stripThinking(content))
-		if partial != nil {
-			pairs = append(pairs, *partial)
-		}
 		shown := false
 		for _, p := range pairs {
 			if i, ok := ids[p.key]; ok {
-				e.update(i, p.value, false, thinking)
+				text := strings.TrimSpace(p.value)
+				valid := text != "" && sameMarkup(units[i].Text, text) && (round >= 2 || !untranslated(units[i].Text, text, e.lang))
+				if valid && finished[i] != text {
+					finished[i] = text
+					e.keep(cacheKey(contextKey, p.key, units[i].Text), text)
+					e.update(i, text, true, thinking)
+				} else if !valid {
+					e.update(i, text, false, thinking)
+				}
+				shown = true
+			}
+		}
+		if partial != nil {
+			if i, ok := ids[partial.key]; ok {
+				e.update(i, partial.value, false, thinking)
 				shown = true
 			}
 		}
@@ -700,7 +776,7 @@ func (e *engine) translateUnits(ctx context.Context, units []subtitle.Cue, group
 			e.update(-1, "", false, thinking)
 		}
 	})
-	if err != nil {
+	if err != nil && got.text == "" {
 		return nil, nil, err
 	}
 	values, parseErr := parseObject(got.text)
@@ -733,7 +809,48 @@ func (e *engine) translateUnits(ctx context.Context, units []subtitle.Cue, group
 		e.keep(cacheKey(contextKey, id, units[i].Text), text)
 		e.update(i, text, true, "")
 	}
-	return left, issues, nil
+	return left, issues, err
+}
+
+func validateResume(doc subtitle.Document, resume *ResumeState) error {
+	candidate := resume.Units
+	candidate.Cues = append([]subtitle.Cue{}, candidate.Cues...)
+	for i := range candidate.Cues {
+		cue := &candidate.Cues[i]
+		if !cue.ReadOnly && !cue.TextLocked {
+			cue.TranslationSource = subtitle.SourceText(*cue)
+			cue.Translated = true
+		}
+	}
+	if err := subtitle.ValidateTranslation(doc, candidate); err != nil {
+		return err
+	}
+	for i, text := range resume.Completed {
+		if i < 0 || i >= len(resume.Units.Cues) || strings.TrimSpace(text) == "" {
+			return errors.New(locales.TranslationResumeStale())
+		}
+		cue := resume.Units.Cues[i]
+		if cue.ReadOnly || cue.TextLocked || !sameMarkup(cue.Text, text) {
+			return errors.New(locales.TranslationResumeStale())
+		}
+	}
+	return nil
+}
+
+// Do not lose the final throttled fragment when a request stops suddenly.
+func (e *engine) flushUpdates() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if len(e.pending) == 0 {
+		return
+	}
+	updates := make([]UnitText, 0, len(e.pending))
+	for _, u := range e.pending {
+		updates = append(updates, u)
+	}
+	sort.Slice(updates, func(i, j int) bool { return updates[i].Index < updates[j].Index })
+	e.pending = nil
+	e.emit(Event{Updates: updates})
 }
 
 func sameMarkup(source, translation string) bool {

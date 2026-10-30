@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/models"
+
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -17,7 +19,7 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 	ui.Column(c).Fill().Label(locales.WorkflowTitle()).Children(func() {
 		// The two tasks switch in the header, as the list's original and
 		// translation do.
-		panelHeader(c, func() { panelTitle(c, locales.WorkflowTitle()) }, func() {
+		panelHeader(c, nil, func() {
 			ui.Segmented(c, &a.workflowTab, locales.WorkflowRecognize(), locales.WorkflowTranslate()).Label(locales.WorkflowTitle())
 		}, nil)
 		ui.Divider(c)
@@ -46,6 +48,21 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 		muted(c, locales.WorkflowNeedsVideo()).AlignSelf(ui.Center)
 	}
 	ui.Divider(c)
+	line(c, func() {
+		ui.Field(c, locales.TranslationProvider(), func() {
+			local := "oneasr"
+			idSelect(c, &local, []option{{"oneasr", locales.RecognitionProvider()}}).Label(locales.TranslationProvider())
+		})
+		ui.Field(c, locales.ModelKindAsr(), func() {
+			options := []option{}
+			for _, model := range models.Catalog() {
+				if model.Kind == "asr" {
+					options = append(options, option{model.ID, model.Label})
+				}
+			}
+			idSelect(c, &a.settings.AsrModel, options).Label(locales.ModelKindAsr()).OnChange(a.saveSettings)
+		})
+	})
 	line(c, func() {
 		ui.Field(c, locales.SettingsSourceLanguage(), func() {
 			languageSelect(c, &a.settings.Language, sourceLanguages(), a.busy).Label(locales.SettingsSourceLanguage()).OnChange(a.saveSettings)
@@ -131,16 +148,9 @@ func (a *NativeApp) translateTab(c *ui.Context) {
 		}).MinWidth(em(c, 180))
 	})
 	line(c, func() {
+		ui.Field(c, locales.TranslationProvider(), func() { a.providerSelect(c) })
 		ui.Field(c, locales.TranslationModel(), func() {
-			// Match the adjacent MyGo buttons' vertical inset so both the
-			// field labels and their values align, without adding a fake input.
-			ui.Row(c).Padding(c.Theme().Space(1.5)+1, 0).Children(func() {
-				if model := a.settings.ProviderModel; model != "" {
-					muted(c, model).SingleLine().Tooltip(model).MaxWidth(em(c, 260))
-				} else {
-					ui.Text(c, locales.WorkflowNoService()).TextColor(c.Theme().Warning)
-				}
-			})
+			a.providerModelSelect(c)
 		})
 		folderField(c, a.settings.TranslationDir, locales.TranslationBesideSource(), a.busy, a.pickTranslationDir, func() { a.settings.TranslationDir = ""; a.saveSettings() })
 	})

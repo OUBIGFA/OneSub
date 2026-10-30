@@ -39,3 +39,17 @@ func TestProviderModelErrorsDoNotRedirectOrRetry(t *testing.T) {
 		}
 	}
 }
+
+func TestModelLimitsComeFromTheConfiguredProvider(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"data":[{"id":"a","max_input_tokens":96000,"max_output_tokens":12000,"context_window":100000},{"id":"b","top_provider":{"context_length":32000,"max_completion_tokens":4096}},{"id":"c"}]}`)
+	}))
+	defer server.Close()
+	models, err := ModelCatalog(context.Background(), server.URL, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 3 || models[0].MaxInputTokens != 96000 || models[0].MaxOutputTokens != 12000 || models[0].ContextWindow != 100000 || models[1].MaxInputTokens != 0 || models[1].MaxOutputTokens != 4096 || models[2].ContextWindow != 0 || models[0].LimitsSource != server.URL+"/models" {
+		t.Fatal(models)
+	}
+}

@@ -13,6 +13,7 @@ type OutputOptions struct {
 	Mode        string `json:"mode"`
 	Primary     string `json:"primary"`
 	SourceFirst bool   `json:"sourceFirst"`
+	SourceTrack string `json:"sourceTrack,omitempty"` // "original" selects the independent original timeline
 }
 
 func (o OutputOptions) Normalized() OutputOptions {
