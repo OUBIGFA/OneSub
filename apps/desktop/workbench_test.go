@@ -64,11 +64,10 @@ func TestWorkbenchRegionsAndStyleSections(t *testing.T) {
 	if text.Y != look.Y || look.Y != layout.Y || !(text.X < look.X && look.X < layout.X) {
 		t.Fatal("sections not side by side", text, look, layout)
 	}
-	// They spread across the panel: even spaces between them, and the last
-	// one ends at the panel's edge.
-	first, second := look.X-(text.X+text.W), layout.X-(look.X+look.W)
-	stylePanel, _ := wide.Find("字幕样式面板")
-	if math.Abs(float64(first-second)) > 1 || layout.X+layout.W < stylePanel.X+stylePanel.W-48 {
+	// Native grid columns divide the wide pane evenly; each heading stays
+	// over its own compact parameter rows.
+	first, second := look.X-text.X, layout.X-look.X
+	if math.Abs(float64(first-second)) > 1 {
 		t.Fatal("sections not spread evenly", text, look, layout)
 	}
 	narrow := settled(a.view, 1000, 1000)
@@ -76,7 +75,7 @@ func TestWorkbenchRegionsAndStyleSections(t *testing.T) {
 	text, _ = narrow.Find("文字")
 	layout, _ = narrow.Find("布局")
 	if layout.Y <= text.Y {
-		t.Fatal("sections overflow a narrow panel", text, layout, a.styleWidths, a.styleRoom)
+		t.Fatal("sections overflow a narrow panel", text, layout, a.styleRoom)
 	}
 	for _, label := range []string{"更新预览", "更多样式", "属性"} {
 		if tt.HasText(label) {

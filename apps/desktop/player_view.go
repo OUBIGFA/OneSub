@@ -23,11 +23,16 @@ func (a *NativeApp) playerView(c *ui.Context) {
 		panelHeader(c, nil, func() {
 			muted(c, name).SingleLine().Shrink(1).MinWidth(0).Tooltip(name)
 		}, nil)
+		wasWaiting := a.waiting.shown
+		waiting := a.waiting.visible(c, (a.busy || a.composeRunning || a.recognitionRunning) && !a.choosingFile)
+		if waiting && !wasWaiting {
+			// Do not leave audio playing behind a waiting scene that replaced
+			// its picture. Playback resumes only on the user's next action.
+			a.evalPlayer("video.pause()")
+		}
 		switch {
-		case a.recognitionRunning:
-			a.recognitionProgressView(c)
-		case a.composeRunning:
-			a.composeProgressView(c)
+		case waiting:
+			a.waitingView(c)
 		case a.player != nil:
 			// The page is always placed, black and laid out at the player's
 			// size, so a first video only changes its source.
@@ -48,7 +53,7 @@ func (a *NativeApp) playerView(c *ui.Context) {
 // one width so they do not shift as they count.
 func (a *NativeApp) transportBar(c *ui.Context) {
 	// The picture gives way to a task's progress, and so does its transport.
-	disabled := a.mediaURL == "" || a.composeRunning || a.recognitionRunning
+	disabled := !a.playbackAvailable()
 	ui.Column(c).Padding(em(c, 2), em(c, 12), em(c, 6), em(c, 12)).Shrink(0).Label(locales.A11yPlayerControls()).Children(func() {
 		value := a.position
 		ui.Slider(c, &value, 0, math.Max(a.duration, .001)).Label(locales.PlayerPosition()).Disabled(disabled).OnChange(func() { a.evalPlayer(fmt.Sprintf("video.currentTime = %f", value)) })
@@ -132,8 +137,12 @@ func (a *NativeApp) playerOverlay(c *ui.Context) {
 	})
 }
 
+func (a *NativeApp) playbackAvailable() bool {
+	return a.mediaURL != "" && !a.waiting.shown && !a.composeRunning && !a.recognitionRunning
+}
+
 func (a *NativeApp) togglePlayback() {
-	if a.mediaURL != "" && !a.composeRunning {
+	if a.playbackAvailable() {
 		a.evalPlayer("video.paused ? video.play() : video.pause()")
 	}
 }
@@ -141,10 +150,10 @@ func (a *NativeApp) togglePlayback() {
 // Native shortcut routing leaves spaces to text inputs and focused controls,
 // and suppresses workbench shortcuts behind a dialog.
 func (a *NativeApp) playbackShortcut(c *ui.Context) bool {
-	return a.mediaURL != "" && !a.composeRunning && !a.recognitionRunning && c.Shortcut(0, ui.KeySpace)
+	return a.playbackAvailable() && c.Shortcut(0, ui.KeySpace)
 }
 func (a *NativeApp) seekBy(seconds float64) {
-	if a.mediaURL == "" || a.composeRunning {
+	if !a.playbackAvailable() {
 		return
 	}
 	if seconds < 0 {

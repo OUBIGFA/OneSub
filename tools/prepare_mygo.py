@@ -36,22 +36,27 @@ def mirror(source, output):
 
 def prepare():
     source = ROOT / ".local/gomodcache" / MODULE
-    patch = ROOT / "third_party/patches/mygo/windows-native.patch"
+    patches = [ROOT / "third_party/patches/mygo" / name
+               for name in ("windows-native.patch", "loading-clock.patch")]
     relative = ".local/mygo-menu-source"
     output = ROOT / relative
     for name, expected in BASE_HASHES.items():
         data = (source / "internal/windows" / name).read_bytes()
         if hashlib.sha256(data).hexdigest() != expected:
             raise RuntimeError(f"MyGo source changed; review menu patch: {name}")
+    loading = source / "plugins/loading/loading.go"
+    if hashlib.sha256(loading.read_bytes()).hexdigest() != "fe346a269c6110c054de510aa53aae625e0113b6efbab45e2216c6eb0fa081b9":
+        raise RuntimeError("MyGo loading source changed; review clock patch")
     stamp = output / ".onesub-patch-sha256"
-    fingerprint = hashlib.sha256(patch.read_bytes()).hexdigest()
+    fingerprint = hashlib.sha256(b"".join(patch.read_bytes() for patch in patches)).hexdigest()
     if not stamp.exists() or stamp.read_text() != fingerprint:
         # The pristine module, then the current patch on top of it.
         mirror(source, output)
-        subprocess.run(
-            ["git", "apply", "--whitespace=nowarn", "--directory=" + relative, str(patch)],
-            cwd=ROOT, check=True,
-        )
+        for patch in patches:
+            subprocess.run(
+                ["git", "apply", "--whitespace=nowarn", "--directory=" + relative, str(patch)],
+                cwd=ROOT, check=True,
+            )
         stamp.write_text(fingerprint, encoding="ascii")
     modfile = ROOT / ".local/onesub-patched.mod"
     modfile.write_bytes((ROOT / "apps/desktop/go.mod").read_bytes())
