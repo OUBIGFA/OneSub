@@ -44,6 +44,7 @@ type Config struct {
 	MaxRequests      int          // requests a run may send, retries included
 	MaxOutputTokens  int          // the selected provider's advertised output cap; zero: unspecified
 	Concurrency      int          // requests at once; 2 when zero
+	BatchSize        int          // subtitles per translation request; 20 when zero
 	CacheDir         string       // validated results, for resuming; none when empty
 	Client           *http.Client `json:"-"`
 	Observe          func(Event)  `json:"-"`
@@ -103,6 +104,10 @@ type UnitText struct {
 	Final bool   // checked and accepted
 }
 
+// Defaults apply to new runs and checkpoints created before these settings existed.
+const DefaultConcurrency = 2
+const DefaultBatchSize = 20
+
 const (
 	// version changes the cache key whenever the prompts change.
 	version = "onesub-translate/3"
@@ -110,7 +115,6 @@ const (
 	// longer ones are read once into a summary and working glossary.
 	contextChars = 12000
 	summaryChars = 40000 // source per summary request
-	batchUnits   = 30
 	batchChars   = 5000
 	neighbors    = 5
 )
@@ -186,7 +190,7 @@ func (e *engine) concurrency() int {
 	if e.config.Concurrency > 0 {
 		return e.config.Concurrency
 	}
-	return 2
+	return DefaultConcurrency
 }
 
 // system is a phase's system prompt: the adapter, the phase's skill files,
@@ -609,10 +613,14 @@ func marshal(v any) string {
 // translateAll translates the units in todo, in batches sent concurrently.
 // It returns the units that stayed untranslated after every correction.
 func (e *engine) translateAll(ctx context.Context, units []subtitle.Cue, todo []int, shared any) ([]int, error) {
+	batchSize := e.config.BatchSize
+	if batchSize <= 0 {
+		batchSize = DefaultBatchSize
+	}
 	batches := [][]int{}
 	for start := 0; start < len(todo); {
 		end, chars := start, 0
-		for end < len(todo) && end-start < batchUnits {
+		for end < len(todo) && end-start < batchSize {
 			n := len(units[todo[end]].Text)
 			if end > start && chars+n > batchChars {
 				break

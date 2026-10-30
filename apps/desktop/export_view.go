@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo"
@@ -76,7 +77,7 @@ func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) {
 // note below them has a fixed room.
 func (a *NativeApp) exportView(c *ui.Context) {
 	ui.Modal(c, &a.exportOpen, func() {
-		ui.Column(c).Width(em(c, 560)).Height(em(c, 384)).Gap(em(c, 20)).Children(func() {
+		ui.Column(c).Width(em(c, 560)).Height(em(c, 432)).Gap(em(c, 20)).Children(func() {
 			dialogTitle(c, locales.MenuExportSubtitles())
 			formats := []string{"srt", "vtt", "ass"}
 			if a.snapshot != nil && a.snapshot.Document.Format == "ssa" {
@@ -91,6 +92,18 @@ func (a *NativeApp) exportView(c *ui.Context) {
 			}
 			ui.Form(c, func() {
 				a.outputFields(c, true)
+				ui.Field(c, locales.ExportLines(), func() {
+					lines := []string{"all", "upper", "lower"}
+					selected := 0
+					for i, line := range lines {
+						if line == a.exportLines {
+							selected = i
+						}
+					}
+					if ui.Segmented(c, &selected, locales.ExportAllLines(), locales.ExportUpperLine(), locales.ExportLowerLine()).Label(locales.ExportLines()).AlignSelf(ui.Start).Changed() {
+						a.exportLines = lines[selected]
+					}
+				})
 				ui.Field(c, locales.ExportFormat(), func() {
 					if ui.Segmented(c, &format, labels...).Label(locales.ExportFormat()).AlignSelf(ui.Start).Changed() {
 						a.exportFormat = formats[format]
@@ -119,10 +132,13 @@ func (a *NativeApp) exportView(c *ui.Context) {
 	})
 }
 
-func exportFilename(name, format string, options subtitle.OutputOptions) string {
+func exportFilename(name, format string, options subtitle.OutputOptions, line string) string {
 	suffix := map[string]string{"source": "rebuilt-source", "translation": "translated", "bilingual": "bilingual"}[options.Normalized().Mode]
 	if options.Normalized().Mode == "source" && options.SourceTrack == "original" {
 		suffix = "original"
+	}
+	if line == "upper" || line == "lower" {
+		suffix += "-" + line
 	}
 	return name + "-" + suffix + "." + format
 }
@@ -132,14 +148,18 @@ func (a *NativeApp) exportSubtitle() {
 		return
 	}
 	a.commitEdit(true)
-	state, format := *a.snapshot, a.exportFormat
+	state, format, line := *a.snapshot, a.exportFormat, a.exportLines
 	options, style, secondary, aspect := a.settings.SubtitleOutput, a.currentStyle, a.secondaryStyle, a.frameAspect
 	a.run(locales.MenuExportSubtitles(), func(ctx context.Context) (func(), error) {
 		document, err := subtitle.SelectOutput(state.OutputDocument(options), options)
 		if err != nil {
 			return nil, err
 		}
-		path, err := a.saveDialog(mygo.SaveDialogOptions{Parent: a.win, Title: locales.MenuExportSubtitles(), DefaultPath: exportFilename(state.Manifest.Name, format, options), Filters: []mygo.FileFilter{{Name: strings.ToUpper(format), Extensions: []string{format}}}})
+		document, err = a.worker.SelectLines(ctx, document, line)
+		if err != nil {
+			return nil, err
+		}
+		path, err := a.saveDialog(mygo.SaveDialogOptions{Parent: a.win, Title: locales.MenuExportSubtitles(), DefaultPath: exportFilename(state.Manifest.Name, format, options, line), Filters: []mygo.FileFilter{{Name: strings.ToUpper(format), Extensions: []string{format}}}})
 		if err != nil || path == "" {
 			return nil, err
 		}
@@ -147,8 +167,15 @@ func (a *NativeApp) exportSubtitle() {
 			path += "." + format
 		}
 		var data []byte
-		if format == "ass" && state.Document.Format != "ass" && state.Document.Format != "ssa" {
-			styled, buildErr := a.styledDocument(ctx, state, style, secondary, options, aspect)
+		if format == "ass" && document.Format != "ass" && document.Format != "ssa" {
+			// A line projection is already single-language text. Render that
+			// exact result rather than rebuilding a second bilingual layer.
+			renderState, renderOptions := state, options
+			if line == "upper" || line == "lower" {
+				renderState = project.Snapshot{Document: document}
+				renderOptions = subtitle.OutputOptions{Mode: "source"}
+			}
+			styled, buildErr := a.styledDocument(ctx, renderState, style, secondary, renderOptions, aspect)
 			if buildErr != nil {
 				return nil, buildErr
 			}

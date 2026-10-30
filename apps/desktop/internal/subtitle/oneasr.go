@@ -12,38 +12,63 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
-// AttachOneAsrWords reads the documented --words-json artifact (seconds).
-// A cue is splittable only when token text exactly covers its current source
-// and every time lies inside that cue. Unmatched cues retain cue boundaries.
-func AttachOneAsrWords(doc Document, data []byte) (Document, []string, error) {
-	var wire struct {
-		Unit      string `json:"unit"`
-		WordCount int    `json:"word_count"`
-		Words     []struct {
-			Text  string  `json:"text"`
-			Start float64 `json:"start"`
-			End   float64 `json:"end"`
-		} `json:"words"`
-	}
+type oneAsrWord struct {
+	Text  string  `json:"text"`
+	Start float64 `json:"start"`
+	End   float64 `json:"end"`
+}
+
+type oneAsrWordFile struct {
+	Unit      string       `json:"unit"`
+	WordCount int          `json:"word_count"`
+	Words     []oneAsrWord `json:"words"`
+}
+
+// ParseOneAsrWords validates the documented --words-json artifact at the
+// boundary and converts seconds to the same millisecond clock as subtitles.
+// Both direct attachment and speech-region remapping use this contract.
+func ParseOneAsrWords(data []byte) ([]Word, error) {
+	var wire oneAsrWordFile
 	if len(data) > 64*1024*1024 {
-		return Document{}, nil, errors.New(locales.ErrWordsSize())
+		return nil, errors.New(locales.ErrWordsSize())
 	}
 	if err := json.Unmarshal(data, &wire); err != nil {
-		return Document{}, nil, err
+		return nil, err
 	}
 	if wire.Unit != "aligner_token" || wire.WordCount != len(wire.Words) {
-		return Document{}, nil, errors.New(locales.ErrWordsProtocol())
+		return nil, errors.New(locales.ErrWordsProtocol())
 	}
 	words := []Word{}
 	for _, w := range wire.Words {
 		if w.Start < 0 || w.End < w.Start || math.IsNaN(w.Start) || math.IsNaN(w.End) || math.IsInf(w.Start, 0) || math.IsInf(w.End, 0) || w.End*1000 > 9007199254740991 {
-			return Document{}, nil, errors.New(locales.ErrWordsTiming())
+			return nil, errors.New(locales.ErrWordsTiming())
 		}
 		start, end := int64(math.Round(w.Start*1000)), int64(math.Round(w.End*1000))
 		if len(words) > 0 && start < words[len(words)-1].StartMs {
-			return Document{}, nil, errors.New(locales.ErrWordsOrder())
+			return nil, errors.New(locales.ErrWordsOrder())
 		}
 		words = append(words, Word{Text: w.Text, StartMs: start, EndMs: end})
+	}
+	return words, nil
+}
+
+// MarshalOneAsrWords stores already validated, source-clock word evidence in
+// the same artifact schema, including collapsed tokens that cannot be split.
+func MarshalOneAsrWords(words []Word) ([]byte, error) {
+	wire := oneAsrWordFile{Unit: "aligner_token", WordCount: len(words), Words: []oneAsrWord{}}
+	for _, word := range words {
+		wire.Words = append(wire.Words, oneAsrWord{Text: word.Text, Start: float64(word.StartMs) / 1000, End: float64(word.EndMs) / 1000})
+	}
+	return json.Marshal(wire)
+}
+
+// AttachOneAsrWords reads the documented --words-json artifact (seconds).
+// A cue is splittable only when token text exactly covers its current source
+// and every time lies inside that cue. Unmatched cues retain cue boundaries.
+func AttachOneAsrWords(doc Document, data []byte) (Document, []string, error) {
+	words, err := ParseOneAsrWords(data)
+	if err != nil {
+		return Document{}, nil, err
 	}
 	out := doc
 	out.Cues = append([]Cue{}, doc.Cues...)

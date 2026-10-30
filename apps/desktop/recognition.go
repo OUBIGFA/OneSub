@@ -48,8 +48,9 @@ func (a *NativeApp) pickRecognitionDir() {
 // recognitionStep is where a recognition is: a stage, and in a stage done
 // in chunks, the chunk it is at of Total.
 type recognitionStep struct {
-	Stage       string
-	Done, Total int
+	Stage           string
+	Done, Total     int
+	Region, Regions int
 }
 
 // oneAsrStages are the stage names the pinned OneAsr v1.3.0 CLI writes to
@@ -97,6 +98,7 @@ func parseOneAsrStage(line string) (recognitionStep, bool) {
 func recognitionStepLabel(step recognitionStep) string {
 	label := map[string]func() string{
 		"verify": locales.RecognitionVerify, "extract": locales.RecognitionExtract,
+		"vad":   locales.RecognitionDetectSpeech,
 		"infer": locales.RecognitionInfer, "save": locales.RecognitionSave,
 		"convert": locales.RecognitionStageConvert, "separate": locales.RecognitionStageSeparate,
 		"plan": locales.RecognitionStagePlan, "hotwords": locales.RecognitionStageHotwords,
@@ -107,10 +109,14 @@ func recognitionStepLabel(step recognitionStep) string {
 	if label == nil {
 		return ""
 	}
+	text := label()
 	if step.Total > 1 {
-		return locales.RecognitionStageChunk(label(), step.Done, step.Total)
+		text = locales.RecognitionStageChunk(text, step.Done, step.Total)
 	}
-	return label()
+	if step.Regions > 1 {
+		text = locales.RecognitionStageRegion(text, step.Region, step.Regions)
+	}
+	return text
 }
 
 // recognitionProgressView takes the player's place while OneSub
@@ -177,8 +183,10 @@ func (a *NativeApp) finishRecognition(ctx context.Context, source, srt string, w
 	}
 	return func() {
 		apply()
+		continueTranslation := prefs.Processing != nil && prefs.Processing.Translate
 		if saveErr != nil {
 			a.markSaved(0, "")
+			a.rememberProcessing("save-recognition", continueTranslation)
 			a.errorText = locales.RecognitionSaveFailed(saveErr.Error())
 			a.status = locales.StatusFailed()
 			return
@@ -188,6 +196,9 @@ func (a *NativeApp) finishRecognition(ctx context.Context, source, srt string, w
 		a.status = locales.RecognitionSaved(len(a.snapshot.Document.Cues), path)
 		if repaired > 0 {
 			a.status += locales.ListSeparator() + locales.RecognitionRepaired(repaired)
+		}
+		if a.rememberProcessing("translate", continueTranslation) {
+			a.recognitionFinished()
 		}
 	}, nil
 }

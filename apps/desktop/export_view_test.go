@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
@@ -65,6 +66,78 @@ func TestOutputArtifactsUseSelectedContentAndSmartSubLayers(t *testing.T) {
 	}
 }
 
+func TestTranslationExportDefaultsToSingleLanguage(t *testing.T) {
+	a, _, candidate := translationApp(t)
+	a.applyTranslation(candidate, "", nil)
+	a.settings.SubtitleOutput.Mode = "bilingual"
+	a.exportLines = "upper"
+	a.requestExport()
+	if !a.exportOpen || a.settings.SubtitleOutput.Mode != "translation" || a.settings.SubtitleOutput.SourceTrack != "" || a.exportLines != "all" {
+		t.Fatal("export inherited bilingual or extracted-line preferences", a.settings.SubtitleOutput, a.exportLines)
+	}
+	manual := draftApp(t)
+	manual.subtitleTab = 1
+	manual.loadDraft()
+	manual.draft = "First manually edited translation"
+	manual.changed(time.Now())
+	manual.requestExport()
+	if manual.settings.SubtitleOutput.Mode != "translation" || !manual.snapshot.Document.Cues[0].Translated {
+		t.Fatal("export chose source before committing the first translation")
+	}
+}
+
+func TestExportLineChoicesKeepDialogSize(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			a := draftApp(t)
+			a.exportFormat = "srt"
+			a.requestExport()
+			tt := settled(a.exportView, 900, 640)
+			button, ok := tt.Find(locales.ExportConfirm())
+			if !ok {
+				t.Fatal("missing export action", tt.Texts())
+			}
+			for _, choice := range []struct{ label, id string }{{locales.ExportUpperLine(), "upper"}, {locales.ExportLowerLine(), "lower"}, {locales.ExportAllLines(), "all"}} {
+				if err := tt.Click(choice.label); err != nil {
+					t.Fatal(err, tt.Texts())
+				}
+				action, ok := tt.Find(locales.ExportConfirm())
+				if !ok || action != button || a.exportLines != choice.id || action.Y < 0 || action.Y+action.H > 640 {
+					t.Fatal("line choice resized/clipped the dialog or selected wrong data", choice, action, button, a.exportLines)
+				}
+				name := exportFilename("lesson", "srt", a.settings.SubtitleOutput, choice.id)
+				if choice.id != "all" && !strings.HasSuffix(name, "-"+choice.id+".srt") {
+					t.Fatal("line export filename is ambiguous", name)
+				}
+			}
+		})
+	}
+}
+
+func TestImportedBilingualLineSelectionRoundTripsAndUsesSmartSub(t *testing.T) {
+	a := withStyleCatalog(t)
+	a.worker = subtitle.Client{Executable: os.Getenv("ONESUB_SUBTITLE_WORKER"), Scratch: t.TempDir()}
+	a.styleClient = styles.Client{Executable: os.Getenv("ONESUB_STYLE_WORKER"), Scratch: t.TempDir()}
+	doc := subtitle.Document{Format: "srt", Cues: []subtitle.Cue{{ID: "1", Text: "Upper text\n下行字幕", OriginalText: "Upper text\n下行字幕", StartMs: 1250, EndMs: 3000}}}
+	for _, line := range []string{"upper", "lower"} {
+		selected, err := a.worker.SelectLines(context.Background(), doc, line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "Upper text"
+		if line == "lower" {
+			want = "下行字幕"
+		}
+		if len(selected.Cues) != 1 || selected.Cues[0].Text != want || selected.Cues[0].StartMs != 1250 || selected.Cues[0].EndMs != 3000 || doc.Cues[0].Text != "Upper text\n下行字幕" {
+			t.Fatal("line selection changed time or source", selected)
+		}
+		styled, err := a.styledDocument(context.Background(), project.Snapshot{Document: selected}, a.currentStyle, a.secondaryStyle, subtitle.OutputOptions{Mode: "source"}, 16.0/9)
+		if err != nil || !strings.Contains(styled.ASS, want) || strings.Contains(styled.ASS, "Upper text\\N") || strings.Contains(styled.ASS, "Secondary}") {
+			t.Fatal("single-language ASS used wrong content or a second layer", styled.ASS, err)
+		}
+	}
+}
+
 func TestExportSeparatesOriginalRebuiltAndTranslation(t *testing.T) {
 	a := storeApp(t, subtitle.Cue{ID: "a", Position: 0, Text: "Hello", OriginalText: "Hello", StartMs: 0, EndMs: 1000}, subtitle.Cue{ID: "b", Position: 1, Text: "world", OriginalText: "world", StartMs: 1000, EndMs: 2000})
 	a.worker = subtitle.Client{Executable: os.Getenv("ONESUB_SUBTITLE_WORKER"), Scratch: t.TempDir()}
@@ -102,7 +175,7 @@ func TestExportSeparatesOriginalRebuiltAndTranslation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			name := exportFilename("lesson", format, test.options)
+			name := exportFilename("lesson", format, test.options, "all")
 			if name != "lesson-"+test.suffix+"."+format {
 				t.Fatal("ambiguous export filename", name)
 			}

@@ -101,10 +101,13 @@ func (t toolset) recognize(ctx context.Context, prefs settings.Settings, source 
 	if err != nil {
 		return "", nil, nil, err
 	}
-	cleanup = func() { os.RemoveAll(scratch) }
+	removeScratch := func() { os.RemoveAll(scratch) }
+	cleanup = removeScratch
 	defer func() {
 		if err != nil {
-			cleanup()
+			// Error returns clear the cleanup result; retain the owned closure
+			// instead of calling that now-nil named return value.
+			removeScratch()
 		}
 	}()
 	wav := filepath.Join(scratch, "input.wav")
@@ -113,25 +116,76 @@ func (t toolset) recognize(ctx context.Context, prefs settings.Settings, source 
 	if err = jobs.Run(ctx, jobs.CommandContext(ctx, t.ffmpeg, args...), nil); err != nil {
 		return "", nil, nil, apperr.Wrap(locales.ErrAudioExtract(err.Error(), ""), err)
 	}
-	srt = filepath.Join(scratch, "result.srt")
-	wordsPath := filepath.Join(scratch, "words.json")
-	args = []string{"transcribe", "--input", wav, "--app-root", install, "--data-root", root, "--asr", asr.ID, "--aligner", aligner.ID, "--language", prefs.Language, "--backend", prefs.Backend, "--chunk-seconds", strconv.Itoa(int(prefs.ChunkSeconds)), "--max-new-tokens", strconv.Itoa(int(prefs.MaxTokens)), "--output", srt, "--words-json", wordsPath}
-	if prefs.VocalSeparation {
-		args = append(args, "--vocal-separation", "--demucs-model-dir", t.modelPath(prefs, "htdemucs_ft"))
+	step(recognitionStep{Stage: "vad"})
+	regions, err := detectSpeech(ctx, install, wav)
+	if err != nil {
+		return "", nil, nil, err
 	}
-	step(recognitionStep{Stage: "infer"})
-	// The CLI reports its stages and chunks on stderr as it goes.
-	lines := func(line string) {
-		if s, ok := parseOneAsrStage(line); ok {
+	if len(regions) == 0 {
+		return "", nil, nil, errors.New(locales.RecognitionNoSpeech())
+	}
+	combined := subtitle.Document{Format: "srt", TargetFormat: "srt"}
+	allWords := []subtitle.Word{}
+	for i, region := range regions {
+		// OneAsr's own VAD plans continuous chunks; it does not remove silence.
+		// Give it only this speech region, then map both artifacts back to the
+		// original recording. Its models, decoder and chunk settings stay intact.
+		regionStep := func(s recognitionStep) {
+			s.Region, s.Regions = i+1, len(regions)
 			step(s)
 		}
-	}
-	if err = jobs.RunLines(ctx, jobs.CommandContext(ctx, filepath.Join(install, "oneasr-cli.exe"), args...), nil, lines); err != nil {
-		return "", nil, nil, apperr.Wrap(locales.ErrRecognition(err.Error(), ""), err)
+		regionStep(recognitionStep{Stage: "extract"})
+		part := filepath.Join(scratch, fmt.Sprintf("region-%06d", i))
+		args = []string{"-v", "error", "-ss", strconv.FormatFloat(float64(region.StartMs)/1000, 'f', 3, 64), "-i", wav, "-t", strconv.FormatFloat(float64(region.EndMs-region.StartMs)/1000, 'f', 3, 64), "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", part + ".wav"}
+		if err = jobs.Run(ctx, jobs.CommandContext(ctx, t.ffmpeg, args...), nil); err != nil {
+			return "", nil, nil, apperr.Wrap(locales.ErrAudioExtract(err.Error(), ""), err)
+		}
+		args = []string{"transcribe", "--input", part + ".wav", "--app-root", install, "--data-root", root, "--asr", asr.ID, "--aligner", aligner.ID, "--language", prefs.Language, "--backend", prefs.Backend, "--chunk-seconds", strconv.Itoa(int(prefs.ChunkSeconds)), "--max-new-tokens", strconv.Itoa(int(prefs.MaxTokens)), "--output", part + ".srt", "--words-json", part + ".json"}
+		if prefs.VocalSeparation {
+			args = append(args, "--vocal-separation", "--demucs-model-dir", t.modelPath(prefs, "htdemucs_ft"))
+		}
+		regionStep(recognitionStep{Stage: "infer"})
+		command := jobs.CommandContext(ctx, filepath.Join(install, "oneasr-cli.exe"), args...)
+		// OneAsr falls back to PATH when its own bin folder has no FFmpeg. Give
+		// this child the verified bundled tools without changing the user's PATH.
+		command.Env = append(command.Environ(), "PATH="+filepath.Dir(t.ffmpeg)+string(os.PathListSeparator)+os.Getenv("PATH"))
+		if err = jobs.RunLines(ctx, command, nil, func(line string) {
+			if s, ok := parseOneAsrStage(line); ok {
+				regionStep(s)
+			}
+		}); err != nil {
+			return "", nil, nil, apperr.Wrap(locales.ErrRecognition(err.Error(), ""), err)
+		}
+		doc, readErr := t.worker.Read(ctx, part+".srt")
+		if readErr != nil {
+			return "", nil, nil, readErr
+		}
+		for _, cue := range recognitionRegion(doc, region).Cues {
+			cue.Position = len(combined.Cues)
+			cue.ID = fmt.Sprintf("asr-%d", cue.Position)
+			combined.Cues = append(combined.Cues, cue)
+		}
+		raw, readErr := os.ReadFile(part + ".json")
+		if readErr != nil {
+			return "", nil, nil, apperr.Wrap(locales.ErrWordTimingMissing(readErr.Error()), readErr)
+		}
+		partWords, readErr := subtitle.ParseOneAsrWords(raw)
+		if readErr != nil {
+			return "", nil, nil, readErr
+		}
+		allWords = append(allWords, recognitionWordRegion(partWords, region)...)
 	}
 	step(recognitionStep{Stage: "save"})
-	if words, err = os.ReadFile(wordsPath); err != nil {
-		return "", nil, nil, apperr.Wrap(locales.ErrWordTimingMissing(err.Error()), err)
+	data, err := t.worker.Write(ctx, combined)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	srt = filepath.Join(scratch, "result.srt")
+	if err = os.WriteFile(srt, data, 0600); err != nil {
+		return "", nil, nil, err
+	}
+	if words, err = subtitle.MarshalOneAsrWords(allWords); err != nil {
+		return "", nil, nil, err
 	}
 	return srt, words, cleanup, nil
 }

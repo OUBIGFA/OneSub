@@ -63,6 +63,10 @@ MyGo 首个原生薄链路继续固定已编译验证的 `v0.6.4`；最新仓库
 
 已核验的开发资产：OneAsr `v1.3.0` Windows portable 包，85,996,429 字节，SHA-256 `e9e169e108ee43d88b5b047f4ec556819cd7fa5e2424d3f5ed957634f85d4936`；内含 `oneasr-cli.exe` 与 FFmpeg。哈希与 GitHub Release 的 digest 一致。此证据不证明识别质量、模型就绪或正式补丁协议已完成。
 
+### 静音与重复输出（2026-10-30）
+
+已按实际分发的 OneAsr `v1.3.0` 修订重新核查：分块参数、Qwen 默认解码及异常重复清理已复用；原 VAD 分块仍包含静音，短输入可能不执行 VAD。OneSub 因此在输入前直接接入相同 FireRedVAD `v1.0.0` 的语音范围检测，并恢复片段的原始字幕/词级时间；全静音不启动识别。固定源码、模型许可、二进制校验和回归范围见 [OneAsr 集成登记](../../third_party/ports/oneasr/README.md)。这不构成对所有静音、弱人声或音乐输入“零幻觉”的保证。
+
 ## 5. SmartSub：能复用什么，必须适配什么
 
 `main/helpers/assStyleBuilder.ts` 将样式生成集中在一个模块。`main/helpers/compose/composeCommandBuilder.ts` 将软字幕、硬字幕与音频策略组合为结构化参数，显式映射流，并处理 MP4 mov_text 和 MKV 附件。

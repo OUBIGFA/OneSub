@@ -9,7 +9,7 @@ OneSub 使用用户保存的大模型供应商。工作台的“AI 翻译”页�
 3. 按批次翻译，携带全局上下文与相邻字幕。使用编号到译文的 JSON 对象；逐条显示流式内容，未完成内容不写入正式字幕。
 4. 容错解析处理思考标签、代码块及有限的不规范 JSON。缺漏、未翻译和结构问题带反馈重试；截断拆批，剩余缺译逐条补翻。不用原文填充失败译文。
 5. 按目标语言配置执行确定性标点、空格处理，然后调用完整字幕技能的原检查器。
-6. 校验项目版本、锁与来源范围后，整个结果作为一次可撤销修改写入重建字幕。原始字幕及其分段独立保留。无检查错误时自动另存为带目标语言后缀的新文件；已存在的文件不覆盖。SRT/VTT 保存重建原文和译文；ASS/SSA 保存译文并保留既有样式，重建原文可单独导出。检查错误保留在工程和“检查结果”中，不自动导出。
+6. 校验项目版本、锁与来源范围后，整个结果作为一次可撤销修改写入重建字幕。原始字幕及其分段独立保留。无检查错误时自动另存为带目标语言后缀的新文件；已存在的文件不覆盖。自动保存、列表保存和另存为均只保存译文；双语字幕由导出时显式选择。ASS/SSA 的译文仍保留既有样式，重建字幕可单独导出。检查错误保留在工程和“检查结果”中，不自动导出。
 
 识别附带的词级时间只在文字与时间范围可验证时启用。不可靠的词级证据会报告警告，仍保留可用字幕；不能把这种情况写成声学对齐已通过。
 
@@ -48,7 +48,9 @@ MCP 的 `translate_subtitles` 使用同一翻译引擎、设置和检查器，�
 - `TestStylesAddTheirReferences`：通用/教学不载入 3D 术语表，3D 中文与英文目标各使用适用规则。
 - `TestMCPTranslationSavesAndResumes`：官方 MCP SDK → 流式本地服务 → 真实检查器与字幕序列化；重复调用不再次请求已接受译文，也不覆盖旧文件。
 - `TestRebuiltTimelineLeavesOriginalTrackIndependent`、`TestVersionOneProjectRecoversOriginalTrackBeforeRebuild`：原始与重建字幕独立编辑、撤销、重开，以及旧工程的备份和迁移。
-- `TestExportSeparatesOriginalRebuiltAndTranslation`：分别回读原始字幕、重建原文、译文和双语 SRT/VTT，并核对各自的分段与文件名。
+- `TestExportSeparatesOriginalRebuiltAndTranslation`：分别回读原始字幕、重建字幕、译文和双语 SRT/VTT，并核对各自的分段与文件名。
+- `TestTranslationSavesOnlyTranslatedText`、`TestTranslationExportDefaultsToSingleLanguage`：预览为双语时，译文保存与默认译文导出仍只选择译文。
+- `test_single_line_export_preserves_times_and_format_metadata`：导入双语 SRT/VTT/ASS 后提取上行或下行，保留时间、单行条目、内联样式及格式元数据；不改输入文件。
 - `tests/e2e/translation_provider.py --interrupt`：真实桌面断流、测试进程意外退出、启动恢复和重试。服务核对第二次请求只有缺失字幕；使用受控协议夹具，不是模型质量评测。
 
 真实服务与安装测试的范围见 [Windows 测试记录](verification/windows-0.0.1.md)。检查器只能证明其结构与阅读负荷规则的结果，不能证明全文翻译忠实或音画同步。第三方参考与实际复用边界见 [组件核查](research/implementation-reuse.md)。

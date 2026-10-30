@@ -14,6 +14,7 @@ $env:ONESUB_SUBTITLE_WORKER = Join-Path $root 'build/output/subtitle-core/OneSub
 $env:ONESUB_STYLE_WORKER = Join-Path $root 'build/output/style-core/OneSub.StyleCore.exe'
 $env:ONESUB_SKILL_WORKER = Join-Path $root 'build/output/skill-tools/OneSub.SkillTools.exe'
 $env:ONESUB_SKILL_ROOT = Join-Path $root 'third_party/skills/srt-subtitle-translator'
+$env:ONESUB_ONEASR_ROOT = Join-Path $root 'build/output/oneasr'
 if (-not (Test-Path $env:ONESUB_SKILL_WORKER)) { throw 'Run build/build-skill-tools.ps1 first' }
 if (-not (Test-Path $env:ONESUB_STYLE_WORKER)) { throw 'Build workers/style-core first' }
 $env:ONESUB_FFMPEG = (Get-Command ffmpeg -ErrorAction Stop).Source
@@ -26,6 +27,7 @@ if ($PackageRoot) {
     $env:ONESUB_SKILL_ROOT = Join-Path $PackageRoot 'srt-subtitle-translator'
     $env:ONESUB_FFMPEG = Join-Path $PackageRoot 'media-tools/ffmpeg.exe'
     $env:ONESUB_FFPROBE = Join-Path $PackageRoot 'media-tools/ffprobe.exe'
+    $env:ONESUB_ONEASR_ROOT = Join-Path $PackageRoot 'oneasr'
 }
 if (-not (Test-Path $env:ONESUB_SUBTITLE_WORKER)) { throw 'Run build/build-subtitle.ps1 first' }
 Push-Location $root

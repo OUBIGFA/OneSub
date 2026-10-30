@@ -9,6 +9,7 @@ import (
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/translator"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
@@ -20,49 +21,62 @@ type UserPreset struct {
 	Style styles.Style `json:"style"`
 }
 
+// PendingProcessing records completed pipeline steps, not model secrets or
+// generated media. It lets an interrupted recognition/translation reopen safely.
+type PendingProcessing struct {
+	ProjectPath string    `json:"projectPath"`
+	Stage       string    `json:"stage"` // recognize, save-recognition, translate
+	Translate   bool      `json:"translate"`
+	SavedHash   [2]string `json:"savedHash"`
+	SavedPath   [2]string `json:"savedPath"`
+}
+
 type Settings struct {
-	Version             int                    `json:"version"`
-	UILanguage          string                 `json:"uiLanguage"` // "" follows the system
-	Appearance          string                 `json:"appearance"` // "dark", "light" or "system"
-	CloseToTray         bool                   `json:"closeToTray"`
-	ModelPaths          map[string]string      `json:"modelPaths"`
-	AsrModel            string                 `json:"asrModel"`
-	Aligner             string                 `json:"aligner"`
-	Backend             string                 `json:"backend"`
-	Language            string                 `json:"language"`
-	ChunkSeconds        float64                `json:"chunkSeconds"`
-	MaxTokens           float64                `json:"maxTokens"`
-	VocalSeparation     bool                   `json:"vocalSeparation"`
-	Hotwords            string                 `json:"hotwords"`
-	ProviderAPI         string                 `json:"providerApi"` // translator.APIChatCompletions or APIResponses
-	ProviderURL         string                 `json:"providerUrl"`
-	ProviderModel       string                 `json:"providerModel"`
-	ActiveProvider      string                 `json:"activeProvider,omitempty"`
-	Providers           []Provider             `json:"providers,omitempty"`
-	TargetLanguage      string                 `json:"targetLanguage"`
-	Glossary            string                 `json:"glossary"`
-	Domain3D            bool                   `json:"domain3D"`
-	TranslationProfile  string                 `json:"translationProfile"`
-	OptimizeTimeline    bool                   `json:"optimizeTimeline"`
-	MaxRequests         float64                `json:"maxRequests"`
-	RecognitionFormat   string                 `json:"recognitionFormat"`
-	RecognitionDir      string                 `json:"recognitionDir"` // empty: beside the media
-	TranslationDir      string                 `json:"translationDir"` // empty: beside the subtitle or the media
-	TranslationRecovery string                 `json:"translationRecovery,omitempty"`
-	OutputDir           string                 `json:"outputDir"`
-	LastStyle           *styles.Style          `json:"lastStyle,omitempty"`
-	StylePreset         string                 `json:"stylePreset,omitempty"` // preset ID
-	UserPresets         []UserPreset           `json:"userPresets,omitempty"`
-	SubtitleOutput      subtitle.OutputOptions `json:"subtitleOutput"`
-	SecondaryStyle      *styles.Style          `json:"secondaryStyle,omitempty"`
-	SecondaryPreset     string                 `json:"secondaryPreset,omitempty"`
-	ComposeMode         string                 `json:"composeMode"`
-	ComposeQuality      string                 `json:"composeQuality"`
-	Volume              float64                `json:"volume"` // percent
-	Muted               bool                   `json:"muted"`
-	SingleClickAction   string                 `json:"singleClickAction"`
-	DoubleClickAction   string                 `json:"doubleClickAction"`
-	FollowPlayback      bool                   `json:"followPlayback"`
+	Version                int                    `json:"version"`
+	UILanguage             string                 `json:"uiLanguage"` // "" follows the system
+	Appearance             string                 `json:"appearance"` // "dark", "light" or "system"
+	CloseToTray            bool                   `json:"closeToTray"`
+	ModelPaths             map[string]string      `json:"modelPaths"`
+	AsrModel               string                 `json:"asrModel"`
+	Aligner                string                 `json:"aligner"`
+	Backend                string                 `json:"backend"`
+	Language               string                 `json:"language"`
+	ChunkSeconds           float64                `json:"chunkSeconds"`
+	MaxTokens              float64                `json:"maxTokens"`
+	VocalSeparation        bool                   `json:"vocalSeparation"`
+	Hotwords               string                 `json:"hotwords"`
+	ProviderAPI            string                 `json:"providerApi"` // translator.APIChatCompletions or APIResponses
+	ProviderURL            string                 `json:"providerUrl"`
+	ProviderModel          string                 `json:"providerModel"`
+	ActiveProvider         string                 `json:"activeProvider,omitempty"`
+	Providers              []Provider             `json:"providers,omitempty"`
+	TargetLanguage         string                 `json:"targetLanguage"`
+	Glossary               string                 `json:"glossary"`
+	Domain3D               bool                   `json:"domain3D"`
+	TranslationProfile     string                 `json:"translationProfile"`
+	OptimizeTimeline       bool                   `json:"optimizeTimeline"`
+	MaxRequests            float64                `json:"maxRequests"`
+	TranslationConcurrency int                    `json:"translationConcurrency"`
+	TranslationBatchSize   int                    `json:"translationBatchSize"`
+	RecognitionFormat      string                 `json:"recognitionFormat"`
+	RecognitionDir         string                 `json:"recognitionDir"` // empty: beside the media
+	TranslationDir         string                 `json:"translationDir"` // empty: beside the subtitle or the media
+	TranslationRecovery    string                 `json:"translationRecovery,omitempty"`
+	Processing             *PendingProcessing     `json:"processing,omitempty"`
+	OutputDir              string                 `json:"outputDir"`
+	LastStyle              *styles.Style          `json:"lastStyle,omitempty"`
+	StylePreset            string                 `json:"stylePreset,omitempty"` // preset ID
+	UserPresets            []UserPreset           `json:"userPresets,omitempty"`
+	SubtitleOutput         subtitle.OutputOptions `json:"subtitleOutput"`
+	SecondaryStyle         *styles.Style          `json:"secondaryStyle,omitempty"`
+	SecondaryPreset        string                 `json:"secondaryPreset,omitempty"`
+	ComposeMode            string                 `json:"composeMode"`
+	ComposeQuality         string                 `json:"composeQuality"`
+	Volume                 float64                `json:"volume"` // percent
+	Muted                  bool                   `json:"muted"`
+	SingleClickAction      string                 `json:"singleClickAction"`
+	DoubleClickAction      string                 `json:"doubleClickAction"`
+	FollowPlayback         bool                   `json:"followPlayback"`
 	// The workbench panes, in percent: the player's width beside the list,
 	// the upper area's height, and the editor's width beside the style.
 	// StyleWidth is the style's share of the room right of the editor,
@@ -79,10 +93,10 @@ type Settings struct {
 
 // version is that of the settings written now. Version 1 had full volume
 // and SmartSub's shadow as defaults; Load moves them to version 2's.
-const version = 3
+const version = 4
 
 func Default() Settings {
-	return Settings{SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "zh", RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 20, StyleWidth: 50, StripPunctuation: true, KeepPunctuation: "?"}
+	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "zh", RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 40, StyleWidth: 200.0 / 3, StripPunctuation: true, KeepPunctuation: "?"}
 }
 func Load(path string) (Settings, error) {
 	s := Default()
@@ -94,6 +108,9 @@ func Load(path string) (Settings, error) {
 		return s, err
 	}
 	if err = json.Unmarshal(raw, &s); err != nil {
+		return Default(), err
+	}
+	if err = s.translationSchedulingError(); err != nil {
 		return Default(), err
 	}
 	if s.Version < 1 || s.Version > version {
@@ -119,13 +136,13 @@ func Load(path string) (Settings, error) {
 
 // upgrade moves the untouched defaults of earlier versions to the current
 // ones. Version 2 has half volume and the default style without a shadow;
-// version 3 sizes the editor, the style and recognition with translation
-// 1:2:2. Values the user chose stay.
+// version 4 sizes editor, style and workflow 2:2:1. Only known former defaults
+// migrate; a layout the user dragged to another ratio stays as chosen.
 func upgrade(s *Settings) {
+	if s.EditorWidth == 20 && s.StyleWidth == 50 || s.Version < 3 && s.EditorWidth == 25 && s.StyleWidth > 66.6 && s.StyleWidth < 66.7 {
+		s.EditorWidth, s.StyleWidth = 40, 200.0/3
+	}
 	if s.Version >= 2 {
-		if s.EditorWidth == 25 && s.StyleWidth > 66.6 && s.StyleWidth < 66.7 {
-			s.EditorWidth, s.StyleWidth = 20, 50
-		}
 		s.Version = version
 		return
 	}
@@ -142,6 +159,9 @@ func upgrade(s *Settings) {
 	s.Version = version
 }
 func Save(path string, s Settings) error {
+	if err := s.translationSchedulingError(); err != nil {
+		return err
+	}
 	s.SyncProvider()
 	if s.RecognitionFormat != "srt" && s.RecognitionFormat != "vtt" && s.RecognitionFormat != "ass" {
 		return errors.New(locales.RecognitionFormatInvalid())
@@ -179,4 +199,16 @@ func Save(path string, s Settings) error {
 		return err
 	}
 	return os.Rename(file.Name(), path)
+}
+
+// Both loading and saving keep fractional, zero and unbounded task settings
+// out of the runtime; omitted fields retain Default's values on older installs.
+func (s Settings) translationSchedulingError() error {
+	if s.TranslationConcurrency < 1 || s.TranslationConcurrency > 10000 {
+		return errors.New(locales.ErrTranslationConcurrency())
+	}
+	if s.TranslationBatchSize < 1 || s.TranslationBatchSize > 10000 {
+		return errors.New(locales.ErrTranslationBatchSize())
+	}
+	return nil
 }

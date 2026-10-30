@@ -316,14 +316,10 @@ func (s *Store) apply(commandID string, expected int64, edits []Edit, manual boo
 		before, after := []subtitle.Cue{}, []subtitle.Cue{}
 		track, table := "working", "cues"
 		if manual && edits[0].Track == "original" {
-			track, table = "original", "source_cues"
-			// Source corrections before the first rebuild also become its input.
-			var same bool
-			if err := tx.QueryRow("SELECT NOT EXISTS(SELECT id,body FROM cues EXCEPT SELECT id,body FROM source_cues) AND NOT EXISTS(SELECT id,body FROM source_cues EXCEPT SELECT id,body FROM cues)").Scan(&same); err != nil {
+			var err error
+			table, track, err = manualTrack(tx, true)
+			if err != nil {
 				return cursor, err
-			}
-			if same {
-				track = "both"
 			}
 		}
 		seen := map[string]bool{}

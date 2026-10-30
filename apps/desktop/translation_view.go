@@ -28,7 +28,7 @@ type translationCandidate struct {
 // The page uses two native forms and one compact parameter row. Every state
 // reserves the same space, including absent providers and status messages.
 func (a *NativeApp) translationSettingsView(c *ui.Context) {
-	ui.Column(c).Gap(em(c, 12)).Children(func() {
+	ui.Column(c).Gap(em(c, 8)).Children(func() {
 		ui.Row(c).Gap(em(c, 8)).Children(func() {
 			a.providerSelect(c).Grow(1)
 			ui.Button(c, locales.TranslationAddProvider()).OnClick(a.addProvider)
@@ -102,7 +102,7 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 				})
 			}).Gap(em(c, 8))
 		})
-		line(c, func() {
+		ui.Grid(c).Columns(3).Gap(em(c, 8)).Children(func() {
 			info := a.settings.ModelInfo()
 			for _, field := range []struct {
 				label string
@@ -112,17 +112,35 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 				{locales.TranslationMaxOutput(), func(m *translator.ModelInfo) *int { return &m.MaxOutputTokens }},
 				{locales.TranslationContextWindow(), func(m *translator.ModelInfo) *int { return &m.ContextWindow }},
 			} {
-				ui.Field(c, field.label, func() {
-					value := float64(0)
-					if info != nil {
-						value = float64(*field.get(info))
-					}
-					ui.NumberInput(c, &value, 0, 2147483647, 1).Label(field.label).Disabled(info == nil).OnChange(func() { *field.get(info) = int(value); info.LimitsSource = "manual"; a.saveSettings() })
+				ui.Form(c, func() {
+					ui.Field(c, field.label, func() {
+						value := float64(0)
+						if info != nil {
+							value = float64(*field.get(info))
+						}
+						ui.NumberInput(c, &value, 0, 2147483647, 1).Label(field.label).Disabled(info == nil).OnChange(func() { *field.get(info) = int(value); info.LimitsSource = "manual"; a.saveSettings() })
+					})
 				})
 			}
-			ui.Field(c, locales.TranslationRequestLimit(), func() {
-				ui.NumberInput(c, &a.settings.MaxRequests, 1, 10000, 1).Label(locales.TranslationRequestLimit()).OnChange(a.saveSettings)
+			ui.Form(c, func() {
+				ui.Field(c, locales.TranslationRequestLimit(), func() {
+					ui.NumberInput(c, &a.settings.MaxRequests, 1, 10000, 1).Label(locales.TranslationRequestLimit()).OnChange(a.saveSettings)
+				})
 			})
+			for _, field := range []struct {
+				label string
+				value *int
+			}{
+				{locales.TranslationConcurrency(), &a.settings.TranslationConcurrency},
+				{locales.TranslationBatchSize(), &a.settings.TranslationBatchSize},
+			} {
+				ui.Form(c, func() {
+					ui.Field(c, field.label, func() {
+						value := float64(*field.value)
+						ui.NumberInput(c, &value, 1, 10000, 1).Label(field.label).OnChange(func() { *field.value = int(value); a.saveSettings() })
+					})
+				})
+			}
 		})
 		ui.Row(c).Height(em(c, 24)).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 			muted(c, locales.TranslationLimitsNote()).FontSize(em(c, captionSize))
@@ -274,6 +292,7 @@ func (a *NativeApp) startTranslation() {
 	prefs := a.settings
 	root, _ := a.skillTools()
 	config := translator.Config{Endpoint: prefs.ProviderURL, API: prefs.ProviderAPI, Model: prefs.ProviderModel, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(a.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests), CacheDir: filepath.Join(a.dataRoot, "cache", "translation")}
+	config.Concurrency, config.BatchSize = prefs.TranslationConcurrency, prefs.TranslationBatchSize
 	if info := prefs.ModelInfo(); info != nil {
 		config.MaxOutputTokens = info.MaxOutputTokens
 	}

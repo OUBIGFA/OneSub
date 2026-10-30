@@ -47,6 +47,23 @@
     "version": "v1.3.0",
     "archiveSha256": "e9e169e108ee43d88b5b047f4ec556819cd7fa5e2424d3f5ed957634f85d4936"
   },
+  "fireredvad": {
+    "file": "fireredvad.exe",
+    "bytes": 9353216,
+    "sha256": "ea991bb111efe7984c72fcaf31e21717a2ac8a08dbc8c26695a60d7b4ce2dd69",
+    "version": "v1.0.0",
+    "revision": "1d0d349464635f33123af18fd4d373efc4613f26",
+    "repository": "https://github.com/eclipse005/FireRedVad",
+    "download": "https://github.com/eclipse005/FireRedVad/releases/download/v1.0.0/fireredvad-windows-x86_64.exe",
+    "spdx": "Apache-2.0",
+    "license": "third_party/licenses/fireredvad.txt",
+    "models": "Embedded FireRedTeam VAD/AED/Stream-VAD weights, Apache-2.0; only VAD is used",
+    "modelSource": "https://github.com/FireRedTeam/FireRedASR2S",
+    "modelLicense": "third_party/licenses/fireredvad-models.txt",
+    "modelLicenseBlob": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
+    "usage": "Same tag as OneAsr v1.3.0; default VAD detects speech before ASR, including short input",
+    "modifications": "none; official Windows x64 executable renamed to fireredvad.exe"
+  },
   "player": [
     {
       "name": "jassub",

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
@@ -132,6 +133,61 @@ func serve(t *testing.T, reply func(s seen, n int) (string, string, int)) (*fake
 
 func ok(s seen, _ int) (string, string, int) { return translated(s), "stop", 0 }
 
+func TestTranslationUsesConfiguredBatchSize(t *testing.T) {
+	for _, test := range []struct {
+		config string
+		count  int
+		sizes  []int
+	}{
+		{`{"Concurrency":1}`, 43, []int{20, 20, 3}},
+		{`{"Concurrency":1,"BatchSize":4}`, 9, []int{4, 4, 1}},
+	} {
+		f, config := serve(t, ok)
+		if err := json.Unmarshal([]byte(test.config), &config); err != nil {
+			t.Fatal(err)
+		}
+		result, err := Translate(context.Background(), config, testDocument(test.count))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sizes := []int{}
+		for _, request := range f.seen() {
+			sizes = append(sizes, len(request.Payload.Units))
+		}
+		if !slices.Equal(sizes, test.sizes) || result.Report.Translated != test.count {
+			t.Fatal("wrong request batches", sizes, test.sizes, result.Report)
+		}
+	}
+}
+
+func TestConfiguredConcurrencyRunsThreeBatchesAtOnce(t *testing.T) {
+	var mu sync.Mutex
+	var once sync.Once
+	active, peak := 0, 0
+	gate := make(chan struct{})
+	timer := time.AfterFunc(2*time.Second, func() { once.Do(func() { close(gate) }) })
+	defer timer.Stop()
+	f, config := serve(t, func(s seen, _ int) (string, string, int) {
+		mu.Lock()
+		active++
+		peak = max(peak, active)
+		if active == 3 {
+			once.Do(func() { close(gate) })
+		}
+		mu.Unlock()
+		<-gate
+		mu.Lock()
+		active--
+		mu.Unlock()
+		return translated(s), "stop", 0
+	})
+	config.Concurrency, config.BatchSize = 3, 2
+	result, err := Translate(context.Background(), config, testDocument(9))
+	if err != nil || peak != 3 || len(f.seen()) != 5 || result.Report.Translated != 9 {
+		t.Fatal("configured concurrency was not used", err, peak, len(f.seen()), result.Report)
+	}
+}
+
 // A failed later request must still return every accepted subtitle. The caller
 // can show and persist this result while the error remains visible.
 func TestInterruptedTranslationReturnsAcceptedSubtitles(t *testing.T) {
@@ -146,7 +202,7 @@ func TestInterruptedTranslationReturnsAcceptedSubtitles(t *testing.T) {
 	if err == nil {
 		t.Fatal("interruption reported success")
 	}
-	if len(result.Document.Cues) != 35 || !result.Document.Cues[0].Translated || result.Document.Cues[0].Text != "译文 0" || result.Document.Cues[34].Translated || result.Report.Translated != 30 {
+	if len(result.Document.Cues) != 35 || !result.Document.Cues[0].Translated || result.Document.Cues[0].Text != "译文 0" || result.Document.Cues[34].Translated || result.Report.Translated != 20 {
 		t.Fatal("accepted subtitles disappeared", result.Report, result.Document.Cues[0])
 	}
 	if len(f.seen()) != 2 {
@@ -187,7 +243,7 @@ func testDocument(count int) subtitle.Document {
 }
 
 // Every batch carries the skill's rules for its phase, the whole source as
-// read-only context and at most 30 subtitles; locked and protected
+// read-only context and at most 20 subtitles; locked and protected
 // subtitles keep their text, and drawings are never sent. The live view
 // sees each subtitle while it is written and when it is accepted.
 func TestTranslateStreamsEveryBatchWithItsRules(t *testing.T) {
@@ -203,11 +259,11 @@ func TestTranslateStreamsEveryBatchWithItsRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	requests := f.seen()
-	if len(requests) != 3 || result.Report.Requests != 3 || result.Report.Translated != 61 {
+	if len(requests) != 4 || result.Report.Requests != 4 || result.Report.Translated != 61 {
 		t.Fatal(len(requests), result.Report)
 	}
 	for _, r := range requests {
-		if r.Operation != "translate" || r.Format != "json_schema" || !r.Usage || len(r.Payload.Units) > 30 {
+		if r.Operation != "translate" || r.Format != "json_schema" || !r.Usage || len(r.Payload.Units) > 20 {
 			t.Fatal("bad batch", r.Operation, r.Format, len(r.Payload.Units))
 		}
 		for _, file := range []string{"## SKILL.md", "## references/style-common.md", "## references/style-zh.md", "## references/names-zh.md", "## references/reading-load.md", `"max_cps":4.5`} {
