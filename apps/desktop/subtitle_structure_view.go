@@ -13,25 +13,32 @@ import (
 )
 
 func (a *NativeApp) subtitleActionsMenu(c *ui.Context) {
+	toolIcon(c, locales.SubtitleActionsMenu(), "ellipsis").Disabled(a.busy || a.snapshot == nil || a.showsTranslationProgress()).Menu(func(m *ui.Menu) {
+		a.subtitleStructureMenu(m, a.selected)
+	})
+}
+
+// The list toolbar and its context menus share commands and availability;
+// opening a row menu must not bypass task or format protection.
+func (a *NativeApp) subtitleStructureMenu(m *ui.Menu, index int) {
 	cues := a.activeDocument().Cues
 	id := ""
 	protected := false
-	if a.selected >= 0 && a.selected < len(cues) {
-		id = cues[a.selected].ID
-		protected = cues[a.selected].ReadOnly
+	if index >= 0 && index < len(cues) {
+		id = cues[index].ID
+		protected = cues[index].ReadOnly
 	}
-	ui.MenuButton(c, "", func(m *ui.Menu) {
-		if m.Item(locales.SubtitleInsertBefore()).Chosen() {
-			a.openSubtitleInsert(id, true)
-		}
-		if m.Item(locales.SubtitleInsertAfter()).Chosen() {
-			a.openSubtitleInsert(id, false)
-		}
-		m.Separator()
-		if m.Item(locales.SubtitleDelete()).Disabled(id == "" || protected).Chosen() {
-			a.deleteSubtitle(id)
-		}
-	}).Label(locales.SubtitleActionsMenu()).Tooltip(locales.SubtitleActionsMenu()).Disabled(a.busy || a.snapshot == nil || a.showsTranslationProgress()).Children(func() { icon(c, "ellipsis") })
+	disabled := a.busy || a.snapshot == nil || a.showsTranslationProgress()
+	if m.Item(locales.SubtitleInsertBefore()).Disabled(disabled).Chosen() {
+		a.openSubtitleInsert(id, true)
+	}
+	if m.Item(locales.SubtitleInsertAfter()).Disabled(disabled).Chosen() {
+		a.openSubtitleInsert(id, false)
+	}
+	m.Separator()
+	if m.Item(locales.SubtitleDelete()).Shortcut(0, ui.KeyDelete).Disabled(disabled || id == "" || protected).Chosen() {
+		a.deleteSubtitle(id)
+	}
 }
 
 func (a *NativeApp) openSubtitleInsert(anchor string, before bool) {

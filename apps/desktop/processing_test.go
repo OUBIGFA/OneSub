@@ -29,6 +29,10 @@ func TestContinueAfterRecognitionSkipsRecognition(t *testing.T) {
 func TestNativeSubtitleMenuInsertsAndDeletes(t *testing.T) {
 	a := draftApp(t)
 	tt := settled(a.editorView, 640, 450)
+	if _, ok := tt.Find(locales.SubtitleActionsMenu()); ok {
+		t.Fatal("subtitle structure actions still appear in the editor")
+	}
+	tt = settled(a.subtitlesView, 640, 450)
 	if err := tt.Click(locales.SubtitleActionsMenu()); err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +50,7 @@ func TestNativeSubtitleMenuInsertsAndDeletes(t *testing.T) {
 	if len(a.activeDocument().Cues) != 3 || a.activeDocument().Cues[1].Text != "New subtitle" {
 		t.Fatal("insert dialog did not save the subtitle")
 	}
-	tt = settled(a.editorView, 640, 450)
+	tt = settled(a.subtitlesView, 640, 450)
 	if err := tt.Click(locales.SubtitleActionsMenu()); err != nil {
 		t.Fatal(err)
 	}

@@ -19,39 +19,43 @@ const editCommitDelay = 600 * time.Millisecond
 func (a *NativeApp) subtitlesView(c *ui.Context) {
 	ui.Column(c).Fill().Children(func() {
 		hasCues := len(a.activeDocument().Cues) > 0
-		// The translate action on the left; the original/translation switch
-		// in the middle; going back to the playhead on the right.
+		// Keep the track switch centered; all list commands live in the
+		// wrapping toolbar below, so narrow headers never crowd the tabs.
 		panelHeader(c, nil, func() {
 			tab := a.subtitleTab
 			if ui.Segmented(c, &tab, locales.TabOriginal(), locales.TabRebuilt()).Label(locales.A11ySubtitleTabs()).Changed() {
 				a.changeSubtitleTab(tab)
 			}
-		}, func() {
-			ui.Toolbar(c, func() {
-				toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
-			}).Padding(0)
-		})
+		}, nil)
 		ui.Divider(c)
-		ui.Row(c).Padding(em(c, 8), em(c, 12)).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
-			if ui.SearchField(c, &a.query).Placeholder(locales.ListSearch()).Label(locales.ListSearch()).Grow(1).Changed() {
+		ui.Row(c).Padding(em(c, 8), em(c, 12)).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
+			ui.Toolbar(c, func() {
+				a.subtitleActionsMenu(c)
+				toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
+			}).Padding(0).Shrink(0)
+			if ui.SearchField(c, &a.query).Placeholder(locales.ListSearch()).Label(locales.ListSearch()).MinWidth(em(c, 140)).Grow(1).Changed() {
 				a.followRow = -1
 			}
 			if a.translationCandidate != nil {
 				ui.Button(c, locales.TranslationResults()).OnClick(func() { a.translationReview = true })
 			}
-			unsaved := a.trackUnsaved(a.subtitleTab)
-			if unsaved {
-				ui.Badge(c, locales.ListUnsaved()).Background(c.Theme().Warning.Alpha(0.16)).TextColor(c.Theme().Warning)
-			}
-			iconButton(c, locales.ListSave(), "save").Disabled(a.busy || a.showsTranslationProgress() || a.snapshot == nil || !unsaved).OnClick(func() { a.saveTrack(a.subtitleTab, false) })
-			ui.Button(c, locales.ListSaveAs()).Disabled(a.busy || a.showsTranslationProgress() || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
+			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+				unsaved := a.trackUnsaved(a.subtitleTab)
+				if unsaved {
+					ui.Badge(c, locales.ListUnsaved()).Background(c.Theme().Warning.Alpha(0.16)).TextColor(c.Theme().Warning)
+				}
+				iconButton(c, locales.ListSave(), "save").Disabled(a.busy || a.showsTranslationProgress() || a.snapshot == nil || !unsaved).OnClick(func() { a.saveTrack(a.subtitleTab, false) })
+				ui.Button(c, locales.ListSaveAs()).Disabled(a.busy || a.showsTranslationProgress() || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
+			})
 		})
 		if a.showsTranslationProgress() {
 			a.translationProgressView(c)
 			return
 		}
 		if !hasCues {
-			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.ListEmpty()) })
+			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.ListEmpty()) }).ContextMenu(func(m *ui.Menu) {
+				a.subtitleStructureMenu(m, -1)
+			})
 			return
 		}
 		cues := a.activeDocument().Cues
@@ -72,6 +76,21 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 		selected := rowOf(a.selected)
 		a.list.Selected = &selected
 		a.list.Key = func(i int) any { return cues[rows[i]].ID }
+		a.list.CellMenu = func(m *ui.Menu, row, col int) {
+			index := rows[row]
+			// MyGo's single-selection list keeps its old selection on a
+			// right-click. Select this cue explicitly, without a playback action.
+			if a.selected != index {
+				if !a.commitEdit(true) {
+					return
+				}
+				a.selected, selected = index, row
+				a.loadDraft()
+				c.Invalidate()
+			}
+			a.list.Focus(c)
+			a.subtitleStructureMenu(m, index)
+		}
 		maximum := 1
 		for _, cue := range cues {
 			maximum = max(maximum, cue.Position+1)
@@ -117,7 +136,11 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 					ui.Text(c, text)
 				})
 			}
-		}).Grow(1).Label(locales.A11ySubtitleList())
+		}).Grow(1).Label(locales.A11ySubtitleList()).ContextMenu(func(m *ui.Menu) {
+			// The blank list area and keyboard menu use the current selection.
+			a.list.Focus(c)
+			a.subtitleStructureMenu(m, a.selected)
+		})
 		// A hand scroll while the video plays stops the list following it;
 		// the scroll still happens. The cue at the playhead stays chosen.
 		table.HandleInput(func(ev ui.InputEvent) bool {
@@ -205,7 +228,7 @@ func timeColumn(c *ui.Context, title string) ui.TableColumn {
 func (a *NativeApp) editorView(c *ui.Context) {
 	valid := !a.showsTranslationProgress() && a.snapshot != nil && a.selected >= 0 && a.selected < len(a.activeDocument().Cues)
 	ui.Column(c).Fill().Label(locales.A11yEditorPanel()).Children(func() {
-		panelHeader(c, func() { a.subtitleActionsMenu(c) }, func() { panelTitle(c, locales.EditorTitle()) }, func() {
+		panelHeader(c, nil, func() { panelTitle(c, locales.EditorTitle()) }, func() {
 			ui.Toolbar(c, func() {
 				toolIcon(c, locales.EditorUndo(), "undo-2").Disabled(a.busy || a.snapshot == nil || !(a.snapshot.CanUndo || a.editPending)).OnClick(func() { a.undo(false) })
 				toolIcon(c, locales.EditorRedo(), "redo-2").Disabled(a.busy || a.snapshot == nil || !a.snapshot.CanRedo).OnClick(func() { a.undo(true) })
