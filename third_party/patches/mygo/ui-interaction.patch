@@ -1,0 +1,352 @@
+--- a/ui/editor.go
++++ b/ui/editor.go
+@@ -83,7 +83,10 @@
+ 	painted     spanPaint
+ 	// layout is what the last frame laid out of a single-line input or a
+ 	// selectable text; area lays out a text area (textarea.go).
+-	layout           *text.Layout
++	layout *text.Layout
++	// Elision is paint-only: the editor and accessibility keep the full text.
++	elidedLayout     *text.Layout
++	elidedGeneration uint64
+ 	layoutVersion    uint64
+ 	layoutGeneration uint64
+ 	layoutCompose    string
+--- a/ui/editor_layout.go
++++ b/ui/editor_layout.go
+@@ -143,26 +143,51 @@
+ // placeholderParams lays out the placeholder of an empty input in a
+ // content box width wide: in the input's style, its line height too, fixed
+ // or not. A text area's placeholder wraps; a single-line input's stays on
+-// its line, cut off at the box.
++// one line and uses the native ellipsis when it exceeds the content box.
+ func (e *node) placeholderParams(width float32) text.Params {
+ 	ed := e.st.editor
+ 	params := e.textParams(width)
+-	params.Text, params.Spans, params.MaxLines, params.NoWrap, params.Ellipsis = ed.placeholder, "", 0, !ed.multiline, ""
++	params.Text, params.Spans, params.MaxLines, params.NoWrap, params.Ellipsis = ed.placeholder, "", 0, false, ""
++	if !ed.multiline {
++		params.MaxLines = 1
++	}
+ 	return params
+ }
+ 
++// Keep the complete layout for caret hit testing, selection, IME and access.
++// Only an unfocused single-line field's painted text is elided, using the
++// same shaper as Text.SingleLine. Cache it on the editor, not globally.
++func (e *node) inputPaintLayout(width float32) *text.Layout {
++	ed := e.st.editor
++	if e.Focused() || ed.multiline || ed.layout == nil || ed.layout.Width <= width {
++		ed.elidedLayout = nil
++		return ed.layout
++	}
++	params := e.inputParams(width)
++	params.Width, params.MaxLines = width, 1
++	gen := textSystem().Generation()
++	if ed.elidedLayout == nil || ed.elidedLayout.Params != params || ed.elidedGeneration != gen {
++		ed.elidedLayout = textSystem().Shape(params)
++		ed.elidedGeneration = gen
++	}
++	return ed.elidedLayout
++}
++
+ func (e *node) paintInput(p *Painter) {
+ 	ed := e.st.editor
+-	l := ed.layout
++	box := e.contentBox()
++	l := e.inputPaintLayout(box.W)
+ 	t := e.c.theme
+ 	if l == nil && ed.area == nil {
+ 		return
+ 	}
+-	box := e.contentBox()
+ 	clip := Rect{e.x + e.border[3], e.y + e.border[0], e.w - e.border[1] - e.border[3], e.h - e.border[0] - e.border[2]}
+ 	saved := p.clip
+ 	p.pushClip(clip, [4]float32{})
+ 	ox, oy := e.x+ed.originX-ed.scrollX, e.y+ed.originY
++	if ed.elidedLayout != nil {
++		ox = e.x + e.contentX() // the elided layout already fits, including RTL
++	}
+ 	focused := e.Focused()
+ 	ts := e.resolvedText()
+ 	if ed.buf.n == 0 && ed.compose == "" && ed.placeholder != "" {
+--- a/ui/list.go
++++ b/ui/list.go
+@@ -192,6 +192,8 @@
+ 	wroteY  float64
+ 	req     listRequest
+ 	heights listHeights
++	// Nearby row following delegates motion and user interruption to ScrollState.
++	scrollMotion *ScrollState
+ 
+ 	// scrolled tells that the app asked the list to scroll (ScrollTo,
+ 	// ScrollIntoView, ScrollToEnd): a mouse wheel's notches on their way
+@@ -294,13 +296,57 @@
+ // the list scrolls as the frame is laid out, to where the row is once it
+ // is measured.
+ func (s *ListState) ScrollTo(row int, align Align) {
++	s.StopScroll()
+ 	s.req = listRequest{set: true, row: row, align: align}
+ 	s.scrolled = true
++}
++
++// ScrollToAnimated glides a measured, nearby row to align. Call it from the
++// view after building the list. Distant or unmeasured targets use ScrollTo:
++// traversing thousands of unseen rows would hide the destination and depend
++// on estimated heights. Native ScrollState owns easing and reduced motion.
++func (s *ListState) ScrollToAnimated(row int, align Align, animation Animation) {
++	f := &s.frame
++	if f.c == nil || !f.c.rt.inFrame || f.frame != f.c.rt.frame || f.pass != f.c.rt.pass || !s.laidOut || row < s.first || row > s.last || s.Header != nil {
++		s.ScrollTo(row, align)
++		return
++	}
++	e := f.e
++	y := float32(s.padTop + s.heights.top(row, s.gap))
++	height := float32(s.heights.height(row))
++	switch align {
++	case Center:
++		y -= (e.st.h - height) / 2
++	case End:
++		y -= e.st.h - height - e.pad[2] - e.border[2]
++	default:
++		y -= float32(s.padTop)
++	}
++	if s.scrollMotion == nil {
++		s.scrollMotion = &ScrollState{X: float32(e.st.scrollX), Y: float32(e.st.scrollY), MaxX: float32(max(0, e.st.contentW-float64(e.st.w))), MaxY: float32(max(0, e.st.contentH-float64(e.st.h)))}
++	}
++	s.req, s.scrolled = listRequest{}, true
++	s.scrollMotion.ScrollTo(s.scrollMotion.X, y, animation)
++	e.TrackScroll(s.scrollMotion)
++	e.c.rt.requestFrame()
++}
++
++// Scrolling reports an animated row locate still in flight.
++func (s *ListState) Scrolling() bool {
++	return s.scrollMotion != nil && s.scrollMotion.Scrolling()
++}
++
++// StopScroll leaves the viewport where it is, for a changed filter or track.
++func (s *ListState) StopScroll() {
++	if s.scrollMotion != nil {
++		s.scrollMotion.glide = nil
++	}
+ }
+ 
+ // ScrollIntoView scrolls the list as little as shows row whole, as
+ // Element.ScrollIntoView does an element.
+ func (s *ListState) ScrollIntoView(row int) {
++	s.StopScroll()
+ 	s.req = listRequest{set: true, row: row, near: true}
+ 	s.scrolled = true
+ }
+@@ -308,6 +354,7 @@
+ // ScrollToEnd scrolls the list to its end, where FollowEnd follows it
+ // again.
+ func (s *ListState) ScrollToEnd() {
++	s.StopScroll()
+ 	s.req = listRequest{set: true, end: true}
+ 	s.scrolled = true
+ }
+@@ -486,6 +533,9 @@
+ 	}
+ 	e.list, owner.rowsOf = f, f
+ 	wrapElement(owner).Bind(&s.Handle)
++	if s.scrollMotion != nil {
++		e.TrackScroll(s.scrollMotion)
++	}
+ 	s.sync(e, n)
+ 	f.pickForMenu()
+ 	if s.cursor() != nil && owner == e {
+--- a/ui/textinput.go
++++ b/ui/textinput.go
+@@ -62,10 +62,27 @@
+ 	return e
+ }
+ 
+-// Placeholder shows s in an empty text input.
++// Placeholder shows s in an empty text input, including a composite field's
++// input. field() marks that input with nameFrom; do not alter unrelated labels
++// or token buttons inside the field.
+ func (e *node) Placeholder(s string) *node {
+-	if e.st.editor != nil {
+-		e.st.editor.placeholder = s
++	var target func(*node) *node
++	target = func(n *node) *node {
++		if n == nil {
++			return nil
++		}
++		if n.st.editor != nil {
++			return n
++		}
++		for child := n.first; child != nil; child = child.next {
++			if found := target(child); found != nil {
++				return found
++			}
++		}
++		return nil
++	}
++	if input := target(e); input != nil {
++		input.st.editor.placeholder = s
+ 	}
+ 	return e
+ }
+--- /dev/null
++++ b/ui/onesub_interaction_test.go
+@@ -0,0 +1,157 @@
++package ui
++
++import (
++	"fmt"
++	"math"
++	"strings"
++	"testing"
++	"time"
++)
++
++// Elision must never become a shortened value or a different editor. Exercise
++// native pointer selection, keyboard editing, masking and a second blur.
++func TestOneSubInputElisionKeepsEditing(t *testing.T) {
++	for _, password := range []bool{false, true} {
++		value := "https://example.com/" + strings.Repeat("长路径/", 25) + "endpoint"
++		original := value
++		var input *node
++		tt := coreNewTester(func(c *context) {
++			input = coreTextInput(c, &value).Width(180).Label("Address")
++			if password {
++				input.Password()
++			}
++		}, 600, 160)
++		tt.Image()
++		ed := input.st.editor
++		if ed.elidedLayout == nil || !ed.elidedLayout.Truncated || ed.layout.Truncated || value != original {
++			t.Fatal("blurred input did not elide only its display", password)
++		}
++		if password && strings.Contains(ed.elidedLayout.Params.Text, "example") {
++			t.Fatal("password exposed through elision")
++		}
++		if err := tt.Click("Address"); err != nil {
++			t.Fatal(err)
++		}
++		tt.Key(0, KeyEnd)
++		tt.Image()
++		if ed.elidedLayout != nil || ed.scrollX <= 0 {
++			t.Fatal("focused input no longer scrolls to its caret")
++		}
++		tt.Type("-edited")
++		if value != original+"-edited" {
++			t.Fatal("tail edit replaced the hidden text", value)
++		}
++		tt.Key(0, KeyHome)
++		r, _ := tt.Find("Address")
++		tt.Press(r.X+12, r.Y+r.H/2)
++		tt.Move(r.X+r.W+400, r.Y+r.H/2)
++		for range 20 {
++			tt.Advance(100 * time.Millisecond)
++		}
++		tt.Release(r.X+r.W+400, r.Y+r.H/2)
++		if ed.scrollX <= 0 || ed.caret <= 20 {
++			t.Fatal("drag selection did not reveal text beyond the field", ed.scrollX, ed.caret)
++		}
++		tt.ClickAt(550, 120)
++		tt.Image()
++		if ed.elidedLayout == nil || !ed.elidedLayout.Truncated || value != original+"-edited" {
++			t.Fatal("blur changed the full value")
++		}
++	}
++}
++
++func TestOneSubCompositePlaceholderAndElision(t *testing.T) {
++	for _, kind := range []string{"search", "combobox", "tokens", "autocomplete"} {
++		t.Run(kind, func(t *testing.T) {
++			value, hint := "", "搜索（1-361）"
++			var tokens []string
++			var input *node
++			tt := coreNewTester(func(c *context) {
++				var field *node
++				switch kind {
++				case "search":
++					field = coreSearchField(c, &value)
++				case "combobox":
++					field = coreCombobox(c, &value, []string{"Choice"})
++				case "tokens":
++					field = coreTokenField(c, &tokens, nil)
++				case "autocomplete":
++					field = coreAutocomplete(c, &value, nil)
++				}
++				field.Placeholder(hint).Label("Field").Width(220)
++				input = field
++				if input.st.editor == nil {
++					input = fieldControl(field)
++				}
++			}, 500, 180)
++			for _, text := range []string{"搜索（1-361）", "搜索（0-0）", "Search (1-20000)"} {
++				hint = text
++				tt.Frame()
++				tt.Image()
++				layout := textSystem().Layout(input.placeholderParams(input.contentBox().W))
++				if layout.Params.Text != hint || layout.Truncated || value != "" {
++					t.Fatal("composite input did not display the current placeholder", layout.Params.Text, hint)
++				}
++			}
++			hint = "Choose or enter a model name " + strings.Repeat("long ", 20)
++			tt.Frame()
++			tt.Image()
++			layout := textSystem().Layout(input.placeholderParams(input.contentBox().W))
++			if !layout.Truncated || len(layout.Lines) != 1 || layout.Width > input.contentBox().W+1 {
++				t.Fatal("long placeholder was clipped without an ellipsis", layout.Truncated, layout.Width)
++			}
++			if kind == "search" {
++				tt.Click("Field")
++				tt.Type("needle")
++				if value != "needle" {
++					t.Fatal("placeholder changed the search value", value)
++				}
++				tt.Key(0, KeyEscape)
++				if value != "" || input.st.editor.placeholder != hint {
++					t.Fatal("clearing search lost its placeholder")
++				}
++			}
++		})
++	}
++}
++
++func TestOneSubRowScrollUsesNativeMotion(t *testing.T) {
++	for _, reduce := range []bool{false, true} {
++		var state ListState
++		jump, glide := 60, -1
++		tt := coreNewTester(func(c *context) {
++			coreTable(c, &state, []TableColumn{{Title: "Subtitle"}}, 200, func(row, col int) {
++				coreText(c, fmt.Sprint("Row ", row)).Height(float32(32 + (row%3)*12))
++			}).Fill()
++			if jump >= 0 {
++				state.ScrollTo(jump, Center)
++				jump = -1
++			}
++			if glide >= 0 {
++				state.ScrollToAnimated(glide, Center, Animation{Duration: 220 * time.Millisecond, Ease: EaseOut})
++				glide = -1
++			}
++		}, 500, 400)
++		tt.SetPreferences(Preferences{ReduceMotion: reduce})
++		tt.Frame()
++		before := state.wroteY
++		glide = 61
++		tt.Frame()
++		tt.Advance(55 * time.Millisecond)
++		middle := state.wroteY
++		tt.Advance(300 * time.Millisecond)
++		after := state.wroteY
++		if after <= before || (!reduce && !(middle > before && middle < after)) || reduce && math.Abs(middle-after) > .5 {
++			t.Fatal("row locate did not honor native motion", reduce, before, middle, after)
++		}
++		glide = 62
++		tt.Frame()
++		tt.Advance(40 * time.Millisecond)
++		jump = 0
++		tt.Frame()
++		tt.Advance(time.Second)
++		if first, _ := state.Visible(); first != 0 || state.Scrolling() {
++			t.Fatal("edge navigation did not cancel motion", first)
++		}
++	}
++}

@@ -13,11 +13,27 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func outputModes() []option {
+// Provenance comes from persisted cue metadata, never the next task's switch.
+// SourceCueIDs survives source edits and retranslating an already optimized
+// timeline even when that pass replaces SourceRange with an unchanged range.
+func translationOutputLabel(doc subtitle.Document) string {
+	for _, cue := range doc.Cues {
+		if len(cue.SourceCueIDs) > 0 || cue.SourceRange != nil && cue.SourceRange.Reason != "" {
+			return locales.OutputTranslation(locales.OutputOptimized())
+		}
+	}
+	return locales.OutputTranslation(locales.OutputOriginal())
+}
+
+func (a *NativeApp) outputModes() []option {
+	doc := subtitle.Document{}
+	if a.snapshot != nil {
+		doc = a.snapshot.Document
+	}
 	return []option{
 		{"original", locales.TabOriginal()},
 		{"source", locales.OutputRebuiltSource()},
-		{"translation", locales.OutputTranslation()},
+		{"translation", translationOutputLabel(doc)},
 		{"bilingual", locales.OutputBilingual()},
 	}
 }
@@ -31,7 +47,7 @@ func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) {
 		mode = "original"
 	}
 	content := ui.Field(c, locales.OutputContent(), func() {
-		idSelect(c, &mode, outputModes()).Label(locales.OutputContent()).AlignSelf(ui.Start).OnChange(func() {
+		idSelect(c, &mode, a.outputModes()).Label(locales.OutputContent()).AlignSelf(ui.Start).OnChange(func() {
 			o.Mode, o.SourceTrack = mode, ""
 			if mode == "original" {
 				o.Mode, o.SourceTrack = "source", "original"

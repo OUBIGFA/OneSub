@@ -122,10 +122,26 @@ func folderField(c *ui.Context, dir, fallback string, busy bool, choose, reset f
 
 func (a *NativeApp) translateTab(c *ui.Context) {
 	hasCues := a.snapshot != nil && len(a.snapshot.Document.Cues) > 0
-	startButton(c, locales.WorkflowStartTranslate(), "languages", a.busy || !hasCues, a.translate)
-	if !hasCues {
-		muted(c, locales.WorkflowNeedsSubtitles())
-	}
+	// Keep the defining option beside the start action in the visual hierarchy,
+	// not among secondary output fields. Field supplies the native switch name
+	// and makes its caption clickable, without a second accessible group label.
+	ui.Column(c).Gap(em(c, 8)).Children(func() {
+		startButton(c, locales.WorkflowStartTranslate(), "languages", a.busy || !hasCues, a.translate)
+		// The full-width caption connects the option to the resulting track;
+		// a Form field description would wrap under the narrow switch column.
+		hint := locales.TranslationOptimizeTimelineHint(locales.TabRebuilt())
+		ui.Column(c).Gap(em(c, 6)).Padding(em(c, 8), em(c, 12)).Radius(c.Theme().Radius).Background(c.Theme().Surface).Border(1, c.Theme().Accent).Children(func() {
+			ui.Form(c, func() {
+				ui.Field(c, locales.TranslationOptimizeTimeline(), func() {
+					ui.Switch(c, &a.settings.OptimizeTimeline).Description(hint).Disabled(a.busy).OnChange(a.saveSettings)
+				})
+			}).FontWeight(600)
+			muted(c, hint)
+		})
+		if !hasCues {
+			muted(c, locales.WorkflowNeedsSubtitles())
+		}
+	})
 	if a.translationProfiles == nil {
 		a.reloadTranslationProfiles()
 	}
@@ -158,7 +174,6 @@ func (a *NativeApp) translateTab(c *ui.Context) {
 			}).MinWidth(em(c, 220))
 			ui.Field(c, locales.TranslationStyle(), func() { a.styleSelect(c).Disabled(a.busy) }).MinWidth(em(c, 180))
 			folderField(c, a.settings.TranslationDir, locales.TranslationBesideSource(), a.busy, a.pickTranslationDir, func() { a.settings.TranslationDir = ""; a.saveSettings() })
-			ui.Checkbox(c, &a.settings.OptimizeTimeline, locales.TranslationOptimizeTimeline()).Disabled(a.busy).OnChange(a.saveSettings)
 		})
 	})
 }

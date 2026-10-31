@@ -179,7 +179,7 @@ func (a *NativeApp) saveTracks(tracks []int, saveAs bool, next func()) {
 				}
 				title := locales.SaveSourceTitle()
 				if track == 1 {
-					title = locales.SaveTranslationTitle()
+					title = locales.SaveTranslationTitle(translationOutputLabel(state.Document))
 				}
 				chosen, err := a.saveDialog(mygo.SaveDialogOptions{Parent: a.win, Title: title, DefaultPath: paths[track], Filters: filters})
 				if err != nil {
@@ -278,7 +278,7 @@ func (a *NativeApp) unsavedText() string {
 		}
 		name := locales.TabOriginal()
 		if track == 1 {
-			name = locales.TabRebuilt()
+			name = translationOutputLabel(a.snapshot.Document)
 		}
 		line := locales.SaveNewFile(name)
 		if a.savedPath[track] != "" {

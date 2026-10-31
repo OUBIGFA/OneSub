@@ -195,7 +195,7 @@ func TestExportSeparatesOriginalRebuiltAndTranslation(t *testing.T) {
 	if err = tt.Click(locales.OutputRebuiltSource()); err != nil {
 		t.Fatal(err)
 	}
-	for _, label := range []string{locales.TabOriginal(), locales.OutputRebuiltSource(), locales.OutputTranslation(), locales.OutputBilingual()} {
+	for _, label := range []string{locales.TabOriginal(), locales.OutputRebuiltSource(), locales.OutputTranslation(locales.OutputOptimized()), locales.OutputBilingual()} {
 		if !tt.HasText(label) {
 			t.Fatal("export choice missing", label, tt.Texts())
 		}

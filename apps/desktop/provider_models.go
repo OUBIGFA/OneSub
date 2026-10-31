@@ -115,7 +115,9 @@ func (a *NativeApp) providerModelSelect(c *ui.Context) ui.Element {
 	}
 	slices.Sort(names)
 	names = slices.Compact(names)
-	return ui.Combobox(c, &a.settings.ProviderModel, names).Placeholder(locales.TranslationModelPlaceholder()).Label(locales.TranslationModel()).OnChange(func() { a.settings.SyncProvider(); a.saveSettings() })
+	// Autocomplete binds free text as well as catalog selections. Combobox
+	// accepts catalog items only and discards manually entered model names.
+	return ui.Autocomplete(c, &a.settings.ProviderModel, names).Placeholder(locales.TranslationModelPlaceholder()).Label(locales.TranslationModel()).Tooltip(a.settings.ProviderModel).OnChange(func() { a.settings.SyncProvider(); a.saveSettings() })
 }
 
 func (a *NativeApp) providerDeleteView(c *ui.Context) {

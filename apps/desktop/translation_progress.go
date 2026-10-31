@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
@@ -21,9 +22,8 @@ type translationLive struct {
 	final                   map[int]bool
 	thinking, retry         string
 	requests, input, output int
-	latest                  int  // the row last written to
-	shown                   int  // the row the list last followed
-	followPaused            bool // reading earlier rows until the user returns to the bottom
+	latest                  int // the row last written to
+	shown                   int // the row the list last followed
 	list                    ui.ListState
 	started                 time.Time
 	stopped, model          string
@@ -142,8 +142,15 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 		ui.Column(c).Grow(1).Center().Children(func() { muted(c, label) })
 		return
 	}
+	rows := []int{}
+	for i, cue := range l.units {
+		if strings.Contains(strings.ToLower(subtitle.SourceText(cue)+"\n"+l.texts[i]), strings.ToLower(a.query)) {
+			rows = append(rows, i)
+		}
+	}
 	cols := []ui.TableColumn{numberColumn(c, len(l.units)), timeColumn(c, locales.ListColumnStart()), {Title: locales.TabSource()}, {Title: locales.TabTranslation()}}
-	subtitleTable(c, &l.list, cols, len(l.units), func(row, col int) {
+	subtitleTable(c, &l.list, cols, len(rows), func(row, col int) {
+		row = rows[row]
 		cue := l.units[row]
 		switch col {
 		case 0:
@@ -161,15 +168,20 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 				muted(c, l.texts[row])
 			}
 		}
-	}, func(toEnd bool) {
-		l.followPaused, l.shown = !toEnd, l.latest
-	}).Label(locales.TranslationLive())
-	// New text must not pull someone reading the top back down. Returning
-	// to the bottom resumes following subsequent translation updates.
-	if l.latest > l.shown {
-		l.shown = l.latest
-		if !l.followPaused {
-			l.list.ScrollTo(l.latest, ui.Center)
+	}, func(bool) {}).Label(locales.TranslationLive())
+	// Playback takes precedence over streaming updates. Neither focus nor
+	// manual scrolling disables subsequent cue following.
+	target := l.latest
+	if a.settings.FollowPlayback && !a.paused {
+		target = cueAt(l.units, a.position)
+	}
+	if target >= 0 && target != l.shown {
+		l.shown = target
+		for row, index := range rows {
+			if index == target {
+				l.list.ScrollToAnimated(row, ui.Center, subtitleFollowAnimation)
+				break
+			}
 		}
 	}
 }
