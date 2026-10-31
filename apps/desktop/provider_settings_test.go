@@ -80,7 +80,7 @@ func TestProviderSettingsKeepSizeAndVisibleControls(t *testing.T) {
 			if tt.HasText(locales.TranslationConcurrency()) || tt.HasText(locales.TranslationBatchSize()) {
 				t.Fatal("task scheduling still appears in service settings")
 			}
-			for _, label := range []string{locales.TranslationProviderName(), locales.TranslationMaxInput(), locales.TranslationMaxOutput(), locales.TranslationContextWindow(), locales.TranslationGlossary(), locales.ActionClose()} {
+			for _, label := range []string{locales.TranslationProviderName(), locales.TranslationMaxInput(), locales.TranslationMaxOutput(), locales.TranslationContextWindow(), locales.ActionClose()} {
 				box, ok := tt.Find(label)
 				if !ok || box.W == 0 || box.H == 0 || box.Y < 0 || box.Y+box.H > 640 {
 					t.Fatal("setting clipped", language, label, box)

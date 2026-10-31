@@ -15,7 +15,7 @@ import (
 func (a *NativeApp) workflowPanel(c *ui.Context) {
 	ui.Column(c).Fill().Label(locales.WorkflowTitle()).Children(func() {
 		panelHeader(c, nil, func() {
-			ui.Segmented(c, &a.workflowTab, locales.WorkflowRecognize(), locales.WorkflowTranslate()).Label(locales.WorkflowTitle())
+			ui.Tabs(c, &a.workflowTab, locales.WorkflowRecognize(), locales.WorkflowTranslate()).Label(locales.WorkflowTitle())
 		}, nil)
 		ui.Divider(c)
 		ui.Scroll(c).Grow(1).TrackScroll(&a.workflowScroll).Children(func() {

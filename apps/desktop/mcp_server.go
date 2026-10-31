@@ -38,8 +38,10 @@ func mcpConfig() string {
 	if err != nil {
 		exe = "OneSub.exe"
 	}
-	data, _ := json.MarshalIndent(map[string]any{"mcpServers": map[string]any{"onesub": map[string]any{"command": exe, "args": []string{mcpArgument}}}}, "", "  ")
-	return string(data)
+	// Keep the small client envelope readable without expanding the one-item
+	// args array across three extra lines. JSON encoding still owns path escaping.
+	command, _ := json.Marshal(exe)
+	return fmt.Sprintf("{\n  \"mcpServers\": {\n    \"onesub\": {\"command\": %s, \"args\": [\"%s\"]}\n  }\n}", command, mcpArgument)
 }
 
 type mcpServer struct {

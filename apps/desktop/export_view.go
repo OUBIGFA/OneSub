@@ -22,18 +22,15 @@ func outputModes() []option {
 	}
 }
 
-// outputFields are the subtitle content choices shared by the preview,
-// video export and subtitle export. Language order and visual priority are
-// separate, as in professional bilingual editors. In dialogs (keepRoom) the
-// bilingual choices stay in place, disabled, so that choosing the content
-// never resizes the dialog.
+// In dialogs, content spans the two-column grid; language order and priority
+// occupy the second row. In the inspector each field keeps its natural width.
 func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) {
 	o := a.settings.SubtitleOutput.Normalized()
 	mode := o.Mode
 	if mode == "source" && o.SourceTrack == "original" {
 		mode = "original"
 	}
-	ui.Field(c, locales.OutputContent(), func() {
+	content := ui.Field(c, locales.OutputContent(), func() {
 		idSelect(c, &mode, outputModes()).Label(locales.OutputContent()).AlignSelf(ui.Start).OnChange(func() {
 			o.Mode, o.SourceTrack = mode, ""
 			if mode == "original" {
@@ -43,6 +40,9 @@ func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) {
 			a.saveSettings()
 		})
 	})
+	if keepRoom {
+		content.ColumnSpan(2)
+	}
 	bilingual := o.Mode == "bilingual"
 	if !bilingual && !keepRoom {
 		return
@@ -51,8 +51,8 @@ func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) {
 	if o.SourceFirst {
 		order = "source-first"
 	}
-	// In a dialog the choices span its form; in the style panel they keep
-	// their own width, as its other controls do.
+	// Bilingual options remain in the dialog grid when disabled; the style
+	// inspector omits them for single-language output.
 	fit := func(e ui.Element) {
 		if !keepRoom {
 			e.AlignSelf(ui.Start)
@@ -73,62 +73,55 @@ func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) {
 	})
 }
 
-// exportView has one fixed size: every choice keeps its place, and the
-// note below them has a fixed room.
+// exportView separates content, format and line selection, with an anchored
+// action row shared with video export. Disabled bilingual fields keep their room.
 func (a *NativeApp) exportView(c *ui.Context) {
-	ui.Modal(c, &a.exportOpen, func() {
-		ui.Column(c).Width(em(c, 560)).Height(em(c, 432)).Gap(em(c, 20)).Children(func() {
-			dialogTitle(c, locales.MenuExportSubtitles())
-			formats := []string{"srt", "vtt", "ass"}
-			if a.snapshot != nil && a.snapshot.Document.Format == "ssa" {
-				formats = append(formats, "ssa")
-			}
-			format, labels := 0, []string{}
-			for i, f := range formats {
-				labels = append(labels, strings.ToUpper(f))
-				if f == a.exportFormat {
-					format = i
+	var outputErr error
+	if a.exportOpen && a.snapshot != nil {
+		_, outputErr = subtitle.SelectOutput(a.snapshot.OutputDocument(a.settings.SubtitleOutput), a.settings.SubtitleOutput)
+	}
+	fixedDialog(c, &a.exportOpen, locales.MenuExportSubtitles(), 680, 496, func() {
+		ui.Grid(c).Columns(2).Gap(em(c, 12)).Children(func() { a.outputFields(c, true) })
+		ui.Form(c, func() {
+			ui.Field(c, locales.ExportFormat(), func() {
+				formats := []string{"srt", "vtt", "ass"}
+				if a.snapshot != nil && a.snapshot.Document.Format == "ssa" {
+					formats = append(formats, "ssa")
 				}
-			}
-			ui.Form(c, func() {
-				a.outputFields(c, true)
-				ui.Field(c, locales.ExportLines(), func() {
-					lines := []string{"all", "upper", "lower"}
-					selected := 0
-					for i, line := range lines {
-						if line == a.exportLines {
-							selected = i
-						}
+				format, labels := 0, []string{}
+				for i, f := range formats {
+					labels = append(labels, strings.ToUpper(f))
+					if f == a.exportFormat {
+						format = i
 					}
-					if ui.Segmented(c, &selected, locales.ExportAllLines(), locales.ExportUpperLine(), locales.ExportLowerLine()).Label(locales.ExportLines()).AlignSelf(ui.Start).Changed() {
-						a.exportLines = lines[selected]
-					}
-				})
-				ui.Field(c, locales.ExportFormat(), func() {
-					if ui.Segmented(c, &format, labels...).Label(locales.ExportFormat()).AlignSelf(ui.Start).Changed() {
-						a.exportFormat = formats[format]
-					}
-				})
-			})
-			var err error
-			if a.snapshot != nil {
-				_, err = subtitle.SelectOutput(a.snapshot.OutputDocument(a.settings.SubtitleOutput), a.settings.SubtitleOutput)
-			}
-			note := ui.Column(c).Height(em(c, 48)).Shrink(0)
-			note.Children(func() {
-				switch {
-				case err != nil:
-					ui.Text(c, err.Error()).TextColor(c.Theme().Warning)
-				case a.exportFormat == "srt" || a.exportFormat == "vtt":
-					muted(c, locales.ExportPlainNote())
+				}
+				if ui.Segmented(c, &format, labels...).Label(locales.ExportFormat()).AlignSelf(ui.Start).Changed() {
+					a.exportFormat = formats[format]
 				}
 			})
-			ui.Spacer(c)
-			ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Children(func() {
-				ui.Button(c, locales.ActionCancel()).OnClick(func() { a.exportOpen = false })
-				ui.PrimaryButton(c, locales.ExportConfirm()).Disabled(err != nil || a.snapshot == nil || a.busy).OnClick(func() { a.exportOpen = false; a.exportSubtitle() })
+			ui.Field(c, locales.ExportLines(), func() {
+				lines, selected := []string{"all", "upper", "lower"}, 0
+				for i, line := range lines {
+					if line == a.exportLines {
+						selected = i
+					}
+				}
+				if ui.Segmented(c, &selected, locales.ExportAllLines(), locales.ExportUpperLine(), locales.ExportLowerLine()).Label(locales.ExportLines()).AlignSelf(ui.Start).Changed() {
+					a.exportLines = lines[selected]
+				}
 			})
 		})
+		ui.Column(c).MinHeight(em(c, 48)).Children(func() {
+			switch {
+			case outputErr != nil:
+				ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
+			case a.exportFormat == "srt" || a.exportFormat == "vtt":
+				muted(c, locales.ExportPlainNote())
+			}
+		})
+	}, func() {
+		ui.Button(c, locales.ActionCancel()).OnClick(func() { a.exportOpen = false })
+		ui.PrimaryButton(c, locales.ExportConfirm()).Disabled(outputErr != nil || a.snapshot == nil || a.busy).OnClick(func() { a.exportOpen = false; a.exportSubtitle() })
 	})
 }
 

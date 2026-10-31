@@ -25,11 +25,11 @@ type translationCandidate struct {
 	Checks    translator.Findings `json:"checks"`
 }
 
-// Service setup is separate from per-task batching on the workbench. Two
-// labelled sections distinguish credentials/model limits from language rules.
+// Service setup is separate from per-task batching on the workbench and from
+// language rules. This page owns only credentials, models and request limits.
 func (a *NativeApp) translationSettingsView(c *ui.Context) {
 	ui.Column(c).Gap(em(c, 20)).Children(func() {
-		parameterGroup(c, locales.WorkflowAIService(), nil, func() {
+		settingsGroup(c, locales.WorkflowAIService(), func() {
 			ui.Row(c).Gap(em(c, 8)).Children(func() {
 				a.providerSelect(c).Grow(1)
 				ui.Button(c, locales.TranslationAddProvider()).OnClick(a.addProvider)
@@ -68,7 +68,9 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 					ui.Field(c, locales.TranslationModel(), func() {
 						ui.Row(c).Gap(em(c, 8)).Children(func() {
 							a.providerModelSelect(c).Grow(1).MinWidth(0)
-							ui.Button(c, locales.TranslationFetchModels()).Disabled(a.modelsLoading || a.settings.ProviderURL == "").OnClick(a.fetchProviderModels)
+							ui.Toolbar(c, func() {
+								toolIcon(c, locales.TranslationFetchModels(), "rotate-cw").Disabled(a.modelsLoading || a.settings.ProviderURL == "").OnClick(a.fetchProviderModels)
+							}).Padding(0)
 						})
 					})
 					ui.Field(c, "API Key", func() {
@@ -139,13 +141,20 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 				muted(c, notice).FontSize(em(c, captionSize)).Tooltip(a.modelsError)
 			})
 		})
-		parameterGroup(c, locales.WorkflowTranslationSettings(), nil, func() {
-			ui.Grid(c).Columns(2).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
-				ui.Field(c, locales.TranslationStyle(), func() {
-					a.styleSelect(c)
-					ui.Row(c).Gap(em(c, 8)).Children(func() {
-						ui.Button(c, locales.TranslationReloadStyles()).OnClick(a.reloadTranslationProfiles)
-						ui.Button(c, locales.TranslationStyleFolder()).OnClick(func() {
+	})
+}
+
+// Language rules are independent of service credentials. Giving them their own
+// settings page leaves room to actually edit a glossary without crowding keys.
+func (a *NativeApp) translationRulesView(c *ui.Context) {
+	settingsGroup(c, locales.WorkflowTranslationSettings(), func() {
+		ui.Grid(c).Columns(2).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
+			ui.Field(c, locales.TranslationStyle(), func() {
+				ui.Row(c).Gap(em(c, 8)).Children(func() {
+					a.styleSelect(c).Grow(1).MinWidth(0)
+					ui.Toolbar(c, func() {
+						toolIcon(c, locales.TranslationReloadStyles(), "rotate-cw").OnClick(a.reloadTranslationProfiles)
+						toolIcon(c, locales.TranslationStyleFolder(), "folder-open").OnClick(func() {
 							path := filepath.Join(a.dataRoot, "translation-styles")
 							if err := os.MkdirAll(path, 0700); err != nil {
 								a.showError("style-folder", err.Error())
@@ -157,11 +166,11 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 								a.clearError("style-folder")
 							}
 						})
-					})
-				}).Error(a.profilesError)
-				ui.Field(c, locales.TranslationGlossary(), func() {
-					ui.TextArea(c, &a.settings.Glossary).Height(em(c, 64)).Label(locales.TranslationGlossary()).Placeholder(locales.TranslationGlossaryPlaceholder()).OnChange(a.saveSettings)
+					}).Padding(0)
 				})
+			}).Error(a.profilesError)
+			ui.Field(c, locales.TranslationGlossary(), func() {
+				ui.TextArea(c, &a.settings.Glossary).Height(em(c, 240)).Label(locales.TranslationGlossary()).Placeholder(locales.TranslationGlossaryPlaceholder()).OnChange(a.saveSettings)
 			})
 		})
 	})
