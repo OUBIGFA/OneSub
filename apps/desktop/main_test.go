@@ -55,7 +55,7 @@ func nativeForTest(t *testing.T) *NativeApp {
 		icons[strings.TrimSuffix(e.Name(), ".svg")] = ui.MustParseSVG(data)
 	}
 	prefs := settings.Default()
-	return &NativeApp{dataRoot: t.TempDir(), settings: prefs, splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, followRow: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
+	return &NativeApp{dataRoot: t.TempDir(), settings: prefs, splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
 }
 
 // storeApp opens a real project store with the given cues as the workbench.
@@ -136,7 +136,7 @@ func TestActionsMovedBesideTheirContent(t *testing.T) {
 	a.settingsOpen = false
 	list, _ := tt.Find("字幕语言")
 	source, _ := tt.Find("原始字幕")
-	translation, _ := tt.Find("重建字幕")
+	translation, _ := tt.Find("优化字幕")
 	panelCentre := list.X + list.W/2
 	tabsCentre := (source.X + translation.X + translation.W) / 2
 	if d := tabsCentre - panelCentre; d > 30 || d < -30 {
@@ -200,53 +200,54 @@ func TestLeavingCueCommitsOrRestores(t *testing.T) {
 	}
 }
 
-// While playing, the list keeps the cue at the playhead in its middle. A
-// hand scroll stops it moving the list, though the cue is still chosen;
-// the locate button brings the cue back to the middle and follows again.
-func TestPlaybackFollowsUntilTheUserScrolls(t *testing.T) {
-	cues := []subtitle.Cue{}
-	for i := 0; i < 80; i++ {
-		cues = append(cues, subtitle.Cue{ID: "c" + strings.Repeat("x", i), Text: "line", StartMs: int64(i * 1000), EndMs: int64(i*1000 + 900)})
-	}
-	a := storeApp(t, cues...)
+// Scrolling or focusing another input never disables playback following.
+func TestPlaybackFollowsAfterManualScrollingAndFocusChange(t *testing.T) {
+	a := storeApp(t, navigationCues(160)...)
 	tt := settled(a.view, 1400, 900)
 	centered := func(row int) bool {
 		first, last := a.list.Visible()
 		return first < row && row < last && row-first >= (last-first)/2-2 && last-row >= (last-first)/2-2
 	}
-	a.paused = false
-	a.position = 70.2
+	a.paused, a.position = false, 80.2
 	tt.Frame()
-	tt.Frame()
-	if a.selected != 70 || !centered(70) {
-		first, last := a.list.Visible()
-		t.Fatal("did not follow to the middle", a.selected, first, last)
+	tt.Advance(time.Second)
+	if a.selected != 80 || !centered(80) {
+		t.Fatal("initial playback locate failed", a.selected)
 	}
 	list, _ := tt.Find("字幕列表")
 	tt.Scroll(list.X+list.W/2, list.Y+list.H/2, 0, -600)
-	tt.Frame()
-	if !a.followPaused {
-		t.Fatal("a hand scroll did not stop following")
-	}
-	before, _ := a.list.Visible()
-	a.position = 75.5
-	tt.Frame()
-	tt.Frame()
-	if after, _ := a.list.Visible(); a.selected != 75 || after != before {
-		t.Fatal("the list moved back while the user was reading", a.selected, before, after)
-	}
-	if err := tt.Click("回到当前字幕"); err != nil {
+	tt.Advance(time.Second)
+	if err := tt.Click("搜索"); err != nil {
 		t.Fatal(err)
 	}
+	a.position = 81.2
 	tt.Frame()
-	if a.followPaused || !centered(75) {
-		t.Fatal("locate did not bring the cue back", a.followPaused)
+	tt.Advance(time.Second)
+	if a.selected != 81 || !centered(81) {
+		t.Fatal("manual scrolling or lost focus disabled playback following", a.selected)
 	}
-	a.position = 79.5
+	tt.Type("Subtitle")
+	if a.query != "Subtitle" {
+		t.Fatal("following stole focus from the search input", a.query)
+	}
+	if err := tt.Click("返回顶部"); err != nil {
+		t.Fatal(err)
+	}
+	a.position = 82.2
 	tt.Frame()
+	tt.Advance(time.Second)
+	if a.selected != 82 || !centered(82) {
+		t.Fatal("edge navigation disabled subsequent playback following", a.selected)
+	}
+	a.paused = true
+	if err := tt.Click("返回顶部"); err != nil {
+		t.Fatal(err)
+	}
+	a.position = 85.2
 	tt.Frame()
-	if first, last := a.list.Visible(); a.selected != 79 || first > 79 || last < 79 {
-		t.Fatal("did not follow again after locating", a.selected, first, last)
+	tt.Advance(time.Second)
+	if first, _ := a.list.Visible(); first != 0 {
+		t.Fatal("a paused video moved the viewport", first)
 	}
 }
 
@@ -280,7 +281,7 @@ func TestEnglishInterface(t *testing.T) {
 	inLocale(t, "en", func() {
 		a := storeApp(t, subtitle.Cue{ID: "c1", Text: "Hello", OriginalText: "Hello", StartMs: 0, EndMs: 1000})
 		tt := settled(a.view, 1400, 900)
-		for _, label := range []string{"Add files", "Clear workbench", "Export subtitles", "Transcribe & translate", "Transcribe subtitles", "Export video", "Original subtitles", "Rebuilt subtitles", "Subtitle editor", "No. 1", "Save as", "Subtitle style"} {
+		for _, label := range []string{"Add files", "Clear workbench", "Export subtitles", "Transcribe & translate", "Transcribe subtitles", "Export video", "Original subtitles", "Optimized subtitles", "Subtitle editor", "No. 1", "Save as", "Subtitle style"} {
 			if !tt.HasText(label) {
 				t.Fatal("missing English text", label, tt.Texts())
 			}

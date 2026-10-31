@@ -120,6 +120,11 @@ func Load(path string) (Settings, error) {
 	if s.Version < version {
 		upgrade(&s)
 	}
+	// The lossless UI choice was retired. Migrate only that choice to the
+	// installation default; keep existing CRF levels and pane preferences.
+	if s.ComposeQuality == "lossless" {
+		s.ComposeQuality = Default().ComposeQuality
+	}
 	if s.ModelPaths == nil {
 		s.ModelPaths = map[string]string{}
 	}

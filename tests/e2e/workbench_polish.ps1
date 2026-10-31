@@ -103,7 +103,7 @@ try {
  for($i=0;$i -lt 100;$i++){if([IO.File]::ReadAllText($srt) -match '原文修改'){break};Start-Sleep -Milliseconds 100}
  if([IO.File]::ReadAllText($srt) -notmatch '原文修改'){throw 'Save did not replace the original subtitle'}
  # Source and translation are edited independently.
- Select-Tab '重建字幕'
+ Select-Tab '优化字幕'
  Set-Text '字幕文字' 'Translated text'
  Start-Sleep -Milliseconds 1000
  Select-Tab '原始字幕'

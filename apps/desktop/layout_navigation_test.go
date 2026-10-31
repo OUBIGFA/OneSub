@@ -132,13 +132,13 @@ func navigationCues(count int) []subtitle.Cue {
 }
 
 // Navigation is a viewport command on either track, not a selection,
-// playback or edit command. It also pauses automatic playback following.
+// playback or edit command. A paused video leaves the viewport where requested.
 func TestSubtitleScrollButtonsPreserveState(t *testing.T) {
 	for _, track := range []int{0, 1} {
 		t.Run(fmt.Sprint(track), func(t *testing.T) {
 			a := storeApp(t, navigationCues(150)...)
 			a.subtitleTab, a.selected, a.activeCue = track, 30, 30
-			a.position, a.paused = 30.2, false
+			a.position, a.paused = 30.2, true
 			a.loadDraft()
 			a.draft, a.editPending, a.editing = "Uncommitted draft", true, true
 			tt := settled(a.subtitlesView, 700, 500)
@@ -151,7 +151,7 @@ func TestSubtitleScrollButtonsPreserveState(t *testing.T) {
 				if label == "返回顶部" && first != 0 || label == "返回底部" && (last != 149 || !a.list.AtEnd()) {
 					t.Fatal("navigation did not reach the list edge", label, first, last)
 				}
-				if a.selected != 30 || a.position != 30.2 || a.paused || !a.followPaused || a.draft != "Uncommitted draft" || !a.editPending {
+				if a.selected != 30 || a.position != 30.2 || !a.paused || a.draft != "Uncommitted draft" || !a.editPending {
 					t.Fatal("navigation changed selection, playback or the draft")
 				}
 			}
@@ -162,7 +162,7 @@ func TestSubtitleScrollButtonsPreserveState(t *testing.T) {
 			a.position = 31.2
 			tt.Frame()
 			if first, _ := a.list.Visible(); first != 0 {
-				t.Fatal("playback immediately undid manual navigation", first)
+				t.Fatal("paused playback undid manual navigation", first)
 			}
 		})
 	}
@@ -187,14 +187,14 @@ func TestSubtitleNavigationUsesFilteredLongList(t *testing.T) {
 	if first, _ := a.list.Visible(); first != 0 || !tt.HasText("Subtitle 1 match") {
 		t.Fatal("top did not use filtered rows", first)
 	}
-	a.query, a.followPaused = "no matches", false
+	a.query = "no matches"
 	tt.Frame()
 	for _, label := range []string{"返回顶部", "返回底部"} {
 		if err := tt.Click(label); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if first, last := a.list.Visible(); last >= first || a.followPaused || a.selected != -1 {
+	if first, last := a.list.Visible(); last >= first || a.selected != -1 {
 		t.Fatal("empty search still navigated", first, last)
 	}
 }
@@ -241,8 +241,8 @@ func TestSubtitleNavigationButtonsFitAndStayFixed(t *testing.T) {
 	}
 }
 
-// The same controls remain available while translations stream; reading
-// the top must not jump back down on the next update. Bottom resumes following.
+// The same controls remain available while translations stream. Navigation
+// is temporary; later completed rows still follow without a resume command.
 func TestTranslationProgressNavigation(t *testing.T) {
 	a := nativeForTest(t)
 	a.subtitleTab, a.translationRunning = 1, true
@@ -255,8 +255,8 @@ func TestTranslationProgressNavigation(t *testing.T) {
 	}
 	l.latest = 76
 	tt.Advance(time.Second)
-	if first, _ := l.list.Visible(); first != 0 {
-		t.Fatal("translation update undid navigation", first)
+	if first, last := l.list.Visible(); first == 0 || first > 76 || last < 76 {
+		t.Fatal("translation updates stopped following after navigation", first, last)
 	}
 	if err := tt.Click("返回底部"); err != nil {
 		t.Fatal(err)

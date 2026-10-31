@@ -50,6 +50,9 @@ func TestWorkflowFolderActionsStayInsideNarrowPanels(t *testing.T) {
 						a.settings.RecognitionDir = strings.Repeat("folder/", 50)
 						a.settings.TranslationDir = a.settings.RecognitionDir
 						tt := settled(a.workflowPanel, width, 700)
+						// The prominent timeline option adds a row. Short panels
+						// scroll naturally; they must not compress or clip controls.
+						tt.Scroll(float32(width)/2, 350, 0, 900)
 						for _, label := range []string{locales.RecognitionChooseFolder(), locales.RecognitionResetFolder(), locales.RecognitionDirectory()} {
 							box, ok := tt.Find(label)
 							if !ok || box.W <= 0 || box.X < 0 || box.X+box.W > float32(width) || box.Y+box.H > 700 {

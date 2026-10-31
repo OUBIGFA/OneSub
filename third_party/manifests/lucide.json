@@ -187,6 +187,12 @@
       "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/arrow-down-to-line.svg",
       "sha256": "d44032ba6c8d27fa6b1589831a4cf5e22acf3b1e7bb7852913c1bf323b1fd7de",
       "bytes": 285
+    },
+    {
+      "path": "apps/desktop/icons/skip-back.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/skip-back.svg",
+      "sha256": "ddf0b2217a4d6b0bf5d6ad4bbdbe87fd99bfa97e66a98d5076d4ed6d220f2a37",
+      "bytes": 293
     }
   ]
 }

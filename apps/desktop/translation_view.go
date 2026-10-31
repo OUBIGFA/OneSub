@@ -43,13 +43,13 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 						if p != nil {
 							name = p.Name
 						}
-						ui.TextInput(c, &name).Label(locales.TranslationProviderName()).Disabled(p == nil).OnChange(func() { p.Name = name; a.saveSettings() })
+						ui.TextInput(c, &name).Label(locales.TranslationProviderName()).Tooltip(name).Disabled(p == nil).OnChange(func() { p.Name = name; a.saveSettings() })
 					})
 					ui.Field(c, locales.TranslationApi(), func() {
 						idSelect(c, &a.settings.ProviderAPI, []option{{translator.APIChatCompletions, "OpenAI Chat Completions"}, {translator.APIResponses, "OpenAI Responses"}}).Label(locales.TranslationApi()).OnChange(a.saveSettings)
 					})
 					ui.Field(c, locales.TranslationEndpoint(), func() {
-						address := ui.TextInput(c, &a.settings.ProviderURL).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).OnChange(func() {
+						address := ui.TextInput(c, &a.settings.ProviderURL).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).Tooltip(a.settings.ProviderURL).OnChange(func() {
 							a.providerKey, a.keyStatus, a.modelsError = "", "", ""
 							a.modelsGeneration++
 							a.modelsLoading = false

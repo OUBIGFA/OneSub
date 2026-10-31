@@ -25,7 +25,7 @@ func TestPlayerTransportGroupsFitNarrowPanes(t *testing.T) {
 							a.playerView(c)
 						}, int(float32(width)*scale), int(500*scale))
 						tt.SetPreferences(ui.Preferences{TextScale: scale})
-						labels := []string{locales.PlayerBack(), locales.PlayerPlay(), locales.PlayerForward(), locales.PlayerSpeed(), locales.PlayerLoop(), stamp(123), stamp(456), locales.PlayerMute(), locales.PlayerVolume()}
+						labels := []string{locales.PlayerStart(), locales.PlayerBack(), locales.PlayerPlay(), locales.PlayerForward(), locales.PlayerSpeed(), locales.PlayerLoop(), stamp(123), stamp(456), locales.PlayerMute(), locales.PlayerVolume()}
 						insideRedesign(t, tt, locales.A11yPlayer(), labels...)
 						for i, label := range labels {
 							r, _ := tt.Find(label)

@@ -113,7 +113,8 @@ func (a *NativeApp) refreshAfterStructure(index int) {
 	a.setSnapshot(state)
 	a.loadDraft()
 	a.query = ""
-	a.followRow, a.activeCue = -1, -1
+	a.list.StopScroll()
+	a.activeCue = -1
 	a.locateCue = a.selected
 }
 

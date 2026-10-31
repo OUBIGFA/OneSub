@@ -174,16 +174,16 @@ func TestComposeNamesTermsAndPlayerProgress(t *testing.T) {
 	if !tt.HasText("硬字幕（烧录） · MP4") || !tt.HasText("CRF 20") || a.settings.ComposeMode != "hard-mp4" {
 		t.Fatal(tt.Texts())
 	}
-	// The lossless level is offered, explained, and remembered by ID.
-	a.settings.ComposeQuality = "lossless"
+	// The selected CRF level and container are remembered by ID.
+	a.settings.ComposeQuality = "crf23"
 	a.settings.ComposeMode = "hard-mkv"
 	a.saveSettings()
 	prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
-	if err != nil || prefs.ComposeQuality != "lossless" || prefs.ComposeMode != "hard-mkv" {
+	if err != nil || prefs.ComposeQuality != "crf23" || prefs.ComposeMode != "hard-mkv" {
 		t.Fatal(prefs, err)
 	}
 	tt = settled(a.view, 1400, 900)
-	if !tt.HasText("原画质（无损）") || !tt.HasText("硬字幕（烧录） · MKV") {
+	if !tt.HasText("CRF 23") || tt.HasText("原画质（无损）") || !tt.HasText("硬字幕（烧录） · MKV") {
 		t.Fatal(tt.Texts())
 	}
 	a.composeOpen = false

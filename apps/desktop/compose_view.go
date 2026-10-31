@@ -28,11 +28,9 @@ func composeModes() []option {
 	}
 }
 
-// Lossless H.264 keeps every source pixel outside the subtitles; the CRF
-// levels are lossy and are labelled by their actual value.
+// CRF choices are labelled by their actual value, not as original quality.
 func composeQualities() []option {
 	return []option{
-		{"lossless", locales.ComposeQualityLossless()},
 		{"crf18", "CRF 18"},
 		{"crf20", "CRF 20"},
 		{"crf23", "CRF 23"},
@@ -69,10 +67,9 @@ func (a *NativeApp) composeView(c *ui.Context) {
 				ui.Text(c, locales.ComposeMovTextNote()).TextColor(c.Theme().Warning)
 			case !hard:
 				muted(c, locales.ComposeSoftNote())
-			case a.settings.ComposeQuality == "lossless":
-				muted(c, locales.ComposeLosslessNote())
 			default:
 				muted(c, locales.ComposeCrfNote())
+				muted(c, locales.ComposeCrfRecommendation())
 			}
 			if a.currentStyle.FontName != "" {
 				muted(c, a.presetLabel(a.stylePreset)+" · "+a.currentStyle.FontName).SingleLine()

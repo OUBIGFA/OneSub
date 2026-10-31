@@ -98,8 +98,7 @@ type NativeApp struct {
 	observedStyle                        string
 	prefsSaveDue                         time.Time
 	activeCue                            int
-	followPaused                         bool    // the user scrolled the list away from the playhead
-	followRow, locateCue                 int     // the row last centered; a cue to center, or -1
+	locateCue                            int     // a cue to center, or -1
 	frameAspect                          float64 // the video's display width / height
 	modelStates                          map[string]string
 	modelSelection                       string
@@ -735,7 +734,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer preview.Close()
-	a := &NativeApp{resources: resources, dataRoot: data, settings: prefs, settingsError: prefsErr != nil, preview: preview, worker: subtitle.Client{Executable: filepath.Join(resources, "subtitle-core", "OneSub.SubtitleCore.exe"), Scratch: scratch}, probe: filepath.Join(resources, "media-tools", "ffprobe.exe"), ffmpeg: filepath.Join(resources, "media-tools", "ffmpeg.exe"), splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, followRow: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
+	a := &NativeApp{resources: resources, dataRoot: data, settings: prefs, settingsError: prefsErr != nil, preview: preview, worker: subtitle.Client{Executable: filepath.Join(resources, "subtitle-core", "OneSub.SubtitleCore.exe"), Scratch: scratch}, probe: filepath.Join(resources, "media-tools", "ffprobe.exe"), ffmpeg: filepath.Join(resources, "media-tools", "ffmpeg.exe"), splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
 	if prefsErr != nil {
 		a.showError("settings", locales.ErrSettingsUnreadable())
 	}
@@ -857,7 +856,8 @@ func (a *NativeApp) syncPlayer() {
 			}
 			// Playing again follows the playhead again, from its cue.
 			if a.paused && !result.Paused {
-				a.followPaused, a.followRow, a.activeCue = false, -1, -1
+				a.list.StopScroll()
+				a.activeCue = -1
 			}
 			a.position = result.Position
 			a.duration = result.Duration

@@ -41,7 +41,7 @@ func TestSubtitleContextMenuTargetsClickedCue(t *testing.T) {
 				a.changed(time.Now())
 				a.mediaURL = "test-video"
 				a.settings.SingleClickAction = "seek-play"
-				a.followPaused, a.activeCue = true, -1
+				a.activeCue = -1
 				if filtered {
 					a.query = "第二句"
 				}
@@ -56,7 +56,7 @@ func TestSubtitleContextMenuTargetsClickedCue(t *testing.T) {
 				if a.selected != 1 || a.editPending || cueDisplayText(a.activeDocument().Cues[0], 0) != "Edited first cue" {
 					t.Fatal("right-click did not select its cue and preserve the old draft", a.selected, a.activeDocument().Cues)
 				}
-				if !a.followPaused || a.activeCue != -1 {
+				if !a.paused || a.activeCue != -1 {
 					t.Fatal("right-click ran the single-click playback action")
 				}
 				if err := tt.ChooseMenuItem(locales.SubtitleDelete()); err != nil {

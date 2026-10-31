@@ -81,6 +81,7 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 		ui.Slider(c, &value, 0, math.Max(a.duration, .001)).Label(locales.PlayerPosition()).Disabled(disabled).OnChange(func() { a.evalPlayer(fmt.Sprintf("video.currentTime = %f", value)) })
 		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Toolbar(c, func() {
+				toolIcon(c, locales.PlayerStart(), "skip-back").Disabled(disabled).OnClick(a.seekStart)
 				toolIcon(c, locales.PlayerBack(), "rewind").Disabled(disabled).OnClick(func() { a.seekBy(-15) })
 				label, name := locales.PlayerPlay(), "play"
 				if !a.paused {
@@ -147,6 +148,9 @@ func (a *NativeApp) playerOverlay(c *ui.Context) {
 		if m.Item(playLabel).Disabled(disabled).Chosen() {
 			a.togglePlayback()
 		}
+		if m.Item(locales.PlayerStart()).Disabled(disabled).Chosen() {
+			a.seekStart()
+		}
 		if m.Item(locales.PlayerBack()).Disabled(disabled).Chosen() {
 			a.seekBy(-15)
 		}
@@ -179,6 +183,14 @@ func (a *NativeApp) togglePlayback() {
 func (a *NativeApp) playbackShortcut(c *ui.Context) bool {
 	return a.playbackAvailable() && c.Shortcut(0, ui.KeySpace)
 }
+
+// Seeking to the beginning must not change play/pause, speed, or loop state.
+func (a *NativeApp) seekStart() {
+	if a.playbackAvailable() {
+		a.evalPlayer("video.currentTime=0")
+	}
+}
+
 func (a *NativeApp) seekBy(seconds float64) {
 	if !a.playbackAvailable() {
 		return
