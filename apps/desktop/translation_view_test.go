@@ -16,10 +16,16 @@ func TestNativeTranslationSettings(t *testing.T) {
 	a.settingsOpen = true
 	a.settingsTab = 2
 	tt := settled(a.view, 1280, 840)
-	for _, label := range []string{"API Key", "保存 Key", "API 请求上限", "翻译风格"} {
+	for _, label := range []string{"API Key", "保存 Key", "API 请求上限"} {
 		if !tt.HasText(label) {
 			t.Fatal("missing setting", label)
 		}
+	}
+	if err := tt.Click("翻译规则"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("翻译风格") || !tt.HasText("自定义术语") || tt.HasText("API Key") {
+		t.Fatal("language rules were mixed with provider credentials", tt.Texts())
 	}
 }
 

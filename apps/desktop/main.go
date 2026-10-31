@@ -527,31 +527,6 @@ func (a *NativeApp) saveSettings() {
 		a.clearError("settings")
 	}
 }
-func (a *NativeApp) settingsView(c *ui.Context) {
-	width, height := c.Size()
-	ui.Modal(c, &a.settingsOpen, func() {
-		dialogTitle(c, locales.SettingsTitle())
-		ui.Tabs(c, &a.settingsTab, locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsTranslation()).Label(locales.A11ySettingsTabs())
-		// The pages keep one size; only a window too short for them scrolls
-		// them, rather than cut them or the Close button off.
-		ui.Scroll(c).MaxHeight(height - em(c, 230)).Children(func() {
-			// Overlapping native grid cells reserve the tallest page's intrinsic
-			// height. Invisible pages retain layout, but not input or accessibility.
-			ui.Grid(c).Columns(1).Width(min(em(c, 940), width-96)).Label(locales.A11ySettingsContent()).Children(func() {
-				for tab := 0; tab < 3; tab++ {
-					page := ui.Column(c.Key(tab)).RowStart(1).ColumnStart(1).Gap(em(c, 28)).Padding(em(c, 12), 0).AlignSelf(ui.Start)
-					if tab != a.settingsTab {
-						page.Invisible()
-					}
-					page.Children(func() { a.settingsContent(c, tab) })
-				}
-			})
-		})
-		ui.Row(c).Justify(ui.End).Children(func() {
-			ui.Button(c, locales.ActionClose()).OnClick(func() { a.saveSettings(); a.settingsOpen = false })
-		})
-	})
-}
 func (a *NativeApp) modelPath(id string) string { return a.toolset().modelPath(a.settings, id) }
 func (a *NativeApp) pickModelDir(m models.Model) {
 	a.run(locales.TaskChooseModelFolder(), func(context.Context) (func(), error) {

@@ -1,9 +1,6 @@
 package main
 
-import (
-	"context"
-	"math"
-)
+import "context"
 
 // Refresh only catalog data after startup; never reset a user's chosen style
 // because an installed font changed while they were editing subtitles.
@@ -24,26 +21,27 @@ func (a *NativeApp) reloadFonts() {
 			first := len(a.styleCatalog.Presets) == 0
 			a.styleCatalog = catalog
 			if first {
-				a.currentStyle = catalog.DefaultStyle
-				a.stylePreset = "default"
-				if a.settings.LastStyle != nil {
-					a.currentStyle = *a.settings.LastStyle
-					a.stylePreset = a.presetID(a.settings.StylePreset)
-				}
-				a.secondaryStyle = a.currentStyle
-				// An unconfigured secondary layer inherits the chosen primary
-				// typography at 80%; saved independent secondary styles stay intact.
-				a.secondaryStyle.FontSize = math.Round(a.currentStyle.FontSize*8) / 10
-				a.secondaryPreset = "default"
-				if a.settings.SecondaryStyle != nil {
-					a.secondaryStyle = *a.settings.SecondaryStyle
-					a.secondaryPreset = a.presetID(a.settings.SecondaryPreset)
-				}
+				a.restoreStyles()
 			}
 			a.previewRevision++
 			a.previewPending = true
 		})
 	}()
+}
+
+// restoreStyles initializes both independent layers once. Half-size is only
+// the starting point: reloading fonts or changing language priority must never
+// replace a user's saved secondary typography, even when it equals an old default.
+func (a *NativeApp) restoreStyles() {
+	a.currentStyle, a.stylePreset = a.styleCatalog.DefaultStyle, "default"
+	if a.settings.LastStyle != nil {
+		a.currentStyle, a.stylePreset = *a.settings.LastStyle, a.presetID(a.settings.StylePreset)
+	}
+	a.secondaryStyle, a.secondaryPreset = a.currentStyle, "default"
+	a.secondaryStyle.FontSize = a.currentStyle.FontSize / 2
+	if a.settings.SecondaryStyle != nil {
+		a.secondaryStyle, a.secondaryPreset = *a.settings.SecondaryStyle, a.presetID(a.settings.SecondaryPreset)
+	}
 }
 
 // presetID reads a saved preset choice. Settings before 0.0.1 build

@@ -31,7 +31,7 @@ if($LASTEXITCODE -ne 0){throw 'Fixture failed'}
 $env:ONESUB_DATA_ROOT=Join-Path $workPath 'data'
 New-Item -ItemType Directory $env:ONESUB_DATA_ROOT | Out-Null
 # Controls are found by their Chinese names; pin the interface language.
-[IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),'{"version":1,"closeToTray":true,"uiLanguage":"zh-Hans","composeAskPath":true}',[Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),'{"version":1,"uiLanguage":"zh-Hans","composeAskPath":true}',[Text.UTF8Encoding]::new($false))
 $env:ONESUB_FFMPEG=(Get-Command ffmpeg).Source
 $env:ONESUB_FFPROBE=(Get-Command ffprobe).Source
 if($Packaged){foreach($name in @('ONESUB_FFPROBE','ONESUB_FFMPEG','ONESUB_SUBTITLE_WORKER','ONESUB_STYLE_WORKER','ONESUB_SKILL_WORKER','ONESUB_SKILL_ROOT')){Remove-Item "Env:$name" -ErrorAction SilentlyContinue}}
@@ -45,7 +45,7 @@ function Find-UI($name){
  return $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$condition)
 }
 function Wait-UI($name){for($i=0;$i -lt 200;$i++){$item=Find-UI $name;if($item){return $item};Start-Sleep -Milliseconds 100};throw "Control not found: $name"}
-function Click-UI($name){$item=Wait-UI $name;$item.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke();Start-Sleep -Milliseconds 200}
+function Click-UI($name){$item=Wait-UI $name;$item.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke();Start-Sleep -Milliseconds 300}
 function Select-Tab($name){$item=Wait-UI $name;$item.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select();Start-Sleep -Milliseconds 200}
 function Input-UI($name){
  [void](Wait-UI $name)
@@ -115,9 +115,24 @@ try {
  [void](Wait-UI '清空工作台？')
  Click-UI '取消'
  if((Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne 'Unsaved change'){throw 'Cancel lost the edit'}
- # Confirm every settings tab keeps exactly the same content rectangle.
+ # The secondary default is initialized by the real packaged font catalog.
+ $prefs=[IO.File]::ReadAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'))|ConvertFrom-Json
+ if(-not $prefs.closeToTray -or $prefs.secondaryStyle.fontSize -ne $prefs.lastStyle.fontSize/2){throw 'Tray or bilingual font default was not initialized'}
+ # Confirm all five settings destinations keep the same working rectangle.
  Click-UI '设置';$initial=(Wait-UI '设置内容').Current.BoundingRectangle
- foreach($tab in @('识别与模型','翻译服务','常规')){Select-Tab $tab;$next=(Wait-UI '设置内容').Current.BoundingRectangle;if($next.Height -ne $initial.Height -or $next.Top -ne $initial.Top){throw "Settings changed size: $tab"}}
+ if(Find-UI '复制配置'){throw 'MCP configuration is still inside General'}
+ & $ScreenshotTool $p.Id (Join-Path $workPath 'settings-general.png') | Out-Host
+ Select-Tab 'MCP 服务'
+ $copy=Wait-UI '复制配置'
+ if($copy.Current.BoundingRectangle.Bottom -gt $initial.Bottom){throw 'MCP controls overflow settings'}
+ if((Wait-UI '设置内容').Current.BoundingRectangle -ne $initial){throw 'MCP page resized settings'}
+ if(Find-UI '关闭窗口'){throw 'General settings remained on the MCP page'}
+ & $ScreenshotTool $p.Id (Join-Path $workPath 'settings-mcp.png') | Out-Host
+ foreach($tab in @('识别与模型','翻译服务','翻译规则','常规')){
+  Select-Tab $tab;$next=(Wait-UI '设置内容').Current.BoundingRectangle
+  if($next -ne $initial){throw "Settings changed size: $tab"}
+  if($tab -eq '翻译规则'){[void](Wait-UI '自定义术语')}
+ }
  Click-UI '关闭'
  # Compare internal panes as well as outer bounds when dialog/task status changes.
  $before=Rect
@@ -150,7 +165,7 @@ try {
  if($reports.Count -ne 1){throw 'Validation report missing from recovery project'}
  Start-Sleep -Seconds 1
  & $ScreenshotTool $p.Id (Join-Path $workPath 'workbench.png')
- Write-Output 'PASS: single instance visible/minimized/tray; live edit and list save; independent source/translation; unsaved prompt on clearing; equal settings; file dialog bounds; real composition/player progress'
+ Write-Output 'PASS: single instance visible/minimized/tray; live edit and list save; independent source/translation; unsaved prompt on clearing; default tray and half-size secondary style; independent MCP page and equal settings; file dialog bounds; real composition/player progress'
 } finally {
  # Only this test-owned process is terminated; no user instance is touched.
  $p.Refresh();if(-not $p.HasExited){$p.Kill();$p.WaitForExit()}

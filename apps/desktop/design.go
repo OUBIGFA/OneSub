@@ -6,16 +6,15 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// OneSub's design tokens. Sizes follow Microsoft Fluent 2 for Windows and
-// Adobe Spectrum 2, the system of Premiere Pro; docs/ui-design.md gives the
-// sources. Text sizes are relative to the body size, which carries the
-// desktop's text scale.
+// OneSub uses MyGo's native theme and one four-DIP spacing rhythm. Only
+// typography and the primary-action blue are product choices; control states,
+// focus, contrast, menus and surfaces continue to belong to the framework.
 const (
 	bodySize    = 15 // the product's body text (docs/ui-design.md)
 	captionSize = 13 // the smallest text: status bar, units, hints
 	headingSize = 17 // dialog sections
 	titleSize   = 20 // dialog titles: Fluent's Subtitle
-	headerSize  = 40 // panel headers: Spectrum component-height-200
+	headerSize  = 44 // a common, comfortable navigation/title row
 	panelPad    = 16 // Fluent: 16 between a surface's edge and its text
 	iconSize    = 16 // Fluent and Spectrum's icon beside 14–15 text
 )
@@ -25,42 +24,16 @@ type studio struct {
 	chrome ui.Color // the bars around the panels: toolbar and status bar
 }
 
-// studioTheme is the app's theme over MyGo's default one for the window's
-// appearance. Neutral grays layer the window (Spectrum 2's gray scale, with
-// WinUI's text and stroke contrasts); one blue marks primary actions, the
-// choice and the focus. A desktop in high contrast keeps MyGo's own colors,
-// which follow it.
+// studioTheme retains the framework's coordinated light/dark palette instead
+// of maintaining a second set of component colors. High contrast is untouched.
 func studioTheme(base *ui.Theme, highContrast bool) (ui.Theme, studio) {
 	t := *base
-	scale := base.FontSize / 14
-	t.FontSize = bodySize * scale
-	t.Radius = 6
-	t.Spacing = 4
-	if highContrast {
-		return t, studio{chrome: t.Surface}
+	t.FontSize = bodySize * base.FontSize / 14
+	if !highContrast {
+		primary := ui.LightTheme()
+		t.Accent, t.AccentHover, t.AccentPressed, t.AccentText = primary.Accent, primary.AccentHover, primary.AccentPressed, primary.AccentText
 	}
-	if t.Dark {
-		t.Background = ui.Hex("#1F1F1F")
-		t.Surface, t.SurfaceHover, t.SurfacePressed = ui.Hex("#2A2A2A"), ui.Hex("#333333"), ui.Hex("#3B3B3B")
-		t.Border = ui.Hex("#383838")
-		t.Text, t.TextMuted = ui.Hex("#E8E8E8"), ui.Hex("#A3A3A3")
-		t.Accent, t.AccentHover, t.AccentPressed, t.AccentText = ui.Hex("#2563EB"), ui.Hex("#3B76F0"), ui.Hex("#1D4FD0"), ui.Hex("#FFFFFF")
-		t.Danger, t.Warning, t.Success = ui.Hex("#F87171"), ui.Hex("#F5B342"), ui.Hex("#5CC98B")
-		t.Selection, t.Focus = ui.RGBA(59, 130, 246, 0.4), ui.RGBA(96, 165, 250, 0.7)
-		t.Scrollbar = ui.RGBA(255, 255, 255, 0.3)
-		t.Inverse, t.InverseText = ui.Hex("#3A3A3A"), ui.Hex("#F2F2F2")
-		return t, studio{chrome: ui.Hex("#181818")}
-	}
-	t.Background = ui.Hex("#FAFAFA")
-	t.Surface, t.SurfaceHover, t.SurfacePressed = ui.Hex("#FFFFFF"), ui.Hex("#F2F2F2"), ui.Hex("#E8E8E8")
-	t.Border = ui.Hex("#D6D6D6")
-	t.Text, t.TextMuted = ui.Hex("#1B1B1B"), ui.Hex("#5F5F5F")
-	t.Accent, t.AccentHover, t.AccentPressed, t.AccentText = ui.Hex("#2563EB"), ui.Hex("#1D4ED8"), ui.Hex("#1E40AF"), ui.Hex("#FFFFFF")
-	t.Danger, t.Warning, t.Success = ui.Hex("#C42B1C"), ui.Hex("#9D5D00"), ui.Hex("#0F7B0F")
-	t.Selection, t.Focus = ui.RGBA(37, 99, 235, 0.22), ui.RGBA(37, 99, 235, 0.55)
-	t.Scrollbar = ui.RGBA(0, 0, 0, 0.3)
-	t.Inverse, t.InverseText = ui.Hex("#2B2B2B"), ui.Hex("#F5F5F5")
-	return t, studio{chrome: ui.Hex("#F0F0F0")}
+	return t, studio{chrome: t.Surface}
 }
 
 // em scales a design size in DIPs with the theme's text size.
@@ -106,7 +79,7 @@ func toolIcon(c *ui.Context, label, name string) ui.Element {
 // way down to its own content, never further, and the middle shrinks, as a
 // file name does.
 func panelHeader(c *ui.Context, start, middle, end func()) {
-	row := ui.Row(c).Height(em(c, headerSize)).Padding(0, em(c, 8)).Gap(em(c, 2)).AlignItems(ui.Center).Shrink(0)
+	row := ui.Row(c).Height(em(c, headerSize)).Padding(0, em(c, 8)).Gap(em(c, 4)).AlignItems(ui.Center).Shrink(0).Background(c.Theme().Surface)
 	widths := ui.Local(row, "sides", func() [2]float32 { return [2]float32{} })
 	row.Children(func() {
 		side := func(i int, justify ui.Align, gap float32, content func()) {
@@ -144,6 +117,22 @@ func panelTitle(c *ui.Context, text string) ui.Element {
 // dialogTitle opens every dialog.
 func dialogTitle(c *ui.Context, text string) ui.Element {
 	return ui.Text(c, text).FontSize(em(c, titleSize)).FontWeight(600)
+}
+
+// fixedDialog gives settings and output dialogs the same hierarchy: title,
+// fixed working area, and an anchored action row. Option changes cannot resize
+// the shell; no hidden page is built merely to reserve its intrinsic height.
+func fixedDialog(c *ui.Context, open *bool, title string, width, height float32, body, actions func()) {
+	vw, vh := c.Size()
+	ui.Modal(c, open, func() {
+		ui.Column(c).Width(min(em(c, width), vw-c.Theme().Space(20))).Height(min(em(c, height), vh-c.Theme().Space(20))).Gap(em(c, 16)).Label(title).Children(func() {
+			dialogTitle(c, title)
+			ui.Divider(c)
+			ui.Column(c).Grow(1).MinHeight(0).Gap(em(c, 20)).Children(body)
+			ui.Divider(c)
+			ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Shrink(0).Children(actions)
+		})
+	})
 }
 
 // muted is secondary text, as units, counts and hints.

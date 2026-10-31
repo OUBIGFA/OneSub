@@ -71,15 +71,15 @@ func fitVideoViewport(width, height float32, aspect float64) (float32, float32) 
 // transportBar: the position across the whole picture, then the transport
 // buttons and the speed, the time, and at the end the volume, as video
 // players and editors' monitors lay them out. A narrow player keeps every
-// control whole: only the volume slider gives up room. Times use digits of
-// one width so they do not shift as they count.
+// control whole: transport, time and volume wrap as complete groups when
+// needed, instead of squeezing their labels. Times use tabular digits.
 func (a *NativeApp) transportBar(c *ui.Context) {
 	// The picture gives way to a task's progress, and so does its transport.
 	disabled := !a.playbackAvailable()
 	ui.Column(c).Padding(em(c, 2), em(c, 12), em(c, 6), em(c, 12)).Shrink(0).Label(locales.A11yPlayerControls()).Children(func() {
 		value := a.position
 		ui.Slider(c, &value, 0, math.Max(a.duration, .001)).Label(locales.PlayerPosition()).Disabled(disabled).OnChange(func() { a.evalPlayer(fmt.Sprintf("video.currentTime = %f", value)) })
-		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Toolbar(c, func() {
 				toolIcon(c, locales.PlayerBack(), "rewind").Disabled(disabled).OnClick(func() { a.seekBy(-15) })
 				label, name := locales.PlayerPlay(), "play"
@@ -110,13 +110,15 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 			if a.settings.Muted || a.settings.Volume == 0 {
 				muteLabel, muteIcon = locales.PlayerUnmute(), "volume-x"
 			}
-			ui.Toolbar(c, func() {
-				toolIcon(c, muteLabel, muteIcon).OnClick(func() { a.toggleMute(c.Now()) })
-			}).Shrink(0)
-			volume := a.audibleVolume()
-			ui.Slider(c, &volume, 0, 100).Width(em(c, 96)).MinWidth(em(c, 48)).Shrink(1).Label(locales.PlayerVolume()).Tooltip(locales.PlayerVolumeValue(int(math.Round(volume)))).OnChange(func() {
-				// Moving the volume is a request to hear it.
-				a.setVolume(volume, false, c.Now())
+			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Children(func() {
+				ui.Toolbar(c, func() {
+					toolIcon(c, muteLabel, muteIcon).OnClick(func() { a.toggleMute(c.Now()) })
+				}).Padding(0)
+				volume := a.audibleVolume()
+				ui.Slider(c, &volume, 0, 100).Width(em(c, 96)).Label(locales.PlayerVolume()).Tooltip(locales.PlayerVolumeValue(int(math.Round(volume)))).OnChange(func() {
+					// Moving the volume is a request to hear it.
+					a.setVolume(volume, false, c.Now())
+				})
 			})
 		})
 	})

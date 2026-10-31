@@ -96,7 +96,7 @@ func TestNativeWorkbenchUsesDirectActionsAndSettings(t *testing.T) {
 	if err := tt.Click("设置"); err != nil {
 		t.Fatal(err)
 	}
-	if !a.settingsOpen || !tt.HasText("关闭窗口") || !tt.HasText("直接退出") || !tt.HasText("语言") || !tt.HasText("跟随系统") {
+	if !a.settingsOpen || !tt.HasText("关闭窗口") || !tt.HasText("最小化到托盘") || !tt.HasText("语言") || !tt.HasText("跟随系统") {
 		t.Fatal(tt.Texts())
 	}
 	if err := tt.Click("识别与模型"); err != nil {

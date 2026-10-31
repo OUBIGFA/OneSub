@@ -11,14 +11,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// stylePanel is the inspector of the subtitle style: the preset in its
-// header, then what the subtitles show and their look in native forms, as
-// video editors' inspectors group properties under section names.
+// stylePanel separates output content from the style being edited. The layer
+// selector precedes presets, so a preset visibly belongs to the selected layer.
 func (a *NativeApp) stylePanel(c *ui.Context) {
 	hasCues := a.snapshot != nil && len(a.snapshot.Document.Cues) > 0
 	ready := hasCues && len(a.styleCatalog.Presets) > 0
 	ass := a.snapshot != nil && (a.snapshot.Document.Format == "ass" || a.snapshot.Document.Format == "ssa")
-	layer := a.editedLayer()
 	ui.Column(c).Fill().Label(locales.A11yStylePanel()).Children(func() {
 		panelHeader(c, nil, func() { panelTitle(c, locales.StyleTitle()) }, nil)
 		ui.Divider(c)
@@ -32,6 +30,10 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 				content := ui.Column(c).Padding(em(c, 12), em(c, panelPad)).Gap(em(c, 20))
 				a.styleRoom = content.Bounds().W - 2*em(c, panelPad)
 				content.Children(func() {
+					if !ass && a.settings.SubtitleOutput.Normalized().Mode == "bilingual" {
+						ui.Segmented(c, &a.styleLayer, locales.StylePrimaryLayer(), locales.StyleSecondaryLayer()).Label(locales.A11yStyleLayers()).AlignSelf(ui.Center)
+					}
+					layer := a.editedLayer()
 					line(c, func() {
 						a.outputFields(c, false)
 						if !ass {
@@ -43,13 +45,6 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 					if ass {
 						muted(c, locales.StyleKeepAss())
 						return
-					}
-					if a.settings.SubtitleOutput.Normalized().Mode == "bilingual" {
-						primary, secondary := locales.TabTranslation(), locales.TabSource()
-						if a.settings.SubtitleOutput.Normalized().Primary == "source" {
-							primary, secondary = secondary, primary
-						}
-						ui.Segmented(c, &a.styleLayer, locales.StyleLayerOf(locales.StylePrimaryLayer(), primary), locales.StyleLayerOf(locales.StyleSecondaryLayer(), secondary)).Label(locales.A11yStyleLayers()).AlignSelf(ui.Start)
 					}
 					a.styleControls(c, layer)
 				})
@@ -234,7 +229,7 @@ func (a *NativeApp) textSection(c *ui.Context, style *styles.Style) {
 					}).Padding(0)
 				})
 			})
-			inlineField(c, locales.StyleFontSize(), func() { number(c, locales.StyleFontSize(), &style.FontSize, 10, 72, 1) })
+			inlineField(c, locales.StyleFontSize(), func() { number(c, locales.StyleFontSize(), &style.FontSize, 1, 72, .5) })
 			inlineField(c, locales.StyleColor(), func() { colorWell(c, locales.StyleTextColor(), &style.PrimaryColor) })
 			inlineField(c, locales.StyleEmphasis(), func() {
 				ui.ToggleGroup(c, func() {

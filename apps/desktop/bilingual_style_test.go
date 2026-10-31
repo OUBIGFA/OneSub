@@ -29,11 +29,7 @@ func TestBilingualIndependentControlsAndFontPayload(t *testing.T) {
 			a.snapshot.Document.Cues[0].Translated = true
 			a.snapshot.Document.Cues[0].TranslationSource = "Source line"
 			tt := settled(a.stylePanel, 1200, 700)
-			content := locales.TabSource()
-			if primary == "source" {
-				content = locales.TabTranslation()
-			}
-			if err := tt.Click(locales.StyleLayerOf(locales.StyleSecondaryLayer(), content)); err != nil {
+			if err := tt.Click(locales.StyleSecondaryLayer()); err != nil {
 				t.Fatal(err)
 			}
 			if err := tt.Click(locales.StyleFontSize()); err != nil {

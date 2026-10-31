@@ -23,7 +23,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 		// wrapping toolbar below, so narrow headers never crowd the tabs.
 		panelHeader(c, nil, func() {
 			tab := a.subtitleTab
-			if ui.Segmented(c, &tab, locales.TabOriginal(), locales.TabRebuilt()).Label(locales.A11ySubtitleTabs()).Changed() {
+			if ui.Tabs(c, &tab, locales.TabOriginal(), locales.TabRebuilt()).Label(locales.A11ySubtitleTabs()).Changed() {
 				a.changeSubtitleTab(tab)
 			}
 		}, nil)

@@ -39,55 +39,49 @@ func composeQualities() []option {
 	}
 }
 
-// composeView has one fixed size: the quality stays in place for soft
-// subtitles, disabled as nothing is encoded, and the note below the choices
-// has a fixed room.
+// Content, encoding and destination are separate decisions. Fixed geometry
+// and an anchored action row keep sample/export actions in the same place.
 func (a *NativeApp) composeView(c *ui.Context) {
-	ui.Modal(c, &a.composeOpen, func() {
-		ui.Column(c).Width(em(c, 640)).Height(em(c, 548)).Gap(em(c, 16)).Children(func() {
-			dialogTitle(c, locales.ActionCompose())
-			hard := strings.HasPrefix(a.settings.ComposeMode, "hard")
-			ui.Form(c, func() {
-				a.outputFields(c, true)
-				ui.Field(c, locales.ComposeMode(), func() {
-					idSelect(c, &a.settings.ComposeMode, composeModes()).Label(locales.ComposeMode()).OnChange(a.saveSettings)
-				})
-				ui.Field(c, locales.ComposeQuality(), func() {
-					idSelect(c, &a.settings.ComposeQuality, composeQualities()).Label(locales.ComposeQuality()).Disabled(!hard).OnChange(a.saveSettings)
-				})
+	var outputErr error
+	if a.composeOpen && a.snapshot != nil {
+		_, outputErr = subtitle.SelectOutput(a.snapshot.OutputDocument(a.settings.SubtitleOutput), a.settings.SubtitleOutput)
+	}
+	fixedDialog(c, &a.composeOpen, locales.ActionCompose(), 760, 552, func() {
+		hard := strings.HasPrefix(a.settings.ComposeMode, "hard")
+		ui.Grid(c).Columns(2).Gap(em(c, 12)).Children(func() { a.outputFields(c, true) })
+		ui.Grid(c).ColumnTracks(ui.Fr(3), ui.Fr(2)).Gap(em(c, 16)).Children(func() {
+			ui.Field(c, locales.ComposeMode(), func() {
+				idSelect(c, &a.settings.ComposeMode, composeModes()).Label(locales.ComposeMode()).OnChange(a.saveSettings)
 			})
-			line(c, func() {
-				folderField(c, a.settings.OutputDir, locales.RecognitionBesideMedia(), a.busy, a.pickComposeDir, func() { a.settings.OutputDir = ""; a.saveSettings() })
-				ui.Checkbox(c, &a.settings.ComposeAskPath, locales.ComposeAskPath()).OnChange(a.saveSettings)
-			})
-			var outputErr error
-			if a.snapshot != nil {
-				_, outputErr = subtitle.SelectOutput(a.snapshot.OutputDocument(a.settings.SubtitleOutput), a.settings.SubtitleOutput)
-			}
-			ui.Column(c).Height(em(c, 72)).Gap(em(c, 6)).Shrink(0).Children(func() {
-				switch {
-				case outputErr != nil:
-					ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
-				case a.settings.ComposeMode == "soft-mp4":
-					ui.Text(c, locales.ComposeMovTextNote()).TextColor(c.Theme().Warning)
-				case !hard:
-					muted(c, locales.ComposeSoftNote())
-				case a.settings.ComposeQuality == "lossless":
-					muted(c, locales.ComposeLosslessNote())
-				default:
-					muted(c, locales.ComposeCrfNote())
-				}
-				if a.currentStyle.FontName != "" {
-					muted(c, a.presetLabel(a.stylePreset)+" · "+a.currentStyle.FontName).SingleLine()
-				}
-			})
-			ui.Spacer(c)
-			ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Children(func() {
-				ui.Button(c, locales.ActionCancel()).OnClick(func() { a.composeOpen = false })
-				ui.Button(c, locales.ComposeSample()).Disabled(outputErr != nil).OnClick(func() { a.composeOpen = false; a.startCompose(true) })
-				ui.PrimaryButton(c, locales.ComposeStart()).Disabled(outputErr != nil).OnClick(func() { a.composeOpen = false; a.startCompose(false) })
+			ui.Field(c, locales.ComposeQuality(), func() {
+				idSelect(c, &a.settings.ComposeQuality, composeQualities()).Label(locales.ComposeQuality()).Disabled(!hard).OnChange(a.saveSettings)
 			})
 		})
+		line(c, func() {
+			folderField(c, a.settings.OutputDir, locales.RecognitionBesideMedia(), a.busy, a.pickComposeDir, func() { a.settings.OutputDir = ""; a.saveSettings() })
+			ui.Checkbox(c, &a.settings.ComposeAskPath, locales.ComposeAskPath()).OnChange(a.saveSettings)
+		})
+		ui.Column(c).MinHeight(em(c, 72)).Gap(em(c, 8)).Children(func() {
+			switch {
+			case outputErr != nil:
+				ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
+			case a.settings.ComposeMode == "soft-mp4":
+				ui.Text(c, locales.ComposeMovTextNote()).TextColor(c.Theme().Warning)
+			case !hard:
+				muted(c, locales.ComposeSoftNote())
+			case a.settings.ComposeQuality == "lossless":
+				muted(c, locales.ComposeLosslessNote())
+			default:
+				muted(c, locales.ComposeCrfNote())
+			}
+			if a.currentStyle.FontName != "" {
+				muted(c, a.presetLabel(a.stylePreset)+" · "+a.currentStyle.FontName).SingleLine()
+			}
+		})
+	}, func() {
+		ui.Button(c, locales.ActionCancel()).OnClick(func() { a.composeOpen = false })
+		ui.Button(c, locales.ComposeSample()).Disabled(outputErr != nil).OnClick(func() { a.composeOpen = false; a.startCompose(true) })
+		ui.PrimaryButton(c, locales.ComposeStart()).Disabled(outputErr != nil).OnClick(func() { a.composeOpen = false; a.startCompose(false) })
 	})
 }
 

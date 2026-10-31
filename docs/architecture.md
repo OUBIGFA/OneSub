@@ -229,7 +229,7 @@ helper 消息统一 protocol/requestId/jobId/seq/type/payload/error。error 为 
 
 Settings 是单一持久化边界，位于稳定用户数据目录，与工程数据分开。字段按 schema 版本读取，失败保留原文件并报告，不默默清空配置。翻译 Key 使用系统凭据设施，设置仅保存服务标识，不写进工程。
 
-- `close_behavior=exit|tray`，默认 exit。窗口关闭和托盘退出都经过草稿/任务检查；tray 只隐藏窗口，不停止调度器。托盘创建失败时保持窗口可见并报错。
+- `close_behavior=exit|tray`，默认 tray，保留已有明确保存的选择。窗口关闭和托盘退出都经过草稿/任务检查；tray 只隐藏窗口，不停止调度器。托盘创建失败时保持窗口可见并报错。
 - 模型配置以 OneAsr catalog 的 ModelId 为键，保存各自实际目录、选择和验证记录；下载、校验和加载共用映射。0.6B/1.7B、FP16/INT8、CTC/Qwen 及可选 HTDemucs/SenseVoiceSmall 不互相覆盖目录。
 - 识别参数来自当前 OneAsr 版本，分块默认 60 秒、范围 30–180 秒；后端、语言、解码上限、简繁和热词仅传该版本支持的值。设置界面不是另一份参数真相源。
 - 下载支持取消/续传，采用 catalog 的文件长度与 SHA-256；验证完成后才进入可用状态。离线导入执行同一验证。模型缺失只阻止依赖它的任务，不阻止媒体播放和字幕编辑。
@@ -249,4 +249,4 @@ OneSub 同时是 [Model Context Protocol](https://modelcontextprotocol.io) 服�
 | `transcribe_media` | 本地 OneAsr 识别音视频，按设置的格式与标点规则生成新字幕文件，返回路径与条数；识别阶段与分块通过 `notifications/progress` 报告 | 非破坏、封闭 |
 | `translate_subtitles` | 用设置中的翻译服务与凭据翻译字幕文件，完整检查通过才写新文件 | 非破坏、开放（外部服务，可能计费） |
 
-工具与窗口共用同一条识别/翻译流程（`toolset`）、设置文件、模型目录和系统凭据；每次调用读取最新设置。输出从不覆盖已有文件。设置“常规”页提供可一键复制的 `mcpServers` 配置。
+工具与窗口共用同一条识别/翻译流程（`toolset`）、设置文件、模型目录和系统凭据；每次调用读取最新设置。输出从不覆盖已有文件。设置中的独立“MCP 服务”页直接显示可复制的 `mcpServers` 配置，不嵌入常规页或折叠区；该展示不改动服务端配置或启动行为。
