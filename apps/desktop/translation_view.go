@@ -97,7 +97,7 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 
 func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 	ui.Column(c.Key("provider-connection")).Grow(1).Gap(em(c, 20)).Children(func() {
-		parameterGrid(c, 200, 3, func() {
+		ui.Grid(c).Columns(3).GapX(em(c, 20)).GapY(em(c, 16)).AlignItems(ui.Start).Children(func() {
 			ui.Field(c, locales.TranslationProviderName(), func() {
 				p := a.settings.Provider()
 				name := ""

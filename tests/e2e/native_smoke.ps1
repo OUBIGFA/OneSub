@@ -1,4 +1,4 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$WorkflowLayout, [switch]$ComposeOutput, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark')
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark')
 $ErrorActionPreference = 'Stop'
 if($SubtitleMenus -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport)){throw 'Run subtitle menu presentation as a separate scenario'}
 if($LayoutNavigation -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport -or $SubtitleMenus)){throw 'Run layout/navigation as a separate scenario'}
@@ -338,7 +338,7 @@ try {
         if((Read-Preferences).providerModel -ne 'catalog-beta'){throw 'Model use action did not persist'}
         Click-UI '切换模型'
         $names=Wait-SubtitleMenu
-        if($names -notcontains 'catalog-alpha' -or $names -notcontains 'catalog-beta'){throw 'Model dropdown does not contain retained models'}
+        if($names.Count -ne 2 -or $names -notcontains 'catalog-alpha' -or $names -notcontains 'catalog-beta'){throw 'Model dropdown must contain only enabled models'}
         [void][SmokeNative]::PostMessage($p.MainWindowHandle,31,[IntPtr]::Zero,[IntPtr]::Zero)
         Start-Sleep -Milliseconds 400
         (Input-UI '搜索模型').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('alpha')
@@ -357,7 +357,7 @@ try {
     if($ProviderCatalogEndpoint) {
         Select-Tab '识别与翻译' 'AI 翻译'
         Click-UI '切换模型';$names=Wait-SubtitleMenu
-        if($names -notcontains 'catalog-beta'){throw 'Workbench dropdown lost selected model'}
+        if($names.Count -ne 2 -or $names -notcontains 'catalog-beta'){throw 'Workbench dropdown did not use the same enabled model list'}
         [void][SmokeNative]::PostMessage($p.MainWindowHandle,31,[IntPtr]::Zero,[IntPtr]::Zero)
         Start-Sleep -Milliseconds 400
         $toggle=Find-UI '按意群重建时间轴'
@@ -417,6 +417,9 @@ try {
         $draft=(Find-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
         $top=(Find-UI '返回顶部').Current.BoundingRectangle
         $bottom=(Find-UI '返回底部').Current.BoundingRectangle
+        # Center on the visible table, excluding the track tabs and toolbar.
+        $list=(Find-UI '字幕列表').Current.BoundingRectangle
+        if([Math]::Abs(($top.Top+$bottom.Bottom)/2-$list.Top-$list.Height/2) -gt 2){throw 'Floating navigation is not vertically centered in the list'}
         Click-UI '返回底部';Wait-VisibleSubtitle 'Navigation subtitle 120'
         if((Find-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne $draft){throw 'Bottom navigation changed the selected subtitle'}
         Capture-Navigation 'list-bottom.png'
@@ -424,7 +427,45 @@ try {
         if((Find-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne $draft){throw 'Top navigation changed the selected subtitle'}
         if((Find-UI '返回顶部').Current.BoundingRectangle -ne $top -or (Find-UI '返回底部').Current.BoundingRectangle -ne $bottom){throw 'Floating buttons moved with the rows'}
         Capture-Navigation 'layout-navigation.png'
-        Write-Output 'PASS: centered one-click toolbar action; style/editor/workflow 1.5:2:1.5; floating top/bottom navigation; selected subtitle unchanged'
+        Write-Output 'PASS: centered one-click toolbar action; style/editor/workflow 1.5:2:1.5; vertically centered top/bottom navigation; selected subtitle unchanged'
+    }
+    if($VideoTools) {
+        $originalSubtitleHash=(Get-FileHash $subtitle -Algorithm SHA256).Hash
+        $external=Join-Path $workPath 'different-zh.srt'
+        [IO.File]::WriteAllText($external,"1`n00:00:00,100 --> 00:00:02,900`nImported translation`n",[Text.UTF8Encoding]::new($false))
+        Click-UI '导入字幕';Choose-Path $external
+        Wait-VisibleSubtitle 'Imported translation'
+        $startTime=(Input-UI '开始').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+        $endTime=(Input-UI '结束').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+        if($startTime -ne '00:00:00.100' -or $endTime -ne '00:00:02.900'){throw 'Editor timestamps do not match the list/player format'}
+        $input=Input-UI '字幕文字'
+        $input.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('Reviewed translation')
+        Wait-VisibleSubtitle 'Reviewed translation'
+        Click-UI '保存'
+        for($i=0;$i -lt 100;$i++){if([IO.File]::ReadAllText($external).Contains('Reviewed translation')){break};Start-Sleep -Milliseconds 100}
+        if(-not [IO.File]::ReadAllText($external).Contains('Reviewed translation') -or (Get-FileHash $subtitle -Algorithm SHA256).Hash -ne $originalSubtitleHash){throw 'Independent import/save modified the wrong subtitle file'}
+        Click-UI '合成视频';Click-UI '开始合成'
+        $burned=Join-Path $workPath 'test-OneSub.mp4'
+        for($i=0;$i -lt 600;$i++){if(Test-Path $burned){break};Start-Sleep -Milliseconds 100}
+        if(-not (Test-Path $burned)){throw 'Nonmatching subtitle did not compose with the current video'}
+        # Standalone media now retains current subtitles when no same-name
+        # match exists. Clear through the confirmed UI action to test a new,
+        # genuinely subtitle-free workbench rather than a media reassociation.
+        Remove-Item $subtitle
+        Click-UI '清空工作台';Click-UI '清空'
+        Click-UI '添加文件';Choose-Path $video
+        for($i=0;$i -lt 100;$i++){if(Find-UI '未加载字幕'){break};Start-Sleep -Milliseconds 100}
+        if(-not (Find-UI '未加载字幕')){throw 'Subtitle-free import was not empty'}
+        Click-UI '视频压缩'
+        if(Find-UI '字幕内容'){throw 'Compression exposes subtitle output options'}
+        Click-UI '开始压缩'
+        $compressed=Join-Path $workPath 'test-OneSub-compressed.mp4'
+        for($i=0;$i -lt 600;$i++){if(Test-Path $compressed){break};Start-Sleep -Milliseconds 100}
+        if(-not (Test-Path $compressed)){throw 'Subtitle-free compression did not publish a video'}
+        $streams=(& ffprobe -v error -show_streams -of json $compressed | Out-String | ConvertFrom-Json).streams
+        if($LASTEXITCODE -ne 0 -or @($streams|Where-Object codec_type -eq 'video').Count -ne 1 -or @($streams|Where-Object codec_type -eq 'subtitle').Count -ne 0){throw 'Compression added subtitles or lost video'}
+        Capture-Navigation 'video-tools.png'
+        Write-Output 'PASS: independent nonmatching subtitle import/edit/save/compose; current video retained; standalone compression without subtitles'
     }
     if($SubtitleMenus) {
         # Invoke closes the modal asynchronously. Wait for the workbench's
@@ -518,6 +559,14 @@ try {
     Write-Output "PASS: import (argument=$OpenArgument), same-name subtitle, playback/pause=$inputMode, settings, translation=$([bool]$TranslationEndpoint), upper/lower export=$BilingualExport, subtitle menu presentation=$SubtitleMenus"
 } catch {
     Write-Output ("FAIL: native smoke: " + $_.Exception.Message)
+    $p.Refresh()
+    if(-not $p.HasExited -and $p.MainWindowHandle -ne 0) {
+        # Capture the actual modal/workbench state before teardown so a picker
+        # or save guard failure is not mistaken for a failed import service.
+        & $ScreenshotTool $p.Id (Join-Path $workPath 'failure.png') | Out-Host
+        $root=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+        $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object { Write-Output ("UIA: " + $_.Current.Name) }
+    }
     throw
 } finally {
     # A failed menu assertion must close this test-owned popup before WM_CLOSE;

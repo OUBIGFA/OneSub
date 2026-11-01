@@ -10,6 +10,7 @@ import (
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/media"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo"
@@ -88,13 +89,17 @@ func (a *NativeApp) composeView(c *ui.Context) {
 // Preparation and full decode verification have unknown duration, never a fake %.
 func (a *NativeApp) composeProgressView(c *ui.Context) {
 	ui.Column(c).Grow(1).Center().Gap(em(c, 16)).Label(locales.A11yComposeProgressArea()).Children(func() {
-		dialogTitle(c, locales.ComposeRunning())
+		title, cancel := locales.ComposeRunning(), locales.ComposeCancel()
+		if a.compressRunning {
+			title, cancel = locales.CompressRunning(), locales.ActionCancelTask()
+		}
+		dialogTitle(c, title)
 		muted(c, composeStageLabel(a.composeProgress.Stage)).Label(locales.A11yComposeStage())
 		ui.Progress(c, a.composeProgress.Fraction).Width(em(c, 400)).Label(locales.A11yComposeProgress())
 		if a.composeProgress.Fraction >= 0 {
 			ui.Text(c, locales.Percent(100*a.composeProgress.Fraction)).FontSize(em(c, 28)).FontWeight(600).FontFeatures("tnum")
 		}
-		ui.Button(c, locales.ComposeCancel()).Disabled(a.cancel == nil).OnClick(func() {
+		ui.Button(c, cancel).Disabled(a.cancel == nil).OnClick(func() {
 			if a.cancel != nil {
 				a.cancel()
 			}
@@ -130,7 +135,13 @@ func composeFilename(source, extension string, sample bool) string {
 }
 
 func (a *NativeApp) startCompose(sample bool) {
-	if a.busy || a.snapshot == nil {
+	a.startVideoExport(sample, false)
+}
+
+// Both operations freeze inputs, preserve source streams and share atomic
+// publication and cancellation. Compression bypasses the subtitle pipeline.
+func (a *NativeApp) startVideoExport(sample, compress bool) {
+	if a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" {
 		return
 	}
 	a.commitEdit(true)
@@ -143,22 +154,29 @@ func (a *NativeApp) startCompose(sample bool) {
 	if outputOptions.Normalized().Mode == "bilingual" {
 		language = "mul"
 	}
-	quality := a.settings.ComposeQuality
+	quality, title := a.settings.ComposeQuality, locales.ActionCompose()
+	if compress {
+		mode, quality, title = "compress-"+a.settings.CompressionFormat, a.settings.CompressionQuality, locales.ActionCompress()
+	}
 	outputDir, askPath := a.settings.OutputDir, a.settings.ComposeAskPath
-	a.composeRunning = true
+	a.composeRunning, a.compressRunning = true, compress
 	a.composeProgress = media.ComposeProgress{Stage: media.StageChooseOutput, Fraction: -1}
 	a.evalPlayer("video.pause()")
-	a.run(locales.ActionCompose(), func(ctx context.Context) (func(), error) {
+	a.run(title, func(ctx context.Context) (func(), error) {
 		extension := "mp4"
 		if strings.HasSuffix(mode, "mkv") {
 			extension = "mkv"
 		}
-		output, err := composeOutputPath(state.Manifest.MediaPath, outputDir, extension, sample)
+		name := composeFilename(state.Manifest.MediaPath, extension, sample)
+		if compress {
+			name = strings.TrimSuffix(name, "."+extension) + "-compressed." + extension
+		}
+		output, err := uniqueVideoOutputPath(state.Manifest.MediaPath, outputDir, name)
 		if err != nil {
 			return nil, err
 		}
 		if askPath {
-			output, err = a.saveDialog(mygo.SaveDialogOptions{Parent: a.win, Title: locales.ActionCompose(), DefaultPath: output, Filters: []mygo.FileFilter{{Name: strings.ToUpper(extension), Extensions: []string{extension}}}})
+			output, err = a.saveDialog(mygo.SaveDialogOptions{Parent: a.win, Title: title, DefaultPath: output, Filters: []mygo.FileFilter{{Name: strings.ToUpper(extension), Extensions: []string{extension}}}})
 			if err != nil || output == "" {
 				return nil, err
 			}
@@ -170,17 +188,24 @@ func (a *NativeApp) startCompose(sample bool) {
 			a.win.Update(func() { a.composeProgress = p; a.status = composeStageLabel(p.Stage) })
 		}
 		progress(media.ComposeProgress{Stage: media.StagePrepare, Fraction: -1})
-		document, err := a.styledDocument(ctx, state, style, secondary, outputOptions, aspect)
-		if err != nil {
-			return nil, err
-		}
-		subtitleMode := "hard"
-		if strings.HasPrefix(mode, "soft") {
-			subtitleMode = "soft"
+		var document styles.Document
+		subtitleMode := "compress"
+		if !compress {
+			document, err = a.styledDocument(ctx, state, style, secondary, outputOptions, aspect)
+			if err != nil {
+				return nil, err
+			}
+			subtitleMode = "hard"
+			if strings.HasPrefix(mode, "soft") {
+				subtitleMode = "soft"
+			}
 		}
 		options := media.ComposeOptions{Source: state.Manifest.MediaPath, Destination: output, Mode: subtitleMode, Quality: quality, Sample: sample, Language: language, Revision: state.Revision}
 		report, err := media.Compose(ctx, a.ffmpeg, a.probe, filepath.Join(a.dataRoot, "cache", "worker"), options, document, progress)
 		if err != nil {
+			if compress {
+				return nil, apperr.Wrap(locales.ErrCompress(err.Error()), err)
+			}
 			return nil, apperr.Wrap(locales.ErrCompose(err.Error()), err)
 		}
 		reportErr := saveComposeReport(state.Path, report)
@@ -200,10 +225,14 @@ func (a *NativeApp) startCompose(sample bool) {
 // Automatic exports use the source folder unless explicitly configured. A
 // collision chooses a new name; Compose's atomic publish still refuses a race.
 func composeOutputPath(source, directory, extension string, sample bool) (string, error) {
+	return uniqueVideoOutputPath(source, directory, composeFilename(source, extension, sample))
+}
+
+func uniqueVideoOutputPath(source, directory, name string) (string, error) {
 	if directory == "" {
 		directory = filepath.Dir(source)
 	}
-	name := composeFilename(source, extension, sample)
+	extension := strings.TrimPrefix(filepath.Ext(name), ".")
 	stem := strings.TrimSuffix(name, filepath.Ext(name))
 	for suffix := 1; ; suffix++ {
 		candidate := name

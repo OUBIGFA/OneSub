@@ -16,23 +16,16 @@ func settingsGroup(c *ui.Context, title string, content func()) {
 	parameterGroup(c, title, nil, content)
 }
 
-// A sidebar keeps category navigation separate from the working form. At the
-// minimum window width it becomes native tabs, giving the fields the full width.
-// Only the active page is built, so hidden pages cannot run model-fetch effects.
+// Settings use one sidebar layout. The active form has explicit native grid
+// columns, so opening it never waits for previous-frame bounds to settle.
 func (a *NativeApp) settingsView(c *ui.Context) {
 	wasOpen := a.settingsOpen
-	width, _ := c.Size()
 	labels := []string{locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsTranslation(), locales.SettingsTranslationRules(), locales.SettingsMcp()}
-	fixedDialog(c, &a.settingsOpen, locales.SettingsTitle(), 1120, 640, func() {
+	fixedDialog(c, &a.settingsOpen, locales.SettingsTitle(), 1280, 800, func() {
 		content := func() {
 			ui.Column(c.Key(a.settingsTab)).Fill().Gap(em(c, 20)).Label(locales.A11ySettingsContent()).Children(func() {
 				a.settingsContent(c, a.settingsTab)
 			})
-		}
-		if width < em(c, 1100) {
-			ui.Tabs(c, &a.settingsTab, labels...).Label(locales.A11ySettingsTabs()).Shrink(0)
-			ui.Column(c).Grow(1).MinHeight(0).Children(content)
-			return
 		}
 		ui.Row(c).Fill().Gap(em(c, 24)).AlignItems(ui.Stretch).Children(func() {
 			selected := strconv.Itoa(a.settingsTab)
@@ -76,7 +69,7 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 			if a.settings.CloseToTray {
 				behavior = "tray"
 			}
-			parameterGrid(c, 200, 3, func() {
+			ui.Grid(c).Columns(3).GapX(em(c, 20)).GapY(em(c, 16)).AlignItems(ui.Start).Children(func() {
 				ui.Field(c, locales.SettingsLanguage(), func() {
 					idSelect(c, &a.settings.UILanguage, interfaceLanguages()).Label(locales.SettingsLanguage()).OnChange(func() {
 						mygo.App.SetLocale(a.settings.UILanguage)
@@ -98,7 +91,7 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 			})
 		})
 		settingsGroup(c, locales.SettingsPlayback(), func() {
-			parameterGrid(c, 240, 2, func() {
+			ui.Grid(c).Columns(2).GapX(em(c, 20)).GapY(em(c, 16)).AlignItems(ui.Start).Children(func() {
 				a.playbackActionField(c, locales.SettingsSingleClick(), &a.settings.SingleClickAction)
 				a.playbackActionField(c, locales.SettingsDoubleClick(), &a.settings.DoubleClickAction)
 			})

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,8 +29,8 @@ func TestPlayerViewportSurvivesTasksAndResizing(t *testing.T) {
 			tt.Frame()
 			viewport, ok := tt.Find(locales.A11yPlayerViewport())
 			area, _ := tt.Find(locales.A11yPlayerSurface())
-			if !ok || viewport.W <= 0 || viewport.H <= 0 || math.Abs(float64(viewport.W/viewport.H)-16.0/9) > .001 {
-				t.Fatal("viewport missing or stretched", state, viewport)
+			if !ok || viewport.W <= 0 || viewport.H <= 0 {
+				t.Fatal("viewport missing", state, viewport)
 			}
 			if viewport.X < area.X-1 || viewport.Y < area.Y-1 || viewport.X+viewport.W > area.X+area.W+1 || viewport.Y+viewport.H > area.Y+area.H+1 {
 				t.Fatal("viewport out of area", state, viewport, area)

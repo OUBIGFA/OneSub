@@ -125,8 +125,8 @@ func (a *NativeApp) insertSubtitleView(c *ui.Context) {
 			step = 0.01
 		}
 		ui.Grid(c).Columns(2).Gap(em(c, 24)).Children(func() {
-			ui.Field(c, locales.EditorStart(), func() { ui.NumberInput(c, &a.insertStart, 0, 9007199254740, step).Label(locales.EditorStart()) })
-			ui.Field(c, locales.EditorEnd(), func() { ui.NumberInput(c, &a.insertEnd, 0, 9007199254740, step).Label(locales.EditorEnd()) })
+			timecodeField(c, locales.EditorStart(), &a.insertStart, step, false, nil)
+			timecodeField(c, locales.EditorEnd(), &a.insertEnd, step, false, nil)
 		})
 		ui.Field(c, locales.TabSource(), func() {
 			ui.TextArea(c, &a.insertSource).Height(em(c, 80)).Padding(em(c, 12)).Label(locales.TabSource()).AutoFocus()

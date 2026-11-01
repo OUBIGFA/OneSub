@@ -1,0 +1,88 @@
+--- a/ui/webview.go
++++ b/ui/webview.go
+@@ -44,6 +44,21 @@
+ 	return e
+ }
+ 
++// webViewBox applies native containment to this frame's content box. A caller
++// must not size a media view from Bounds(), which belongs to the previous frame.
++// Placement and the transparency hole must use the very same rectangle.
++func (e *node) webViewBox() Rect {
++	box := e.contentBox()
++	if e.fit == Contain && e.aspect > 0 {
++		w := min(box.W, box.H*e.aspect)
++		h := w / e.aspect
++		box.X += (box.W - w) / 2
++		box.Y += (box.H - h) / 2
++		box.W, box.H = w, h
++	}
++	return box
++}
++
+ // webPlace is where a frame shows a web view: hit is the index of its
+ // element's own hit, inert that it shows but takes no pointer.
+ type webPlace struct {
+@@ -63,7 +78,7 @@
+ 	}
+ 	// The hole the painter makes: the content box on whole pixels. Native
+ 	// web views stay upright, covering a transformed box's bounds.
+-	b := e.visualRect(e.contentBox())
++	b := e.visualRect(e.webViewBox())
+ 	if s := rt.painted[2]; s > 0 {
+ 		x0, y0 := float32(math.Round(float64(b.X*s)))/s, float32(math.Round(float64(b.Y*s)))/s
+ 		x1, y1 := float32(math.Round(float64((b.X+b.W)*s)))/s, float32(math.Round(float64((b.Y+b.H)*s)))/s
+@@ -192,7 +207,7 @@
+ // hole paints the hole showing the web view of e: its content box,
+ // rounded as its border's inner edge less its padding.
+ func (p *Painter) hole(e *node) {
+-	b := e.contentBox()
++	b := e.webViewBox()
+ 	if b.W <= 0 || b.H <= 0 {
+ 		return
+ 	}
+--- /dev/null
++++ b/ui/onesub_layout_test.go
+@@ -0,0 +1,43 @@
++package ui
++
++import (
++	"math"
++	"testing"
++
++	"github.com/egoist/mygo/internal/scene"
++)
++
++// One raw frame per resize, deliberately without Tester's settling loop:
++// native placement and the painted hole must agree immediately at any aspect.
++func TestOneSubContainedWebViewUsesCurrentFrame(t *testing.T) {
++	page := &testWebView{"video"}
++	aspect := float32(16.0 / 9)
++	tt := coreNewTester(func(c *context) {
++		coreColumn(c).Fill().Background(RGB(0, 0, 0)).Children(func() {
++			coreWebView(c, page).Fill().MinHeight(0).AspectRatio(aspect).Fit(Contain)
++		})
++	}, 900, 600)
++	for _, ratio := range []float32{16.0 / 9, 9.0 / 16, 4.0 / 3} {
++		aspect = ratio
++		for _, size := range [][2]float32{{1200, 400}, {500, 900}, {900, 500}, {700, 650}} {
++			tt.h.w, tt.h.h = size[0], size[1]
++			tt.rt.runFrame()
++			place, ok := placed(tt, page)
++			if !ok || math.Abs(place.frame.W/place.frame.H-float64(aspect)) > .01 || place.frame.X < 0 || place.frame.Y < 0 || place.frame.X+place.frame.W > float64(size[0])+1 || place.frame.Y+place.frame.H > float64(size[1])+1 {
++				t.Fatal("stale or distorted native viewport", size, place.frame)
++			}
++			found := false
++			for _, op := range tt.rt.scene.Ops {
++				if op.Kind == scene.OpHole {
++					found = true
++					if math.Abs(float64(op.Rect.X)-place.frame.X) > 1 || math.Abs(float64(op.Rect.Y)-place.frame.Y) > 1 || math.Abs(float64(op.Rect.W)-place.frame.W) > 1 || math.Abs(float64(op.Rect.H)-place.frame.H) > 1 {
++						t.Fatal("hole and native video came from different frames", op.Rect, place.frame)
++					}
++				}
++			}
++			if !found {
++				t.Fatal("media hole missing")
++			}
++		}
++	}
++}

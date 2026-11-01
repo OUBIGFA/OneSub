@@ -1,6 +1,8 @@
 package main
 
 import (
+	"reflect"
+
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/egoist/mygo"
 )
@@ -38,7 +40,25 @@ func (a *NativeApp) activeDocument() subtitle.Document {
 	if a.snapshot == nil {
 		return subtitle.Document{}
 	}
-	return a.snapshot.TrackDocument(a.subtitleTab)
+	document := a.snapshot.TrackDocument(a.subtitleTab)
+	if a.subtitleTab == 1 && !a.hasRebuiltSubtitles() {
+		// The store mirrors original cues until a working track exists. That
+		// implementation detail is not an optimized result to show or edit.
+		document.Cues = nil
+	}
+	return document
+}
+
+func (a *NativeApp) hasRebuiltSubtitles() bool {
+	if a.snapshot == nil {
+		return false
+	}
+	for _, cue := range a.snapshot.Document.Cues {
+		if cue.Translated || cue.SourceRange != nil || len(cue.SourceCueIDs) > 0 {
+			return true
+		}
+	}
+	return a.snapshot.SourceDocument.Cues != nil && !reflect.DeepEqual(a.snapshot.Document.Cues, a.snapshot.SourceDocument.Cues)
 }
 
 // The rebuilt track has two editable texts on its own shared timeline.

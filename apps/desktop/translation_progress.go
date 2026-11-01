@@ -148,7 +148,7 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 			rows = append(rows, i)
 		}
 	}
-	cols := []ui.TableColumn{numberColumn(c, len(l.units)), timeColumn(c, locales.ListColumnStart()), {Title: locales.TabSource()}, {Title: locales.TabTranslation()}}
+	cols := []ui.TableColumn{numberColumn(c, len(l.units)), timeColumn(c, locales.ListColumnStart()), {Title: locales.TabSource(), Fixed: true}, {Title: locales.TabTranslation(), Fixed: true}}
 	table := subtitleTable(c, &l.list, cols, len(rows), func(row, col int) {
 		row = rows[row]
 		cue := l.units[row]

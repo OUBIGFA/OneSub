@@ -1,0 +1,41 @@
+{
+  "module": "github.com/agnivade/levenshtein",
+  "version": "v1.2.1",
+  "repository": "https://github.com/agnivade/levenshtein",
+  "revision": "813c5d3147488182a4d0d6aea81fc9f28d330cc1",
+  "download": "https://proxy.golang.org/github.com/agnivade/levenshtein/@v/v1.2.1.zip",
+  "bytes": 6807,
+  "sha256": "26bdb12f38a5ca1c45a666e8dea1c409189a383443fa14f4ff04f75af7022534",
+  "goModuleSum": "h1:EHBY3UOn1gwdy/VbFwgo4cxecRznFk7fKWN1KOX7eoM=",
+  "goModSum": "h1:QVVI16kDrtSuwcpd0p1+xMC6Z/VfhtCyDIjcwga4/DU=",
+  "spdx": "MIT",
+  "copyright": "Copyright (c) 2015 Agniva De Sarker",
+  "license": "third_party/licenses/levenshtein.txt",
+  "upstreamLicense": "License.txt",
+  "licenseSha256": "911d0fb30ff3345e4df60da21c2f2340a69bd98c0e3d1e79d27ae6177ebeb617",
+  "usage": "Unicode rune edit distance for weighted media/subtitle filename association; compiled into OneSub.exe",
+  "modifications": "none; normalization, token overlap, numeric guards, score bands and ambiguity decisions are OneSub application rules",
+  "runtimeDependencies": [],
+  "upstreamTestOnlyDependencies": [
+    {"module":"github.com/arbovm/levenshtein","version":"v0.0.0-20160628152529-48b4e1c0c4d0"},
+    {"module":"github.com/dgryski/trifles","version":"v0.0.0-20230903005119-f50d829f2e54"}
+  ],
+  "normalization": {
+    "module": "golang.org/x/text",
+    "version": "v0.43.0",
+    "repository": "https://go.googlesource.com/text",
+    "revision": "ac40b0f06c159afb5bfca4d1860f8b4b60dbc160",
+    "download": "https://proxy.golang.org/golang.org/x/text/@v/v0.43.0.zip",
+    "bytes": 7337809,
+    "sha256": "b75131f628f6e2e4892fd638d33127e952a5027775e0162b94ba069cb4e13863",
+    "goModuleSum": "h1:1QivrlhwAsnMOcqgOdl9my7s9OyZl8O5/UGUTJVXoWc=",
+    "goModSum": "h1:hbSIYA/amXcRXTFSZqh8tWHEoqRvvbKPJ2uz/KU+a+s=",
+    "spdx": "BSD-3-Clause",
+    "copyright": "Copyright 2009 The Go Authors.",
+    "license": "third_party/licenses/golang-x-text.txt",
+    "licenseSha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
+    "usage": "Existing dependency, now used directly for Unicode normalization, case folding and BCP-47 language parsing",
+    "modifications": "none",
+    "transitive": "Module graph and checksums pinned in apps/desktop/go.mod and go.sum; packages used here import only this module and the Go standard library"
+  }
+}

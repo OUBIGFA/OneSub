@@ -5,8 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
-	"sort"
 	"strings"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
@@ -14,11 +12,12 @@ import (
 )
 
 type Selection struct {
-	Media         string   `json:"media"`
-	Subtitle      string   `json:"subtitle"`
-	Candidates    []string `json:"candidates"`
-	CandidateKind string   `json:"candidateKind"`
-	Automatic     string   `json:"automatic"`
+	Media         string      `json:"media"`
+	Subtitle      string      `json:"subtitle"`
+	Candidates    []Candidate `json:"candidates"`
+	CandidateKind string      `json:"candidateKind"`
+	Automatic     string      `json:"automatic"`
+	Match         *Candidate  `json:"match,omitempty"`
 }
 
 // Extensions is shared by native dialogs, discovery and importer validation.
@@ -43,7 +42,7 @@ func Kind(path string) string {
 // Discover does not parse, upload or modify files. Callers validate the chosen
 // files before committing an import; a failed companion must not discard its primary.
 func Discover(paths []string) (Selection, error) {
-	result := Selection{Candidates: []string{}}
+	result := Selection{Candidates: []Candidate{}}
 	if len(paths) == 0 {
 		return result, errors.New(locales.ErrImportEmpty())
 	}
@@ -97,30 +96,30 @@ func Discover(paths []string) (Selection, error) {
 	if err != nil {
 		return result, apperr.Wrap(locales.ErrImportSiblings(err.Error()), err)
 	}
-	stem := strings.TrimSuffix(filepath.Base(primary), filepath.Ext(primary))
-	for _, entry := range entries {
-		name := entry.Name()
-		otherStem := strings.TrimSuffix(name, filepath.Ext(name))
-		matches := stem == otherStem
-		if runtime.GOOS == "windows" {
-			matches = strings.EqualFold(stem, otherStem)
-		}
-		if !matches || Kind(name) != wanted || entry.IsDir() {
-			continue
-		}
-		result.Candidates = append(result.Candidates, filepath.Join(filepath.Dir(primary), name))
+	ranked := rankCompanions(primary, wanted, entries, identities)
+	if len(ranked) == 0 {
+		return result, nil
 	}
-	sort.Strings(result.Candidates)
-	if len(result.Candidates) == 1 {
-		if wanted == "subtitle" {
-			result.Subtitle = result.Candidates[0]
+	best := ranked[0]
+	automatic := best.Score >= automaticScore
+	if len(ranked) > 1 {
+		if best.Score >= languageScore {
+			// Stronger naming rules win outright, but two equally strong
+			// files (including different languages/formats) still need a choice.
+			automatic = best.Score > ranked[1].Score
 		} else {
-			result.Media = result.Candidates[0]
+			automatic = automatic && best.Score-ranked[1].Score >= minimumLead
 		}
-		result.Automatic = wanted
-		result.Candidates = []string{}
-	} else if len(result.Candidates) > 1 {
-		result.CandidateKind = wanted
+	}
+	if automatic {
+		if wanted == "subtitle" {
+			result.Subtitle = best.Path
+		} else {
+			result.Media = best.Path
+		}
+		result.Automatic, result.Match = wanted, &best
+	} else {
+		result.Candidates, result.CandidateKind = ranked, wanted
 	}
 	return result, nil
 }

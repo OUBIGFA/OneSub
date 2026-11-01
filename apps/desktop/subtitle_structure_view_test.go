@@ -207,8 +207,9 @@ func TestSubtitleListMenuPlacementAndKeyboard(t *testing.T) {
 			tabs, _ := tt.Find(locales.A11ySubtitleTabs())
 			locate, _ := tt.Find(locales.ListLocate())
 			header := []ui.Rect{menu, tabs, locate}
+			toolbar, _ := tt.Find(locales.A11ySubtitleActions())
 			for i, r := range header {
-				if r.X < list.X || r.X+r.W > list.X+list.W {
+				if r.X < toolbar.X || r.X+r.W > toolbar.X+toolbar.W {
 					t.Fatal("list header control clipped", language, r)
 				}
 				for _, other := range header[i+1:] {

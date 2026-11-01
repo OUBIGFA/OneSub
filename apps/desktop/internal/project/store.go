@@ -286,6 +286,25 @@ func (s *Store) Snapshot() (Snapshot, error) {
 	return result, err
 }
 
+// SetMedia associates an already validated media file with this project.
+// Only the manifest changes: both subtitle tracks, revisions and undo history
+// remain in the same store. Replace keeps the old manifest if writing fails.
+func (s *Store) SetMedia(mediaPath string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.manifest
+	next.MediaPath = mediaPath
+	raw, err := json.MarshalIndent(next, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err = subtitle.Replace(filepath.Join(s.path, "project.json"), raw); err != nil {
+		return err
+	}
+	s.manifest = next
+	return nil
+}
+
 // Edit contains only editable fields. Original text, identity, order and locks
 // are owned by the transaction, not supplied by the page.
 type Edit struct {

@@ -186,13 +186,11 @@ func (a *NativeApp) providerModelCatalog() []translator.ModelInfo {
 func (a *NativeApp) providerModelNames() []string {
 	items := a.providerModelCatalog()
 	names := make([]string, 0, len(items))
-	// Saved models lead the switcher, without reshuffling catalog rows as
-	// the user checks several of them in succession.
-	for _, kept := range []bool{true, false} {
-		for _, info := range items {
-			if a.settings.Provider().KeepsModel(info.ID) == kept {
-				names = append(names, info.ID)
-			}
+	// Only enabled models belong in the switcher. Discovery does not opt a
+	// model into use; manual IDs remain enabled through the same saved list.
+	for _, info := range items {
+		if a.settings.Provider().KeepsModel(info.ID) {
+			names = append(names, info.ID)
 		}
 	}
 	return names
@@ -310,7 +308,7 @@ func (a *NativeApp) providerModelsView(c *ui.Context) {
 		ui.Table(c, &a.modelList, []ui.TableColumn{
 			{Title: locales.TranslationKeep(), Width: measure(locales.TranslationKeep()), Fixed: true, Align: ui.Center},
 			{Title: locales.TranslationModel(), MinWidth: em(c, 80), Fixed: true},
-			{Title: locales.TranslationModelState(), Width: measure(locales.TranslationModelInUse(), locales.TranslationUseModel()), Fixed: true, Align: ui.Center},
+			{Title: locales.TranslationModelState(), Width: measure(locales.TranslationModelInUse(), locales.TranslationUseModel(), locales.TranslationModelUnused()), Fixed: true, Align: ui.Center},
 		}, len(models), func(i, col int) {
 			info := models[i]
 			switch col {
@@ -329,12 +327,19 @@ func (a *NativeApp) providerModelsView(c *ui.Context) {
 				if input, output, window := providerModelLimits(&info); input > 0 || output > 0 || window > 0 {
 					tip += "\n" + locales.TranslationModelLimits(strconv.Itoa(input), strconv.Itoa(output), strconv.Itoa(window))
 				}
-				ui.Text(c, info.ID).SingleLine().Tooltip(tip)
+				label := ui.Text(c, info.ID).SingleLine().Tooltip(tip)
+				if !p.KeepsModel(info.ID) {
+					label.TextColor(c.Theme().TextMuted)
+				}
 			case 2:
 				if a.settings.ProviderModel == info.ID {
-					ui.Badge(c, locales.TranslationModelInUse())
+					ui.Text(c, locales.TranslationModelInUse())
 				} else {
-					ui.Button(c, locales.TranslationUseModel()).Padding(em(c, 2), em(c, 8)).
+					label := locales.TranslationUseModel()
+					if !p.KeepsModel(info.ID) {
+						label = locales.TranslationModelUnused()
+					}
+					ui.Button(c, label).Padding(em(c, 2), em(c, 8)).Disabled(!p.KeepsModel(info.ID)).
 						Label(locales.TranslationUseModelNamed(info.ID)).OnClick(func() { a.useProviderModel(info.ID) })
 				}
 			}

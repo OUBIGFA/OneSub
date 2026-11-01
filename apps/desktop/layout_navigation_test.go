@@ -137,7 +137,13 @@ func navigationCues(count int) []subtitle.Cue {
 func TestSubtitleScrollButtonsPreserveState(t *testing.T) {
 	for _, track := range []int{0, 1} {
 		t.Run(fmt.Sprint(track), func(t *testing.T) {
-			a := storeApp(t, navigationCues(150)...)
+			cues := navigationCues(150)
+			if track == 1 {
+				for i := range cues {
+					cues[i].Translated, cues[i].TranslationSource = true, cues[i].Text
+				}
+			}
+			a := storeApp(t, cues...)
 			a.subtitleTab, a.selected, a.activeCue = track, 30, 30
 			a.position, a.paused = 30.2, true
 			a.loadDraft()
@@ -200,7 +206,7 @@ func TestSubtitleNavigationUsesFilteredLongList(t *testing.T) {
 	}
 }
 
-func TestSubtitleNavigationButtonsFitAndStayFixed(t *testing.T) {
+func TestSubtitleNavigationButtonsCenteredAndStayFixed(t *testing.T) {
 	for language, labels := range map[string][]string{"zh-Hans": {"返回顶部", "返回底部"}, "en": {"Back to top", "Go to bottom"}} {
 		for _, width := range []int{320, 640} {
 			for _, scale := range []float32{1, 1.5, 2} {
@@ -218,13 +224,16 @@ func TestSubtitleNavigationButtonsFitAndStayFixed(t *testing.T) {
 						before := make([]ui.Rect, len(labels))
 						for i, label := range labels {
 							r, ok := tt.Find(label)
-							if !ok || r.W < 32*scale-1 || r.H < 32*scale-1 || r.X < list.X+list.W/2 || r.X+r.W > list.X+list.W || r.Y < list.Y || r.Y+r.H > list.Y+list.H {
+							if !ok || r.W < 32*scale-1 || r.H < 32*scale-1 || r.X < list.X+list.W || r.X+r.W > float32(width) || r.Y < list.Y || r.Y+r.H > list.Y+list.H {
 								t.Fatal("floating button outside list or too small", label, r, list)
 							}
 							before[i] = r
 						}
 						if before[0].Y+before[0].H > before[1].Y || before[0].X != before[1].X {
 							t.Fatal("floating buttons are not a vertical group", before)
+						}
+						if math.Abs(float64((before[0].Y+before[1].Y+before[1].H)/2-list.Y-list.H/2)) > 1 {
+							t.Fatal("floating buttons are not vertically centered in the list", before, list)
 						}
 						if err := tt.Click(labels[1]); err != nil {
 							t.Fatal(err)
@@ -234,6 +243,15 @@ func TestSubtitleNavigationButtonsFitAndStayFixed(t *testing.T) {
 							if after, _ := tt.Find(label); after != before[i] {
 								t.Fatal("floating button moved with list rows", label, before[i], after)
 							}
+						}
+						// Resizing the viewport must recenter the group, not retain
+						// a fixed vertical offset from the previous layout.
+						tt.SetSize(width, 1000)
+						list, _ = tt.Find(locales.A11ySubtitleList())
+						top, _ := tt.Find(labels[0])
+						bottom, _ := tt.Find(labels[1])
+						if math.Abs(float64((top.Y+bottom.Y+bottom.H)/2-list.Y-list.H/2)) > 1 {
+							t.Fatal("floating buttons did not recenter after resizing", top, bottom, list)
 						}
 					})
 				})
@@ -251,6 +269,12 @@ func TestTranslationProgressNavigation(t *testing.T) {
 	l := a.translationLive
 	l.units, l.latest, l.stage = navigationCues(120), 75, "translate"
 	tt := settled(a.subtitlesView, 700, 650)
+	list, _ := tt.Find(locales.TranslationLive())
+	top, _ := tt.Find(locales.ListTop())
+	bottom, _ := tt.Find(locales.ListBottom())
+	if math.Abs(float64((top.Y+bottom.Y+bottom.H)/2-list.Y-list.H/2)) > 1 {
+		t.Fatal("live translation navigation is not vertically centered", top, bottom, list)
+	}
 	if err := tt.Click("返回顶部"); err != nil {
 		t.Fatal(err)
 	}

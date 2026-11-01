@@ -35,14 +35,13 @@ func (a *NativeApp) playerSurface(c *ui.Context) {
 	area := ui.Column(c).Grow(1).MinHeight(0).Center().Clip().Background(ui.RGB(0, 0, 0)).Label(locales.A11yPlayerSurface())
 	area.Children(func() {
 		if a.player != nil {
-			room := area.Bounds()
-			last := ui.Local(area, "viewport-room", func() ui.Rect { return ui.Rect{} })
-			if *last != room {
-				*last = room
-				c.After(0) // settle a changed native viewport before the next player poll
+			aspect := a.frameAspect
+			if !(aspect > 0) || math.IsInf(aspect, 0) {
+				aspect = 16.0 / 9
 			}
-			w, h := fitVideoViewport(room.W, room.H, a.frameAspect)
-			ui.WebView(c.Key("player-webview"), a.player).Size(w, h).Shrink(0).AlignSelf(ui.Center).Label(locales.A11yPlayerViewport())
+			// Native containment resolves both the WebView placement and its
+			// hole from this frame, not the previous frame's Bounds().
+			ui.WebView(c.Key("player-webview"), a.player).Fill().MinHeight(0).AspectRatio(float32(aspect)).Fit(ui.Contain).Label(locales.A11yPlayerViewport())
 		}
 		// Controls and task progress overlay the fixed media area; they do
 		// not become children that contribute intrinsic height to the WebView.
@@ -59,15 +58,6 @@ func (a *NativeApp) playerSurface(c *ui.Context) {
 	})
 }
 
-// Contain without changing the source's display aspect (including SAR).
-func fitVideoViewport(width, height float32, aspect float64) (float32, float32) {
-	if aspect <= 0 || math.IsNaN(aspect) || math.IsInf(aspect, 0) {
-		aspect = 16.0 / 9
-	}
-	w := min(max(0, width), max(0, height)*float32(aspect))
-	return w, w / float32(aspect)
-}
-
 // Keep transport, time, speed and volume on one row below the seek bar so
 // the picture gets the remaining height. Narrow panes wrap complete groups
 // without squeezing controls or time labels. Times use tabular digits.
@@ -77,6 +67,11 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 		value := a.position
 		ui.Slider(c, &value, 0, math.Max(a.duration, .001)).Label(locales.PlayerPosition()).Disabled(disabled).OnChange(func() { a.evalPlayer(fmt.Sprintf("video.currentTime = %f", value)) })
 		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Justify(ui.SpaceBetween).Children(func() {
+			ui.Row(c).Gap(em(c, 6)).AlignItems(ui.Center).Shrink(0).Children(func() {
+				ui.Text(c, stamp(a.position)).FontSize(em(c, captionSize)).FontFeatures("tnum").SingleLine()
+				muted(c, "/").SingleLine()
+				muted(c, stamp(a.duration)).FontSize(em(c, captionSize)).FontFeatures("tnum").SingleLine()
+			})
 			ui.Toolbar(c, func() {
 				toolIcon(c, locales.PlayerStart(), "skip-back").Disabled(disabled).OnClick(a.seekStart)
 				toolIcon(c, locales.PlayerBack(), "rewind").Disabled(disabled).OnClick(func() { a.seekBy(-15) })
@@ -87,11 +82,6 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 				toolIcon(c, label, name).Size(em(c, 42), em(c, 42)).Background(c.Theme().Background).Border(1, c.Theme().Border).Tooltip(locales.PlayerSpaceShortcut()).Disabled(disabled).OnClick(a.togglePlayback)
 				toolIcon(c, locales.PlayerForward(), "fast-forward").Disabled(disabled).OnClick(func() { a.seekBy(15) })
 			}).Gap(em(c, 4)).Padding(0).AlignItems(ui.Center).Shrink(0)
-			ui.Row(c).Gap(em(c, 6)).AlignItems(ui.Center).Shrink(0).Children(func() {
-				ui.Text(c, stamp(a.position)).FontSize(em(c, captionSize)).FontFeatures("tnum").SingleLine()
-				muted(c, "/").SingleLine()
-				muted(c, stamp(a.duration)).FontSize(em(c, captionSize)).FontFeatures("tnum").SingleLine()
-			})
 			ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
 				ui.Toolbar(c, func() {
 					ui.MenuButton(c, rateLabel(a.playbackRate()), func(m *ui.Menu) {

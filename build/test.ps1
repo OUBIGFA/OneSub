@@ -37,9 +37,9 @@ try {
         # Message accessors are generated from locales/*.json and not tracked.
         & go run github.com/egoist/mygo/cmd/mygo generate
         if ($LASTEXITCODE -ne 0) { throw 'Message catalog generation failed' }
-        & go test github.com/egoist/mygo/internal/windows -run TestOneSubPopup -count=1
-        if ($LASTEXITCODE -ne 0) { throw 'MyGo menu metric tests failed' }
-        & go test github.com/egoist/mygo/ui -run TestOneSub -count=1
+        & go test github.com/egoist/mygo/internal/windows -run 'TestOneSub(Popup|NativeSurface)' -count=1
+        if ($LASTEXITCODE -ne 0) { throw 'MyGo native Windows tests failed' }
+        & go test github.com/egoist/mygo/ui -run 'Test(OneSub|WebView)' -count=1
         if ($LASTEXITCODE -ne 0) { throw 'MyGo input and scrolling tests failed' }
         & go test @Packages -count=1
         if ($LASTEXITCODE -ne 0) { throw 'Go tests failed' }

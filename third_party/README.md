@@ -4,6 +4,8 @@
 
 当前安装器仅用于本地测试。`manifests/runtimes.json` 明确记录尚未补齐的传递许可、对应源码材料、签名与干净机器验收；这些门禁未过前不对外发布。JASSUB 的包装层 MIT 不代表其 WASM 只有 MIT 许可。
 
+文件名分级关联直接调用 MIT 的 `agnivade/levenshtein v1.2.1` 计算 Unicode 编辑距离，规范化与语言代码解析复用既有 `golang.org/x/text`。精确修订、模块／下载校验、许可与测试专用依赖见 [文件名匹配清单](manifests/filename-matching.json)。不复制上游算法，不采用 Subtitle Edit 按首个文件返回或任意截短名称的匹配实现。
+
 实际翻译协议与分段流程参考的 VideoCaptioner、SmartSub 固定修订、源码位置和适配边界见 [组件复用核查第 7 节](../docs/research/implementation-reuse.md#7-翻译协议容错与分段参考)。它们不是新增运行时依赖；完整字幕技能快照仍为质量规则来源。
 
 界面层级参考 Impeccable 的公开设计说明，仅作为阅读证据，不复制或分发该项目技能与代码，见 [界面规范](../docs/ui-design.md)。浅色主题直接复用 WinOne 固定修订的颜色值，来源、许可副本、哈希与有限适配边界见 [WinOne 配色登记](ports/winone/README.md)；没有引入其控件、绘制代码或运行时。

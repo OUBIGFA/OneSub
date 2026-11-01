@@ -18,6 +18,13 @@
     "modifications": "none",
     "transitive": "pinned in apps/desktop/go.sum"
   },
+  "filenameMatching": {
+    "module": "github.com/agnivade/levenshtein",
+    "version": "v1.2.1",
+    "manifest": "third_party/manifests/filename-matching.json",
+    "license": "third_party/licenses/levenshtein.txt",
+    "normalizationLicense": "third_party/licenses/golang-x-text.txt"
+  },
   "libse": {
     "revision": "e316223ca1cfe8861acb4da4cd0e4ef5cce634f9",
     "license": "third_party/licenses/libse.txt"

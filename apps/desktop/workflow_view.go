@@ -21,7 +21,7 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 		ui.Divider(c)
 		ui.Column(c).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 12)).Shrink(0).Children(func() {
 			if a.workflowTab == 0 {
-				ui.Segmented(c, &a.recognitionMode, locales.RecognitionCurrentFile(), locales.RecognitionFileQueue()).Label(locales.RecognitionTarget())
+				ui.Segmented(c, &a.recognitionMode, locales.RecognitionCurrentFile(), locales.RecognitionFileQueue()).AlignSelf(ui.Center).Label(locales.RecognitionTarget())
 				hasMedia := a.snapshot != nil && a.snapshot.Manifest.MediaPath != ""
 				if a.recognitionMode == 1 {
 					startButton(c, locales.BatchStart(), "audio-lines", a.busy || a.pendingBatchCount() == 0, a.startBatchRecognition)

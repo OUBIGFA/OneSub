@@ -353,3 +353,42 @@
  		}
  	}
  	v := &window{
+--- a/internal/windows/surface.go
++++ b/internal/windows/surface.go
+@@ -214,10 +214,10 @@
+ 	return platform.SurfaceNative{HWND: s.hwnd, Composed: s.viaComposition()}
+ }
+ 
+-// viaComposition reports whether the frames show through
+-// DirectComposition: in a window without a redirection bitmap, and over
+-// web views.
+-func (s *surface) viaComposition() bool { return s.w.noRedirect || s.layer != nil }
++// Native UI uses composition from its first frame. A previous HWND flip
++// swap chain can leave its last opaque frame in the window's redirection
++// surface after release; later web-view holes would expose that old UI.
++func (s *surface) viaComposition() bool { return true }
+ 
+ // ShowsMaterial reports whether the window shows its material behind the
+ // content: it has one, no redirection bitmap to cover it, and DWM draws
+--- a/internal/windows/menudraw_test.go
++++ b/internal/windows/menudraw_test.go
+@@ -36,3 +36,19 @@
+ 		t.Errorf("blend with none = %#x, want the background", got)
+ 	}
+ }
++
++// A real native surface must request a composition swap chain before any
++// web view exists. Creating an HWND flip chain first leaves an old UI plane.
++func TestOneSubNativeSurfaceStartsComposed(t *testing.T) {
++	runtime.LockOSThread()
++	defer runtime.UnlockOSThread()
++	hwnd, _, _ := procCreateWindowExW.Call(0, uintptr(unsafe.Pointer(u16("STATIC"))), 0, wsPopup, 0, 0, 320, 180, 0, 0, 0, 0)
++	if hwnd == 0 {
++		t.Fatal("native test window unavailable")
++	}
++	defer procDestroyWindow.Call(hwnd)
++	s := &surface{w: &window{}, hwnd: hwnd}
++	if !s.Native().Composed {
++		t.Fatal("first UI frame would create an HWND swap chain before the media layer")
++	}
++}

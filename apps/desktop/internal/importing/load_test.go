@@ -31,14 +31,34 @@ func TestRealImportPairAndBrokenCompanions(t *testing.T) {
 	if err := os.WriteFile(sub, []byte("1\n00:00:00,100 --> 00:00:00,900\n自制测试字幕\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{video, sub} {
-		selection, err := Discover([]string{path})
-		if err != nil {
-			t.Fatal(err)
+	for _, names := range [][2]string{
+		{"课程 01.mp4", "课程 01.srt"},
+		{"课程 01.mp4", "课程 01-zh.srt"},
+		{"Blender Material Editing.mp4", "Blnder Material Editing.srt"},
+		{"Introduction to Blender Materials.mp4", "Blender Materials.srt"},
+	} {
+		nextVideo, nextSub := filepath.Join(root, names[0]), filepath.Join(root, names[1])
+		if nextVideo != video {
+			if err := os.Rename(video, nextVideo); err != nil {
+				t.Fatal(err)
+			}
+			video = nextVideo
 		}
-		got, err := Load(context.Background(), selection, worker, probe)
-		if err != nil || len(got.Document.Cues) != 1 || !got.Media.HasVideo() || len(got.Warnings) != 0 {
-			t.Fatalf("pair: %+v %v", got, err)
+		if nextSub != sub {
+			if err := os.Rename(sub, nextSub); err != nil {
+				t.Fatal(err)
+			}
+			sub = nextSub
+		}
+		for _, path := range []string{video, sub} {
+			selection, err := Discover([]string{path})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := Load(context.Background(), selection, worker, probe)
+			if err != nil || len(got.Document.Cues) != 1 || !got.Media.HasVideo() || len(got.Warnings) != 0 || got.Selection.Match == nil {
+				t.Fatalf("validated weighted pair: %+v %v", got, err)
+			}
 		}
 	}
 	if err := os.WriteFile(video, []byte("broken media"), 0600); err != nil {
@@ -46,7 +66,7 @@ func TestRealImportPairAndBrokenCompanions(t *testing.T) {
 	}
 	selection, _ := Discover([]string{sub})
 	got, err := Load(context.Background(), selection, worker, probe)
-	if err != nil || len(got.Document.Cues) != 1 || got.Selection.Media != "" || len(got.Warnings) != 1 {
+	if err != nil || len(got.Document.Cues) != 1 || got.Selection.Media != "" || got.Selection.Match != nil || len(got.Warnings) != 1 {
 		t.Fatalf("primary lost: %+v %v", got, err)
 	}
 	if err := os.WriteFile(sub, []byte("broken subtitle"), 0600); err != nil {
@@ -58,7 +78,7 @@ func TestRealImportPairAndBrokenCompanions(t *testing.T) {
 	}
 	selection, _ = Discover([]string{video})
 	got, err = Load(context.Background(), selection, worker, probe)
-	if err != nil || !got.Media.HasVideo() || got.Selection.Subtitle != "" || len(got.Warnings) != 1 {
+	if err != nil || !got.Media.HasVideo() || got.Selection.Subtitle != "" || got.Selection.Match != nil || len(got.Warnings) != 1 {
 		t.Fatalf("media lost: %+v %v", got, err)
 	}
 }

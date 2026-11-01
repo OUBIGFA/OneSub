@@ -3,11 +3,13 @@ module github.com/OUBIGFA/OneSub/apps/desktop
 go 1.27.3
 
 require (
+	github.com/agnivade/levenshtein v1.2.1
 	github.com/egoist/mygo v0.6.5-0.20261026090713-558e498142b0
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	golang.org/x/image v0.46.0
 	golang.org/x/sys v0.49.0
+	golang.org/x/text v0.43.0
 	modernc.org/sqlite v1.61.0
 )
 
@@ -25,7 +27,6 @@ require (
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	modernc.org/libc v1.79.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

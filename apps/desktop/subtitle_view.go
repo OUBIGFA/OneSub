@@ -64,44 +64,39 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			}
 		}, nil)
 		ui.Divider(c)
-		ui.Column(c).Padding(em(c, 12), em(c, 16)).Gap(em(c, 12)).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
-			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-				ui.Toolbar(c, func() {
-					a.subtitleActionsMenu(c)
-					toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
-				}).Padding(0).Shrink(0)
-				searchCues := a.activeDocument().Cues
-				if a.showsTranslationProgress() {
-					searchCues = a.translationLive.units
+		// One command row gives the table its height back. Native wrapping is
+		// only needed when a deliberately narrow pane cannot fit whole groups.
+		ui.Row(c).Padding(em(c, 12), em(c, 16)).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
+			ui.Toolbar(c, func() {
+				toolIcon(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
+				a.subtitleActionsMenu(c)
+				toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
+			}).Padding(0).Shrink(0)
+			searchCues := a.activeDocument().Cues
+			if a.showsTranslationProgress() {
+				searchCues = a.translationLive.units
+			}
+			searchLabel := subtitleSearchLabel(searchCues)
+			searchWidth, _ := c.MeasureText(0, ui.Span{Text: searchLabel})
+			if ui.SearchField(c, &a.query).Placeholder(searchLabel).Label(locales.ListSearch()).Tooltip(searchLabel).MinWidth(max(em(c, 140), searchWidth+c.Theme().Space(11))).Grow(1).Changed() {
+				a.list.StopScroll()
+				a.activeCue = -1
+				a.noteBrowse(c.Now())
+				if a.translationLive != nil {
+					a.translationLive.list.StopScroll()
+					a.translationLive.shown = -1
 				}
-				searchLabel := subtitleSearchLabel(searchCues)
-				searchWidth, _ := c.MeasureText(0, ui.Span{Text: searchLabel})
-				// Counts are UI labels, not user content: reserve the native icon,
-				// gaps and padding so even the largest track range remains whole.
-				if ui.SearchField(c, &a.query).Placeholder(searchLabel).Label(locales.ListSearch()).Tooltip(searchLabel).MinWidth(max(em(c, 140), searchWidth+c.Theme().Space(11))).Grow(1).Changed() {
-					a.list.StopScroll()
-					a.activeCue = -1
-					// A search is the user's own browsing of the list.
-					a.noteBrowse(c.Now())
-					if a.translationLive != nil {
-						a.translationLive.list.StopScroll()
-						a.translationLive.shown = -1
-					}
+			}
+			if a.translationCandidate != nil {
+				ui.Button(c, locales.TranslationResults()).OnClick(func() { a.translationReview = true })
+			}
+			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Children(func() {
+				unsaved := a.trackUnsaved(a.subtitleTab)
+				if unsaved {
+					ui.Badge(c, locales.ListUnsaved()).Background(studioColors(c).warningSoft).TextColor(c.Theme().Warning)
 				}
-			})
-			ui.Row(c).Gap(em(c, 12)).Wrap().AlignItems(ui.Center).Children(func() {
-				if a.translationCandidate != nil {
-					ui.Button(c, locales.TranslationResults()).OnClick(func() { a.translationReview = true })
-				}
-				ui.Spacer(c)
-				ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-					unsaved := a.trackUnsaved(a.subtitleTab)
-					if unsaved {
-						ui.Badge(c, locales.ListUnsaved()).Background(studioColors(c).warningSoft).TextColor(c.Theme().Warning)
-					}
-					iconButton(c, locales.ListSave(), "save").Disabled(a.busy || a.showsTranslationProgress() || a.snapshot == nil || !unsaved).OnClick(func() { a.saveTrack(a.subtitleTab, false) })
-					ui.Button(c, locales.ListSaveAs()).Disabled(a.busy || a.showsTranslationProgress() || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
-				})
+				iconButton(c, locales.ListSave(), "save").Disabled(a.busy || a.showsTranslationProgress() || a.snapshot == nil || !unsaved).OnClick(func() { a.saveTrack(a.subtitleTab, false) })
+				ui.Button(c, locales.ListSaveAs()).Disabled(a.busy || a.showsTranslationProgress() || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
 			})
 		})
 		if a.showsTranslationProgress() {
@@ -109,7 +104,11 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			return
 		}
 		if !hasCues {
-			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.ListEmpty()) }).ContextMenu(func(m *ui.Menu) {
+			label := locales.ListEmpty()
+			if a.subtitleTab == 1 {
+				label = locales.ListRebuiltEmpty()
+			}
+			ui.Column(c).Grow(1).Center().Children(func() { muted(c, label) }).ContextMenu(func(m *ui.Menu) {
 				a.subtitleStructureMenu(m, -1)
 			})
 			return
@@ -151,7 +150,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 		for _, cue := range cues {
 			maximum = max(maximum, cue.Position+1)
 		}
-		cols := []ui.TableColumn{numberColumn(c, maximum), timeColumn(c, locales.ListColumnStart()), timeColumn(c, locales.ListColumnEnd()), {Title: locales.ListColumnText()}}
+		cols := []ui.TableColumn{numberColumn(c, maximum), timeColumn(c, locales.ListColumnStart()), timeColumn(c, locales.ListColumnEnd()), {Title: locales.ListColumnText(), Fixed: true}}
 		table := subtitleTable(c, &a.list, cols, len(rows), func(row, col int) {
 			index := rows[row]
 			cue := cues[index]
@@ -325,50 +324,44 @@ func (a *NativeApp) editorView(c *ui.Context) {
 		cue := a.activeDocument().Cues[a.selected]
 		readonly := cue.ReadOnly || a.busy
 		fixedTiming := readonly || a.snapshot.Document.Format == "ass" || a.snapshot.Document.Format == "ssa"
-		// A short panel scrolls rather than hide the text; a tall one gives
-		// the text box the room left.
-		scroll := ui.Scroll(c).Grow(1)
-		viewport := ui.Local(scroll, "editor-viewport", func() float32 { return 0 })
-		if height := scroll.Bounds().H; height != *viewport {
-			*viewport = height
-			c.After(0)
-		}
-		minimum := float32(340)
-		if a.subtitleTab == 1 {
-			minimum = 400
-		}
-		scroll.Children(func() {
-			ui.Column(c).Height(max(*viewport, em(c, minimum))).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 20)).Children(func() {
-				// Cue number and duration are peer metadata at opposite edges.
-				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Justify(ui.SpaceBetween).Children(func() {
-					muted(c, locales.EditorCueNumber(cue.Position+1)).FontFeatures("tnum").SingleLine().Shrink(0)
-					muted(c, locales.EditorSeconds(math.Max(0, a.end-a.start))).Label(locales.EditorDuration()).FontFeatures("tnum").SingleLine().Shrink(0)
-				})
-				parameterGrid(c, 160, 2, func() {
-					ui.Field(c, locales.EditorStart(), func() {
-						ui.NumberInput(c, &a.start, 0, 9007199254740, 0.001).Label(locales.EditorStart()).Disabled(fixedTiming).OnChange(func() { a.changed(c.Now()) })
-					})
-					ui.Field(c, locales.EditorEnd(), func() {
-						ui.NumberInput(c, &a.end, 0, 9007199254740, 0.001).Label(locales.EditorEnd()).Disabled(fixedTiming).OnChange(func() { a.changed(c.Now()) })
-					})
-				})
-				ui.Divider(c)
-				// The text speaks for itself; the name is for assistive technology.
-				if a.subtitleTab == 1 {
-					textTrack := a.editorTextTrack()
-					if ui.Tabs(c, &textTrack, locales.TabSource(), locales.TabTranslation()).AlignSelf(ui.Start).Changed() {
-						a.commitEdit(true)
-						a.editRebuiltSource = textTrack == 0
-						a.loadDraft()
+		// Allocate the remaining space in this frame, as the recognition
+		// queue does. TextArea owns scrolling; no Bounds feedback resizes it.
+		ui.Column(c).Grow(1).MinHeight(0).Padding(em(c, 12), em(c, panelPad)).Gap(em(c, 8)).Children(func() {
+			// Cue number and duration are peer metadata at opposite edges.
+			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Justify(ui.SpaceBetween).Shrink(0).Children(func() {
+				muted(c, locales.EditorCueNumber(cue.Position+1)).FontFeatures("tnum").SingleLine().Shrink(0)
+				muted(c, locales.EditorSeconds(math.Max(0, a.end-a.start))).Label(locales.EditorDuration()).FontFeatures("tnum").SingleLine().Shrink(0)
+			})
+			timeFocused, timeComposing := false, false
+			ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Justify(ui.Center).Shrink(0).Label(locales.EditorTiming()).Children(func() {
+				for i, field := range []struct {
+					label string
+					value *float64
+				}{{locales.EditorStart(), &a.start}, {locales.EditorEnd(), &a.end}} {
+					if i == 1 {
+						ui.Divider(c).Width(em(c, 16)).Height(1).AlignSelf(ui.Center)
 					}
-				}
-				area := ui.TextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(em(c, 104)).Padding(em(c, 16)).FontSize(em(c, 17)).ReadOnly(readonly).Label(locales.A11yCueText())
-				a.composing = area.Composing()
-				a.editing = area.Focused()
-				if area.Changed() {
-					a.changed(c.Now())
+					input := timecodeField(c.Key(cue.ID), field.label, field.value, .001, fixedTiming, func() { a.changed(c.Now()) })
+					timeFocused = timeFocused || input.Focused()
+					timeComposing = timeComposing || input.Composing()
 				}
 			})
+			ui.Divider(c)
+			// The text speaks for itself; the name is for assistive technology.
+			if a.subtitleTab == 1 {
+				textTrack := a.editorTextTrack()
+				if ui.Tabs(c, &textTrack, locales.TabSource(), locales.TabTranslation()).AlignSelf(ui.Start).Shrink(0).Changed() {
+					a.commitEdit(true)
+					a.editRebuiltSource = textTrack == 0
+					a.loadDraft()
+				}
+			}
+			area := ui.TextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(0).Padding(em(c, 12)).FontSize(em(c, 17)).ReadOnly(readonly).Label(locales.A11yCueText())
+			a.composing = area.Composing() || timeComposing
+			a.editing = area.Focused() || timeFocused
+			if area.Changed() {
+				a.changed(c.Now())
+			}
 		})
 	})
 }

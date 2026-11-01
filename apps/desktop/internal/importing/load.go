@@ -27,7 +27,7 @@ func Load(ctx context.Context, selection Selection, worker subtitle.Client, ffpr
 				return result, err
 			}
 			result.Warnings = append(result.Warnings, locales.WarnSiblingSubtitle(err.Error()))
-			result.Selection.Subtitle, result.Selection.Automatic = "", ""
+			result.Selection.Subtitle, result.Selection.Automatic, result.Selection.Match = "", "", nil
 		} else {
 			result.Document = doc
 		}
@@ -42,7 +42,7 @@ func Load(ctx context.Context, selection Selection, worker subtitle.Client, ffpr
 				return result, err
 			}
 			result.Warnings = append(result.Warnings, locales.WarnSiblingVideo(err.Error()))
-			result.Selection.Media, result.Selection.Automatic = "", ""
+			result.Selection.Media, result.Selection.Automatic, result.Selection.Match = "", "", nil
 		} else {
 			result.Media = info
 		}

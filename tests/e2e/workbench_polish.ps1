@@ -102,10 +102,10 @@ try {
  Click-UI '保存'
  for($i=0;$i -lt 100;$i++){if([IO.File]::ReadAllText($srt) -match '原文修改'){break};Start-Sleep -Milliseconds 100}
  if([IO.File]::ReadAllText($srt) -notmatch '原文修改'){throw 'Save did not replace the original subtitle'}
- # Source and translation are edited independently.
+ # No optimized result exists yet: the view stays empty rather than showing
+ # mirrored source cues as if a translation/optimization had already run.
  Select-Tab '优化字幕'
- Set-Text '字幕文字' 'Translated text'
- Start-Sleep -Milliseconds 1000
+ [void](Wait-UI '尚无优化字幕')
  Select-Tab '原始字幕'
  if((Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '原文修改'){throw 'Source and translation were mixed'}
  # Clearing with unsaved changes asks first; Cancel keeps everything.
@@ -165,7 +165,7 @@ try {
  if($reports.Count -ne 1){throw 'Validation report missing from recovery project'}
  Start-Sleep -Seconds 1
  & $ScreenshotTool $p.Id (Join-Path $workPath 'workbench.png')
- Write-Output 'PASS: single instance visible/minimized/tray; live edit and list save; independent source/translation; unsaved prompt on clearing; default tray and half-size secondary style; independent MCP page and equal settings; file dialog bounds; real composition/player progress'
+ Write-Output 'PASS: single instance visible/minimized/tray; live edit and list save; empty optimized track preserves source; unsaved prompt on clearing; default tray and half-size secondary style; independent MCP page and equal settings; file dialog bounds; real composition/player progress'
 } finally {
  # Only this test-owned process is terminated; no user instance is touched.
  $p.Refresh();if(-not $p.HasExited){$p.Kill();$p.WaitForExit()}

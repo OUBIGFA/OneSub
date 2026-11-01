@@ -51,8 +51,8 @@ func TestModelDropDownSwitchesOnBothSurfaces(t *testing.T) {
 					if err := tt.Click(locales.TranslationSwitchModel()); err != nil {
 						t.Fatal(err)
 					}
-					if !slices.Equal(tt.Menu(), []string{"model-a", "model-b", "model-c"}) {
-						t.Fatal("drop-down did not expose all choices", tt.Menu())
+					if !slices.Equal(tt.Menu(), []string{"model-a", "model-b"}) {
+						t.Fatal("drop-down exposed an unchecked model or lost an enabled one", tt.Menu())
 					}
 					if err := tt.ChooseMenuItem("model-b"); err != nil {
 						t.Fatal(err)

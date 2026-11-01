@@ -36,7 +36,7 @@ const (
 type ComposeOptions struct {
 	Source      string `json:"source"`
 	Destination string `json:"destination"`
-	Mode        string `json:"mode"`    // hard or soft
+	Mode        string `json:"mode"`    // hard, soft or compress (no added subtitles)
 	Quality     string `json:"quality"` // lossless, crf18, crf20 or crf23
 	Sample      bool   `json:"sample"`
 	Language    string `json:"language"`
@@ -125,7 +125,7 @@ func chaptersPreserved(source, output []Chapter, origin float64, sample bool) bo
 // streams are never dropped silently. Chapter metadata has its own mapping;
 // unsupported data streams still fail preflight. MP4 attachments require MKV.
 func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]string, error) {
-	if options.Mode != "hard" && options.Mode != "soft" {
+	if options.Mode != "hard" && options.Mode != "soft" && options.Mode != "compress" {
 		return nil, errors.New(locales.ErrComposeMode())
 	}
 	ext := strings.ToLower(filepath.Ext(options.Destination))
@@ -158,7 +158,7 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 	if len(mainVideo) != 1 {
 		return nil, errors.New(locales.ErrComposeMainVideo())
 	}
-	if options.Mode == "hard" && (mainVideo[0].ColorTransfer == "smpte2084" || mainVideo[0].ColorTransfer == "arib-std-b67") {
+	if options.Mode != "soft" && (mainVideo[0].ColorTransfer == "smpte2084" || mainVideo[0].ColorTransfer == "arib-std-b67") {
 		return nil, errors.New(locales.ErrComposeHdr())
 	}
 	if ext == ".mp4" && len(attachments) > 0 {
@@ -198,7 +198,9 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 		args = append(args, "-map", fmt.Sprintf("0:%d", s.Index))
 	}
 	args = append(args, "-map_metadata", "0", "-map_chapters", "0", "-c", "copy")
-	if options.Mode == "hard" {
+	if options.Mode != "soft" {
+		// Compression and burn-in share the same encoder and stream plan.
+		// Only burn-in adds the ASS filter; compression needs no subtitle or font.
 		// The CRF levels and even-dimension handling mirror SmartSub. QP 0 is
 		// x264's mathematically lossless mode: outside the burned subtitles the
 		// frames equal the decoded source, in its own chroma layout where x264
@@ -213,11 +215,17 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 		default:
 			return nil, errors.New(locales.ErrComposeQuality())
 		}
-		filter := "ass=render.ass:fontsdir=fonts"
-		if !strings.HasPrefix(pixelFormat, "yuv444") {
-			filter += ",crop=trunc(iw/2)*2:trunc(ih/2)*2:0:0"
+		filters := []string{}
+		if options.Mode == "hard" {
+			filters = append(filters, "ass=render.ass:fontsdir=fonts")
 		}
-		args = append(args, "-filter:v:0", filter, "-c:v:0", "libx264")
+		if !strings.HasPrefix(pixelFormat, "yuv444") {
+			filters = append(filters, "crop=trunc(iw/2)*2:trunc(ih/2)*2:0:0")
+		}
+		if len(filters) > 0 {
+			args = append(args, "-filter:v:0", strings.Join(filters, ","))
+		}
+		args = append(args, "-c:v:0", "libx264")
 		args = append(args, rate...)
 		args = append(args, "-preset", "medium", "-pix_fmt:v:0", pixelFormat, "-fps_mode:v:0", "passthrough")
 	} else {
@@ -233,7 +241,7 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 			}
 		}
 	}
-	if options.Mode == "hard" && ext == ".mp4" && len(subs) > 0 {
+	if options.Mode != "soft" && ext == ".mp4" && len(subs) > 0 {
 		args = append(args, "-c:s", "mov_text")
 	}
 	if ext == ".mp4" {
@@ -318,7 +326,7 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	} else if !os.IsNotExist(err) {
 		return report, err
 	}
-	if len(document.Report.MissingGlyphs) > 0 {
+	if options.Mode != "compress" && len(document.Report.MissingGlyphs) > 0 {
 		return report, errors.New(locales.ErrMissingGlyphs(strings.Join(document.Report.MissingGlyphs, " ")))
 	}
 	info, err := Probe(ctx, probe, options.Source)
@@ -336,41 +344,44 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 		return report, err
 	}
 	defer os.RemoveAll(scratch)
-	assPath := filepath.Join(scratch, "render.ass")
-	if err = os.WriteFile(assPath, []byte(document.ASS), 0600); err != nil {
-		return report, err
-	}
-	digest := sha256.Sum256([]byte(document.ASS))
-	report.ASSSHA256 = hex.EncodeToString(digest[:])
-	fontDir := filepath.Join(scratch, "fonts")
-	if err = os.Mkdir(fontDir, 0700); err != nil {
-		return report, err
-	}
-	for index, font := range document.Fonts {
-		actual, err := hashFile(ctx, font.Path)
-		if err != nil {
+	assPath := ""
+	if options.Mode != "compress" {
+		assPath = filepath.Join(scratch, "render.ass")
+		if err = os.WriteFile(assPath, []byte(document.ASS), 0600); err != nil {
 			return report, err
 		}
-		if actual != font.SHA256 {
-			return report, errors.New(locales.ErrFontChanged())
-		}
-		source, err := os.Open(font.Path)
-		if err != nil {
+		digest := sha256.Sum256([]byte(document.ASS))
+		report.ASSSHA256 = hex.EncodeToString(digest[:])
+		fontDir := filepath.Join(scratch, "fonts")
+		if err = os.Mkdir(fontDir, 0700); err != nil {
 			return report, err
 		}
-		target, err := os.OpenFile(filepath.Join(fontDir, fmt.Sprintf("font-%d%s", index, filepath.Ext(font.Path))), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
-		if err != nil {
+		for index, font := range document.Fonts {
+			actual, err := hashFile(ctx, font.Path)
+			if err != nil {
+				return report, err
+			}
+			if actual != font.SHA256 {
+				return report, errors.New(locales.ErrFontChanged())
+			}
+			source, err := os.Open(font.Path)
+			if err != nil {
+				return report, err
+			}
+			target, err := os.OpenFile(filepath.Join(fontDir, fmt.Sprintf("font-%d%s", index, filepath.Ext(font.Path))), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+			if err != nil {
+				source.Close()
+				return report, err
+			}
+			_, copyErr := io.Copy(target, source)
 			source.Close()
-			return report, err
-		}
-		_, copyErr := io.Copy(target, source)
-		source.Close()
-		closeErr := target.Close()
-		if copyErr != nil {
-			return report, copyErr
-		}
-		if closeErr != nil {
-			return report, closeErr
+			closeErr := target.Close()
+			if copyErr != nil {
+				return report, copyErr
+			}
+			if closeErr != nil {
+				return report, closeErr
+			}
 		}
 	}
 	temporary, err := os.CreateTemp(filepath.Dir(options.Destination), ".onesub-*.partial"+filepath.Ext(options.Destination))

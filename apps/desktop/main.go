@@ -114,6 +114,8 @@ type NativeApp struct {
 	exportLines                              string // all, upper or lower; export-only projection
 	quitAfterTask                            bool
 	composeOpen                              bool
+	compressOpen                             bool
+	compressRunning                          bool
 	composeRunning                           bool
 	recognitionRunning                       bool
 	recognitionStarted                       time.Time
@@ -204,6 +206,7 @@ func (a *NativeApp) view(c *ui.Context) {
 	a.candidatesView(c)
 	a.exportView(c)
 	a.composeView(c)
+	a.compressView(c)
 	a.translationView(c)
 	a.providerDeleteView(c)
 	a.savePromptView(c)
@@ -288,7 +291,7 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 	// Keep the central label and every action reachable at minimum width;
 	// secondary commands use their native icon buttons with full tooltips.
 	command := func(label, name string) ui.Element {
-		if width < em(c, 1100) {
+		if width < em(c, 1400) {
 			return toolIcon(c, label, name)
 		}
 		return iconButton(c, label, name)
@@ -307,6 +310,7 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 					toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
 				}).Padding(0)
 				command(locales.MenuExportSubtitles(), "file-down").Disabled(a.busy || a.snapshot == nil || len(a.snapshot.Document.Cues) == 0).OnClick(a.requestExport)
+				command(locales.ActionCompress(), "file-down").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(func() { a.compressOpen = true })
 				command(locales.ActionCompose(), "clapperboard").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" || len(a.snapshot.Document.Cues) == 0).OnClick(a.compose)
 			})
 		})
@@ -375,7 +379,7 @@ func (a *NativeApp) run(label string, work func(context.Context) (func(), error)
 		cancel()
 		a.win.Update(func() {
 			a.busy = false
-			a.composeRunning = false
+			a.composeRunning, a.compressRunning = false, false
 			a.recognitionRunning = false
 			if a.translationRunning && err != nil && a.translationLive != nil {
 				a.translationLive.stopped = err.Error()
@@ -431,7 +435,32 @@ func (a *NativeApp) importFiles(ctx context.Context, paths []string, wordEvidenc
 	if err != nil {
 		return nil, err
 	}
-	loaded, err := importing.Load(ctx, selection, a.worker, a.probe)
+	// A ranked match or ambiguous candidates take precedence. Only a
+	// standalone subtitle without either uses the current workbench's media.
+	if selection.Subtitle != "" && selection.Media == "" && len(selection.Candidates) == 0 && a.snapshot != nil {
+		selection.Media = a.snapshot.Manifest.MediaPath
+	}
+	currentSubtitle := false
+	if selection.Automatic == "subtitle" && a.snapshot != nil {
+		current := a.snapshot.Manifest.SubtitlePath
+		currentSubtitle = selection.Subtitle == current
+		if !currentSubtitle && current != "" {
+			chosen, chosenErr := os.Stat(selection.Subtitle)
+			existing, existingErr := os.Stat(current)
+			currentSubtitle = chosenErr == nil && existingErr == nil && os.SameFile(chosen, existing)
+		}
+	}
+	keepProject := selection.Media != "" && len(selection.Candidates) == 0 && (selection.Subtitle == "" || currentSubtitle) && a.store != nil && a.snapshot != nil && (len(a.snapshot.TrackDocument(0).Cues) > 0 || len(a.snapshot.Document.Cues) > 0)
+	toLoad := selection
+	if keepProject {
+		// An automatic name match may point back to the already edited source.
+		// Probe only the incoming media; rereading that file would lose edits.
+		toLoad.Subtitle, toLoad.Automatic, toLoad.Match = "", "", nil
+	}
+	loaded, err := importing.Load(ctx, toLoad, a.worker, a.probe)
+	if keepProject {
+		loaded.Selection = selection
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -444,6 +473,31 @@ func (a *NativeApp) importFiles(ctx context.Context, paths []string, wordEvidenc
 			loaded.Document = attached
 			loaded.Warnings = append(loaded.Warnings, wordWarnings...)
 		}
+	}
+	if keepProject {
+		// The complementary video changes only the association. Rereading
+		// the original subtitle here would discard edits and translations.
+		if err = a.store.SetMedia(loaded.Selection.Media); err != nil {
+			return nil, err
+		}
+		state, err := a.store.Snapshot()
+		if err != nil {
+			return nil, err
+		}
+		url, previewErr := a.preview.Register(loaded.Selection.Media)
+		return func() {
+			a.setSnapshot(state)
+			a.loadDraft()
+			a.pending, a.candidatesOpen = &loaded, false
+			a.mediaURL = url
+			a.duration, a.frameAspect = float64(loaded.Media.DurationMs())/1000, loaded.Media.FrameAspect()
+			a.position, a.activeCue, a.paused = 0, -1, true
+			a.loadVideo()
+			a.showImportResult(loaded)
+			if previewErr != nil {
+				a.showError("player", previewErr.Error())
+			}
+		}, nil
 	}
 	name := selection.Subtitle
 	if name == "" {
@@ -478,11 +532,20 @@ func (a *NativeApp) importFiles(ctx context.Context, paths []string, wordEvidenc
 		a.candidatesOpen = len(selection.Candidates) > 0
 		a.duration = float64(loaded.Media.DurationMs()) / 1000
 		a.frameAspect = loaded.Media.FrameAspect()
-		a.showError("import", strings.Join(loaded.Warnings, locales.ListSeparator()))
+		a.showImportResult(loaded)
 		if previewErr != nil {
 			a.showError("player", previewErr.Error())
 		}
 	}, nil
+}
+
+// An automatic score is announced only after both the primary and companion
+// have loaded. Failed matching keeps the existing scoped error visible.
+func (a *NativeApp) showImportResult(loaded importing.Loaded) {
+	a.showError("import", strings.Join(loaded.Warnings, locales.ListSeparator()))
+	if len(loaded.Warnings) == 0 && loaded.Selection.Match != nil {
+		a.status = locales.StatusAssociated(filepath.Base(loaded.Selection.Match.Path), loaded.Selection.Match.Score)
+	}
 }
 
 // replaceProject switches the workbench to another project. The subtitle
@@ -493,6 +556,9 @@ func (a *NativeApp) replaceProject(next *project.Store, state project.Snapshot, 
 	}
 	a.store = next
 	a.subtitleTab = 0
+	// A newly imported subtitle is directly usable, including a standalone
+	// translated file. Do not inherit a missing bilingual/translation track.
+	a.settings.SubtitleOutput.Mode, a.settings.SubtitleOutput.SourceTrack = "source", "original"
 	a.selected = 0
 	a.translationCandidate = nil
 	a.translationLive, a.translationTask = nil, nil
@@ -514,16 +580,29 @@ func (a *NativeApp) candidatesView(c *ui.Context) {
 		ui.Scroll(c).Grow(1).Children(func() {
 			if a.pending != nil {
 				for _, candidate := range a.pending.Selection.Candidates {
-					path := candidate
-					ui.Button(c, filepath.Base(path)).Tooltip(path).Padding(em(c, 12), em(c, 16)).OnClick(func() {
-						a.candidatesOpen = false
-						paths := []string{path}
-						if a.pending.Selection.CandidateKind == "subtitle" {
-							paths = append(paths, a.pending.Selection.Media)
-						} else {
-							paths = append(paths, a.pending.Selection.Subtitle)
-						}
-						a.importPaths(paths)
+					path := candidate.Path
+					rule := locales.CandidatesSimilar()
+					switch candidate.Reason {
+					case "exact":
+						rule = locales.CandidatesExact()
+					case "normalized":
+						rule = locales.CandidatesNormalized()
+					case "language":
+						rule = locales.CandidatesLanguage()
+					}
+					score := locales.CandidatesScore(candidate.Score)
+					ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+						ui.Button(c, filepath.Base(path)).Grow(1).MinWidth(0).Tooltip(path+"\n"+score+" · "+rule).Padding(em(c, 12), em(c, 16)).OnClick(func() {
+							a.candidatesOpen = false
+							paths := []string{path}
+							if a.pending.Selection.CandidateKind == "subtitle" {
+								paths = append(paths, a.pending.Selection.Media)
+							} else {
+								paths = append(paths, a.pending.Selection.Subtitle)
+							}
+							a.importPaths(paths)
+						})
+						muted(c, score).SingleLine().FontFeatures("tnum").Shrink(0)
 					})
 				}
 			}

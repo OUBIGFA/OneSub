@@ -47,10 +47,10 @@ func TestExplicitPairWinsAndDuplicatesAreIgnored(t *testing.T) {
 	}
 }
 
-func TestNoCrossDirectoryOrLanguageSuffixAutoPair(t *testing.T) {
+func TestLanguageSuffixPairAndNoCrossDirectory(t *testing.T) {
 	p := files(t, "lesson.mp4", "lesson.zh-CN.srt", "less.srt")
 	got, err := Discover(p[:1])
-	if err != nil || got.Media != p[0] || got.Subtitle != "" {
+	if err != nil || got.Media != p[0] || got.Subtitle != p[1] || got.Automatic != "subtitle" {
 		t.Fatalf("suffix: %+v, %v", got, err)
 	}
 	q := files(t, "lesson.srt")

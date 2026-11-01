@@ -75,7 +75,9 @@ func TestTranslationExportDefaultsToSingleLanguage(t *testing.T) {
 	if !a.exportOpen || a.settings.SubtitleOutput.Mode != "translation" || a.settings.SubtitleOutput.SourceTrack != "" || a.exportLines != "all" {
 		t.Fatal("export inherited bilingual or extracted-line preferences", a.settings.SubtitleOutput, a.exportLines)
 	}
-	manual := draftApp(t)
+	// A source-only optimized segment can receive its first translation.
+	// A raw source track no longer masquerades as an optimized result.
+	manual := storeApp(t, subtitle.Cue{ID: "rebuilt", Text: "Rebuilt source", OriginalText: "Rebuilt source", SourceCueIDs: []string{"source"}, EndMs: 2000})
 	manual.subtitleTab = 1
 	manual.loadDraft()
 	manual.draft = "First manually edited translation"

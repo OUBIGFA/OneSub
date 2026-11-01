@@ -114,8 +114,8 @@ func TestNativeRedesignSettingsNavigation(t *testing.T) {
 								}
 							}
 						}
-						// Both native navigation variants support Home/End, without
-						// putting focus into an invisible page or changing settings.
+						// The single sidebar supports Home/End without focusing an
+						// invisible page or changing preferences.
 						tt.Key(0, ui.KeyHome)
 						if a.settingsTab != 0 {
 							t.Fatal("Home did not select General")

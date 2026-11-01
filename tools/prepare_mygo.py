@@ -20,6 +20,7 @@ BASE_HASHES = {
     "ui/editor.go": "ca355433603a60456e3734af661ada751f2ec1d09f01b85cd03483d8c7897ba9",
     "ui/editor_layout.go": "9f8a8f7754fb260b54591f28ea0189185fd38755e4e66d14890a8f72b0c81fa9",
     "ui/list.go": "29438b0610a27eac698e614d932103318bface2550c2c867d9c13a7579e53289",
+    "ui/webview.go": "488de5ecde3b58828ad0cc7eea25bc50383fc56e94c53f179fb9bb5834155eb0",
     "ui/textinput.go": "2b7a1b59aa2b564140724614c37eb71b0b6f3f3fe3bfa2af5f326b6a7d572f1c",
 }
 
@@ -41,7 +42,7 @@ def mirror(source, output):
 def prepare():
     source = ROOT / ".local/gomodcache" / MODULE
     patches = [ROOT / "third_party/patches/mygo" / name for name in
-               ("windows-native.patch", "ui-interaction.patch")]
+               ("windows-native.patch", "ui-interaction.patch", "ui-layout.patch")]
     relative = ".local/mygo-menu-source"
     output = ROOT / relative
     for name, expected in BASE_HASHES.items():
@@ -55,7 +56,8 @@ def prepare():
         mirror(source, output)
         # Upstream files are reset by mirror. Reset this patch-added test too,
         # so a changed or interrupted patch can be applied again safely.
-        (output / "ui/onesub_interaction_test.go").unlink(missing_ok=True)
+        for name in ("onesub_interaction_test.go", "onesub_layout_test.go"):
+            (output / "ui" / name).unlink(missing_ok=True)
         for patch in patches:
             subprocess.run(
                 ["git", "apply", "--whitespace=nowarn", "--directory=" + relative, str(patch)],
