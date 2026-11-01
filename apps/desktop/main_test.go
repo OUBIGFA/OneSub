@@ -200,7 +200,9 @@ func TestLeavingCueCommitsOrRestores(t *testing.T) {
 	}
 }
 
-// Scrolling or focusing another input never disables playback following.
+// Playback follows the cue at the playhead, but a hand scroll keeps the
+// viewport where the reader left it. The follow takes the list back when the
+// reading is over, and the locate button takes it back at once.
 func TestPlaybackFollowsAfterManualScrollingAndFocusChange(t *testing.T) {
 	a := storeApp(t, navigationCues(160)...)
 	tt := settled(a.view, 1400, 900)
@@ -217,27 +219,50 @@ func TestPlaybackFollowsAfterManualScrollingAndFocusChange(t *testing.T) {
 	list, _ := tt.Find("字幕列表")
 	tt.Scroll(list.X+list.W/2, list.Y+list.H/2, 0, -600)
 	tt.Advance(time.Second)
+	// The wheel moved the list away from the playhead's cue; the follow
+	// must not pull it back while the reader browses.
+	first, last := a.list.Visible()
+	if a.selected != 80 && !centered(80) {
+		t.Fatal("manual scrolling lost the cue at the playhead", a.selected)
+	}
+	if a.selected == 80 && centered(80) {
+		t.Fatal("manual scrolling did not move the list away from the playhead", first, last)
+	}
 	if err := tt.Click("搜索"); err != nil {
 		t.Fatal(err)
 	}
 	a.position = 81.2
 	tt.Frame()
 	tt.Advance(time.Second)
-	if a.selected != 81 || !centered(81) {
-		t.Fatal("manual scrolling or lost focus disabled playback following", a.selected)
+	// The cue at the playhead is still chosen, and the list stayed put.
+	if a.selected != 81 {
+		t.Fatal("browsing stopped the cue at the playhead from being chosen", a.selected)
 	}
 	tt.Type("Subtitle")
 	if a.query != "Subtitle" {
 		t.Fatal("following stole focus from the search input", a.query)
 	}
-	if err := tt.Click("返回顶部"); err != nil {
-		t.Fatal(err)
-	}
-	a.position = 82.2
+	// The grace ends: the follow takes the list back, without a command.
+	tt.Advance(browseGrace + time.Second)
 	tt.Frame()
 	tt.Advance(time.Second)
-	if a.selected != 82 || !centered(82) {
-		t.Fatal("edge navigation disabled subsequent playback following", a.selected)
+	if a.selected != 81 {
+		t.Fatal("the follow did not resume after the reading", a.selected)
+	}
+	if !centered(81) {
+		first, last := a.list.Visible()
+		t.Fatal("the list did not come back to the cue at the playhead", first, last)
+	}
+	// The locate button takes the viewport back at once.
+	tt.Scroll(list.X+list.W/2, list.Y+list.H/2, 0, -600)
+	tt.Advance(time.Second)
+	if err := tt.Click("回到当前字幕"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	tt.Advance(time.Second)
+	if !centered(a.selected) {
+		t.Fatal("the locate button did not center the cue at the playhead", a.selected)
 	}
 	a.paused = true
 	if err := tt.Click("返回顶部"); err != nil {

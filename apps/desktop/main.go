@@ -99,6 +99,9 @@ type NativeApp struct {
 	prefsSaveDue                         time.Time
 	activeCue                            int
 	locateCue                            int     // a cue to center, or -1
+	browseUntil                          time.Time // until when the user's browsing keeps the viewport
+	followRow                            int     // the row the playback follow centered, or -1
+	followPending                        bool    // the follow owes the viewport a move back
 	frameAspect                          float64 // the video's display width / height
 	modelStates                          map[string]string
 	modelSelection                       string
@@ -858,6 +861,10 @@ func (a *NativeApp) syncPlayer() {
 			if a.paused && !result.Paused {
 				a.list.StopScroll()
 				a.activeCue = -1
+				// The browsing that kept the viewport is over: playback
+				// takes the list back.
+				a.browseUntil = time.Time{}
+				a.followRow, a.followPending = -1, false
 			}
 			a.position = result.Position
 			a.duration = result.Duration

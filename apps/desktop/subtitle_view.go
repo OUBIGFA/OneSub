@@ -20,6 +20,31 @@ const editCommitDelay = 600 * time.Millisecond
 // Reuse MyGo's native easing; no timers or row transforms in the workbench.
 var subtitleFollowAnimation = ui.Animation{Duration: 220 * time.Millisecond, Ease: ui.EaseOut}
 
+// browseGrace is how long the user's own browsing keeps the subtitle list
+// where they left it. The playback keeps choosing the cue at the playhead,
+// but the list does not move under the reader; after this pause the follow
+// takes the list back, so nothing stops following for good.
+const browseGrace = 4 * time.Second
+
+// noteBrowse says the user took the list somewhere themselves: the wheel, the
+// scroll bar, the first and last buttons, or the keys that move the choice.
+// The viewport stays theirs until the grace is over.
+func (a *NativeApp) noteBrowse(now time.Time) {
+	a.browseUntil = now.Add(browseGrace)
+}
+
+// browsing says the user's own browsing still holds the viewport.
+func (a *NativeApp) browsing(now time.Time) bool {
+	return !a.browseUntil.IsZero() && now.Before(a.browseUntil)
+}
+
+// resumeFollow gives the viewport back to the playback at once, as the
+// locate button and a new playback do.
+func (a *NativeApp) resumeFollow() {
+	a.browseUntil = time.Time{}
+	a.followRow, a.followPending = -1, false
+}
+
 func subtitleSearchLabel(cues []subtitle.Cue) string {
 	if len(cues) == 0 {
 		return locales.ListSearchRange(0, 0)
@@ -55,6 +80,8 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			if ui.SearchField(c, &a.query).Placeholder(searchLabel).Label(locales.ListSearch()).Tooltip(searchLabel).MinWidth(max(em(c, 140), searchWidth+c.Theme().Space(11))).Grow(1).Changed() {
 				a.list.StopScroll()
 				a.activeCue = -1
+				// A search is the user's own browsing of the list.
+				a.noteBrowse(c.Now())
 				if a.translationLive != nil {
 					a.translationLive.list.StopScroll()
 					a.translationLive.shown = -1
@@ -161,13 +188,24 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 				})
 			}
 		}, func(bool) {
-			// Navigation changes only the viewport. Playback follows the next
-			// active cue regardless of pointer scrolling or keyboard focus.
+			// Navigation changes only the viewport. The playback still
+			// chooses the cue at the playhead; the list stays where the
+			// reader put it until the grace is over.
+			a.noteBrowse(c.Now())
 			a.locateCue = -1
 		}).Label(locales.A11ySubtitleList()).ContextMenu(func(m *ui.Menu) {
 			// The blank list area and keyboard menu use the current selection.
 			a.list.Focus(c)
 			a.subtitleStructureMenu(m, a.selected)
+		})
+		// The wheel and the touchpad scroll the list by the user's own hand.
+		// The scroll still happens; the playback's follow waits for the
+		// reading to be over.
+		table.HandleInput(func(ev ui.InputEvent) bool {
+			if ev.Kind == ui.InputScroll && !a.paused {
+				a.noteBrowse(ev.Time)
+			}
+			return false
 		})
 		if (table.Changed() || table.Submitted()) && selected >= 0 && selected < len(rows) {
 			action := a.settings.SingleClickAction
@@ -179,25 +217,53 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 		if a.locateCue >= 0 {
 			if row := rowOf(a.locateCue); row >= 0 {
 				a.list.ScrollToAnimated(row, ui.Center, subtitleFollowAnimation)
+				a.followRow = row
 			}
 			a.locateCue = -1
 		}
-		// Playing always follows cue changes, including after a wheel or
-		// scrollbar gesture and while another control has focus. An active
-		// text edit keeps its selection without stopping viewport following.
+		// Dragging the scroll bar moves the followed row out of view, which
+		// the wheel's notches do too. The rows in view are those of the last
+		// frame, so this comes before this frame asks to scroll.
+		if !a.paused && a.followRow >= 0 {
+			if first, last := a.list.Visible(); last >= first && (a.followRow < first || a.followRow > last) {
+				a.noteBrowse(c.Now())
+				a.followPending = true
+			}
+		}
+		// While the video plays the cue at the playhead is chosen; the list
+		// keeps it in the middle until the user scrolls away. Typing keeps
+		// the cue being edited.
 		if a.settings.FollowPlayback && !a.paused && !a.savePromptOpen {
 			active := cueAt(cues, a.position)
-			if active >= 0 && active != a.activeCue {
-				a.activeCue = active
-				if row := rowOf(active); row >= 0 {
+			if active >= 0 && (active != a.activeCue || a.followPending) {
+				if active != a.activeCue {
+					a.activeCue = active
 					if !a.editing && !a.composing {
 						a.commitEdit(true)
 						a.selected = active
 						a.loadDraft()
 					}
-					a.list.ScrollToAnimated(row, ui.Center, subtitleFollowAnimation)
+				}
+				if row := rowOf(active); row >= 0 {
+					// The user's own browsing keeps the viewport for a
+					// while: the cue at the playhead is still chosen, but
+					// the list is not pulled away from the reader. The
+					// grace ends and the follow takes it back.
+					if a.browsing(c.Now()) {
+						a.followPending = true
+						a.followRow = -1
+					} else {
+						a.list.ScrollToAnimated(row, ui.Center, subtitleFollowAnimation)
+						a.followPending = false
+						a.followRow = row
+					}
 				}
 			}
+		}
+		// The grace ends on its own: the frame that follows takes the list
+		// back to the cue at the playhead.
+		if a.browsing(c.Now()) {
+			c.After(a.browseUntil.Sub(c.Now()))
 		}
 	})
 }
@@ -217,6 +283,7 @@ func (a *NativeApp) locateCurrent() {
 		a.query = ""
 	}
 	a.list.StopScroll()
+	a.resumeFollow()
 	a.activeCue = index
 	if !a.editing && !a.composing && index != a.selected {
 		a.commitEdit(true)
@@ -412,5 +479,10 @@ func (a *NativeApp) selectSubtitle(index int, action string) {
 	a.commitEdit(true)
 	a.selected = index
 	a.loadDraft()
+	// A cue chosen to seek to is where the playback goes on: the follow
+	// takes the list back to it.
+	if action != "none" && action != "" {
+		a.resumeFollow()
+	}
 	a.seekSubtitle(action)
 }
