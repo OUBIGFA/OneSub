@@ -1,6 +1,6 @@
 <div align="center">
 
-![OneSub Logo](apps/desktop/branding/logo.png)
+<img src="apps/desktop/branding/logo.png" width="160" alt="OneSub Logo">
 
 # OneSub
 
