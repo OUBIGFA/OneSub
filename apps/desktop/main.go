@@ -115,6 +115,11 @@ type NativeApp struct {
 	recognitionRunning                   bool
 	recognitionStarted                   time.Time
 	recognitionStep                      recognitionStep
+	batchItems                           []batchItem
+	batchDone                            int
+	batchRunning                         bool
+	batchCancel                          context.CancelFunc
+	batchList                            ui.ListState
 	translationRunning                   bool
 	translationLive                      *translationLive // what the running translation has shown
 	translationTask                      *translationTask
@@ -140,6 +145,7 @@ type NativeApp struct {
 	openOnReady                          []string
 	providerKey, keyStatus               string
 	providerModels                       []string
+	modelList                           ui.ListState
 	modelsEndpoint, modelsError          string
 	modelsLoading                        bool
 	modelsGeneration                     uint64
@@ -328,6 +334,9 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 		}
 		if a.busy && a.cancel != nil && !a.choosingFile && !a.composeRunning && !a.recognitionRunning && !a.translationRunning {
 			ui.Button(c, locales.ActionCancelTask()).Padding(em(c, 2), em(c, 10)).OnClick(func() { a.cancel() })
+		}
+		if a.batchRunning && a.batchCancel != nil {
+			ui.Button(c, locales.ActionCancelTask()).Padding(em(c, 2), em(c, 10)).OnClick(func() { a.batchCancel() })
 		}
 		if a.lastOutput != "" && !a.busy {
 			ui.Button(c, locales.ResultOpenFolder()).Padding(em(c, 2), em(c, 10)).OnClick(func() {
@@ -741,6 +750,7 @@ func main() {
 	if prefsErr != nil {
 		a.showError("settings", locales.ErrSettingsUnreadable())
 	}
+	a.restoreBatchSources()
 	if configured := os.Getenv("ONESUB_SUBTITLE_WORKER"); configured != "" {
 		a.worker.Executable = configured
 	}

@@ -15,21 +15,24 @@ import (
 func (a *NativeApp) workflowPanel(c *ui.Context) {
 	ui.Column(c).Fill().Label(locales.WorkflowTitle()).Children(func() {
 		panelHeader(c, nil, func() {
-			ui.Tabs(c, &a.workflowTab, locales.WorkflowRecognize(), locales.WorkflowTranslate()).Label(locales.WorkflowTitle())
+			ui.Tabs(c, &a.workflowTab, locales.WorkflowRecognize(), locales.WorkflowTranslate(), locales.BatchRecognition()).Label(locales.WorkflowTitle())
 		}, nil)
 		ui.Divider(c)
 		ui.Scroll(c).Grow(1).TrackScroll(&a.workflowScroll).Children(func() {
 			ui.Grid(c).Columns(1).Padding(em(c, 12), em(c, panelPad)).Children(func() {
-				for tab := 0; tab < 2; tab++ {
+				for tab := 0; tab < 3; tab++ {
 					page := ui.Column(c.Key(tab)).RowStart(1).ColumnStart(1).Gap(em(c, 20)).AlignSelf(ui.Start)
 					if tab != a.workflowTab {
 						page.Invisible()
 					}
 					page.Children(func() {
-						if tab == 0 {
+						switch tab {
+						case 0:
 							a.recognizeTab(c)
-						} else {
+						case 1:
 							a.translateTab(c)
+						default:
+							a.batchTab(c)
 						}
 					})
 				}
@@ -93,6 +96,12 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 	})
 }
 
+// batchTab is the recognition queue: many files transcribed one after
+// another, each with its subtitles written beside it.
+func (a *NativeApp) batchTab(c *ui.Context) {
+	a.batchRecognitionView(c)
+}
+
 // line preserves each field as a group: related controls stay together, and
 // only whole groups wrap when a pane cannot fit another one on the same row.
 func line(c *ui.Context, fields func()) ui.Element {
@@ -122,26 +131,17 @@ func folderField(c *ui.Context, dir, fallback string, busy bool, choose, reset f
 
 func (a *NativeApp) translateTab(c *ui.Context) {
 	hasCues := a.snapshot != nil && len(a.snapshot.Document.Cues) > 0
-	// Keep the defining option beside the start action in the visual hierarchy,
-	// not among secondary output fields. Field supplies the native switch name
-	// and makes its caption clickable, without a second accessible group label.
-	ui.Column(c).Gap(em(c, 8)).Children(func() {
-		startButton(c, locales.WorkflowStartTranslate(), "languages", a.busy || !hasCues, a.translate)
-		// The full-width caption connects the option to the resulting track;
-		// a Form field description would wrap under the narrow switch column.
-		hint := locales.TranslationOptimizeTimelineHint(locales.TabRebuilt())
-		ui.Column(c).Gap(em(c, 6)).Padding(em(c, 8), em(c, 12)).Radius(c.Theme().Radius).Background(c.Theme().Surface).Border(1, c.Theme().Accent).Children(func() {
-			ui.Form(c, func() {
-				ui.Field(c, locales.TranslationOptimizeTimeline(), func() {
-					ui.Switch(c, &a.settings.OptimizeTimeline).Description(hint).Disabled(a.busy).OnChange(a.saveSettings)
-				})
-			}).FontWeight(600)
-			muted(c, hint)
-		})
-		if !hasCues {
-			muted(c, locales.WorkflowNeedsSubtitles())
-		}
-	})
+	startButton(c, locales.WorkflowStartTranslate(), "languages", a.busy || !hasCues, a.translate)
+	if !hasCues {
+		muted(c, locales.WorkflowNeedsSubtitles())
+	}
+	// The rebuild is the translation's defining option, so it sits with the
+	// start action: a native form row names it, the switch turns it on, and
+	// the field's own description says which track it produces.
+	hint := locales.TranslationOptimizeTimelineHint(locales.TabRebuilt())
+	ui.Field(c, locales.TranslationOptimizeTimeline(), func() {
+		ui.Switch(c, &a.settings.OptimizeTimeline).Disabled(a.busy).OnChange(a.saveSettings)
+	}).Description(hint).AlignSelf(ui.Start)
 	if a.translationProfiles == nil {
 		a.reloadTranslationProfiles()
 	}

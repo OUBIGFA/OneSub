@@ -9,6 +9,11 @@ import (
 
 // Provider owns its model catalog and last selection. Secrets remain in the
 // Windows credential store, scoped to this identity and the exact endpoint.
+//
+// Models are the ones the user keeps for this provider: several may be kept
+// at once, and any of them may be the one in use. Catalog is what the
+// endpoint offered when it was last asked: the list the user keeps models
+// from. A model kept by hand, with its own limits, stays kept.
 type Provider struct {
 	ID        string                 `json:"id"`
 	Name      string                 `json:"name"`
@@ -16,7 +21,43 @@ type Provider struct {
 	API       string                 `json:"api"`
 	Model     string                 `json:"model"`
 	Models    []translator.ModelInfo `json:"models,omitempty"`
+	Catalog   []translator.ModelInfo `json:"catalog,omitempty"`
 	LegacyKey bool                   `json:"legacyKey,omitempty"`
+}
+
+// KeepsModel reports whether the model is kept for this provider.
+func (p *Provider) KeepsModel(id string) bool {
+	for _, m := range p.Models {
+		if m.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// KeepModel keeps a model, with the limits the endpoint advertises for it,
+// without touching the limits the user entered by hand.
+func (p *Provider) KeepModel(info translator.ModelInfo) {
+	for i, m := range p.Models {
+		if m.ID != info.ID {
+			continue
+		}
+		if m.LimitsSource != "manual" {
+			p.Models[i] = info
+		}
+		return
+	}
+	p.Models = append(p.Models, info)
+}
+
+// DropModel takes a model out of the kept ones.
+func (p *Provider) DropModel(id string) {
+	for i, m := range p.Models {
+		if m.ID == id {
+			p.Models = append(p.Models[:i], p.Models[i+1:]...)
+			return
+		}
+	}
 }
 
 func (s *Settings) Provider() *Provider {
@@ -44,6 +85,26 @@ func (s *Settings) restoreProviders() {
 	}
 	if p != nil {
 		s.ProviderURL, s.ProviderAPI, s.ProviderModel = p.URL, p.API, p.Model
+		// Settings written before the offered models were kept apart from
+		// the kept ones: the offered list becomes the catalog, and only the
+		// model in use stays kept, with the limits it had.
+		if len(p.Catalog) == 0 && len(p.Models) > 0 {
+			p.Catalog = append([]translator.ModelInfo{}, p.Models...)
+			kept := translator.ModelInfo{}
+			for _, m := range p.Models {
+				if m.ID == p.Model {
+					kept = m
+					break
+				}
+			}
+			p.Models = nil
+			if p.Model != "" {
+				if kept.ID == "" {
+					kept.ID = p.Model
+				}
+				p.Models = append(p.Models, kept)
+			}
+		}
 	}
 	s.SyncProvider()
 }

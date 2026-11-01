@@ -90,6 +90,9 @@ type Settings struct {
 	// except the marks in KeepPunctuation, in ASCII or full width.
 	StripPunctuation bool   `json:"stripPunctuation"`
 	KeepPunctuation  string `json:"keepPunctuation"`
+	// BatchSources are the media files waiting in the recognition queue.
+	// The queue survives a restart, so a long list of files is not lost.
+	BatchSources []string `json:"batchSources,omitempty"`
 }
 
 // version is that of the settings written now. Version 1 had full volume
