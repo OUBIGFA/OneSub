@@ -119,29 +119,26 @@ func (a *NativeApp) refreshAfterStructure(index int) {
 }
 
 func (a *NativeApp) insertSubtitleView(c *ui.Context) {
-	ui.Modal(c, &a.insertOpen, func() {
-		ui.Column(c).Width(em(c, 520)).Height(em(c, 360)).Gap(em(c, 12)).Children(func() {
-			dialogTitle(c, locales.SubtitleInsertTitle())
-			step := 0.001
-			if format := a.activeDocument().Format; format == "ass" || format == "ssa" {
-				step = 0.01
-			}
-			line(c, func() {
-				ui.Field(c, locales.EditorStart(), func() { ui.NumberInput(c, &a.insertStart, 0, 9007199254740, step).Label(locales.EditorStart()) })
-				ui.Field(c, locales.EditorEnd(), func() { ui.NumberInput(c, &a.insertEnd, 0, 9007199254740, step).Label(locales.EditorEnd()) })
-			})
-			ui.Field(c, locales.TabSource(), func() { ui.TextArea(c, &a.insertSource).Height(em(c, 66)).Label(locales.TabSource()).AutoFocus() })
-			translation := ui.Field(c, locales.SubtitleTranslationOptional(), func() {
-				ui.TextArea(c, &a.insertTranslation).Height(em(c, 66)).Label(locales.SubtitleTranslationOptional())
-			})
-			if a.subtitleTab == 0 {
-				translation.Invisible()
-			}
-			ui.Spacer(c)
-			ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Children(func() {
-				ui.Button(c, locales.ActionCancel()).OnClick(func() { a.insertOpen = false })
-				ui.PrimaryButton(c, locales.SubtitleInsertConfirm()).Disabled(strings.TrimSpace(a.insertSource) == "" || a.insertEnd <= a.insertStart).OnClick(a.insertSubtitle)
-			})
+	fixedDialog(c, &a.insertOpen, locales.SubtitleInsertTitle(), 600, 480, func() {
+		step := 0.001
+		if format := a.activeDocument().Format; format == "ass" || format == "ssa" {
+			step = 0.01
+		}
+		ui.Grid(c).Columns(2).Gap(em(c, 24)).Children(func() {
+			ui.Field(c, locales.EditorStart(), func() { ui.NumberInput(c, &a.insertStart, 0, 9007199254740, step).Label(locales.EditorStart()) })
+			ui.Field(c, locales.EditorEnd(), func() { ui.NumberInput(c, &a.insertEnd, 0, 9007199254740, step).Label(locales.EditorEnd()) })
 		})
+		ui.Field(c, locales.TabSource(), func() {
+			ui.TextArea(c, &a.insertSource).Height(em(c, 80)).Padding(em(c, 12)).Label(locales.TabSource()).AutoFocus()
+		})
+		translation := ui.Field(c, locales.SubtitleTranslationOptional(), func() {
+			ui.TextArea(c, &a.insertTranslation).Height(em(c, 80)).Padding(em(c, 12)).Label(locales.SubtitleTranslationOptional())
+		})
+		if a.subtitleTab == 0 {
+			translation.Invisible()
+		}
+	}, func() {
+		ui.Button(c, locales.ActionCancel()).OnClick(func() { a.insertOpen = false })
+		ui.PrimaryButton(c, locales.SubtitleInsertConfirm()).Disabled(strings.TrimSpace(a.insertSource) == "" || a.insertEnd <= a.insertStart).OnClick(a.insertSubtitle)
 	})
 }

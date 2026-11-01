@@ -103,8 +103,8 @@ func TestPlaybackSpeed(t *testing.T) {
 	}
 	speed, _ := tt.Find("播放速度")
 	forward, _ := tt.Find("前进 15 秒")
-	if speed.X <= forward.X || speed.Y+speed.H/2-(forward.Y+forward.H/2) > 1 || forward.Y+forward.H/2-(speed.Y+speed.H/2) > 1 {
-		t.Fatal("speed not beside the transport", speed, forward)
+	if delta := speed.Y + speed.H/2 - forward.Y - forward.H/2; delta < -1 || delta > 1 {
+		t.Fatal("playback options do not share the transport row", speed, forward)
 	}
 }
 
@@ -122,20 +122,21 @@ func TestPaneSizesAreRemembered(t *testing.T) {
 	}
 }
 
-// The cue being edited is named on the editor's first line, in its middle,
-// not in the header.
+// Cue number and duration share the editor's first line, with mirrored insets.
 func TestEditorNamesTheCueOnItsFirstLine(t *testing.T) {
 	a := withStyleCatalog(t)
-	tt := settled(a.view, 1600, 1000)
+	tt := settled(a.editorView, 800, 600)
 	title, _ := tt.Find("字幕编辑")
 	number, ok := tt.Find("序号 1")
 	duration, _ := tt.Find("时长")
 	editor, _ := tt.Find("字幕编辑面板")
-	if !ok || number.Y <= title.Y || number.Y >= duration.Y {
-		t.Fatal("cue number not between header and timing", title, number, duration)
+	start, _ := tt.Find("开始")
+	if !ok || number.Y <= title.Y || number.Y >= start.Y || duration.Y != number.Y {
+		t.Fatal("cue context and timing are not distinct", title, number, duration, start)
 	}
-	if delta := number.X + number.W/2 - editor.X - editor.W/2; delta < -1 || delta > 1 {
-		t.Fatal("cue number not centered", number, editor)
+	leftInset, rightInset := number.X-editor.X, editor.X+editor.W-duration.X-duration.W
+	if delta := leftInset - rightInset; delta < -1 || delta > 1 || number.X >= duration.X {
+		t.Fatal("cue number and duration are not mirrored", number, duration, editor)
 	}
 }
 
@@ -190,6 +191,7 @@ func TestDefaultStyleHasNoShadow(t *testing.T) {
 	if a.styleCatalog.DefaultStyle.Shadow != 0 || a.styleCatalog.DefaultStyle.BackOpacity != 0 {
 		t.Fatal(a.styleCatalog.DefaultStyle)
 	}
+	a.styleTab = 1
 	tt := settled(a.view, 1600, 1000)
 	panel, _ := tt.Find("字幕样式面板")
 	box, _ := tt.Find("背景框")

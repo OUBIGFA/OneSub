@@ -114,7 +114,7 @@ func TestLongProviderFieldsRemainEditable(t *testing.T) {
 		inLocale(t, language, func() {
 			a := nativeForTest(t)
 			a.addProvider()
-			a.settingsOpen, a.settingsTab = true, 2
+			a.settingsOpen, a.settingsTab, a.providerSettingsTab = true, 2, 1
 			address := "https://example.com/" + strings.Repeat("long-segment/", 20) + "v1"
 			a.settings.ProviderURL = address
 			a.settings.ProviderModel = strings.Repeat("model-", 30)
@@ -128,11 +128,18 @@ func TestLongProviderFieldsRemainEditable(t *testing.T) {
 			if a.settings.ProviderURL != address+"/edited" {
 				t.Fatal("hidden endpoint text was lost", a.settings.ProviderURL)
 			}
+			if err := tt.Click(locales.TranslationModels()); err != nil {
+				t.Fatal(err)
+			}
+			for range 4 {
+				tt.Frame()
+			}
 			if err := tt.Click(locales.TranslationModel()); err != nil {
 				t.Fatal(err)
 			}
 			tt.Key(0, ui.KeyEnd)
 			tt.Type("tail")
+			tt.Key(0, ui.KeyEnter)
 			prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
 			if err != nil || prefs.ProviderURL != address+"/edited" || prefs.ProviderModel != strings.Repeat("model-", 30)+"tail" {
 				t.Fatal("full fields were not saved", err)
@@ -141,7 +148,7 @@ func TestLongProviderFieldsRemainEditable(t *testing.T) {
 	}
 }
 
-func TestTimelineFeatureSwitchIsProminentAndNative(t *testing.T) {
+func TestTimelineFeatureToggleIsProminentAndNative(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		for _, width := range []int{320, 500, 900} {
 			for _, scale := range []float32{1, 1.5, 2} {
@@ -150,19 +157,23 @@ func TestTimelineFeatureSwitchIsProminentAndNative(t *testing.T) {
 						a := nativeForTest(t)
 						a.workflowTab = 1
 						w := int(float32(width) * scale)
-						tt := settled(a.workflowPanel, w, int(850*scale))
+						tt := settled(func(c *ui.Context) {
+							theme, _ := studioTheme(c.Theme(), c.Preferences().HighContrast)
+							c.SetTheme(&theme)
+							a.workflowPanel(c)
+						}, w, int(850*scale))
 						tt.SetPreferences(ui.Preferences{TextScale: scale})
 						feature, ok := tt.Find(locales.TranslationOptimizeTimeline())
 						start, _ := tt.Find(locales.WorkflowStartTranslate())
 						service, _ := tt.Find(locales.WorkflowAIService())
-						if !ok || feature.X < 0 || feature.X+feature.W > float32(w) || feature.Y <= start.Y || feature.Y+feature.H >= service.Y {
+						if !ok || feature.X < 0 || feature.X+feature.W > float32(w) || feature.W < float32(w)*0.85 || feature.H < 80*scale || feature.Y <= start.Y || feature.Y+feature.H >= service.Y {
 							t.Fatal("feature is not prominently before secondary parameters", feature, start, service)
 						}
 						// The output track name is visible beside the choice, in either
 						// state, rather than hidden in a tooltip or changed by a toggle.
 						hintLabel := locales.TranslationOptimizeTimelineHint(locales.TabRebuilt())
 						hint, found := tt.Find(hintLabel)
-						if !found || hint.W <= 0 || hint.H <= 0 || hint.X < 0 || hint.X+hint.W > float32(w) || hint.Y < feature.Y+feature.H || hint.Y+hint.H >= service.Y {
+						if !found || hint.W <= 0 || hint.H <= 0 || hint.X < feature.X || hint.X+hint.W > feature.X+feature.W || hint.Y < feature.Y || hint.Y+hint.H > feature.Y+feature.H {
 							t.Fatal("result explanation is missing or clipped", hint, feature, service)
 						}
 						before := a.settings.OptimizeTimeline
@@ -174,11 +185,11 @@ func TestTimelineFeatureSwitchIsProminentAndNative(t *testing.T) {
 						}
 						tt.Key(0, ui.KeySpace)
 						if a.settings.OptimizeTimeline != before {
-							t.Fatal("native switch keyboard action failed")
+							t.Fatal("native toggle keyboard action failed")
 						}
 						prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
 						if err != nil || prefs.OptimizeTimeline != before {
-							t.Fatal("switch not remembered", err)
+							t.Fatal("toggle not remembered", err)
 						}
 						a.busy = true
 						tt.Frame()

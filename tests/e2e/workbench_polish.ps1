@@ -138,9 +138,9 @@ try {
  $before=Rect
  $paneBefore=(Wait-UI '视频播放区').Current.BoundingRectangle
  Click-UI '添加文件'
- # The deliberately unsaved edits above must pass the application's guard
- # before the file dialog can open. Cancelling that dialog retains the work.
- Click-UI '不保存';$d=Wait-Dialog
+ # Selection decides whether this is a queue addition or a replacement.
+ # Cancelling the picker cannot replace subtitles and must not ask to discard.
+ $d=Wait-Dialog
  $paneDuring=(Wait-UI '视频播放区').Current.BoundingRectangle
  if($paneBefore -ne $paneDuring){throw "File dialog changed internal layout: $paneBefore -> $paneDuring"}
  $during=Rect

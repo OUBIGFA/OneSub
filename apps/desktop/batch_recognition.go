@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -15,8 +16,8 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// batchStatus is where a file in the recognition queue is: waiting, at
-// work, done, or failed.
+// A queue item owns only its source and result. Recognition options belong to
+// the shared settings, never to a second batch-only configuration.
 type batchStatus string
 
 const (
@@ -27,8 +28,6 @@ const (
 	batchCancelled batchStatus = "cancelled"
 )
 
-// batchItem is one file in the recognition queue: the media to transcribe,
-// where it is, and what came of it.
 type batchItem struct {
 	Source string
 	Status batchStatus
@@ -37,58 +36,65 @@ type batchItem struct {
 	Error  string
 }
 
-// batchRecognitionView is the recognition queue: the files to transcribe,
-// each with its state, and the controls that start or stop the work. It is
-// one of the workbench's own pages, beside the single-file recognition, not
-// a separate window.
+// The queue is an input target inside speech recognition. Its list is also a
+// native drop target, so one or many files can be added without opening a
+// separate page or replacing the current workbench's media and subtitles.
 func (a *NativeApp) batchRecognitionView(c *ui.Context) {
-	parameterGroup(c, locales.BatchQueue(), nil, func() {
-		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
-			ui.Button(c, locales.BatchAddFiles()).Disabled(a.batchRunning).OnClick(a.addBatchFiles)
-			ui.Button(c, locales.BatchRemove()).Disabled(a.batchRunning || len(a.batchItems) == 0).OnClick(a.clearBatchFiles)
-			ui.Button(c, locales.BatchStart()).Disabled(a.busy || a.batchRunning || len(a.batchItems) == 0).OnClick(a.startBatchRecognition)
-			if a.batchRunning {
-				ui.Button(c, locales.ActionCancelTask()).OnClick(func() {
-					if a.batchCancel != nil {
-						a.batchCancel()
-					}
-				})
-			}
-			if len(a.batchItems) > 0 {
-				muted(c, locales.BatchProgress(strconv.Itoa(a.batchDone), strconv.Itoa(len(a.batchItems)))).FontFeatures("tnum")
-			}
+	ui.Column(c).Grow(1).MinHeight(0).Padding(0, em(c, panelPad), em(c, 24), em(c, panelPad)).Gap(em(c, 8)).Children(func() {
+		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Shrink(0).Children(func() {
+			iconButton(c, locales.BatchAddFiles(), "folder-open").Disabled(a.busy).OnClick(a.addBatchFiles)
+			ui.Button(c, locales.BatchRemove()).Disabled(a.busy || len(a.batchItems) == 0).OnClick(a.clearBatchFiles)
+			ui.Spacer(c)
+			done, failed := a.batchCounts()
+			muted(c, locales.BatchProgress(strconv.Itoa(done+failed), strconv.Itoa(len(a.batchItems)))).FontFeatures("tnum").SingleLine()
 		})
-		if len(a.batchItems) == 0 {
-			muted(c, locales.BatchEmpty()).FontSize(em(c, captionSize))
-			return
+		area := ui.Column(c).Grow(1).MinHeight(0).Background(studioColors(c).panel).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Clip().Label(locales.BatchDropArea())
+		if area.FileDragOver() && !a.busy {
+			area.BorderColor(c.Theme().Accent).Background(c.Theme().SurfaceHover)
 		}
-		a.batchList.Key = func(i int) any { return a.batchItems[i].Source }
-		ui.List(c, &a.batchList, len(a.batchItems), func(i int) {
-			item := a.batchItems[i]
-			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Padding(em(c, 4), em(c, 6)).Children(func() {
-				ui.Text(c, filepath.Base(item.Source)).SingleLine().Tooltip(item.Source).Grow(1)
-				state := muted(c, batchStateLabel(item)).SingleLine().Tooltip(item.Error)
-				switch item.Status {
-				case batchFailed:
-					state.TextColor(c.Theme().Danger)
-				case batchDone:
-					state.TextColor(c.Theme().Success)
-				case batchRunning:
-					state.TextColor(c.Theme().Accent)
-				}
-				if item.Stage != "" {
-					muted(c, item.Stage).SingleLine().FontSize(em(c, captionSize))
-				}
-			})
-		}).Grow(1).MaxHeight(em(c, 320)).Label(locales.A11yBatchList())
+		area.Children(func() {
+			if len(a.batchItems) == 0 {
+				ui.Column(c).Fill().Center().Padding(em(c, 12)).Children(func() {
+					muted(c, locales.BatchEmpty()).TextAlign(ui.Center)
+				})
+				return
+			}
+			a.batchList.Key = func(i int) any { return a.batchItems[i].Source }
+			a.batchList.Label = func(i int) string {
+				return filepath.Base(a.batchItems[i].Source) + " " + batchStateLabel(a.batchItems[i])
+			}
+			ui.List(c, &a.batchList, len(a.batchItems), func(i int) {
+				item := a.batchItems[i]
+				ui.Column(c).Gap(em(c, 4)).Padding(em(c, 6), em(c, 10)).Children(func() {
+					ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+						ui.Text(c, filepath.Base(item.Source)).SingleLine().Tooltip(item.Source).Grow(1).MinWidth(0)
+						toolIcon(c, locales.BatchRemoveFile(filepath.Base(item.Source)), "eraser").Disabled(a.busy).OnClick(func() { a.removeBatchFile(item.Source) })
+					})
+					ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
+						state := muted(c, batchStateLabel(item)).SingleLine().Tooltip(item.Error)
+						switch item.Status {
+						case batchFailed:
+							state.TextColor(c.Theme().Danger)
+						case batchDone:
+							state.TextColor(c.Theme().Success).Tooltip(item.Output)
+						case batchRunning:
+							state.TextColor(c.Theme().Accent)
+						}
+						if item.Stage != "" {
+							muted(c, item.Stage).FontSize(em(c, captionSize))
+						}
+					})
+				})
+			}).Fill().Dividers(1, c.Theme().Border).Label(locales.A11yBatchList())
+		})
+		if paths := area.DroppedFiles(); len(paths) > 0 && !a.busy {
+			a.queueBatchFiles(paths)
+		}
 	})
 }
 
-// batchStateLabel says where a file in the queue is, in the app's language.
 func batchStateLabel(item batchItem) string {
 	switch item.Status {
-	case batchWaiting:
-		return locales.BatchWaiting()
 	case batchRunning:
 		return locales.BatchRunning()
 	case batchDone:
@@ -97,14 +103,45 @@ func batchStateLabel(item batchItem) string {
 		return locales.BatchFailed()
 	case batchCancelled:
 		return locales.StatusCancelled()
+	default:
+		return locales.BatchWaiting()
 	}
-	return locales.BatchWaiting()
 }
 
-// addBatchFiles adds media files to the queue. The workbench's own files are
-// untouched: a batch writes its subtitles beside the media it transcribed.
+// acceptFiles is shared by native drops, file selection and launches. An
+// explicit media/subtitle pair retains the normal import/association flow.
+// Multiple media files instead become one queue, never successive overwrites.
+func (a *NativeApp) acceptFiles(paths []string) {
+	if a.busy || len(paths) == 0 {
+		return
+	}
+	if a.filesTargetQueue(paths) {
+		a.workflowTab, a.recognitionMode = 0, 1
+		a.workflowScroll.Y = 0
+		a.queueBatchFiles(paths)
+		return
+	}
+	a.importPaths(paths)
+}
+
+func (a *NativeApp) filesTargetQueue(paths []string) bool {
+	media := map[string]bool{}
+	for _, path := range paths {
+		kind := importing.Kind(path)
+		if kind != "video" && kind != "audio" {
+			return false
+		}
+		absolute, err := filepath.Abs(path)
+		if err != nil {
+			return false
+		}
+		media[strings.ToLower(absolute)] = true
+	}
+	return len(media) > 1 || (len(media) > 0 && a.workflowTab == 0 && a.recognitionMode == 1)
+}
+
 func (a *NativeApp) addBatchFiles() {
-	if a.busy || a.batchRunning {
+	if a.busy {
 		return
 	}
 	a.run(locales.BatchAddFiles(), func(ctx context.Context) (func(), error) {
@@ -116,51 +153,47 @@ func (a *NativeApp) addBatchFiles() {
 	})
 }
 
-// mediaExtensions are the files a batch can transcribe: the video and audio
-// formats the importer knows.
+// The same extension registry serves imports, drops and the media picker.
 func mediaExtensions() []string {
 	extensions := []string{}
 	for _, kind := range importing.Extensions {
-		if kind == "srt" || kind == "vtt" || kind == "ass" || kind == "ssa" {
-			continue
+		if kind != "srt" && kind != "vtt" && kind != "ass" && kind != "ssa" {
+			extensions = append(extensions, kind)
 		}
-		extensions = append(extensions, kind)
 	}
 	return extensions
 }
 
-// queueBatchFiles adds the media files not already in the queue. A file
-// already queued is not added twice.
 func (a *NativeApp) queueBatchFiles(paths []string) {
+	if a.busy {
+		return
+	}
+	added, rejected := 0, 0
 	for _, path := range paths {
 		absolute, err := filepath.Abs(path)
-		if err != nil {
-			continue
-		}
-		if importing.Kind(absolute) != "video" && importing.Kind(absolute) != "audio" {
+		if err != nil || (importing.Kind(absolute) != "video" && importing.Kind(absolute) != "audio") {
+			rejected++
 			continue
 		}
 		if info, err := os.Stat(absolute); err != nil || !info.Mode().IsRegular() {
+			rejected++
 			continue
 		}
-		known := false
-		for _, item := range a.batchItems {
-			if strings.EqualFold(item.Source, absolute) {
-				known = true
-				break
-			}
-		}
-		if known {
+		if slices.ContainsFunc(a.batchItems, func(item batchItem) bool { return strings.EqualFold(item.Source, absolute) }) {
 			continue
 		}
 		a.batchItems = append(a.batchItems, batchItem{Source: absolute, Status: batchWaiting})
+		added++
 	}
-	a.batchDone = 0
 	a.saveBatchSources()
+	a.status = locales.BatchAdded(added, len(a.batchItems))
+	if rejected > 0 {
+		a.showError("batch-input", locales.BatchFilesRejected(rejected))
+	} else {
+		a.clearError("batch-input")
+	}
 }
 
-// saveBatchSources keeps the queue in the settings, so a long list of files
-// survives a restart of the app.
 func (a *NativeApp) saveBatchSources() {
 	sources := make([]string, 0, len(a.batchItems))
 	for _, item := range a.batchItems {
@@ -170,119 +203,121 @@ func (a *NativeApp) saveBatchSources() {
 	a.saveSettings()
 }
 
-// restoreBatchSources brings the queue back after a restart. The files that
-// are gone are dropped; the rest wait again.
+// Restore only regular media files and use the same deduplication rules as a
+// drop. Restoring a queue never starts recognition.
 func (a *NativeApp) restoreBatchSources() {
-	for _, source := range a.settings.BatchSources {
-		if _, err := os.Stat(source); err != nil {
-			continue
-		}
-		a.batchItems = append(a.batchItems, batchItem{Source: source, Status: batchWaiting})
+	if len(a.settings.BatchSources) == 0 {
+		return
+	}
+	a.queueBatchFiles(a.settings.BatchSources)
+	if len(a.batchItems) > 0 {
+		a.recognitionMode = 1
 	}
 }
 
-// clearBatchFiles empties the queue. The subtitles already written stay.
 func (a *NativeApp) clearBatchFiles() {
-	if a.batchRunning {
+	if a.busy {
 		return
 	}
 	a.batchItems = nil
-	a.batchDone = 0
 	a.saveBatchSources()
 }
 
-// startBatchRecognition transcribes every file in the queue, one after
-// another. Each file's subtitles are written beside the media; a file that
-// fails does not stop the ones after it.
-func (a *NativeApp) startBatchRecognition() {
-	if a.busy || a.batchRunning || len(a.batchItems) == 0 {
+func (a *NativeApp) removeBatchFile(source string) {
+	if a.busy {
 		return
 	}
-	prefs, style, aspect := a.settings, a.currentStyle, a.frameAspect
-	t := a.toolset()
-	if _, _, err := t.recognitionModels(prefs); err != nil {
-		a.showError(locales.BatchRecognition(), err.Error())
-		a.status = locales.StatusFailed()
-		return
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	a.batchCancel = cancel
-	a.batchRunning = true
-	// The queue is a task of its own: the workbench's other tasks wait for
-	// it, as they wait for any other running task.
-	a.busy = true
-	a.status = locales.BatchRecognition()
-	items := append([]batchItem{}, a.batchItems...)
-	go func() {
-		done := 0
-		for i := range items {
-			if ctx.Err() != nil {
-				break
-			}
-			path, err := a.transcribeBatchFile(ctx, t, items[i].Source, prefs, style, aspect)
-			switch {
-			case ctx.Err() != nil:
-				a.updateBatchItem(i, func(item *batchItem) {
-					item.Status = batchCancelled
-					item.Stage = ""
-				})
-			case err != nil:
-				a.updateBatchItem(i, func(item *batchItem) {
-					item.Status = batchFailed
-					item.Error = err.Error()
-					item.Stage = ""
-				})
-			default:
-				done++
-				a.updateBatchItem(i, func(item *batchItem) {
-					item.Status = batchDone
-					item.Output = path
-					item.Stage = ""
-				})
-			}
-			a.batchUpdate(func() { a.batchDone = done })
-		}
-		a.batchUpdate(func() {
-			a.batchRunning = false
-			a.batchCancel = nil
-			a.batchDone = done
-			a.busy = false
-			if failed := a.batchFailures(); failed > 0 {
-				a.status = locales.BatchDoneWithFailures(strconv.Itoa(done), strconv.Itoa(len(a.batchItems)), strconv.Itoa(failed))
-				return
-			}
-			if ctx.Err() != nil {
-				a.status = locales.StatusCancelled()
-				return
-			}
-			a.status = locales.BatchDoneAll(strconv.Itoa(done))
-		})
-	}()
+	a.batchItems = slices.DeleteFunc(a.batchItems, func(item batchItem) bool { return item.Source == source })
+	a.saveBatchSources()
 }
 
-// batchFailures is how many files in the queue did not finish.
-func (a *NativeApp) batchFailures() int {
-	failed := 0
+func (a *NativeApp) pendingBatchCount() int {
+	done, _ := a.batchCounts()
+	return len(a.batchItems) - done
+}
+
+func (a *NativeApp) batchCounts() (done, failed int) {
 	for _, item := range a.batchItems {
-		if item.Status == batchFailed {
+		switch item.Status {
+		case batchDone:
+			done++
+		case batchFailed:
 			failed++
 		}
 	}
-	return failed
+	return
 }
 
-// updateBatchItem changes one file's state in the queue, on the UI thread.
-func (a *NativeApp) updateBatchItem(index int, change func(*batchItem)) {
-	a.batchUpdate(func() {
-		if index < 0 || index >= len(a.batchItems) {
-			return
+// A batch uses the normal task owner, including cancellation and "quit when
+// finished". The shared settings are frozen once for the entire queue. Copy
+// ModelPaths too: a shallow settings copy would let a later folder edit change
+// the models used by the remaining files.
+func (a *NativeApp) startBatchRecognition() {
+	if a.busy || a.pendingBatchCount() == 0 {
+		return
+	}
+	prefs, style, aspect := a.recognitionPreferences(), a.currentStyle, a.frameAspect
+	t := a.toolset()
+	if _, _, err := t.recognitionModels(prefs); err != nil {
+		if err.Error() == locales.ErrModelsNeeded() {
+			a.settingsOpen, a.settingsTab = true, 1
 		}
-		change(&a.batchItems[index])
+		a.showError(locales.BatchRecognition(), err.Error())
+		return
+	}
+	for i := range a.batchItems {
+		if a.batchItems[i].Status != batchDone {
+			a.batchItems[i].Status = batchWaiting
+			a.batchItems[i].Stage, a.batchItems[i].Error, a.batchItems[i].Output = "", "", ""
+		}
+	}
+	items := slices.Clone(a.batchItems)
+	a.run(locales.BatchRecognition(), func(ctx context.Context) (func(), error) {
+		for i, item := range items {
+			if ctx.Err() != nil {
+				break
+			}
+			// A retry processes only unfinished files, not successful outputs.
+			if item.Status == batchDone {
+				continue
+			}
+			a.updateBatchItem(i, func(item *batchItem) { item.Status = batchRunning })
+			path, err := a.transcribeBatchFile(ctx, t, item.Source, prefs, style, aspect)
+			// run releases its context before queued UI updates execute. Freeze
+			// cancellation now so cleanup cannot relabel a published file.
+			cancelled := ctx.Err() != nil
+			a.updateBatchItem(i, func(item *batchItem) {
+				item.Stage = ""
+				switch {
+				case cancelled:
+					item.Status = batchCancelled
+				case err != nil:
+					item.Status, item.Error = batchFailed, err.Error()
+				default:
+					item.Status, item.Output = batchDone, path
+					a.lastOutput = path
+				}
+			})
+		}
+		return func() {
+			done, failed := a.batchCounts()
+			if failed > 0 {
+				a.status = locales.BatchDoneWithFailures(strconv.Itoa(done), strconv.Itoa(failed), strconv.Itoa(len(a.batchItems)))
+			} else {
+				a.status = locales.BatchDoneAll(strconv.Itoa(done))
+			}
+		}, ctx.Err()
 	})
 }
 
-// batchUpdate runs a change to the queue on the UI thread. Without a window
-// there is no UI thread, and the change is applied as it comes.
+func (a *NativeApp) updateBatchItem(index int, change func(*batchItem)) {
+	a.batchUpdate(func() {
+		if index >= 0 && index < len(a.batchItems) {
+			change(&a.batchItems[index])
+		}
+	})
+}
+
 func (a *NativeApp) batchUpdate(change func()) {
 	if a.win == nil {
 		change()
@@ -291,9 +326,9 @@ func (a *NativeApp) batchUpdate(change func()) {
 	a.win.Update(change)
 }
 
-// transcribeBatchFile transcribes one file and publishes its subtitles
-// beside it, the same way the single-file recognition does. The workbench's
-// own subtitles are not touched.
+// The queue calls the same recognition and format/punctuation/style pipeline
+// as the current file. The only published artifact is the requested subtitle;
+// an empty RecognitionDir means beside each source, otherwise the chosen folder.
 func (a *NativeApp) transcribeBatchFile(ctx context.Context, t toolset, source string, prefs settings.Settings, style styles.Style, aspect float64) (string, error) {
 	step := func(s recognitionStep) {
 		label := recognitionStepLabel(s)
@@ -319,11 +354,5 @@ func (a *NativeApp) transcribeBatchFile(ctx context.Context, t toolset, source s
 	if err = ctx.Err(); err != nil {
 		return "", err
 	}
-	// Only the subtitle file is published beside the media. Nothing else is
-	// written to the target folder.
-	path, err := publishRecognition(source, prefs.RecognitionDir, prefs.RecognitionFormat, data)
-	if err != nil {
-		return "", err
-	}
-	return path, nil
+	return publishRecognition(source, prefs.RecognitionDir, prefs.RecognitionFormat, data)
 }

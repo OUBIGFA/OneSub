@@ -98,6 +98,9 @@ func TestExportLineChoicesKeepDialogSize(t *testing.T) {
 				t.Fatal("missing export action", tt.Texts())
 			}
 			for _, choice := range []struct{ label, id string }{{locales.ExportUpperLine(), "upper"}, {locales.ExportLowerLine(), "lower"}, {locales.ExportAllLines(), "all"}} {
+				if err := tt.Click(locales.ExportLines()); err != nil {
+					t.Fatal(err)
+				}
 				if err := tt.Click(choice.label); err != nil {
 					t.Fatal(err, tt.Texts())
 				}

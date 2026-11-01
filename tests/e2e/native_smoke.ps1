@@ -1,4 +1,4 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$WorkflowLayout, [switch]$ComposeOutput)
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$WorkflowLayout, [switch]$ComposeOutput, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark')
 $ErrorActionPreference = 'Stop'
 if($SubtitleMenus -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport)){throw 'Run subtitle menu presentation as a separate scenario'}
 if($LayoutNavigation -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport -or $SubtitleMenus)){throw 'Run layout/navigation as a separate scenario'}
@@ -122,10 +122,15 @@ if($LASTEXITCODE -ne 0){throw 'Fixture creation failed'}
 $env:ONESUB_DATA_ROOT = Join-Path $workPath 'data'
 New-Item -ItemType Directory $env:ONESUB_DATA_ROOT | Out-Null
 # Controls are found by their Chinese names; pin the interface language.
-$prefs=@{version=1;uiLanguage='zh-Hans'}
+# This scenario verifies normal teardown, not tray behavior (covered by
+# workbench_polish.ps1). An explicit preference keeps WM_CLOSE meaningful.
+$prefs=@{version=1;uiLanguage='zh-Hans';closeToTray=$false;appearance=$Appearance}
 if ($TranslationEndpoint) {
     # One translate request only: the fixture does not answer segmentation.
     $prefs+=@{providerUrl=$TranslationEndpoint;providerModel='local-protocol-test';targetLanguage='zh-CN';optimizeTimeline=$false}
+}
+if ($ProviderCatalogEndpoint) {
+    $prefs+=@{providerUrl=$ProviderCatalogEndpoint;providerModel='catalog-alpha';language='en';recognitionFormat='vtt'}
 }
 [IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),($prefs|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
 if($Packaged){
@@ -155,19 +160,39 @@ function Find-UI($name) {
 }
 function Click-UI($name) {
     for($i=0;$i -lt 100;$i++) {
-        $item=Find-UI $name
-        if($item -and $item.Current.IsEnabled) {
-            try {
-                $invoke=$item.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-                $invoke.Invoke();return
-            } catch [System.Windows.Automation.ElementNotAvailableException] {
-                # A native immediate-mode redraw can invalidate a UIA node.
-                # Reacquire by label rather than keeping a stale element handle.
+        try {
+            $p.Refresh()
+            $root=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+            $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name)
+            foreach($item in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)) {
+                if(-not $item.Current.IsEnabled){continue}
+                $pattern=$null
+                if($item.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern,[ref]$pattern)){$pattern.Invoke();Start-Sleep -Milliseconds 200;return}
+                if($item.TryGetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern,[ref]$pattern)){$pattern.Expand();Start-Sleep -Milliseconds 250;return}
             }
+        } catch [System.Windows.Automation.ElementNotAvailableException] {
+            # A native redraw can invalidate a UIA node; reacquire by name.
         }
         Start-Sleep -Milliseconds 100
     }
     throw "Control unavailable: $name"
+}
+function Input-UI($name) {
+    $root=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+    $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name)
+    foreach($item in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)) {
+        $pattern=$null
+        if($item.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern,[ref]$pattern)){return $item}
+    }
+    throw "Input unavailable: $name"
+}
+function Read-Preferences { return ([IO.File]::ReadAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'))|ConvertFrom-Json) }
+function Scroll-PanelEnd($name) {
+    $panel=Find-UI $name
+    foreach($node in $panel.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)) {
+        $scroll=$null
+        if($node.TryGetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern,[ref]$scroll) -and $scroll.Current.VerticallyScrollable){$scroll.SetScrollPercent(-1,100);Start-Sleep -Milliseconds 350;return}
+    }
 }
 function Select-Tab($container, $name) {
     # Invoke/selection is asynchronous; wait for the next UIA tree after
@@ -300,27 +325,82 @@ try {
             & $ScreenshotTool $p.Id (Join-Path $workPath ("settings-"+$tab+'.png'))
         }
     }
+    if($ProviderCatalogEndpoint) {
+        for($i=0;$i -lt 100;$i++){if(Find-UI '保留模型 catalog-beta'){break};Start-Sleep -Milliseconds 100}
+        $before=(Find-UI '设置内容').Current.BoundingRectangle
+        $check=Find-UI '保留模型 catalog-beta'
+        if(-not $check){throw 'Fetched models are not visible'}
+        $check.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
+        Start-Sleep -Milliseconds 350
+        $saved=Read-Preferences
+        if($saved.providerModel -ne 'catalog-alpha' -or $saved.providers[0].models.Count -ne 2){throw 'Keeping a model changed selection or was not saved'}
+        Click-UI '使用模型 catalog-beta'
+        if((Read-Preferences).providerModel -ne 'catalog-beta'){throw 'Model use action did not persist'}
+        Click-UI '切换模型'
+        $names=Wait-SubtitleMenu
+        if($names -notcontains 'catalog-alpha' -or $names -notcontains 'catalog-beta'){throw 'Model dropdown does not contain retained models'}
+        [void][SmokeNative]::PostMessage($p.MainWindowHandle,31,[IntPtr]::Zero,[IntPtr]::Zero)
+        Start-Sleep -Milliseconds 400
+        (Input-UI '搜索模型').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('alpha')
+        Start-Sleep -Milliseconds 250
+        if(Find-UI '保留模型 catalog-beta'){throw 'Search did not filter the model table'}
+        (Input-UI '搜索模型').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('')
+        Click-UI '获取模型';Start-Sleep -Milliseconds 500
+        if((Read-Preferences).providerModel -ne 'catalog-beta' -or (Read-Preferences).providers[0].models.Count -ne 2){throw 'Refresh lost retained models'}
+        if((Find-UI '设置内容').Current.BoundingRectangle -ne $before){throw 'Model state resized settings'}
+        $header=(Find-UI '供应商模型目录').Current.BoundingRectangle
+        [void][SmokeNative]::PointerClick($p.MainWindowHandle,$p.Id,[int]($header.X+24),[int]($header.Y+12),$false)
+        Start-Sleep -Milliseconds 350
+        & $ScreenshotTool $p.Id (Join-Path $workPath 'model-library.png')
+    }
     Click-UI '关闭'
+    if($ProviderCatalogEndpoint) {
+        Select-Tab '识别与翻译' 'AI 翻译'
+        Click-UI '切换模型';$names=Wait-SubtitleMenu
+        if($names -notcontains 'catalog-beta'){throw 'Workbench dropdown lost selected model'}
+        [void][SmokeNative]::PostMessage($p.MainWindowHandle,31,[IntPtr]::Zero,[IntPtr]::Zero)
+        Start-Sleep -Milliseconds 400
+        $toggle=Find-UI '按意群重建时间轴'
+        $original=(Read-Preferences).optimizeTimeline
+        $toggle.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
+        Start-Sleep -Milliseconds 250
+        if((Read-Preferences).optimizeTimeline -eq $original){throw 'Timeline feature toggle did not persist'}
+        Capture-Navigation 'translation-workflow.png'
+        Select-Tab '识别与翻译' '语音识别'
+        Select-Value '文件队列'
+        $draft=(Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+        $second=Join-Path $workPath 'queue-second.wav'
+        & ffmpeg -v error -f lavfi -i 'anullsrc=r=16000:cl=mono' -t 0.2 $second
+        if($LASTEXITCODE -ne 0){throw 'Queue fixture generation failed'}
+        $third=Join-Path $workPath 'queue-third.wav';Copy-Item $second $third
+        Click-UI '添加音视频';Choose-Path ('"'+$video+'" "'+$second+'"')
+        for($i=0;$i -lt 100;$i++){if((Read-Preferences).batchSources.Count -eq 2){break};Start-Sleep -Milliseconds 100}
+        if((Read-Preferences).batchSources.Count -ne 2){throw 'Multiple file selection did not enter the recognition queue'}
+        Click-UI '添加音视频';Choose-Path $third
+        for($i=0;$i -lt 100;$i++){if((Read-Preferences).batchSources.Count -eq 3){break};Start-Sleep -Milliseconds 100}
+        $saved=Read-Preferences
+        if($saved.batchSources.Count -ne 3 -or $saved.language -ne 'en' -or $saved.recognitionFormat -ne 'vtt'){throw 'Single file addition lost shared queue settings'}
+        if((Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne $draft){throw 'Queue addition replaced workbench subtitles'}
+        Capture-Navigation 'recognition-queue.png'
+        Write-Output 'PASS: native provider catalog fetch/search/retention/refresh, dropdown presentation on both surfaces, model use, timeline toggle, single/multiple file picker queue and unchanged workbench'
+    }
     if($WorkflowLayout) {
         foreach($tab in @('语音识别','AI 翻译')) {
             Select-Tab '识别与翻译' $tab
-            foreach($panelName in @('字幕样式面板','识别与翻译')) {
-                $panel=Find-UI $panelName
-                $nodes=$panel.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
-                foreach($node in $nodes) {
-                    $scroll=$null
-                    if($node.TryGetCurrentPattern([System.Windows.Automation.ScrollPattern]::Pattern,[ref]$scroll) -and $scroll.Current.VerticallyScrollable){throw "Maximized parameters scroll: $panelName / $tab"}
-                }
-            }
+            $action=if($tab -eq 'AI 翻译'){'开始翻译字幕'}else{'开始识别字幕'}
+            $before=(Find-UI $action).Current.BoundingRectangle
+            Scroll-PanelEnd '识别与翻译'
+            if((Find-UI $action).Current.BoundingRectangle -ne $before){throw 'Primary action scrolled with parameters'}
             if($tab -eq 'AI 翻译') {
+                if(Find-UI '并发批数'){throw 'Advanced scheduling is not initially separate'}
+                Click-UI '请求与批次设置';Scroll-PanelEnd '识别与翻译'
                 $a=(Find-UI '并发批数').Current.BoundingRectangle
                 $b=(Find-UI '每批字幕数').Current.BoundingRectangle
-                if([Math]::Abs($a.Y-$b.Y) -gt 1 -or $a.Right -ge $b.Left){throw 'Batching controls are not side by side'}
-                if(-not (Find-UI 'AI 服务')){throw 'AI service group missing'}
+                if([Math]::Abs($a.Y-$b.Y) -gt 1 -or $a.Right -ge $b.Left){throw 'Scheduling peer fields are not aligned'}
             }
             Capture-Navigation ("workflow-"+$tab+'.png')
         }
-        Write-Output 'PASS: maximized parameter panes do not scroll; batching is side by side on the workbench'
+        Write-Output 'PASS: primary actions stay fixed while inspectors scroll; advanced scheduling is separate and aligned'
     }
     if($LayoutNavigation) {
         for($i=0;$i -lt 100;$i++){
@@ -411,6 +491,7 @@ try {
         foreach($choice in @(@{id='upper';label='仅上行字幕';kept='Upper subtitle';removed='下行字幕'},@{id='lower';label='仅下行字幕';kept='下行字幕';removed='Upper subtitle'})) {
             Click-UI '导出字幕'
             for($i=0;$i -lt 100;$i++){if(Find-UI '保留字幕行'){break};Start-Sleep -Milliseconds 100}
+            Click-UI '保留字幕行'
             Select-Value $choice.label
             & $ScreenshotTool $p.Id (Join-Path $workPath ("export-"+$choice.id+'.png'))
             Click-UI '导出'

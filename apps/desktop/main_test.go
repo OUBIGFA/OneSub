@@ -117,7 +117,7 @@ func TestActionsMovedBesideTheirContent(t *testing.T) {
 	if !ok || panel.X <= style.X || panel.Y > style.Y+20 {
 		t.Fatal("recognition and translation not right of the style", style, panel)
 	}
-	if !tt.HasText("开始识别字幕") || !tt.HasText("中国（普通话）-ZH") || !tt.HasText("移除句末标点") {
+	if !tt.HasText("开始识别字幕") || !tt.HasText("中国（普通话）-ZH") || !tt.HasText("解码与标点设置") {
 		t.Fatal(tt.Texts())
 	}
 	if err := tt.Click("AI 翻译"); err != nil {

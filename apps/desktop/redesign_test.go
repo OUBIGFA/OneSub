@@ -60,6 +60,9 @@ func TestNativeRedesignSettingsNavigation(t *testing.T) {
 						a.settingsOpen = true
 						tt := settled(a.view, int(float32(width)*scale), int(640*scale))
 						tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
+						for range 6 {
+							tt.Frame()
+						}
 						if !tt.HasText(locales.SettingsCloseTray()) || tt.HasText(locales.SettingsMcpCopy()) {
 							t.Fatal("incorrect defaults", tt.Texts())
 						}
@@ -79,7 +82,17 @@ func TestNativeRedesignSettingsNavigation(t *testing.T) {
 								t.Fatal("settings shell moved", before, after, closeButton, button)
 							}
 							if tab == 2 {
-								insideRedesign(t, tt, locales.A11ySettingsContent(), locales.TranslationProviderName(), locales.TranslationEndpoint(), "API Key", locales.TranslationMaxInput(), locales.TranslationRequestLimit())
+								insideRedesign(t, tt, locales.A11ySettingsContent(), locales.TranslationMaxInput(), locales.TranslationMaxOutput(), locales.TranslationContextWindow())
+								if err := tt.Click(locales.TranslationService()); err != nil {
+									t.Fatal(err)
+								}
+								for range 6 {
+									tt.Frame()
+								}
+								insideRedesign(t, tt, locales.A11ySettingsContent(), locales.TranslationProviderName(), locales.TranslationEndpoint(), "API Key", locales.TranslationRequestLimit())
+								if err := tt.Click(locales.TranslationModels()); err != nil {
+									t.Fatal(err)
+								}
 							}
 							if tab == 3 {
 								insideRedesign(t, tt, locales.A11ySettingsContent(), locales.TranslationGlossary(), locales.TranslationStyle())

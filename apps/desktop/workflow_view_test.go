@@ -6,65 +6,71 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
 
-// Output location stays beside the format; recognition parameters and
-// subtitle output have distinct headings rather than arbitrary row breaks.
-func TestWorkflowFieldsStayCompactAndAligned(t *testing.T) {
+func TestWorkflowFieldsHaveTaskHierarchy(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := nativeForTest(t)
-			tt := settled(a.workflowPanel, 1200, 500)
-			location, ok := tt.Find(locales.RecognitionBesideMedia())
-			choose, found := tt.Find(locales.RecognitionChooseFolder())
-			if !ok || !found || math.Abs(float64(location.Y+location.H/2-choose.Y-choose.H/2)) > 1 || choose.X-location.X-location.W > 32 {
-				t.Fatal("directory and action separated", language, location, choose)
+			tt := settled(a.workflowPanel, 1200, 1000)
+			for range 4 {
+				tt.Frame()
 			}
-			format, _ := tt.Find("SRT")
-			if math.Abs(float64(format.Y+format.H/2-location.Y-location.H/2)) > 1 {
-				t.Fatal("directory not beside output parameters", language, format, location)
+			model, _ := tt.Find(locales.WorkflowRecognitionModel())
+			spoken, _ := tt.Find(locales.SettingsSourceLanguage())
+			format, _ := tt.Find(locales.ExportFormat())
+			folder, _ := tt.Find(locales.RecognitionDirectory())
+			if model.H <= 0 || math.Abs(float64(model.Y-spoken.Y)) > 1 || format.Y <= model.Y+model.H || folder.Y <= format.Y+format.H {
+				t.Fatal("recognition, output format and destination lack hierarchy", model, spoken, format, folder)
 			}
-			strip, _ := tt.Find(locales.WorkflowStripPunctuation())
-			keep, _ := tt.Find(locales.WorkflowKeepPunctuation())
-			if math.Abs(float64(strip.Y+strip.H/2-keep.Y-keep.H/2)) > 1 {
-				t.Fatal("punctuation controls not center aligned", language, strip, keep)
+			location, _ := tt.Find(locales.RecognitionBesideMedia())
+			choose, _ := tt.Find(locales.RecognitionChooseFolder())
+			if math.Abs(float64(location.Y+location.H/2-choose.Y-choose.H/2)) > 1 || choose.X <= location.X {
+				t.Fatal("destination and action are not aligned", location, choose)
+			}
+			if tt.HasText(locales.SettingsMaxTokens()) || tt.HasText(locales.WorkflowStripPunctuation()) {
+				t.Fatal("advanced options are mixed into common settings")
 			}
 		})
 	}
 }
 
-// Compact groups wrap instead of overflowing the smallest panel. Long
-// user paths may elide; operation names must remain completely inside it.
 func TestWorkflowFolderActionsStayInsideNarrowPanels(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		for _, width := range []int{320, 450, 800} {
-			for _, tab := range []int{0, 1, 2} {
-				t.Run(fmt.Sprintf("%s/%d/%d", language, width, tab), func(t *testing.T) {
+			for _, state := range [][2]int{{0, 0}, {0, 1}, {1, 0}} {
+				t.Run(fmt.Sprintf("%s/%d/%v", language, width, state), func(t *testing.T) {
 					inLocale(t, language, func() {
 						a := nativeForTest(t)
-						a.workflowTab = tab
+						a.workflowTab, a.recognitionMode = state[0], state[1]
 						a.settings.RecognitionDir = strings.Repeat("folder/", 50)
 						a.settings.TranslationDir = a.settings.RecognitionDir
 						tt := settled(a.workflowPanel, width, 700)
-						// The prominent timeline option adds a row. Short panels
-						// scroll naturally; they must not compress or clip controls.
-						// Scrolling a panel that fits would push its content out.
-						// The batch page is short; the scroll area is sized by the
-						// tallest page, so scrolling it would only lose it.
-						if tab != 2 && a.workflowScroll.MaxY > 1 {
-							tt.Scroll(float32(width)/2, 350, 0, 900)
+						for range 4 {
+							tt.Frame()
 						}
-						labels := []string{locales.RecognitionChooseFolder(), locales.RecognitionResetFolder(), locales.RecognitionDirectory()}
-						if tab == 2 {
-							// The batch queue has no output folder; its own
-							// actions must stay inside the narrow panel.
-							labels = []string{locales.BatchAddFiles(), locales.BatchStart(), locales.BatchRemove()}
+						if a.recognitionMode == 1 {
+							for _, label := range []string{locales.BatchAddFiles(), locales.BatchStart(), locales.BatchRemove()} {
+								box, ok := tt.Find(label)
+								if !ok || box.X < 0 || box.X+box.W > float32(width) || box.Y+box.H > 700 {
+									t.Fatal("clipped queue control", label, box)
+								}
+							}
+							area, ok := tt.Find(locales.BatchDropArea())
+							if !ok || area.H < 300 || area.X < 0 || area.X+area.W > float32(width) || area.Y+area.H > 700 {
+								t.Fatal("queue does not use the available panel", area)
+							}
+							return
 						}
-						for _, label := range labels {
+						if a.workflowScroll.MaxY > 1 {
+							tt.Scroll(float32(width)/2, 400, 0, 2000)
+						}
+						for _, label := range []string{locales.RecognitionChooseFolder(), locales.RecognitionResetFolder(), locales.RecognitionDirectory()} {
 							box, ok := tt.Find(label)
 							if !ok || box.W <= 0 || box.X < 0 || box.X+box.W > float32(width) || box.Y+box.H > 700 {
 								t.Fatal("clipped folder control", label, box)
@@ -77,21 +83,32 @@ func TestWorkflowFolderActionsStayInsideNarrowPanels(t *testing.T) {
 	}
 }
 
-// Batching shares one row with the chosen service and model whenever it
-// fits. Changes survive reload even during a task.
+// Scheduling is a secondary disclosure. Its peer fields remain aligned,
+// reachable, and persistent, including edits intended for the next task.
 func TestTranslationSchedulingOnWorkbench(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := nativeForTest(t)
 			a.workflowTab = 1
-			a.settings.ProviderModel = "example-model"
-			tt := settled(a.workflowPanel, 800, 650)
+			tt := settled(a.workflowPanel, 800, 1100)
+			for range 4 {
+				tt.Frame()
+			}
+			if tt.HasText(locales.TranslationConcurrency()) {
+				t.Fatal("scheduling is not secondary")
+			}
+			if err := tt.Click(locales.WorkflowTranslationAdvanced()); err != nil {
+				t.Fatal(err)
+			}
+			tt.Advance(300 * time.Millisecond)
+			for range 4 {
+				tt.Frame()
+			}
 			concurrency, _ := tt.Find(locales.TranslationConcurrency())
 			batch, _ := tt.Find(locales.TranslationBatchSize())
 			model, _ := tt.Find(locales.TranslationModel())
-			directory, _ := tt.Find(locales.RecognitionDirectory())
-			if math.Abs(float64(concurrency.Y-batch.Y)) > 1 || math.Abs(float64(concurrency.Y-model.Y)) > 1 || directory.Y <= concurrency.Y {
-				t.Fatal("batching is not in the service row", concurrency, batch, model, directory)
+			if concurrency.H <= 0 || math.Abs(float64(concurrency.Y-batch.Y)) > 1 || concurrency.Y <= model.Y+model.H {
+				t.Fatal("scheduling is not a separate aligned group", concurrency, batch, model)
 			}
 			a.busy = true
 			tt.Frame()
@@ -105,48 +122,48 @@ func TestTranslationSchedulingOnWorkbench(t *testing.T) {
 			}
 			prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
 			if err != nil || prefs.TranslationConcurrency != 4 || prefs.TranslationBatchSize != 35 {
-				t.Fatal("workbench scheduling changes were not saved", prefs.TranslationConcurrency, prefs.TranslationBatchSize, err)
+				t.Fatal("scheduling changes not saved", err, prefs.TranslationConcurrency, prefs.TranslationBatchSize)
 			}
 		})
 	}
 }
 
-// Exercise real native layout with populated styles and both task tabs. A
-// max-sized desktop must fit its parameter content, not hide the scrollbar
-// while still clipping fields. Saved divider ratios remain user-owned.
-func TestDesktopParametersFitWithoutScrolling(t *testing.T) {
+// A shortened inspector may scroll, but neither primary actions nor user-owned
+// divider ratios move with its content. No horizontal parameter overflow.
+func TestDesktopInspectorScrollKeepsCommandsAndDivider(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		for _, size := range [][2]int{{1920, 1040}, {2560, 1400}, {3440, 1392}} {
 			t.Run(fmt.Sprintf("%s/%dx%d", language, size[0], size[1]), func(t *testing.T) {
 				inLocale(t, language, func() {
 					a := withStyleCatalog(t)
 					a.snapshot.Manifest.MediaPath = "test.mp4"
-					a.splitY = 35 // user provides room; content never forces the divider
+					a.splitY = 35
 					tt := settled(a.view, size[0], size[1])
-					for range 8 {
-						tt.Frame()
-					}
-					for tab := 0; tab < 3; tab++ {
+					for tab := 0; tab < 2; tab++ {
 						a.workflowTab = tab
-						for range 4 {
+						for range 6 {
 							tt.Frame()
 						}
-						if a.workflowScroll.MaxY > 1 || a.styleScroll.MaxY > 1 {
-							t.Fatal("desktop parameter content overflows", tab, a.workflowScroll, a.styleScroll)
+						label := locales.WorkflowStartRecognize()
+						if tab == 1 {
+							label = locales.WorkflowStartTranslate()
 						}
-						labels := []string{locales.StyleMarginVertical(), locales.RecognitionResetFolder()}
-						if tab == 2 {
-							labels = []string{locales.StyleMarginVertical(), locales.BatchStart()}
+						command, _ := tt.Find(label)
+						panel, _ := tt.Find(locales.WorkflowTitle())
+						tt.Scroll(panel.X+panel.W/2, float32(size[1])-100, 0, 2000)
+						if after, _ := tt.Find(label); after != command {
+							t.Fatal("primary action scrolled away", command, after)
 						}
-						for _, label := range labels {
-							r, ok := tt.Find(label)
-							if !ok || r.Y+r.H > float32(size[1])-32 || r.X+r.W > float32(size[0]) {
-								t.Fatal("parameter clipped", label, r)
-							}
+						if a.workflowScroll.MaxX > 1 || a.styleScroll.MaxX > 1 {
+							t.Fatal("horizontal parameter overflow")
+						}
+						r, ok := tt.Find(locales.RecognitionResetFolder())
+						if !ok || r.W <= 0 || r.Y+r.H > float32(size[1])-32 || r.X+r.W > float32(size[0]) {
+							t.Fatal("destination action unreachable", r)
 						}
 					}
 					if a.splitY != 35 {
-						t.Fatal("content fit overwrote user divider preference")
+						t.Fatal("content changed the user's divider")
 					}
 				})
 			})

@@ -85,26 +85,9 @@ func (s *Settings) restoreProviders() {
 	}
 	if p != nil {
 		s.ProviderURL, s.ProviderAPI, s.ProviderModel = p.URL, p.API, p.Model
-		// Settings written before the offered models were kept apart from
-		// the kept ones: the offered list becomes the catalog, and only the
-		// model in use stays kept, with the limits it had.
-		if len(p.Catalog) == 0 && len(p.Models) > 0 {
-			p.Catalog = append([]translator.ModelInfo{}, p.Models...)
-			kept := translator.ModelInfo{}
-			for _, m := range p.Models {
-				if m.ID == p.Model {
-					kept = m
-					break
-				}
-			}
-			p.Models = nil
-			if p.Model != "" {
-				if kept.ID == "" {
-					kept.ID = p.Model
-				}
-				p.Models = append(p.Models, kept)
-			}
-		}
+		// Older builds mixed advertised and retained models in Models.
+		// Preserve that list rather than guessing which entries to delete:
+		// an empty Catalog is also valid for manually configured services.
 	}
 	s.SyncProvider()
 }

@@ -35,7 +35,8 @@ func withStyleCatalog(t *testing.T) *NativeApp {
 
 func TestWorkbenchRegionsAndStyleSections(t *testing.T) {
 	a := withStyleCatalog(t)
-	tt := settled(a.view, 1700, 1000)
+	a.splitY = 40
+	tt := settled(a.view, 1700, 1100)
 	video, ok := tt.Find("视频播放区")
 	if !ok {
 		t.Fatal(tt.Texts())
@@ -49,40 +50,48 @@ func TestWorkbenchRegionsAndStyleSections(t *testing.T) {
 	if original.X <= video.X || editor.Y <= original.Y || style.X >= editor.X || math.Abs(float64(style.Y-editor.Y)) > 1 {
 		t.Fatal(video, original, editor, style)
 	}
+	if tt.HasText("左边距") {
+		t.Fatal("placement fields crowd the text page")
+	}
+	if err := tt.Click("布局"); err != nil {
+		t.Fatal(err)
+	}
+	for range 4 {
+		tt.Frame()
+	}
 	for _, label := range []string{"左边距", "右边距", "垂直边距"} {
 		if _, ok := tt.Find(label); !ok {
-			t.Fatal("missing margin", label)
+			t.Fatal("placement page missing margin", label)
 		}
 	}
-	// The sections sit side by side where the style panel has the room,
-	// once the first frame measured them, and stack where it has not.
-	wide := settled(a.stylePanel, 1200, 1000)
-	wide.Frame()
-	text, _ := wide.Find("文字")
-	look, _ := wide.Find("外观")
-	layout, _ := wide.Find("布局")
-	if text.Y != look.Y || look.Y != layout.Y || !(text.X < look.X && look.X < layout.X) {
-		t.Fatal("sections not side by side", text, look, layout)
+	if err := tt.Click("文字"); err != nil {
+		t.Fatal(err)
 	}
-	// Native grid columns divide the wide pane evenly; each heading stays
-	// over its own compact parameter rows.
-	first, second := look.X-text.X, layout.X-look.X
-	if math.Abs(float64(first-second)) > 1 {
-		t.Fatal("sections not spread evenly", text, look, layout)
+	for range 4 {
+		tt.Frame()
 	}
-	narrow := settled(a.view, 1000, 1000)
-	narrow.Frame()
-	text, _ = narrow.Find("文字")
-	layout, _ = narrow.Find("布局")
-	if layout.Y <= text.Y {
-		t.Fatal("sections overflow a narrow panel", text, layout, a.styleRoom)
+	if tt.HasText("左边距") || !tt.HasText("字幕字体") {
+		t.Fatal("style page navigation did not isolate its controls")
 	}
-	for _, label := range []string{"更新预览", "更多样式", "属性"} {
+	narrow := settled(a.stylePanel, 360, 1000)
+	for range 4 {
+		narrow.Frame()
+	}
+	for _, label := range []string{"文字", "外观", "布局", "字幕字体", "字号", "字形"} {
+		r, ok := narrow.Find(label)
+		if !ok || r.W <= 0 || r.X < 0 || r.X+r.W > 360 {
+			t.Fatal("narrow style property clipped", label, r)
+		}
+	}
+	for _, label := range []string{"更新预览", "更多样式"} {
 		if tt.HasText(label) {
 			t.Fatal("obsolete tab/manual preview", label)
 		}
 	}
-	tt = settled(a.view, 1700, 1000)
+	tt = settled(a.view, 1700, 1100)
+	for range 4 {
+		tt.Frame()
+	}
 	before := a.previewRevision
 	if err := tt.Click("粗体"); err != nil {
 		t.Fatal(err)
@@ -160,7 +169,8 @@ func TestSourceAndTranslationTabsRemainDistinct(t *testing.T) {
 func TestAppearanceShowsTheChosenBorderParameters(t *testing.T) {
 	a := withStyleCatalog(t)
 	a.currentStyle.BorderStyle = 1
-	tt := settled(a.view, 1700, 1000)
+	a.styleTab, a.splitY = 1, 35
+	tt := settled(a.view, 1700, 1100)
 	for _, label := range []string{"描边宽度", "描边颜色", "阴影距离", "阴影颜色"} {
 		if _, ok := tt.Find(label); !ok {
 			t.Fatal("outline mode lacks", label)

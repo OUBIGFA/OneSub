@@ -6,30 +6,31 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// OneSub uses MyGo's native theme and one four-DIP spacing rhythm. Only
-// typography and the primary-action blue are product choices; control states,
-// focus, contrast, menus and surfaces continue to belong to the framework.
+// Typography and spacing are shared by every native view. Light colors are
+// reused from WinOne; dark controls retain the established MyGo palette.
 const (
 	bodySize    = 15 // the product's body text (docs/ui-design.md)
 	captionSize = 13 // the smallest text: status bar, units, hints
-	headingSize = 17 // dialog sections
-	titleSize   = 20 // dialog titles: Fluent's Subtitle
-	headerSize  = 44 // a common, comfortable navigation/title row
-	panelPad    = 16 // Fluent: 16 between a surface's edge and its text
+	headingSize = 18 // section headings, distinct from form labels
+	titleSize   = 24 // dialog titles
+	headerSize  = 48 // common panel navigation/title row
+	panelPad    = 20 // breathing room around inspector content
 	iconSize    = 16 // Fluent and Spectrum's icon beside 14–15 text
 )
 
 // studio holds the colors the theme has no field for.
 type studio struct {
-	chrome ui.Color // the bars around the panels: toolbar and status bar
+	chrome, panel, hairline, selected, warningSoft ui.Color
 }
 
-// studioTheme retains the framework's coordinated light/dark palette instead
-// of maintaining a second set of component colors. High contrast is untouched.
+// Apply the shared light color contract without changing native widget
+// behavior or OneSub's type scale. Dark appearance is deliberately unchanged.
 func studioTheme(base *ui.Theme, highContrast bool) (ui.Theme, studio) {
 	t := *base
 	t.FontSize = bodySize * base.FontSize / 14
-	if !highContrast {
+	if !base.Dark {
+		applyWinOneLightColors(&t, highContrast)
+	} else if !highContrast {
 		primary := ui.LightTheme()
 		t.Accent, t.AccentHover, t.AccentPressed, t.AccentText = primary.Accent, primary.AccentHover, primary.AccentPressed, primary.AccentText
 	}
@@ -111,12 +112,12 @@ func panelHeader(c *ui.Context, start, middle, end func()) {
 // panelTitle is a panel's name: body size, semibold, as Fluent's Body
 // Strong titles confined areas.
 func panelTitle(c *ui.Context, text string) ui.Element {
-	return ui.Text(c, text).FontWeight(600).SingleLine()
+	return ui.Text(c, text).FontSize(em(c, 16)).FontWeight(600).SingleLine()
 }
 
 // dialogTitle opens every dialog.
 func dialogTitle(c *ui.Context, text string) ui.Element {
-	return ui.Text(c, text).FontSize(em(c, titleSize)).FontWeight(600)
+	return ui.Text(c, text).FontSize(em(c, titleSize)).FontWeight(500)
 }
 
 // fixedDialog gives settings and output dialogs the same hierarchy: title,
@@ -124,7 +125,7 @@ func dialogTitle(c *ui.Context, text string) ui.Element {
 // the shell; no hidden page is built merely to reserve its intrinsic height.
 func fixedDialog(c *ui.Context, open *bool, title string, width, height float32, body, actions func()) {
 	vw, vh := c.Size()
-	ui.Modal(c, open, func() {
+	modal := ui.Modal(c, open, func() {
 		ui.Column(c).Width(min(em(c, width), vw-c.Theme().Space(20))).Height(min(em(c, height), vh-c.Theme().Space(20))).Gap(em(c, 16)).Label(title).Children(func() {
 			dialogTitle(c, title)
 			ui.Divider(c)
@@ -133,6 +134,9 @@ func fixedDialog(c *ui.Context, open *bool, title string, width, height float32,
 			ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Shrink(0).Children(actions)
 		})
 	})
+	if !c.Theme().Dark {
+		modal.Background(studioColors(c).panel)
+	}
 }
 
 // muted is secondary text, as units, counts and hints.
@@ -140,23 +144,34 @@ func muted(c *ui.Context, text string) ui.Element {
 	return ui.Text(c, text).TextColor(c.Theme().TextMuted)
 }
 
-// parameterGroup separates meaning with a heading and breathing room, not
-// cards. Optional management actions sit with the settings they manage.
+// A section heading leads one flat native settings panel. There are no
+// nested cards; optional management actions belong to the section heading.
 func parameterGroup(c *ui.Context, title string, action, fields func()) {
-	ui.Column(c).Gap(em(c, 10)).Children(func() {
-		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-			panelTitle(c, title)
+	ui.Column(c).Gap(em(c, 16)).Children(func() {
+		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, title).FontSize(em(c, headingSize)).FontWeight(500)
 			ui.Spacer(c)
 			if action != nil {
 				action()
 			}
 		})
-		fields()
+		look := studioColors(c)
+		ui.Column(c).Gap(em(c, 16)).Padding(em(c, 16)).Background(look.panel).
+			Border(1, look.hairline).Radius(c.Theme().Radius + em(c, 4)).Children(fields)
 	})
 }
 
-// A short parameter uses a native Form's inline label. The enclosing line
-// wraps the whole field, never leaving its label separated from its control.
-func inlineField(c *ui.Context, label string, control func()) ui.Element {
-	return ui.Form(c, func() { ui.Field(c, label, control) }).AlignSelf(ui.Start)
+// parameterGrid sets a deliberate density ceiling instead of packing every
+// field that happens to fit on one line. Equal native grid columns give each
+// related decision room; narrow panes become one column without shrinking text.
+func parameterGrid(c *ui.Context, minimum float32, maximum int, fields func()) ui.Element {
+	grid := ui.Grid(c).GapX(em(c, 20)).GapY(em(c, 16)).AlignItems(ui.Start)
+	room := ui.Local(grid, "field-room", func() float32 { return 0 })
+	columns := max(1, min(maximum, int((*room+em(c, 20))/(em(c, minimum)+em(c, 20)))))
+	grid.Columns(columns).Children(fields)
+	if width := grid.Bounds().W; width > 0 && width != *room {
+		*room = width
+		c.After(0)
+	}
+	return grid
 }

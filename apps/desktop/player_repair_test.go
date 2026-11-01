@@ -54,7 +54,7 @@ func TestParameterContentCannotBlockDividerDrag(t *testing.T) {
 	tt.Frame()
 	tt.Advance(time.Second)
 	after, _ := tt.Find(locales.A11yStylePanel())
-	if after.H >= before.H-150 {
+	if after.H > max(before.H-180, 180)+2 {
 		t.Fatal("natural content height blocked drag", before, after)
 	}
 	prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))

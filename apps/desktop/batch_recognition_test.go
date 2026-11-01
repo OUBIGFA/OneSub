@@ -147,31 +147,51 @@ func TestBatchQueueCountsFailures(t *testing.T) {
 		{Source: "b.mp4", Status: batchFailed, Error: "no model"},
 		{Source: "c.mp4", Status: batchWaiting},
 	}
-	if a.batchFailures() != 1 {
-		t.Fatal("the failures were not counted", a.batchFailures())
+	if _, failed := a.batchCounts(); failed != 1 {
+		t.Fatal("the failures were not counted", failed)
 	}
 }
 
-// The queue is a page of the workbench, beside the single-file recognition
-// and the translation, with its own controls and its files.
-func TestBatchQueueIsAWorkbenchPage(t *testing.T) {
+// The queue inherits current-file settings and gives its list the remaining
+// viewport. Switching targets must not copy, reset or duplicate the settings.
+func TestBatchQueueSharesTheRecognitionPage(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := nativeForTest(t)
-			a.workflowTab = 2
-			tt := settled(a.workflowPanel, 900, 700)
-			for _, label := range []string{locales.BatchQueue(), locales.BatchAddFiles(), locales.BatchStart(), locales.BatchRemove()} {
+			a.recognitionMode = 1
+			a.settings.Language, a.settings.Backend, a.settings.RecognitionFormat = "ja", "cpu", "vtt"
+			tt := settled(a.workflowPanel, 900, 900)
+			for _, label := range []string{locales.RecognitionFileQueue(), locales.BatchAddFiles(), locales.BatchStart(), locales.BatchRemove()} {
 				if !tt.HasText(label) {
-					t.Fatal("the queue page is not shown", language, label)
+					t.Fatal("queue control is missing", language, label)
 				}
 			}
-			if !tt.HasText(locales.BatchEmpty()) {
-				t.Fatal("the empty queue says nothing", language)
+			settingsLabels := []string{locales.WorkflowRecognitionSettings(), locales.SettingsSourceLanguage(), locales.ExportFormat(), locales.WorkflowRecognitionAdvanced()}
+			for _, label := range settingsLabels {
+				if tt.HasText(label) {
+					t.Fatal("queue duplicates current-file settings", language, label)
+				}
 			}
-			// The single-file recognition and the translation keep their own
-			// pages; the queue did not take them over.
-			if tt.HasText(locales.WorkflowStartRecognize()) {
-				t.Fatal("the recognition action is on the queue page", language)
+			if !tt.HasText(locales.BatchEmpty()) || tt.HasText(locales.BatchRecognition()) {
+				t.Fatal("queue is empty without a drop hint, or is still a third tab", language)
+			}
+			before, _ := tt.Find(locales.BatchDropArea())
+			tt.SetSize(900, 1100)
+			tt.Frame()
+			after, _ := tt.Find(locales.BatchDropArea())
+			if delta := after.H - before.H; delta < 199 || delta > 201 || after.Y+after.H > 1100 {
+				t.Fatal("queue does not fill the resized viewport", before, after)
+			}
+			if err := tt.Click(locales.RecognitionCurrentFile()); err != nil {
+				t.Fatal(err)
+			}
+			for _, label := range settingsLabels {
+				if !tt.HasText(label) {
+					t.Fatal("current-file settings are not reachable", language, label)
+				}
+			}
+			if !tt.HasText(locales.WorkflowStartRecognize()) || tt.HasText(locales.BatchAddFiles()) || a.settings.Language != "ja" || a.settings.Backend != "cpu" || a.settings.RecognitionFormat != "vtt" {
+				t.Fatal("switching recognition target changed settings", language)
 			}
 		})
 	}

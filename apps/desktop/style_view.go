@@ -27,14 +27,13 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.StyleLoading()) })
 		default:
 			ui.Scroll(c).Grow(1).TrackScroll(&a.styleScroll).Children(func() {
-				content := ui.Column(c).Padding(em(c, 12), em(c, panelPad)).Gap(em(c, 20))
-				a.styleRoom = content.Bounds().W - 2*em(c, panelPad)
+				content := ui.Column(c).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 24))
 				content.Children(func() {
 					if !ass && a.settings.SubtitleOutput.Normalized().Mode == "bilingual" {
 						ui.Segmented(c, &a.styleLayer, locales.StylePrimaryLayer(), locales.StyleSecondaryLayer()).Label(locales.A11yStyleLayers()).AlignSelf(ui.Center)
 					}
 					layer := a.editedLayer()
-					line(c, func() {
+					parameterGrid(c, 240, 2, func() {
 						a.outputFields(c, false)
 						if !ass {
 							ui.Field(c, locales.StylePreset(), func() {
@@ -46,7 +45,9 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 						muted(c, locales.StyleKeepAss())
 						return
 					}
-					a.styleControls(c, layer)
+					ui.Tabs(c, &a.styleTab, locales.StyleText(), locales.StyleAppearance(), locales.StyleLayout()).Label(locales.StyleProperties()).OnChange(func() { a.styleScroll.Y = 0 })
+					look := studioColors(c)
+					ui.Column(c).Padding(em(c, 16)).Gap(em(c, 16)).Background(look.panel).Border(1, look.hairline).Radius(c.Theme().Radius + em(c, 4)).Children(func() { a.styleControls(c, layer) })
 				})
 			})
 		}
@@ -59,7 +60,7 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 // or deleted.
 func (a *NativeApp) presetControls(c *ui.Context, layer int) {
 	style, preset := a.layerStyle(layer)
-	idSelect(c, preset, a.presetOptions(*preset)).Width(em(c, 200)).Label(locales.StylePreset()).Tooltip(locales.StylePreset()).OnChange(func() {
+	idSelect(c, preset, a.presetOptions(*preset)).Grow(1).MinWidth(0).Label(locales.StylePreset()).Tooltip(locales.StylePreset()).OnChange(func() {
 		if chosen, ok := a.presetStyle(*preset); ok {
 			*style = chosen
 		}
@@ -191,24 +192,21 @@ func percent(c *ui.Context, label string, value *float64) {
 	})
 }
 
-// Both layers edit SmartSub's existing schema. Wide panes use three equal
-// native grid columns. Narrower panes group short parameters into wrapping
-// rows, instead of stacking three tall one-field-per-line inspectors.
+// Font, appearance and placement are independent native inspector pages.
+// Only the active page is built; no invisible controls influence its size.
 func (a *NativeApp) styleControls(c *ui.Context, layer int) {
 	style, _ := a.layerStyle(layer)
-	columns := 1
-	if a.styleRoom >= em(c, 960) {
-		columns = 3
-	}
-	ui.Grid(c).Columns(columns).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
+	switch a.styleTab {
+	case 0:
 		a.textSection(c, style)
+	case 1:
 		a.appearanceSection(c, style)
+	case 2:
 		if layer == 0 {
 			a.layoutSection(c, style)
+		} else {
+			muted(c, locales.StyleSecondaryLayout())
 		}
-	})
-	if layer == 1 {
-		muted(c, locales.StyleSecondaryLayout())
 	}
 }
 
@@ -219,27 +217,23 @@ func (a *NativeApp) textSection(c *ui.Context, style *styles.Style) {
 			fonts = append(fonts, font.Name)
 		}
 	}
-	ui.Fieldset(c, locales.StyleText(), func() {
-		line(c, func() {
-			inlineField(c, locales.StyleFontShort(), func() {
-				ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Children(func() {
-					ui.Combobox(c, &style.FontName, fonts).Label(locales.StyleFont()).Width(em(c, 176))
-					ui.Toolbar(c, func() {
-						toolIcon(c, locales.StyleReloadFonts(), "rotate-cw").Disabled(a.fontCatalogLoading).OnClick(a.reloadFonts)
-					}).Padding(0)
-				})
-			})
-			inlineField(c, locales.StyleFontSize(), func() { number(c, locales.StyleFontSize(), &style.FontSize, 1, 72, .5) })
-			inlineField(c, locales.StyleColor(), func() { colorWell(c, locales.StyleTextColor(), &style.PrimaryColor) })
-			inlineField(c, locales.StyleEmphasis(), func() {
-				ui.ToggleGroup(c, func() {
-					ui.Toggle(c, &style.Bold, "").Label(locales.StyleBold()).Tooltip(locales.StyleBold()).Children(func() { icon(c, "bold") })
-					ui.Toggle(c, &style.Italic, "").Label(locales.StyleItalic()).Tooltip(locales.StyleItalic()).Children(func() { icon(c, "italic") })
-					ui.Toggle(c, &style.Underline, "").Label(locales.StyleUnderline()).Tooltip(locales.StyleUnderline()).Children(func() { icon(c, "underline") })
-				}).Label(locales.StyleEmphasis()).AlignSelf(ui.Start)
-			})
-		}).AlignItems(ui.Center)
-	}).Margin(0)
+	ui.Field(c, locales.StyleFont(), func() {
+		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+			ui.Combobox(c, &style.FontName, fonts).Label(locales.StyleFont()).Grow(1).MinWidth(0)
+			toolIcon(c, locales.StyleReloadFonts(), "rotate-cw").Disabled(a.fontCatalogLoading).OnClick(a.reloadFonts)
+		})
+	})
+	parameterGrid(c, 160, 2, func() {
+		ui.Field(c, locales.StyleFontSize(), func() { number(c, locales.StyleFontSize(), &style.FontSize, 1, 72, .5) })
+		ui.Field(c, locales.StyleColor(), func() { colorWell(c, locales.StyleTextColor(), &style.PrimaryColor) })
+	})
+	ui.Field(c, locales.StyleEmphasis(), func() {
+		ui.ToggleGroup(c, func() {
+			ui.Toggle(c, &style.Bold, "").Label(locales.StyleBold()).Tooltip(locales.StyleBold()).Children(func() { icon(c, "bold") })
+			ui.Toggle(c, &style.Italic, "").Label(locales.StyleItalic()).Tooltip(locales.StyleItalic()).Children(func() { icon(c, "italic") })
+			ui.Toggle(c, &style.Underline, "").Label(locales.StyleUnderline()).Tooltip(locales.StyleUnderline()).Children(func() { icon(c, "underline") })
+		}).Label(locales.StyleEmphasis()).AlignSelf(ui.Start)
+	})
 }
 
 // boxOpacity is SmartSub's default opacity of the background box. A box
@@ -248,74 +242,68 @@ func (a *NativeApp) textSection(c *ui.Context, style *styles.Style) {
 const boxOpacity = 50
 
 func (a *NativeApp) appearanceSection(c *ui.Context, style *styles.Style) {
-	ui.Fieldset(c, locales.StyleAppearance(), func() {
-		line(c, func() {
-			// SmartSub maps BackColor to either a shadow or a background box.
-			// Only the parameters for the selected border mode are presented.
-			box := style.BorderStyle == 3
-			border := 0
-			if box {
-				border = 1
-			}
-			inlineField(c, locales.StyleBorder(), func() {
-				if ui.Segmented(c, &border, locales.StyleBorderOutline(), locales.StyleBorderBox()).Label(locales.StyleBorder()).AlignSelf(ui.Start).Changed() {
-					style.BorderStyle = 1
-					if border == 1 {
-						style.BorderStyle = 3
-						if style.BackOpacity == 0 {
-							style.BackOpacity = boxOpacity
-						}
-					}
+	box := style.BorderStyle == 3
+	border := 0
+	if box {
+		border = 1
+	}
+	ui.Field(c, locales.StyleBorder(), func() {
+		if ui.Segmented(c, &border, locales.StyleBorderOutline(), locales.StyleBorderBox()).Label(locales.StyleBorder()).AlignSelf(ui.Start).Changed() {
+			style.BorderStyle = 1
+			if border == 1 {
+				style.BorderStyle = 3
+				if style.BackOpacity == 0 {
+					style.BackOpacity = boxOpacity
 				}
-			})
-			if box {
-				inlineField(c, locales.StylePadding(), func() { number(c, locales.StyleBoxPadding(), &style.Outline, 0, 10, .1) })
-				inlineField(c, locales.StyleBackground(), func() { colorWell(c, locales.StyleBoxColor(), &style.BackColor) })
-				inlineField(c, locales.StyleBoxOpacityShort(), func() { percent(c, locales.StyleBoxOpacity(), &style.BackOpacity) })
-				return
 			}
-			inlineField(c, locales.StyleBorderOutline(), func() {
-				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-					colorWell(c, locales.StyleOutlineColor(), &style.OutlineColor)
-					number(c, locales.StyleOutlineWidth(), &style.Outline, 0, 10, .1)
-				})
+		}
+	})
+	parameterGrid(c, 210, 2, func() {
+		if box {
+			ui.Field(c, locales.StylePadding(), func() { number(c, locales.StyleBoxPadding(), &style.Outline, 0, 10, .1) })
+			ui.Field(c, locales.StyleBackground(), func() { colorWell(c, locales.StyleBoxColor(), &style.BackColor) })
+			ui.Field(c, locales.StyleBoxOpacityShort(), func() { percent(c, locales.StyleBoxOpacity(), &style.BackOpacity) })
+			return
+		}
+		ui.Field(c, locales.StyleBorderOutline(), func() {
+			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+				colorWell(c, locales.StyleOutlineColor(), &style.OutlineColor)
+				number(c, locales.StyleOutlineWidth(), &style.Outline, 0, 10, .1)
 			})
-			inlineField(c, locales.StyleShadow(), func() {
-				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-					colorWell(c, locales.StyleShadowColor(), &style.BackColor)
-					number(c, locales.StyleShadowDistance(), &style.Shadow, 0, 10, .1)
-				})
+		})
+		ui.Field(c, locales.StyleShadow(), func() {
+			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+				colorWell(c, locales.StyleShadowColor(), &style.BackColor)
+				number(c, locales.StyleShadowDistance(), &style.Shadow, 0, 10, .1)
 			})
-			inlineField(c, locales.StyleShadowOpacityShort(), func() { percent(c, locales.StyleShadowOpacity(), &style.BackOpacity) })
-		}).AlignItems(ui.Center)
-	}).Margin(0)
+		})
+		ui.Field(c, locales.StyleShadowOpacityShort(), func() { percent(c, locales.StyleShadowOpacity(), &style.BackOpacity) })
+	})
 }
 
 func (a *NativeApp) layoutSection(c *ui.Context, style *styles.Style) {
-	ui.Fieldset(c, locales.StyleLayout(), func() {
-		line(c, func() {
-			// ASS numpad alignment: rows from the bottom, columns from the left.
-			row, column := (style.Alignment-1)/3, (style.Alignment-1)%3
-			inlineField(c, locales.StyleAlign(), func() {
-				ui.ToggleGroup(c, func() {
-					for i, name := range []string{"align-left", "align-center", "align-right"} {
-						on := column == i
-						label := []string{locales.AlignLeft(), locales.AlignCenterH(), locales.AlignRight()}[i]
-						if ui.Toggle(c, &on, "").Label(label).Tooltip(label).Children(func() { icon(c, name) }).Changed() {
-							column = i
-						}
-					}
-				}).Label(locales.StyleAlign()).AlignSelf(ui.Start)
-			})
-			inlineField(c, locales.StylePosition(), func() {
-				ui.Segmented(c, &row, locales.PositionBottom(), locales.PositionMiddle(), locales.PositionTop()).Label(locales.StylePosition()).AlignSelf(ui.Start)
-			})
-			style.Alignment = row*3 + column + 1
-			inlineField(c, locales.StyleMarginLeft(), func() { number(c, locales.StyleMarginLeft(), &style.MarginL, 0, 384, 1) })
-			inlineField(c, locales.StyleMarginRight(), func() { number(c, locales.StyleMarginRight(), &style.MarginR, 0, 384, 1) })
-			inlineField(c, locales.StyleMarginVertical(), func() { number(c, locales.StyleMarginVertical(), &style.MarginV, 0, 288, 1) })
-		}).AlignItems(ui.Center)
-	}).Margin(0)
+	row, column := (style.Alignment-1)/3, (style.Alignment-1)%3
+	ui.Field(c, locales.StylePosition(), func() {
+		ui.Segmented(c, &row, locales.PositionBottom(), locales.PositionMiddle(), locales.PositionTop()).Label(locales.StylePosition()).AlignSelf(ui.Start)
+	})
+	ui.Field(c, locales.StyleAlign(), func() {
+		ui.ToggleGroup(c, func() {
+			for i, name := range []string{"align-left", "align-center", "align-right"} {
+				on := column == i
+				label := []string{locales.AlignLeft(), locales.AlignCenterH(), locales.AlignRight()}[i]
+				if ui.Toggle(c, &on, "").Label(label).Tooltip(label).Children(func() { icon(c, name) }).Changed() {
+					column = i
+				}
+			}
+		}).Label(locales.StyleAlign()).AlignSelf(ui.Start)
+	})
+	style.Alignment = row*3 + column + 1
+	ui.Divider(c)
+	parameterGrid(c, 160, 3, func() {
+		ui.Field(c, locales.StyleMarginLeft(), func() { number(c, locales.StyleMarginLeft(), &style.MarginL, 0, 384, 1) })
+		ui.Field(c, locales.StyleMarginRight(), func() { number(c, locales.StyleMarginRight(), &style.MarginR, 0, 384, 1) })
+		ui.Field(c, locales.StyleMarginVertical(), func() { number(c, locales.StyleMarginVertical(), &style.MarginV, 0, 288, 1) })
+	})
 }
 
 // presetDialogView names a new or renamed preset, or confirms a deletion
@@ -342,29 +330,27 @@ func (a *NativeApp) presetDialogView(c *ui.Context) {
 		return
 	}
 	open := a.presetDialog != ""
-	ui.Modal(c, &open, func() {
-		ui.Column(c).Width(em(c, 440)).Gap(em(c, 16)).Children(func() {
-			title, confirm := locales.PresetSaveNew(), locales.PresetSaveConfirm()
-			if a.presetDialog == "rename" {
-				title, confirm = locales.PresetRename(), locales.PresetRenameConfirm()
-			}
-			dialogTitle(c, title)
+	title, confirm := locales.PresetSaveNew(), locales.PresetSaveConfirm()
+	if a.presetDialog == "rename" {
+		title, confirm = locales.PresetRename(), locales.PresetRenameConfirm()
+	}
+	fixedDialog(c, &open, title, 480, 280, func() {
+		ui.Field(c, locales.PresetNameLabel(), func() {
 			ui.TextInput(c, &a.presetName).AutoFocus().Label(locales.PresetNameLabel()).Placeholder(locales.PresetNameLabel())
-			name := strings.TrimSpace(a.presetName)
-			ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Children(func() {
-				ui.Button(c, locales.ActionCancel()).OnClick(func() { a.presetDialog = "" })
-				ui.PrimaryButton(c, confirm).Disabled(name == "").OnClick(func() {
-					if a.presetDialog == "rename" && index >= 0 {
-						a.settings.UserPresets[index].Name = name
-					} else {
-						id := "user-" + uuid.NewString()
-						a.settings.UserPresets = append(a.settings.UserPresets, settings.UserPreset{ID: id, Name: name, Style: *style})
-						*preset = id
-					}
-					a.presetDialog = ""
-					a.saveSettings()
-				})
-			})
+		})
+	}, func() {
+		name := strings.TrimSpace(a.presetName)
+		ui.Button(c, locales.ActionCancel()).OnClick(func() { a.presetDialog = "" })
+		ui.PrimaryButton(c, confirm).Disabled(name == "").OnClick(func() {
+			if a.presetDialog == "rename" && index >= 0 {
+				a.settings.UserPresets[index].Name = name
+			} else {
+				id := "user-" + uuid.NewString()
+				a.settings.UserPresets = append(a.settings.UserPresets, settings.UserPreset{ID: id, Name: name, Style: *style})
+				*preset = id
+			}
+			a.presetDialog = ""
+			a.saveSettings()
 		})
 	})
 	if !open {

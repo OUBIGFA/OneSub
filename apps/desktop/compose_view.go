@@ -44,36 +44,38 @@ func (a *NativeApp) composeView(c *ui.Context) {
 	if a.composeOpen && a.snapshot != nil {
 		_, outputErr = subtitle.SelectOutput(a.snapshot.OutputDocument(a.settings.SubtitleOutput), a.settings.SubtitleOutput)
 	}
-	fixedDialog(c, &a.composeOpen, locales.ActionCompose(), 760, 552, func() {
+	fixedDialog(c, &a.composeOpen, locales.ActionCompose(), 920, 608, func() {
 		hard := strings.HasPrefix(a.settings.ComposeMode, "hard")
-		ui.Grid(c).Columns(2).Gap(em(c, 12)).Children(func() { a.outputFields(c, true) })
-		ui.Grid(c).ColumnTracks(ui.Fr(3), ui.Fr(2)).Gap(em(c, 16)).Children(func() {
-			ui.Field(c, locales.ComposeMode(), func() {
-				idSelect(c, &a.settings.ComposeMode, composeModes()).Label(locales.ComposeMode()).OnChange(a.saveSettings)
+		ui.Grid(c).Columns(2).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
+			settingsGroup(c, locales.OutputTrackGroup(), func() {
+				ui.Grid(c).Columns(2).Gap(em(c, 16)).Children(func() { a.outputFields(c, true) })
 			})
-			ui.Field(c, locales.ComposeQuality(), func() {
-				idSelect(c, &a.settings.ComposeQuality, composeQualities()).Label(locales.ComposeQuality()).Disabled(!hard).OnChange(a.saveSettings)
+			settingsGroup(c, locales.ComposeEncodingGroup(), func() {
+				ui.Field(c, locales.ComposeMode(), func() {
+					idSelect(c, &a.settings.ComposeMode, composeModes()).Label(locales.ComposeMode()).OnChange(a.saveSettings)
+				})
+				ui.Field(c, locales.ComposeQuality(), func() {
+					idSelect(c, &a.settings.ComposeQuality, composeQualities()).Label(locales.ComposeQuality()).Disabled(!hard).OnChange(a.saveSettings)
+				})
+				ui.Column(c).MinHeight(em(c, 56)).Gap(em(c, 8)).FontSize(em(c, captionSize)).Children(func() {
+					switch {
+					case outputErr != nil:
+						ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
+					case a.settings.ComposeMode == "soft-mp4":
+						ui.Text(c, locales.ComposeMovTextNote()).TextColor(c.Theme().Warning)
+					case !hard:
+						muted(c, locales.ComposeSoftNote())
+					default:
+						muted(c, locales.ComposeCrfNote())
+						muted(c, locales.ComposeCrfRecommendation())
+					}
+				})
 			})
 		})
-		line(c, func() {
+		ui.Divider(c)
+		ui.Column(c).Gap(em(c, 12)).Children(func() {
 			folderField(c, a.settings.OutputDir, locales.RecognitionBesideMedia(), a.busy, a.pickComposeDir, func() { a.settings.OutputDir = ""; a.saveSettings() })
 			ui.Checkbox(c, &a.settings.ComposeAskPath, locales.ComposeAskPath()).OnChange(a.saveSettings)
-		})
-		ui.Column(c).MinHeight(em(c, 72)).Gap(em(c, 8)).Children(func() {
-			switch {
-			case outputErr != nil:
-				ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
-			case a.settings.ComposeMode == "soft-mp4":
-				ui.Text(c, locales.ComposeMovTextNote()).TextColor(c.Theme().Warning)
-			case !hard:
-				muted(c, locales.ComposeSoftNote())
-			default:
-				muted(c, locales.ComposeCrfNote())
-				muted(c, locales.ComposeCrfRecommendation())
-			}
-			if a.currentStyle.FontName != "" {
-				muted(c, a.presetLabel(a.stylePreset)+" · "+a.currentStyle.FontName).SingleLine()
-			}
 		})
 	}, func() {
 		ui.Button(c, locales.ActionCancel()).OnClick(func() { a.composeOpen = false })

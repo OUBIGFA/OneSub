@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"maps"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -13,6 +14,15 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
+
+// recognitionPreferences freezes the settings used by both input targets.
+// Model paths are the only mutable collection consumed by the ASR pipeline;
+// later edits must not change the model loaded for another file in a queue.
+func (a *NativeApp) recognitionPreferences() settings.Settings {
+	prefs := a.settings
+	prefs.ModelPaths = maps.Clone(prefs.ModelPaths)
+	return prefs
+}
 
 func (a *NativeApp) pickTranslationDir() {
 	a.run(locales.RecognitionChooseFolder(), func(context.Context) (func(), error) {

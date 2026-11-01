@@ -47,7 +47,7 @@ func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) {
 		mode = "original"
 	}
 	content := ui.Field(c, locales.OutputContent(), func() {
-		idSelect(c, &mode, a.outputModes()).Label(locales.OutputContent()).AlignSelf(ui.Start).OnChange(func() {
+		idSelect(c, &mode, a.outputModes()).Label(locales.OutputContent()).OnChange(func() {
 			o.Mode, o.SourceTrack = mode, ""
 			if mode == "original" {
 				o.Mode, o.SourceTrack = "source", "original"
@@ -74,66 +74,68 @@ func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) {
 			e.AlignSelf(ui.Start)
 		}
 	}
-	ui.Field(c, locales.OutputOrder(), func() {
+	orderField := ui.Field(c, locales.OutputOrder(), func() {
 		fit(idSelect(c, &order, []option{{"translation-first", locales.OutputTranslationFirst()}, {"source-first", locales.OutputSourceFirst()}}).Label(locales.OutputOrder()).Disabled(!bilingual).OnChange(func() {
 			o.SourceFirst = order == "source-first"
 			a.settings.SubtitleOutput = o
 			a.saveSettings()
 		}))
 	})
-	ui.Field(c, locales.OutputPrimary(), func() {
+	primaryField := ui.Field(c, locales.OutputPrimary(), func() {
 		fit(idSelect(c, &o.Primary, []option{{"translation", locales.TabTranslation()}, {"source", locales.TabSource()}}).Label(locales.OutputPrimary()).Disabled(!bilingual).OnChange(func() {
 			a.settings.SubtitleOutput = o
 			a.saveSettings()
 		}))
 	})
+	if keepRoom {
+		orderField.ColumnSpan(2)
+		primaryField.ColumnSpan(2)
+	}
 }
 
 // exportView separates content, format and line selection, with an anchored
 // action row shared with video export. Disabled bilingual fields keep their room.
 func (a *NativeApp) exportView(c *ui.Context) {
+	if a.exportLines == "" {
+		a.exportLines = "all"
+	}
 	var outputErr error
 	if a.exportOpen && a.snapshot != nil {
 		_, outputErr = subtitle.SelectOutput(a.snapshot.OutputDocument(a.settings.SubtitleOutput), a.settings.SubtitleOutput)
 	}
-	fixedDialog(c, &a.exportOpen, locales.MenuExportSubtitles(), 680, 496, func() {
-		ui.Grid(c).Columns(2).Gap(em(c, 12)).Children(func() { a.outputFields(c, true) })
-		ui.Form(c, func() {
-			ui.Field(c, locales.ExportFormat(), func() {
-				formats := []string{"srt", "vtt", "ass"}
-				if a.snapshot != nil && a.snapshot.Document.Format == "ssa" {
-					formats = append(formats, "ssa")
-				}
-				format, labels := 0, []string{}
-				for i, f := range formats {
-					labels = append(labels, strings.ToUpper(f))
-					if f == a.exportFormat {
-						format = i
-					}
-				}
-				if ui.Segmented(c, &format, labels...).Label(locales.ExportFormat()).AlignSelf(ui.Start).Changed() {
-					a.exportFormat = formats[format]
-				}
+	fixedDialog(c, &a.exportOpen, locales.MenuExportSubtitles(), 860, 560, func() {
+		ui.Grid(c).Columns(2).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
+			settingsGroup(c, locales.OutputTrackGroup(), func() {
+				ui.Grid(c).Columns(2).Gap(em(c, 16)).Children(func() { a.outputFields(c, true) })
 			})
-			ui.Field(c, locales.ExportLines(), func() {
-				lines, selected := []string{"all", "upper", "lower"}, 0
-				for i, line := range lines {
-					if line == a.exportLines {
-						selected = i
+			settingsGroup(c, locales.ExportFileOptions(), func() {
+				ui.Field(c, locales.ExportFormat(), func() {
+					formats := []string{"srt", "vtt", "ass"}
+					if a.snapshot != nil && a.snapshot.Document.Format == "ssa" {
+						formats = append(formats, "ssa")
 					}
-				}
-				if ui.Segmented(c, &selected, locales.ExportAllLines(), locales.ExportUpperLine(), locales.ExportLowerLine()).Label(locales.ExportLines()).AlignSelf(ui.Start).Changed() {
-					a.exportLines = lines[selected]
-				}
+					format, labels := 0, []string{}
+					for i, f := range formats {
+						labels = append(labels, strings.ToUpper(f))
+						if f == a.exportFormat {
+							format = i
+						}
+					}
+					if ui.Segmented(c, &format, labels...).Label(locales.ExportFormat()).AlignSelf(ui.Start).Changed() {
+						a.exportFormat = formats[format]
+					}
+				})
+				ui.Field(c, locales.ExportLines(), func() {
+					idSelect(c, &a.exportLines, []option{{"all", locales.ExportAllLines()}, {"upper", locales.ExportUpperLine()}, {"lower", locales.ExportLowerLine()}}).Label(locales.ExportLines())
+				})
+				ui.Column(c).MinHeight(em(c, 64)).Children(func() {
+					if outputErr != nil {
+						ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
+					} else if a.exportFormat == "srt" || a.exportFormat == "vtt" {
+						muted(c, locales.ExportPlainNote()).FontSize(em(c, captionSize))
+					}
+				})
 			})
-		})
-		ui.Column(c).MinHeight(em(c, 48)).Children(func() {
-			switch {
-			case outputErr != nil:
-				ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
-			case a.exportFormat == "srt" || a.exportFormat == "vtt":
-				muted(c, locales.ExportPlainNote())
-			}
 		})
 	}, func() {
 		ui.Button(c, locales.ActionCancel()).OnClick(func() { a.exportOpen = false })

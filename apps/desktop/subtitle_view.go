@@ -64,39 +64,44 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			}
 		}, nil)
 		ui.Divider(c)
-		ui.Row(c).Padding(em(c, 8), em(c, 12)).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
-			ui.Toolbar(c, func() {
-				a.subtitleActionsMenu(c)
-				toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
-			}).Padding(0).Shrink(0)
-			searchCues := a.activeDocument().Cues
-			if a.showsTranslationProgress() {
-				searchCues = a.translationLive.units
-			}
-			searchLabel := subtitleSearchLabel(searchCues)
-			searchWidth, _ := c.MeasureText(0, ui.Span{Text: searchLabel})
-			// Counts are UI labels, not user content: reserve the native icon,
-			// gaps and padding so even the largest track range remains whole.
-			if ui.SearchField(c, &a.query).Placeholder(searchLabel).Label(locales.ListSearch()).Tooltip(searchLabel).MinWidth(max(em(c, 140), searchWidth+c.Theme().Space(11))).Grow(1).Changed() {
-				a.list.StopScroll()
-				a.activeCue = -1
-				// A search is the user's own browsing of the list.
-				a.noteBrowse(c.Now())
-				if a.translationLive != nil {
-					a.translationLive.list.StopScroll()
-					a.translationLive.shown = -1
+		ui.Column(c).Padding(em(c, 12), em(c, 16)).Gap(em(c, 12)).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
+			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+				ui.Toolbar(c, func() {
+					a.subtitleActionsMenu(c)
+					toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
+				}).Padding(0).Shrink(0)
+				searchCues := a.activeDocument().Cues
+				if a.showsTranslationProgress() {
+					searchCues = a.translationLive.units
 				}
-			}
-			if a.translationCandidate != nil {
-				ui.Button(c, locales.TranslationResults()).OnClick(func() { a.translationReview = true })
-			}
-			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-				unsaved := a.trackUnsaved(a.subtitleTab)
-				if unsaved {
-					ui.Badge(c, locales.ListUnsaved()).Background(c.Theme().Warning.Alpha(0.16)).TextColor(c.Theme().Warning)
+				searchLabel := subtitleSearchLabel(searchCues)
+				searchWidth, _ := c.MeasureText(0, ui.Span{Text: searchLabel})
+				// Counts are UI labels, not user content: reserve the native icon,
+				// gaps and padding so even the largest track range remains whole.
+				if ui.SearchField(c, &a.query).Placeholder(searchLabel).Label(locales.ListSearch()).Tooltip(searchLabel).MinWidth(max(em(c, 140), searchWidth+c.Theme().Space(11))).Grow(1).Changed() {
+					a.list.StopScroll()
+					a.activeCue = -1
+					// A search is the user's own browsing of the list.
+					a.noteBrowse(c.Now())
+					if a.translationLive != nil {
+						a.translationLive.list.StopScroll()
+						a.translationLive.shown = -1
+					}
 				}
-				iconButton(c, locales.ListSave(), "save").Disabled(a.busy || a.showsTranslationProgress() || a.snapshot == nil || !unsaved).OnClick(func() { a.saveTrack(a.subtitleTab, false) })
-				ui.Button(c, locales.ListSaveAs()).Disabled(a.busy || a.showsTranslationProgress() || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
+			})
+			ui.Row(c).Gap(em(c, 12)).Wrap().AlignItems(ui.Center).Children(func() {
+				if a.translationCandidate != nil {
+					ui.Button(c, locales.TranslationResults()).OnClick(func() { a.translationReview = true })
+				}
+				ui.Spacer(c)
+				ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+					unsaved := a.trackUnsaved(a.subtitleTab)
+					if unsaved {
+						ui.Badge(c, locales.ListUnsaved()).Background(studioColors(c).warningSoft).TextColor(c.Theme().Warning)
+					}
+					iconButton(c, locales.ListSave(), "save").Disabled(a.busy || a.showsTranslationProgress() || a.snapshot == nil || !unsaved).OnClick(func() { a.saveTrack(a.subtitleTab, false) })
+					ui.Button(c, locales.ListSaveAs()).Disabled(a.busy || a.showsTranslationProgress() || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
+				})
 			})
 		})
 		if a.showsTranslationProgress() {
@@ -162,7 +167,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			// Secondary columns are muted, but on the accent of the chosen
 			// row they take its text color.
 			cell := func(value string) {
-				t := ui.Text(c, value).FontFeatures("tnum").SingleLine()
+				t := ui.Text(c, value).FontSize(em(c, captionSize)).FontFeatures("tnum").SingleLine()
 				if index != a.selected {
 					t.TextColor(c.Theme().TextMuted)
 				}
@@ -176,13 +181,16 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 				cell(stamp(end))
 			default:
 				// Every line is shown; rows grow to their text.
-				ui.Column(c).Gap(em(c, 4)).Children(func() {
+				ui.Column(c).Gap(em(c, 8)).Padding(em(c, 6), em(c, 2)).Children(func() {
 					if a.subtitleTab == 1 {
 						source := cueDisplayText(cue, 0)
 						if index == a.selected && a.editPending && a.editRebuiltSource {
 							source = a.draft
 						}
-						muted(c, source)
+						label := muted(c, source)
+						if index == a.selected {
+							label.TextColor(c.Theme().AccentText)
+						}
 					}
 					ui.Text(c, text)
 				})
@@ -319,38 +327,42 @@ func (a *NativeApp) editorView(c *ui.Context) {
 		fixedTiming := readonly || a.snapshot.Document.Format == "ass" || a.snapshot.Document.Format == "ssa"
 		// A short panel scrolls rather than hide the text; a tall one gives
 		// the text box the room left.
-		ui.Scroll(c).Grow(1).Children(func() {
-			ui.Column(c).MinHeightPercent(100).Padding(em(c, 12), em(c, panelPad)).Gap(em(c, 12)).Children(func() {
-				// The cue being edited heads the editor, centered over its fields.
-				ui.Text(c, locales.EditorCueNumber(cue.Position+1)).FontWeight(600).FontFeatures("tnum").SingleLine().AlignSelf(ui.Center)
-				// Each label stays with its value when the row wraps.
-				pair := func(label string, value func()) {
-					ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-						muted(c, label).SingleLine()
-						value()
-					})
-				}
-				ui.Row(c).GapX(em(c, 16)).GapY(em(c, 8)).Wrap().AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-					pair(locales.EditorStart(), func() {
+		scroll := ui.Scroll(c).Grow(1)
+		viewport := ui.Local(scroll, "editor-viewport", func() float32 { return 0 })
+		if height := scroll.Bounds().H; height != *viewport {
+			*viewport = height
+			c.After(0)
+		}
+		minimum := float32(340)
+		if a.subtitleTab == 1 {
+			minimum = 400
+		}
+		scroll.Children(func() {
+			ui.Column(c).Height(max(*viewport, em(c, minimum))).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 20)).Children(func() {
+				// Cue number and duration are peer metadata at opposite edges.
+				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Justify(ui.SpaceBetween).Children(func() {
+					muted(c, locales.EditorCueNumber(cue.Position+1)).FontFeatures("tnum").SingleLine().Shrink(0)
+					muted(c, locales.EditorSeconds(math.Max(0, a.end-a.start))).Label(locales.EditorDuration()).FontFeatures("tnum").SingleLine().Shrink(0)
+				})
+				parameterGrid(c, 160, 2, func() {
+					ui.Field(c, locales.EditorStart(), func() {
 						ui.NumberInput(c, &a.start, 0, 9007199254740, 0.001).Label(locales.EditorStart()).Disabled(fixedTiming).OnChange(func() { a.changed(c.Now()) })
 					})
-					pair(locales.EditorEnd(), func() {
+					ui.Field(c, locales.EditorEnd(), func() {
 						ui.NumberInput(c, &a.end, 0, 9007199254740, 0.001).Label(locales.EditorEnd()).Disabled(fixedTiming).OnChange(func() { a.changed(c.Now()) })
 					})
-					pair(locales.EditorDuration(), func() {
-						ui.Text(c, locales.EditorSeconds(math.Max(0, a.end-a.start))).FontFeatures("tnum").SingleLine()
-					})
 				})
+				ui.Divider(c)
 				// The text speaks for itself; the name is for assistive technology.
 				if a.subtitleTab == 1 {
 					textTrack := a.editorTextTrack()
-					if ui.Segmented(c, &textTrack, locales.TabSource(), locales.TabTranslation()).AlignSelf(ui.Center).Changed() {
+					if ui.Tabs(c, &textTrack, locales.TabSource(), locales.TabTranslation()).AlignSelf(ui.Start).Changed() {
 						a.commitEdit(true)
 						a.editRebuiltSource = textTrack == 0
 						a.loadDraft()
 					}
 				}
-				area := ui.TextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(em(c, 64)).ReadOnly(readonly).Label(locales.A11yCueText())
+				area := ui.TextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(em(c, 104)).Padding(em(c, 16)).FontSize(em(c, 17)).ReadOnly(readonly).Label(locales.A11yCueText())
 				a.composing = area.Composing()
 				a.editing = area.Focused()
 				if area.Changed() {

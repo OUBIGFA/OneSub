@@ -68,18 +68,15 @@ func fitVideoViewport(width, height float32, aspect float64) (float32, float32) 
 	return w, w / float32(aspect)
 }
 
-// transportBar: the position across the whole picture, then the transport
-// buttons and the speed, the time, and at the end the volume, as video
-// players and editors' monitors lay them out. A narrow player keeps every
-// control whole: transport, time and volume wrap as complete groups when
-// needed, instead of squeezing their labels. Times use tabular digits.
+// Keep transport, time, speed and volume on one row below the seek bar so
+// the picture gets the remaining height. Narrow panes wrap complete groups
+// without squeezing controls or time labels. Times use tabular digits.
 func (a *NativeApp) transportBar(c *ui.Context) {
-	// The picture gives way to a task's progress, and so does its transport.
 	disabled := !a.playbackAvailable()
-	ui.Column(c).Padding(em(c, 2), em(c, 12), em(c, 6), em(c, 12)).Shrink(0).Label(locales.A11yPlayerControls()).Children(func() {
+	ui.Column(c).Padding(em(c, 4), em(c, 12), em(c, 8), em(c, 12)).Gap(em(c, 4)).Shrink(0).Background(c.Theme().Surface).Label(locales.A11yPlayerControls()).Children(func() {
 		value := a.position
 		ui.Slider(c, &value, 0, math.Max(a.duration, .001)).Label(locales.PlayerPosition()).Disabled(disabled).OnChange(func() { a.evalPlayer(fmt.Sprintf("video.currentTime = %f", value)) })
-		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Justify(ui.SpaceBetween).Children(func() {
 			ui.Toolbar(c, func() {
 				toolIcon(c, locales.PlayerStart(), "skip-back").Disabled(disabled).OnClick(a.seekStart)
 				toolIcon(c, locales.PlayerBack(), "rewind").Disabled(disabled).OnClick(func() { a.seekBy(-15) })
@@ -87,38 +84,35 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 				if !a.paused {
 					label, name = locales.PlayerPause(), "pause"
 				}
-				toolIcon(c, label, name).Tooltip(locales.PlayerSpaceShortcut()).Disabled(disabled).OnClick(a.togglePlayback)
+				toolIcon(c, label, name).Size(em(c, 42), em(c, 42)).Background(c.Theme().Background).Border(1, c.Theme().Border).Tooltip(locales.PlayerSpaceShortcut()).Disabled(disabled).OnClick(a.togglePlayback)
 				toolIcon(c, locales.PlayerForward(), "fast-forward").Disabled(disabled).OnClick(func() { a.seekBy(15) })
-				ui.MenuButton(c, rateLabel(a.playbackRate()), func(m *ui.Menu) {
-					for _, rate := range playbackRates {
-						if m.Item(rateLabel(rate)).Checked(rate == a.playbackRate()).Chosen() {
-							a.setPlaybackRate(rate)
-						}
-					}
-				}).Label(locales.PlayerSpeed()).Tooltip(locales.PlayerSpeed()).Disabled(disabled).FontFeatures("tnum")
-				// Loop playback, off until chosen, for this session.
-				if ui.Toggle(c, &a.loop, "").Label(locales.PlayerLoop()).Tooltip(locales.PlayerLoop()).Padding(c.Theme().Space(2)).Disabled(disabled).Children(func() { icon(c, "repeat") }).Changed() {
-					a.evalPlayer(a.rateScript())
-				}
-			}).Gap(em(c, 2)).Shrink(0)
+			}).Gap(em(c, 4)).Padding(0).AlignItems(ui.Center).Shrink(0)
 			ui.Row(c).Gap(em(c, 6)).AlignItems(ui.Center).Shrink(0).Children(func() {
-				ui.Text(c, stamp(a.position)).FontFeatures("tnum").SingleLine()
+				ui.Text(c, stamp(a.position)).FontSize(em(c, captionSize)).FontFeatures("tnum").SingleLine()
 				muted(c, "/").SingleLine()
-				muted(c, stamp(a.duration)).FontFeatures("tnum").SingleLine()
+				muted(c, stamp(a.duration)).FontSize(em(c, captionSize)).FontFeatures("tnum").SingleLine()
 			})
-			ui.Spacer(c)
-			muteLabel, muteIcon := locales.PlayerMute(), "volume-2"
-			if a.settings.Muted || a.settings.Volume == 0 {
-				muteLabel, muteIcon = locales.PlayerUnmute(), "volume-x"
-			}
-			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Children(func() {
+			ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
 				ui.Toolbar(c, func() {
-					toolIcon(c, muteLabel, muteIcon).OnClick(func() { a.toggleMute(c.Now()) })
-				}).Padding(0)
-				volume := a.audibleVolume()
-				ui.Slider(c, &volume, 0, 100).Width(em(c, 96)).Label(locales.PlayerVolume()).Tooltip(locales.PlayerVolumeValue(int(math.Round(volume)))).OnChange(func() {
-					// Moving the volume is a request to hear it.
-					a.setVolume(volume, false, c.Now())
+					ui.MenuButton(c, rateLabel(a.playbackRate()), func(m *ui.Menu) {
+						for _, rate := range playbackRates {
+							if m.Item(rateLabel(rate)).Checked(rate == a.playbackRate()).Chosen() {
+								a.setPlaybackRate(rate)
+							}
+						}
+					}).Label(locales.PlayerSpeed()).Tooltip(locales.PlayerSpeed()).Disabled(disabled).FontFeatures("tnum")
+					if ui.Toggle(c, &a.loop, "").Label(locales.PlayerLoop()).Tooltip(locales.PlayerLoop()).Padding(c.Theme().Space(2)).Disabled(disabled).Children(func() { icon(c, "repeat") }).Changed() {
+						a.evalPlayer(a.rateScript())
+					}
+				}).Padding(0).Gap(em(c, 4))
+				muteLabel, muteIcon := locales.PlayerMute(), "volume-2"
+				if a.settings.Muted || a.settings.Volume == 0 {
+					muteLabel, muteIcon = locales.PlayerUnmute(), "volume-x"
+				}
+				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Children(func() {
+					ui.Toolbar(c, func() { toolIcon(c, muteLabel, muteIcon).OnClick(func() { a.toggleMute(c.Now()) }) }).Padding(0)
+					volume := a.audibleVolume()
+					ui.Slider(c, &volume, 0, 100).Width(em(c, 88)).Label(locales.PlayerVolume()).Tooltip(locales.PlayerVolumeValue(int(math.Round(volume)))).OnChange(func() { a.setVolume(volume, false, c.Now()) })
 				})
 			})
 		})

@@ -19,6 +19,9 @@ func (a *NativeApp) recognizeWithTranslation(translate bool) {
 	if a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" {
 		return
 	}
+	if translate {
+		a.commitProviderModelInput()
+	}
 	if translate && (a.settings.ProviderURL == "" || a.settings.ProviderModel == "") {
 		a.settingsOpen, a.settingsTab = true, 2
 		return
@@ -40,7 +43,7 @@ func (a *NativeApp) recognizeWithTranslation(translate bool) {
 	if !a.rememberProcessing("recognize", translate) {
 		return
 	}
-	prefs, style, aspect := a.settings, a.currentStyle, a.frameAspect
+	prefs, style, aspect := a.recognitionPreferences(), a.currentStyle, a.frameAspect
 	a.recognitionRunning = true
 	a.recognitionStarted = time.Now()
 	a.recognitionStep = recognitionStep{Stage: "verify"}
@@ -68,6 +71,7 @@ func (a *NativeApp) translate() {
 		return
 	}
 	a.commitEdit(true)
+	a.commitProviderModelInput()
 	a.reloadTranslationProfiles()
 	if a.settings.ProviderURL == "" || a.settings.ProviderModel == "" {
 		a.settingsOpen = true

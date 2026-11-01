@@ -15,6 +15,10 @@ import (
 	"github.com/google/uuid"
 )
 
+type providerModelDraft struct {
+	provider, selected, text string
+}
+
 // fetchProviderModels asks the configured endpoint what models it offers.
 // The answer is the provider's catalog: the list the user keeps models from.
 // The models kept for the provider are not disturbed by it, except that a
@@ -47,10 +51,6 @@ func (a *NativeApp) fetchProviderModels() {
 				return
 			}
 			a.modelsError = ""
-			a.providerModels = nil
-			for _, item := range items {
-				a.providerModels = append(a.providerModels, item.ID)
-			}
 			p := a.settings.Provider()
 			if p == nil {
 				return
@@ -70,18 +70,15 @@ func (a *NativeApp) fetchProviderModels() {
 }
 
 func (a *NativeApp) providerSelectionChanged(id string) {
+	a.commitProviderModelInput()
 	if !a.settings.SelectProvider(id) {
 		return
 	}
 	a.modelsGeneration++
 	a.providerKey, a.keyStatus, a.modelsError, a.modelsEndpoint = "", "", "", ""
 	a.modelsLoading = false
-	a.providerModels = nil
-	if p := a.settings.Provider(); p != nil {
-		for _, model := range p.Catalog {
-			a.providerModels = append(a.providerModels, model.ID)
-		}
-	}
+	a.modelQuery = ""
+	a.modelList.ScrollTo(0, ui.Start)
 	a.saveSettings()
 }
 
@@ -115,85 +112,122 @@ func (a *NativeApp) providerSelect(c *ui.Context) ui.Element {
 	return idSelect(c, &id, options).Label(locales.TranslationProvider()).OnChange(func() { a.providerSelectionChanged(id) })
 }
 
-// providerModelSelect is the model in use for this provider. It takes any
-// model the endpoint offers and any name the user types, so a service that
-// publishes no catalog stays usable.
+// providerModelSelect pairs MyGo's editable input with an explicit native
+// drop-down. Autocomplete alone only offers suggestions after typing; it is
+// not a discoverable way to switch an already selected model.
 func (a *NativeApp) providerModelSelect(c *ui.Context) ui.Element {
+	row := ui.Row(c.Key(a.settings.ActiveProvider)).Gap(0).MinWidth(0).AlignItems(ui.Stretch)
+	if a.modelEdit.provider != a.settings.ActiveProvider || a.modelEdit.selected != a.settings.ProviderModel {
+		a.modelEdit = providerModelDraft{a.settings.ActiveProvider, a.settings.ProviderModel, a.settings.ProviderModel}
+	}
+	wasFocused := ui.Local(row, "model-was-focused", func() bool { return false })
 	names := a.providerModelNames()
-	// Autocomplete binds free text as well as catalog selections. Combobox
-	// accepts catalog items only and discards manually entered model names.
-	// Choosing a name from the catalog keeps it for this provider, so it
-	// stays in the list to switch back to.
-	return ui.Autocomplete(c, &a.settings.ProviderModel, names).Placeholder(locales.TranslationModelPlaceholder()).Label(locales.TranslationModel()).Tooltip(a.settings.ProviderModel).OnChange(func() {
-		a.settings.SyncProvider()
-		// A model the endpoint offers is kept for this provider, so it
-		// stays in the list and the user can switch back to it.
-		if p := a.settings.Provider(); p != nil {
-			for _, m := range p.Catalog {
-				if m.ID == a.settings.ProviderModel {
-					p.KeepModel(m)
-					break
+	row.Children(func() {
+		input := ui.Autocomplete(c, &a.modelEdit.text, names).Grow(1).MinWidth(0).
+			Radius(c.Theme().Radius, 0, 0, c.Theme().Radius).
+			Placeholder(locales.TranslationModelPlaceholder()).Label(locales.TranslationModel()).
+			Tooltip(a.modelEdit.text).Disabled(a.settings.Provider() == nil)
+		// Only this input's blur commits it. The same model selector can
+		// also be mounted behind the settings modal without saving partial IDs.
+		if input.Submitted() || (*wasFocused && !input.Focused()) {
+			a.commitProviderModelInput()
+		}
+		*wasFocused = input.Focused()
+		ui.MenuButton(c, "", func(m *ui.Menu) {
+			for _, id := range a.providerModelNames() {
+				if m.Item(id).Checked(id == a.settings.ProviderModel).Chosen() {
+					a.useProviderModel(id)
 				}
 			}
-		}
-		a.saveSettings()
+		}).Padding(em(c, 8)).Radius(0, c.Theme().Radius, c.Theme().Radius, 0).
+			Label(locales.TranslationSwitchModel()).Tooltip(locales.TranslationSwitchModel()).
+			Disabled(len(names) == 0).Shrink(0)
 	})
+	return row
 }
 
-// providerModelNames are the models the user may choose: those the endpoint
-// offers, those kept for this provider, and the one in use.
-func (a *NativeApp) providerModelNames() []string {
-	names := append([]string{}, a.providerModels...)
-	if p := a.settings.Provider(); p != nil {
-		for _, m := range p.Catalog {
-			names = append(names, m.ID)
-		}
-		for _, m := range p.Models {
-			names = append(names, m.ID)
-		}
+// Commit before switching accounts or starting a task too: those callbacks
+// may run before the input observes its blur. A draft never crosses providers.
+func (a *NativeApp) commitProviderModelInput() {
+	edit := a.modelEdit
+	if edit.provider == a.settings.ActiveProvider && edit.selected == a.settings.ProviderModel && edit.text != a.settings.ProviderModel {
+		a.useProviderModel(edit.text)
 	}
-	if a.settings.ProviderModel != "" {
-		names = append(names, a.settings.ProviderModel)
-	}
-	slices.Sort(names)
-	return slices.Compact(names)
 }
 
-// providerKeptModels are the models kept for this provider, in the order the
-// user kept them.
-func (a *NativeApp) providerKeptModels() []translator.ModelInfo {
+// The catalog and saved choices have separate lifetimes. Manual IDs and
+// models removed from a later catalog remain available until the user removes
+// them; manually edited limits take precedence over advertised metadata.
+func (a *NativeApp) providerModelCatalog() []translator.ModelInfo {
 	p := a.settings.Provider()
 	if p == nil {
 		return nil
 	}
-	return append([]translator.ModelInfo{}, p.Models...)
+	byID := map[string]translator.ModelInfo{}
+	for _, info := range p.Catalog {
+		byID[info.ID] = info
+	}
+	for _, info := range p.Models {
+		byID[info.ID] = info
+	}
+	if id := a.settings.ProviderModel; id != "" {
+		if _, exists := byID[id]; !exists {
+			byID[id] = translator.ModelInfo{ID: id}
+		}
+	}
+	items := make([]translator.ModelInfo, 0, len(byID))
+	for _, info := range byID {
+		items = append(items, info)
+	}
+	slices.SortFunc(items, func(x, y translator.ModelInfo) int { return strings.Compare(x.ID, y.ID) })
+	return items
 }
 
-// keepProviderModel keeps a model for this provider, and makes it the one in
-// use when it is not kept yet. A model the user entered by hand is kept with
-// the limits it has.
+func (a *NativeApp) providerModelNames() []string {
+	items := a.providerModelCatalog()
+	names := make([]string, 0, len(items))
+	// Saved models lead the switcher, without reshuffling catalog rows as
+	// the user checks several of them in succession.
+	for _, kept := range []bool{true, false} {
+		for _, info := range items {
+			if a.settings.Provider().KeepsModel(info.ID) == kept {
+				names = append(names, info.ID)
+			}
+		}
+	}
+	return names
+}
+
+// Keeping a model and choosing it are distinct actions. Multi-select must
+// never change the model a translation will use behind the user's back.
 func (a *NativeApp) keepProviderModel(id string) {
 	p := a.settings.Provider()
 	if p == nil || id == "" {
 		return
 	}
 	info := translator.ModelInfo{ID: id}
-	for _, m := range p.Catalog {
-		if m.ID == id {
-			info = m
-			break
-		}
-	}
-	for _, m := range p.Models {
+	for _, m := range a.providerModelCatalog() {
 		if m.ID == id {
 			info = m
 			break
 		}
 	}
 	p.KeepModel(info)
-	a.settings.ProviderModel = id
-	a.settings.SyncProvider()
 	a.saveSettings()
+}
+
+func (a *NativeApp) useProviderModel(id string) {
+	if a.settings.Provider() == nil {
+		return
+	}
+	id = strings.TrimSpace(id)
+	a.settings.ProviderModel = id
+	a.modelEdit = providerModelDraft{a.settings.ActiveProvider, id, id}
+	if id == "" {
+		a.saveSettings()
+	} else {
+		a.keepProviderModel(id)
+	}
 }
 
 // dropProviderModel takes a model out of the kept ones. The model in use
@@ -235,7 +269,7 @@ func (a *NativeApp) providerDeleteView(c *ui.Context) {
 	a.settings.Providers = slices.Delete(a.settings.Providers, i, i+1)
 	a.settings.ActiveProvider, a.settings.ProviderURL, a.settings.ProviderModel = "", "", ""
 	a.providerKey, a.keyStatus, a.modelsEndpoint, a.modelsError = "", "", "", ""
-	a.providerModels, a.modelsLoading = nil, false
+	a.modelQuery, a.modelsLoading = "", false
 	if len(a.settings.Providers) > 0 {
 		a.providerSelectionChanged(a.settings.Providers[0].ID)
 	} else {
@@ -243,50 +277,67 @@ func (a *NativeApp) providerDeleteView(c *ui.Context) {
 	}
 }
 
-// providerModelsView is the list of the models the endpoint offers, with the
-// ones this provider keeps marked. It is what the user asked the service for
-// and never saw: the models were fetched into the settings, where only the
-// names in use could be seen.
+// The model directory is a native table: retention, model ID and use action
+// have stable columns. Long identifiers elide in their own column, never push
+// controls away, and keep their complete name and limits in a tooltip.
 func (a *NativeApp) providerModelsView(c *ui.Context) {
 	p := a.settings.Provider()
-	if p == nil {
-		return
-	}
-	models := append([]translator.ModelInfo{}, p.Catalog...)
-	for _, m := range p.Models {
-		if !slices.ContainsFunc(models, func(c translator.ModelInfo) bool { return c.ID == m.ID }) {
-			models = append(models, m)
-		}
-	}
-	if len(models) == 0 {
-		return
-	}
-	slices.SortFunc(models, func(x, y translator.ModelInfo) int { return strings.Compare(x.ID, y.ID) })
-	ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-		muted(c, locales.TranslationModelsHint()).FontSize(em(c, captionSize))
-		ui.Spacer(c)
-		ui.Button(c, locales.TranslationFetchModels()).Disabled(a.modelsLoading || a.settings.ProviderURL == "").OnClick(a.fetchProviderModels)
+	items := a.providerModelCatalog()
+	models := slices.DeleteFunc(items, func(info translator.ModelInfo) bool {
+		return !strings.Contains(strings.ToLower(info.ID), strings.ToLower(strings.TrimSpace(a.modelQuery)))
 	})
-	// The list has a fixed height of its own: the settings dialog has a
-	// fixed size, and a longer list of models scrolls inside it.
-	a.modelList.Key = func(i int) any { return models[i].ID }
-	ui.List(c, &a.modelList, len(models), func(i int) {
-		info := models[i]
-		kept := p.KeepsModel(info.ID)
-		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Padding(em(c, 2), em(c, 4)).Children(func() {
-			ui.Checkbox(c, &kept, info.ID).Tooltip(info.ID).OnChange(func() {
-				if kept {
-					a.keepProviderModel(info.ID)
-				} else {
-					a.dropProviderModel(info.ID)
+	// Empty, loading, failed and populated catalogs share the available
+	// height. Only this native list scrolls; the dialog and footer stay fixed.
+	ui.Column(c).Grow(1).MinHeight(em(c, 104)).Background(studioColors(c).panel).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Clip().Label(locales.A11yModelCatalog()).Children(func() {
+		if len(models) == 0 {
+			label := locales.TranslationModelsEmpty()
+			if a.modelQuery != "" {
+				label = locales.TranslationModelsNoMatch()
+			}
+			ui.Column(c).Fill().Center().Padding(em(c, 16)).Children(func() { muted(c, label).TextAlign(ui.Center) })
+			return
+		}
+		measure := func(labels ...string) float32 {
+			width := float32(0)
+			for _, label := range labels {
+				w, _ := c.MeasureText(0, ui.Span{Text: label})
+				width = max(width, w)
+			}
+			return width + em(c, 24)
+		}
+		a.modelList.Key = func(i int) any { return models[i].ID }
+		a.modelList.Label = func(i int) string { return models[i].ID }
+		ui.Table(c, &a.modelList, []ui.TableColumn{
+			{Title: locales.TranslationKeep(), Width: measure(locales.TranslationKeep()), Fixed: true, Align: ui.Center},
+			{Title: locales.TranslationModel(), MinWidth: em(c, 80), Fixed: true},
+			{Title: locales.TranslationModelState(), Width: measure(locales.TranslationModelInUse(), locales.TranslationUseModel()), Fixed: true, Align: ui.Center},
+		}, len(models), func(i, col int) {
+			info := models[i]
+			switch col {
+			case 0:
+				kept := p.KeepsModel(info.ID)
+				ui.Checkbox(c, &kept, "").Label(locales.TranslationKeepModel(info.ID)).Tooltip(locales.TranslationKeepModel(info.ID)).
+					Disabled(a.settings.ProviderModel == info.ID).OnChange(func() {
+					if kept {
+						a.keepProviderModel(info.ID)
+					} else {
+						a.dropProviderModel(info.ID)
+					}
+				})
+			case 1:
+				tip := info.ID
+				if input, output, window := providerModelLimits(&info); input > 0 || output > 0 || window > 0 {
+					tip += "\n" + locales.TranslationModelLimits(strconv.Itoa(input), strconv.Itoa(output), strconv.Itoa(window))
 				}
-			})
-			if p.Model == info.ID {
-				ui.Badge(c, locales.TranslationModelInUse()).Background(c.Theme().Accent.Alpha(0.16)).TextColor(c.Theme().Accent)
+				ui.Text(c, info.ID).SingleLine().Tooltip(tip)
+			case 2:
+				if a.settings.ProviderModel == info.ID {
+					ui.Badge(c, locales.TranslationModelInUse())
+				} else {
+					ui.Button(c, locales.TranslationUseModel()).Padding(em(c, 2), em(c, 8)).
+						Label(locales.TranslationUseModelNamed(info.ID)).OnClick(func() { a.useProviderModel(info.ID) })
+				}
 			}
-			if input, output, window := providerModelLimits(&info); input > 0 || output > 0 || window > 0 {
-				muted(c, locales.TranslationModelLimits(strconv.Itoa(input), strconv.Itoa(output), strconv.Itoa(window))).FontSize(em(c, captionSize)).FontFeatures("tnum")
-			}
-		})
-	}).Height(em(c, 120)).Label(locales.TranslationModels())
+		}).Fill().Label(locales.TranslationModels())
+	})
 }

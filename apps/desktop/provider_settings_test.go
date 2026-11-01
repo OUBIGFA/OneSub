@@ -55,13 +55,13 @@ func TestProviderModelListKeepsSeveralModelsAndSwitches(t *testing.T) {
 		{ID: "model-a", MaxInputTokens: 96000, MaxOutputTokens: 12000, ContextWindow: 128000},
 		{ID: "model-b", MaxInputTokens: 32000, LimitsSource: "manual"},
 	}
-	a.keepProviderModel("model-a")
+	a.useProviderModel("model-a")
 	a.keepProviderModel("model-b")
 	if len(a.settings.Provider().Models) != 2 {
 		t.Fatal("models were not kept", a.settings.Provider().Models)
 	}
-	if a.settings.ProviderModel != "model-b" {
-		t.Fatal("the model in use did not follow the last kept", a.settings.ProviderModel)
+	if a.settings.ProviderModel != "model-a" {
+		t.Fatal("keeping another model changed the active model", a.settings.ProviderModel)
 	}
 	// The limits a user entered by hand survive a new catalog.
 	a.keepProviderModel("model-b")
@@ -96,7 +96,7 @@ func TestProviderSettingsShowTheModelList(t *testing.T) {
 			a.settings.ProviderURL = "https://example.com/v1"
 			a.settings.SyncProvider()
 			a.settings.Provider().Catalog = []translator.ModelInfo{{ID: "model-visible"}, {ID: "model-other"}}
-			a.keepProviderModel("model-visible")
+			a.useProviderModel("model-visible")
 			a.settingsOpen, a.settingsTab = true, 2
 			tt := settled(a.view, 1100, 700)
 			for _, label := range []string{locales.TranslationModels(), "model-visible", "model-other", locales.TranslationModelInUse()} {
@@ -146,11 +146,21 @@ func TestProviderSettingsKeepSizeAndVisibleControls(t *testing.T) {
 			if tt.HasText(locales.TranslationConcurrency()) || tt.HasText(locales.TranslationBatchSize()) {
 				t.Fatal("task scheduling still appears in service settings")
 			}
-			for _, label := range []string{locales.TranslationProviderName(), locales.TranslationMaxInput(), locales.TranslationMaxOutput(), locales.TranslationContextWindow(), locales.ActionClose()} {
+			for _, label := range []string{locales.TranslationMaxInput(), locales.TranslationMaxOutput(), locales.TranslationContextWindow(), locales.ActionClose()} {
 				box, ok := tt.Find(label)
 				if !ok || box.W == 0 || box.H == 0 || box.Y < 0 || box.Y+box.H > 640 {
 					t.Fatal("setting clipped", language, label, box)
 				}
+			}
+			if err := tt.Click(locales.TranslationService()); err != nil {
+				t.Fatal(err)
+			}
+			for range 4 {
+				tt.Frame()
+			}
+			insideRedesign(t, tt, locales.A11ySettingsContent(), locales.TranslationProviderName(), locales.TranslationEndpoint(), "API Key", locales.TranslationRequestLimit())
+			if content, _ := tt.Find(locales.A11ySettingsContent()); content != before {
+				t.Fatal("provider view changed the settings shell")
 			}
 		})
 	}

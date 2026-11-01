@@ -25,135 +25,134 @@ type translationCandidate struct {
 	Checks    translator.Findings `json:"checks"`
 }
 
-// Service setup is separate from per-task batching on the workbench and from
-// language rules. This page owns only credentials, models and request limits.
+// Providers have two working views: a full-width model library for everyday
+// selection, and connection details for setup. Neither is squeezed beside the
+// other. The fixed settings shell remains unchanged when switching views.
 func (a *NativeApp) translationSettingsView(c *ui.Context) {
-	ui.Column(c).Gap(em(c, 20)).Children(func() {
-		settingsGroup(c, locales.WorkflowAIService(), func() {
-			// The page is two columns of related fields: what the service
-			// is, and what it is asked for. The dialog has a fixed size,
-			// so the model list keeps a fixed height of its own.
-			ui.Grid(c).Columns(2).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
-				ui.Column(c).Gap(em(c, 14)).Children(func() {
-					ui.Row(c).Gap(em(c, 8)).Children(func() {
-						a.providerSelect(c).Grow(1)
-						ui.Button(c, locales.TranslationAddProvider()).OnClick(a.addProvider)
-						ui.Button(c, locales.TranslationDeleteProvider()).Disabled(a.settings.Provider() == nil).OnClick(func() { a.providerDelete = true })
-					})
-					ui.Form(c, func() {
-						ui.Field(c, locales.TranslationProviderName(), func() {
-							p := a.settings.Provider()
-							name := ""
-							if p != nil {
-								name = p.Name
-							}
-							ui.TextInput(c, &name).Label(locales.TranslationProviderName()).Tooltip(name).Disabled(p == nil).OnChange(func() { p.Name = name; a.saveSettings() })
-						})
-						ui.Field(c, locales.TranslationApi(), func() {
-							idSelect(c, &a.settings.ProviderAPI, []option{{translator.APIChatCompletions, "OpenAI Chat Completions"}, {translator.APIResponses, "OpenAI Responses"}}).Label(locales.TranslationApi()).OnChange(a.saveSettings)
-						})
-						ui.Field(c, locales.TranslationEndpoint(), func() {
-							address := ui.TextInput(c, &a.settings.ProviderURL).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).Tooltip(a.settings.ProviderURL).OnChange(func() {
-								a.providerKey, a.keyStatus, a.modelsError = "", "", ""
-								a.modelsGeneration++
-								a.modelsLoading = false
-								a.providerModels = nil
-								if p := a.settings.Provider(); p != nil {
-									// Another endpoint offers other models: the
-									// list and the kept models go with it.
-									p.Models = nil
-									p.Catalog = nil
-								}
-								a.saveSettings()
-							})
-							if a.settingsTab == 2 && !address.Focused() && a.settings.ProviderURL != a.modelsEndpoint {
-								a.fetchProviderModels()
-							}
-						})
-					}).Gap(em(c, 8))
-					ui.Form(c, func() {
-						ui.Field(c, "API Key", func() {
-							ui.TextInput(c, &a.providerKey).Password().Placeholder(locales.TranslationKeyPlaceholder()).Label("API Key")
-						})
-					}).Gap(em(c, 8))
-					ui.Row(c).Gap(em(c, 8)).Children(func() {
-						ui.Button(c, locales.TranslationSaveKey()).Disabled(a.providerKey == "" || a.settings.ProviderURL == "").OnClick(func() {
-							if err := security.SaveKey(a.settings.CredentialScope(), a.providerKey); err != nil {
-								a.showError("provider-key", err.Error())
-								return
-							}
-							a.clearError("provider-key")
-							a.providerKey = ""
-							a.keyStatus = locales.TranslationKeySaved()
-							a.modelsGeneration++
-							a.modelsLoading = false
-							a.modelsEndpoint = ""
-							a.fetchProviderModels()
-						})
-						ui.Button(c, locales.TranslationDeleteKey()).OnClick(func() {
-							if err := security.DeleteKey(a.settings.CredentialScope()); err != nil {
-								a.showError("provider-key", err.Error())
-								return
-							}
-							a.clearError("provider-key")
-							a.providerKey = ""
-							a.keyStatus = locales.TranslationKeyDeleted()
-							a.modelsGeneration++
-							a.modelsLoading = false
-							a.modelsEndpoint = ""
-						})
-					})
-				})
-				ui.Column(c).Gap(em(c, 14)).Children(func() {
-					ui.Form(c, func() {
-						ui.Field(c, locales.TranslationModel(), func() {
-							ui.Row(c).Gap(em(c, 8)).Children(func() {
-								a.providerModelSelect(c).Grow(1).MinWidth(0)
-								ui.Toolbar(c, func() {
-									toolIcon(c, locales.TranslationFetchModels(), "rotate-cw").Disabled(a.modelsLoading || a.settings.ProviderURL == "").OnClick(a.fetchProviderModels)
-								}).Padding(0)
-							})
-						})
-					}).Gap(em(c, 8))
-					// The models the endpoint offers, and the ones this
-					// provider keeps. The list is what the service answered;
-					// the check boxes say which of them stay, and the model
-					// in use is marked.
-					a.providerModelsView(c)
-					ui.Grid(c).Columns(2).Gap(em(c, 12)).Children(func() {
-						info := a.settings.ModelInfo()
-						for _, field := range []struct {
-							label string
-							get   func(*translator.ModelInfo) *int
-						}{
-							{locales.TranslationMaxInput(), func(m *translator.ModelInfo) *int { return &m.MaxInputTokens }},
-							{locales.TranslationMaxOutput(), func(m *translator.ModelInfo) *int { return &m.MaxOutputTokens }},
-							{locales.TranslationContextWindow(), func(m *translator.ModelInfo) *int { return &m.ContextWindow }},
-						} {
-							ui.Field(c, field.label, func() {
-								value := float64(0)
-								if info != nil {
-									value = float64(*field.get(info))
-								}
-								ui.NumberInput(c, &value, 0, 2147483647, 1).Label(field.label).Disabled(info == nil).OnChange(func() { *field.get(info) = int(value); info.LimitsSource = "manual"; a.saveSettings() })
-							})
+	ui.Column(c).Fill().Gap(em(c, 16)).Children(func() {
+		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+			a.providerSelect(c).Grow(1).MinWidth(0)
+			ui.Button(c, locales.TranslationAddProvider()).OnClick(func() { a.addProvider(); a.providerSettingsTab = 1 })
+			ui.Button(c, locales.TranslationDeleteProvider()).Disabled(a.settings.Provider() == nil).OnClick(func() { a.providerDelete = true })
+		})
+		ui.Row(c).Gap(em(c, 16)).AlignItems(ui.Center).Children(func() {
+			ui.Tabs(c, &a.providerSettingsTab, locales.TranslationModels(), locales.TranslationService()).OnChange(a.commitProviderModelInput)
+			ui.Spacer(c)
+			kept := 0
+			if p := a.settings.Provider(); p != nil {
+				kept = len(p.Models)
+			}
+			notice := locales.TranslationModelsKept(kept, len(a.providerModelCatalog()))
+			if a.modelsLoading {
+				notice = locales.TranslationModelsLoading()
+			}
+			if a.modelsError != "" {
+				notice = locales.TranslationModelsFailed()
+			}
+			status := muted(c, notice).FontSize(em(c, captionSize)).Tooltip(a.modelsError)
+			if a.modelsError != "" {
+				status.TextColor(c.Theme().Danger)
+			}
+		})
+		if a.providerSettingsTab == 1 {
+			a.providerConnectionFields(c)
+			return
+		}
+		ui.Column(c.Key("provider-models")).Grow(1).MinHeight(0).Gap(em(c, 12)).Children(func() {
+			ui.Row(c).Gap(em(c, 16)).AlignItems(ui.Center).Children(func() {
+				ui.Form(c, func() {
+					ui.Field(c, locales.TranslationModel(), func() { a.providerModelSelect(c) })
+				}).Grow(1).Basis(0).MinWidth(0)
+				ui.SearchField(c, &a.modelQuery).Grow(1).Basis(0).MinWidth(0).Placeholder(locales.TranslationSearchModels()).Label(locales.TranslationSearchModels()).OnChange(func() { a.modelList.ScrollTo(0, ui.Start) })
+				iconButton(c, locales.TranslationFetchModels(), "rotate-cw").Disabled(a.modelsLoading || a.settings.ProviderURL == "").OnClick(a.fetchProviderModels)
+			})
+			a.providerModelsView(c)
+			ui.Divider(c)
+			ui.Grid(c).Columns(3).Gap(em(c, 20)).Children(func() {
+				info := a.settings.ModelInfo()
+				for _, field := range []struct {
+					label string
+					get   func(*translator.ModelInfo) *int
+				}{
+					{locales.TranslationMaxInput(), func(m *translator.ModelInfo) *int { return &m.MaxInputTokens }},
+					{locales.TranslationMaxOutput(), func(m *translator.ModelInfo) *int { return &m.MaxOutputTokens }},
+					{locales.TranslationContextWindow(), func(m *translator.ModelInfo) *int { return &m.ContextWindow }},
+				} {
+					ui.Field(c, field.label, func() {
+						value := float64(0)
+						if info != nil {
+							value = float64(*field.get(info))
 						}
-						ui.Field(c, locales.TranslationRequestLimit(), func() {
-							ui.NumberInput(c, &a.settings.MaxRequests, 1, 10000, 1).Label(locales.TranslationRequestLimit()).OnChange(a.saveSettings)
-						})
+						ui.NumberInput(c, &value, 0, 2147483647, 1).Label(field.label).Disabled(info == nil).OnChange(func() { *field.get(info) = int(value); info.LimitsSource = "manual"; a.saveSettings() })
 					})
-					ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-						muted(c, locales.TranslationLimitsNote()).FontSize(em(c, captionSize))
-						notice := a.keyStatus
-						if a.modelsLoading {
-							notice = locales.TranslationModelsLoading()
-						}
-						if a.modelsError != "" {
-							notice = locales.TranslationModelsFailed()
-						}
-						muted(c, notice).FontSize(em(c, captionSize)).Tooltip(a.modelsError)
-					})
-				})
+				}
+			})
+			muted(c, locales.TranslationLimitsNote()).FontSize(em(c, captionSize))
+		})
+		if a.settings.ProviderURL != a.modelsEndpoint {
+			a.fetchProviderModels()
+		}
+	})
+}
+
+func (a *NativeApp) providerConnectionFields(c *ui.Context) {
+	ui.Column(c.Key("provider-connection")).Grow(1).Gap(em(c, 20)).Children(func() {
+		parameterGrid(c, 200, 3, func() {
+			ui.Field(c, locales.TranslationProviderName(), func() {
+				p := a.settings.Provider()
+				name := ""
+				if p != nil {
+					name = p.Name
+				}
+				ui.TextInput(c, &name).Label(locales.TranslationProviderName()).Tooltip(name).Disabled(p == nil).OnChange(func() { p.Name = name; a.saveSettings() })
+			})
+			ui.Field(c, locales.TranslationApi(), func() {
+				idSelect(c, &a.settings.ProviderAPI, []option{{translator.APIChatCompletions, "OpenAI Chat Completions"}, {translator.APIResponses, "OpenAI Responses"}}).Label(locales.TranslationApi()).Disabled(a.settings.Provider() == nil).OnChange(a.saveSettings)
+			})
+			ui.Field(c, locales.TranslationRequestLimit(), func() {
+				ui.NumberInput(c, &a.settings.MaxRequests, 1, 10000, 1).Label(locales.TranslationRequestLimit()).OnChange(a.saveSettings)
+			})
+		})
+		ui.Field(c, locales.TranslationEndpoint(), func() {
+			address := ui.TextInput(c, &a.settings.ProviderURL).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).Tooltip(a.settings.ProviderURL).Disabled(a.settings.Provider() == nil).OnChange(func() {
+				a.providerKey, a.keyStatus, a.modelsError = "", "", ""
+				a.modelsGeneration++
+				a.modelsLoading = false
+				if p := a.settings.Provider(); p != nil {
+					p.Catalog = nil // invalidate discovery, not retained models or manual limits
+				}
+				a.saveSettings()
+			})
+			if !address.Focused() && a.settings.ProviderURL != a.modelsEndpoint {
+				a.fetchProviderModels()
+			}
+		})
+		ui.Field(c, "API Key", func() {
+			ui.TextInput(c, &a.providerKey).Password().Placeholder(locales.TranslationKeyPlaceholder()).Label("API Key").Disabled(a.settings.Provider() == nil)
+		})
+		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+			muted(c, a.keyStatus).FontSize(em(c, captionSize)).Grow(1)
+			ui.Button(c, locales.TranslationDeleteKey()).Disabled(a.settings.Provider() == nil).OnClick(func() {
+				if err := security.DeleteKey(a.settings.CredentialScope()); err != nil {
+					a.showError("provider-key", err.Error())
+					return
+				}
+				a.clearError("provider-key")
+				a.providerKey, a.keyStatus, a.modelsEndpoint = "", locales.TranslationKeyDeleted(), ""
+				a.modelsGeneration++
+				a.modelsLoading = false
+			})
+			ui.PrimaryButton(c, locales.TranslationSaveKey()).Disabled(a.providerKey == "" || a.settings.ProviderURL == "").OnClick(func() {
+				if err := security.SaveKey(a.settings.CredentialScope(), a.providerKey); err != nil {
+					a.showError("provider-key", err.Error())
+					return
+				}
+				a.clearError("provider-key")
+				a.providerKey, a.keyStatus, a.modelsEndpoint = "", locales.TranslationKeySaved(), ""
+				a.modelsGeneration++
+				a.modelsLoading = false
+				a.providerSettingsTab = 0
+				a.fetchProviderModels()
 			})
 		})
 	})
@@ -162,8 +161,8 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 // Language rules are independent of service credentials. Giving them their own
 // settings page leaves room to actually edit a glossary without crowding keys.
 func (a *NativeApp) translationRulesView(c *ui.Context) {
-	settingsGroup(c, locales.WorkflowTranslationSettings(), func() {
-		ui.Grid(c).Columns(2).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
+	ui.Column(c).Fill().Gap(em(c, 24)).Children(func() {
+		ui.Column(c).Gap(em(c, 24)).Children(func() {
 			ui.Field(c, locales.TranslationStyle(), func() {
 				ui.Row(c).Gap(em(c, 8)).Children(func() {
 					a.styleSelect(c).Grow(1).MinWidth(0)
@@ -185,7 +184,7 @@ func (a *NativeApp) translationRulesView(c *ui.Context) {
 				})
 			}).Error(a.profilesError)
 			ui.Field(c, locales.TranslationGlossary(), func() {
-				ui.TextArea(c, &a.settings.Glossary).Height(em(c, 240)).Label(locales.TranslationGlossary()).Placeholder(locales.TranslationGlossaryPlaceholder()).OnChange(a.saveSettings)
+				ui.TextArea(c, &a.settings.Glossary).Height(em(c, 220)).Padding(em(c, 12)).Label(locales.TranslationGlossary()).Placeholder(locales.TranslationGlossaryPlaceholder()).OnChange(a.saveSettings)
 			})
 		})
 	})
@@ -207,8 +206,10 @@ func (a *NativeApp) styleSelect(c *ui.Context) ui.Element {
 // translationView is the check results of the last translation: what the
 // subtitle skill's checker found, and every subtitle beside its source.
 func (a *NativeApp) translationView(c *ui.Context) {
-	ui.Modal(c, &a.translationReview, func() {
-		ui.Column(c).Width(em(c, 760)).Gap(em(c, 12)).Children(a.translationReviewContent(c))
+	fixedDialog(c, &a.translationReview, locales.TranslationResults(), 900, 640, func() {
+		ui.Scroll(c).Grow(1).Children(a.translationReviewContent(c))
+	}, func() {
+		ui.PrimaryButton(c, locales.ActionClose()).OnClick(func() { a.translationReview = false })
 	})
 }
 
@@ -219,7 +220,6 @@ func (a *NativeApp) translationReviewContent(c *ui.Context) func() {
 			return
 		}
 		report := candidate.Result.Report
-		dialogTitle(c, locales.TranslationResults())
 		ui.Text(c, locales.ReviewSummary(report.Translated, report.TimelineChanges, len(candidate.Checks.Errors), len(candidate.Checks.Warnings)+len(report.Warnings)))
 		ui.Scroll(c).Height(em(c, 130)).Children(func() {
 			for _, item := range candidate.Checks.Errors {
@@ -254,9 +254,6 @@ func (a *NativeApp) translationReviewContent(c *ui.Context) func() {
 				ui.Text(c, cue.SourceRange.Reason).TextColor(c.Theme().Warning)
 			}
 		}
-		ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Children(func() {
-			ui.PrimaryButton(c, locales.ActionClose()).OnClick(func() { a.translationReview = false })
-		})
 	}
 }
 

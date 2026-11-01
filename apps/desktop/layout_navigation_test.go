@@ -61,8 +61,8 @@ func TestPaneRatiosSurviveWindowResize(t *testing.T) {
 	}
 }
 
-// Check the rendered button, not just its helper name: both appearances
-// must show the blue face and white label, centered between unequal groups.
+// Check the rendered button, not just its helper name: the original blue
+// accent and white content stay centered in both appearances.
 func TestOneClickToolbarCenteredAndPrimary(t *testing.T) {
 	for language, label := range map[string]string{"zh-Hans": "一键识别并翻译", "en": "One-click transcribe & translate"} {
 		for _, width := range []int{900, 1800} {
@@ -87,21 +87,22 @@ func TestOneClickToolbarCenteredAndPrimary(t *testing.T) {
 								t.Fatal("toolbar action overlaps the primary action", name, r, button)
 							}
 						}
-						blue, white := 0, 0
+						primaryPixels, white := 0, 0
+						accent := ui.Hex("#2563eb")
 						image := tt.Image()
 						for y := int(button.Y); y < int(button.Y+button.H); y++ {
 							for x := int(button.X); x < int(button.X+button.W); x++ {
 								p := image.RGBAAt(x, y)
-								if p.R == 0x25 && p.G == 0x63 && p.B == 0xeb {
-									blue++
+								if p.R == accent.R && p.G == accent.G && p.B == accent.B {
+									primaryPixels++
 								}
 								if p.R == 255 && p.G == 255 && p.B == 255 {
 									white++
 								}
 							}
 						}
-						if blue < int(button.W*button.H)/4 || white < 20 {
-							t.Fatal("primary button is not blue with white content", blue, white, button)
+						if primaryPixels < int(button.W*button.H)/4 || white < 20 {
+							t.Fatal("primary button does not use the selected theme's accent and white text", primaryPixels, white, button)
 						}
 						if err := tt.Click(label); err != nil {
 							t.Fatal(err)
