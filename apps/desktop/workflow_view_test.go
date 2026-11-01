@@ -42,7 +42,7 @@ func TestWorkflowFieldsStayCompactAndAligned(t *testing.T) {
 func TestWorkflowFolderActionsStayInsideNarrowPanels(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		for _, width := range []int{320, 450, 800} {
-			for _, tab := range []int{0, 1} {
+			for _, tab := range []int{0, 1, 2} {
 				t.Run(fmt.Sprintf("%s/%d/%d", language, width, tab), func(t *testing.T) {
 					inLocale(t, language, func() {
 						a := nativeForTest(t)
@@ -52,8 +52,19 @@ func TestWorkflowFolderActionsStayInsideNarrowPanels(t *testing.T) {
 						tt := settled(a.workflowPanel, width, 700)
 						// The prominent timeline option adds a row. Short panels
 						// scroll naturally; they must not compress or clip controls.
-						tt.Scroll(float32(width)/2, 350, 0, 900)
-						for _, label := range []string{locales.RecognitionChooseFolder(), locales.RecognitionResetFolder(), locales.RecognitionDirectory()} {
+						// Scrolling a panel that fits would push its content out.
+						// The batch page is short; the scroll area is sized by the
+						// tallest page, so scrolling it would only lose it.
+						if tab != 2 && a.workflowScroll.MaxY > 1 {
+							tt.Scroll(float32(width)/2, 350, 0, 900)
+						}
+						labels := []string{locales.RecognitionChooseFolder(), locales.RecognitionResetFolder(), locales.RecognitionDirectory()}
+						if tab == 2 {
+							// The batch queue has no output folder; its own
+							// actions must stay inside the narrow panel.
+							labels = []string{locales.BatchAddFiles(), locales.BatchStart(), locales.BatchRemove()}
+						}
+						for _, label := range labels {
 							box, ok := tt.Find(label)
 							if !ok || box.W <= 0 || box.X < 0 || box.X+box.W > float32(width) || box.Y+box.H > 700 {
 								t.Fatal("clipped folder control", label, box)
@@ -115,7 +126,7 @@ func TestDesktopParametersFitWithoutScrolling(t *testing.T) {
 					for range 8 {
 						tt.Frame()
 					}
-					for tab := 0; tab < 2; tab++ {
+					for tab := 0; tab < 3; tab++ {
 						a.workflowTab = tab
 						for range 4 {
 							tt.Frame()
@@ -123,7 +134,11 @@ func TestDesktopParametersFitWithoutScrolling(t *testing.T) {
 						if a.workflowScroll.MaxY > 1 || a.styleScroll.MaxY > 1 {
 							t.Fatal("desktop parameter content overflows", tab, a.workflowScroll, a.styleScroll)
 						}
-						for _, label := range []string{locales.StyleMarginVertical(), locales.RecognitionResetFolder()} {
+						labels := []string{locales.StyleMarginVertical(), locales.RecognitionResetFolder()}
+						if tab == 2 {
+							labels = []string{locales.StyleMarginVertical(), locales.BatchStart()}
+						}
+						for _, label := range labels {
 							r, ok := tt.Find(label)
 							if !ok || r.Y+r.H > float32(size[1])-32 || r.X+r.W > float32(size[0]) {
 								t.Fatal("parameter clipped", label, r)

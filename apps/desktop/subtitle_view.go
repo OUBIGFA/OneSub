@@ -473,6 +473,9 @@ func (a *NativeApp) changeSubtitleTab(tab int) {
 	}
 	a.list.StopScroll()
 	a.activeCue = -1
+	// The other track is a new list: the follow starts again from the cue at
+	// the playhead, as it does for a new playback.
+	a.resumeFollow()
 	a.loadDraft()
 }
 func (a *NativeApp) selectSubtitle(index int, action string) {

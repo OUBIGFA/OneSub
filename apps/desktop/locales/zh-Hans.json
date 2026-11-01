@@ -232,7 +232,7 @@
   "translationEndpointPlaceholder": "https://服务地址/v1",
   "batchRecognition": "批量识别",
   "batchQueue": "识别队列",
-  "batchAddFiles": "添加文件",
+  "batchAddFiles": "添加媒体",
   "batchRemove": "清空",
   "batchStart": "开始识别",
   "batchEmpty": "队列为空。",

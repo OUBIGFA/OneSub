@@ -149,7 +149,7 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 		}
 	}
 	cols := []ui.TableColumn{numberColumn(c, len(l.units)), timeColumn(c, locales.ListColumnStart()), {Title: locales.TabSource()}, {Title: locales.TabTranslation()}}
-	subtitleTable(c, &l.list, cols, len(rows), func(row, col int) {
+	table := subtitleTable(c, &l.list, cols, len(rows), func(row, col int) {
 		row = rows[row]
 		cue := l.units[row]
 		switch col {
@@ -169,13 +169,20 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 			}
 		}
 	}, func(bool) {}).Label(locales.TranslationLive())
-	// Playback takes precedence over streaming updates. Neither focus nor
-	// manual scrolling disables subsequent cue following.
+	// The live list follows the playback like the subtitle list does, and
+	// yields the viewport the same way: the reader's own scrolling keeps
+	// the list where they left it until the grace is over.
+	table.HandleInput(func(ev ui.InputEvent) bool {
+		if ev.Kind == ui.InputScroll && !a.paused {
+			a.noteBrowse(ev.Time)
+		}
+		return false
+	})
 	target := l.latest
 	if a.settings.FollowPlayback && !a.paused {
 		target = cueAt(l.units, a.position)
 	}
-	if target >= 0 && target != l.shown {
+	if target >= 0 && target != l.shown && !a.browsing(c.Now()) {
 		l.shown = target
 		for row, index := range rows {
 			if index == target {
@@ -183,6 +190,11 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 				break
 			}
 		}
+	}
+	if target >= 0 && target == l.shown && a.browsing(c.Now()) {
+		// The follow is waiting for the reading to be over; the row it
+		// would show is kept, so it takes the list back when it returns.
+		l.shown = -1
 	}
 }
 

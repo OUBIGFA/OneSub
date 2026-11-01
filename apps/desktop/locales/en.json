@@ -303,7 +303,7 @@
   "translationEndpointPlaceholder": "https://example.com/v1",
   "batchRecognition": "Batch recognition",
   "batchQueue": "Recognition queue",
-  "batchAddFiles": "Add files",
+  "batchAddFiles": "Add media",
   "batchRemove": "Clear",
   "batchStart": "Start",
   "batchEmpty": "The queue is empty.",
