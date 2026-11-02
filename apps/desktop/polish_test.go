@@ -148,7 +148,7 @@ func TestTrayLogoAtPhysicalSizes(t *testing.T) {
 }
 
 func TestSubtitlePlaybackActionsAndBoundaries(t *testing.T) {
-	for action, tail := range map[string]string{"none": "", "seek": "video.currentTime=1.250000", "seek-pause": "video.currentTime=1.250000;video.pause()", "seek-play": "video.currentTime=1.250000;video.play()"} {
+	for action, tail := range map[string]string{"none": "", "seek": "", "seek-pause": "video.currentTime=1.250000;video.pause()", "seek-play": "video.currentTime=1.250000;video.play()"} {
 		if got := subtitleSeekScript(action, 1250); got != tail {
 			t.Fatal(got, tail)
 		}

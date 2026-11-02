@@ -1,9 +1,6 @@
 package main
 
 import (
-	"strings"
-	"unicode"
-
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/models"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
@@ -99,11 +96,6 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 				number(c, locales.SettingsMaxTokens(), &a.settings.MaxTokens, 1, 32768, 1).OnChange(a.saveSettings)
 			})
 		})
-		ui.Divider(c)
-		ui.Checkbox(c, &a.settings.StripPunctuation, locales.WorkflowStripPunctuation()).OnChange(a.saveSettings)
-		ui.Field(c, locales.WorkflowKeepPunctuation(), func() {
-			ui.TextInput(c, &a.settings.KeepPunctuation).Width(em(c, 120)).Placeholder("?").Label(locales.WorkflowKeepPunctuation()).Disabled(!a.settings.StripPunctuation).OnChange(a.saveSettings)
-		})
 	})
 }
 
@@ -160,6 +152,11 @@ func (a *NativeApp) translateTab(c *ui.Context) {
 				})
 			}
 		})
+		ui.Checkbox(c, &a.settings.StripPunctuation, locales.WorkflowStripPunctuation()).OnChange(a.saveSettings)
+		ui.Field(c, locales.WorkflowKeepPunctuation(), func() {
+			ui.TextInput(c, &a.settings.KeepPunctuation).Width(em(c, 120)).Placeholder("?").Label(locales.WorkflowKeepPunctuation()).Disabled(!a.settings.StripPunctuation).OnChange(a.saveSettings)
+		})
+		ui.Checkbox(c, &a.settings.ReplacePeriods, locales.WorkflowReplacePeriods()).Tooltip(locales.WorkflowReplacePeriodsHint()).OnChange(a.saveSettings)
 	})
 }
 
@@ -194,35 +191,4 @@ func startButton(c *ui.Context, label, name string, disabled bool, run func()) {
 		icon(c, name)
 		ui.Text(c, label).SingleLine()
 	})
-}
-
-// Keeping either width of a punctuation mark keeps both.
-var pairedMarks = map[rune]rune{'?': '？', '!': '！', ',': '，', '.': '。', ';': '；', ':': '：', '？': '?', '！': '!', '，': ',', '。': '.', '；': ';', '：': ':'}
-
-func stripTrailingPunctuation(text, keep string) string {
-	kept := map[rune]bool{}
-	for _, r := range keep {
-		kept[r] = true
-		if p, ok := pairedMarks[r]; ok {
-			kept[p] = true
-		}
-	}
-	lines := strings.Split(text, "\n")
-	for i, line := range lines {
-		runes := []rune(strings.TrimRight(line, " \t\r"))
-		end := len(runes)
-		for end > 0 {
-			r := runes[end-1]
-			if !unicode.IsPunct(r) || kept[r] || unicode.In(r, unicode.Pe, unicode.Pf) || r == '"' || r == '\'' {
-				break
-			}
-			end--
-		}
-		if end > 0 {
-			lines[i] = string(runes[:end])
-		} else {
-			lines[i] = strings.TrimRight(line, " \t\r")
-		}
-	}
-	return strings.Join(lines, "\n")
 }

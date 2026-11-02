@@ -1,6 +1,8 @@
+diff --git a/ui/editor.go b/ui/editor.go
+index 219cc19..c6b0a7d 100644
 --- a/ui/editor.go
 +++ b/ui/editor.go
-@@ -83,7 +83,10 @@
+@@ -88,7 +88,10 @@ type editor struct {
  	painted     spanPaint
  	// layout is what the last frame laid out of a single-line input or a
  	// selectable text; area lays out a text area (textarea.go).
@@ -12,9 +14,11 @@
  	layoutVersion    uint64
  	layoutGeneration uint64
  	layoutCompose    string
+diff --git a/ui/editor_layout.go b/ui/editor_layout.go
+index ffbcd15..ff87a6f 100644
 --- a/ui/editor_layout.go
 +++ b/ui/editor_layout.go
-@@ -143,26 +143,51 @@
+@@ -143,26 +143,51 @@ func (e *node) layoutInput(cw, ch float32) {
  // placeholderParams lays out the placeholder of an empty input in a
  // content box width wide: in the input's style, its line height too, fixed
  // or not. A text area's placeholder wraps; a single-line input's stays on
@@ -55,7 +59,7 @@
 -	l := ed.layout
 +	box := e.contentBox()
 +	l := e.inputPaintLayout(box.W)
- 	t := e.c.theme
+ 	t := p.Theme()
  	if l == nil && ed.area == nil {
  		return
  	}
@@ -70,9 +74,11 @@
  	focused := e.Focused()
  	ts := e.resolvedText()
  	if ed.buf.n == 0 && ed.compose == "" && ed.placeholder != "" {
+diff --git a/ui/list.go b/ui/list.go
+index 049cb81..fd1f08b 100644
 --- a/ui/list.go
 +++ b/ui/list.go
-@@ -192,6 +192,8 @@
+@@ -192,6 +192,8 @@ type ListState struct {
  	wroteY  float64
  	req     listRequest
  	heights listHeights
@@ -81,15 +87,15 @@
  
  	// scrolled tells that the app asked the list to scroll (ScrollTo,
  	// ScrollIntoView, ScrollToEnd): a mouse wheel's notches on their way
-@@ -294,13 +296,57 @@
+@@ -294,13 +296,57 @@ type followMark struct {
  // the list scrolls as the frame is laid out, to where the row is once it
  // is measured.
  func (s *ListState) ScrollTo(row int, align Align) {
 +	s.StopScroll()
  	s.req = listRequest{set: true, row: row, align: align}
  	s.scrolled = true
-+}
-+
+ }
+ 
 +// ScrollToAnimated glides a measured, nearby row to align. Call it from the
 +// view after building the list. Distant or unmeasured targets use ScrollTo:
 +// traversing thousands of unseen rows would hide the destination and depend
@@ -130,8 +136,8 @@
 +	if s.scrollMotion != nil {
 +		s.scrollMotion.glide = nil
 +	}
- }
- 
++}
++
  // ScrollIntoView scrolls the list as little as shows row whole, as
  // Element.ScrollIntoView does an element.
  func (s *ListState) ScrollIntoView(row int) {
@@ -139,7 +145,7 @@
  	s.req = listRequest{set: true, row: row, near: true}
  	s.scrolled = true
  }
-@@ -308,6 +354,7 @@
+@@ -308,6 +354,7 @@ func (s *ListState) ScrollIntoView(row int) {
  // ScrollToEnd scrolls the list to its end, where FollowEnd follows it
  // again.
  func (s *ListState) ScrollToEnd() {
@@ -147,7 +153,7 @@
  	s.req = listRequest{set: true, end: true}
  	s.scrolled = true
  }
-@@ -486,6 +533,9 @@
+@@ -486,6 +533,9 @@ func buildList(c *context, e, owner *node, s *ListState, n int, row func(i int),
  	}
  	e.list, owner.rowsOf = f, f
  	wrapElement(owner).Bind(&s.Handle)
@@ -157,39 +163,9 @@
  	s.sync(e, n)
  	f.pickForMenu()
  	if s.cursor() != nil && owner == e {
---- a/ui/textinput.go
-+++ b/ui/textinput.go
-@@ -62,10 +62,27 @@
- 	return e
- }
- 
--// Placeholder shows s in an empty text input.
-+// Placeholder shows s in an empty text input, including a composite field's
-+// input. field() marks that input with nameFrom; do not alter unrelated labels
-+// or token buttons inside the field.
- func (e *node) Placeholder(s string) *node {
--	if e.st.editor != nil {
--		e.st.editor.placeholder = s
-+	var target func(*node) *node
-+	target = func(n *node) *node {
-+		if n == nil {
-+			return nil
-+		}
-+		if n.st.editor != nil {
-+			return n
-+		}
-+		for child := n.first; child != nil; child = child.next {
-+			if found := target(child); found != nil {
-+				return found
-+			}
-+		}
-+		return nil
-+	}
-+	if input := target(e); input != nil {
-+		input.st.editor.placeholder = s
- 	}
- 	return e
- }
+diff --git a/ui/onesub_interaction_test.go b/ui/onesub_interaction_test.go
+new file mode 100644
+index 0000000..e4ba4f2
 --- /dev/null
 +++ b/ui/onesub_interaction_test.go
 @@ -0,0 +1,157 @@

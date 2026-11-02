@@ -191,7 +191,7 @@ func (t toolset) recognize(ctx context.Context, prefs settings.Settings, source 
 }
 
 // recognitionFile is the recognized subtitle file in the chosen format:
-// zero-length cues given a time, line-end punctuation removed as chosen,
+// zero-length cues given a time, punctuation preserved,
 // word timings checked, an ASS file styled with style. It also reports how
 // many cues had no length.
 func (t toolset) recognitionFile(ctx context.Context, srt string, prefs settings.Settings, style styles.Style, aspect float64) ([]byte, int, error) {
@@ -208,11 +208,6 @@ func (t toolset) recognitionFile(ctx context.Context, srt string, prefs settings
 // only refine later splits and are checked as the window loads the file,
 // where a fault is a notice, not a failed recognition.
 func (t toolset) renderRecognition(ctx context.Context, doc subtitle.Document, prefs settings.Settings, style styles.Style, aspect float64) ([]byte, error) {
-	if prefs.StripPunctuation {
-		for i := range doc.Cues {
-			doc.Cues[i].Text = stripTrailingPunctuation(doc.Cues[i].Text, prefs.KeepPunctuation)
-		}
-	}
 	switch prefs.RecognitionFormat {
 	case "ass":
 		result, err := t.styles.Build(ctx, doc.Cues, style, aspect)

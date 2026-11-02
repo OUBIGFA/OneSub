@@ -27,11 +27,13 @@ func (a *NativeApp) fetchProviderModels() {
 	if a.modelsLoading || a.win == nil || a.settings.ProviderURL == "" {
 		return
 	}
+	// Snapshot the selected account only on this explicit command. Rendering
+	// settings must never perform discovery or use a half-edited connection.
+	a.settings.SyncProvider()
 	endpoint := a.settings.ProviderURL
 	providerID := a.settings.ActiveProvider
 	a.modelsGeneration++
 	generation := a.modelsGeneration
-	a.modelsEndpoint = endpoint
 	key, err := security.ReadKey(a.settings.CredentialScope())
 	if err != nil {
 		a.modelsError = err.Error()
@@ -75,7 +77,7 @@ func (a *NativeApp) providerSelectionChanged(id string) {
 		return
 	}
 	a.modelsGeneration++
-	a.providerKey, a.keyStatus, a.modelsError, a.modelsEndpoint = "", "", "", ""
+	a.providerKey, a.keyStatus, a.modelsError = "", "", ""
 	a.modelsLoading = false
 	a.modelQuery = ""
 	a.modelList.ScrollTo(0, ui.Start)
@@ -266,7 +268,7 @@ func (a *NativeApp) providerDeleteView(c *ui.Context) {
 	a.clearError("provider-key")
 	a.settings.Providers = slices.Delete(a.settings.Providers, i, i+1)
 	a.settings.ActiveProvider, a.settings.ProviderURL, a.settings.ProviderModel = "", "", ""
-	a.providerKey, a.keyStatus, a.modelsEndpoint, a.modelsError = "", "", "", ""
+	a.providerKey, a.keyStatus, a.modelsError = "", "", ""
 	a.modelQuery, a.modelsLoading = "", false
 	if len(a.settings.Providers) > 0 {
 		a.providerSelectionChanged(a.settings.Providers[0].ID)
@@ -303,12 +305,16 @@ func (a *NativeApp) providerModelsView(c *ui.Context) {
 			}
 			return width + em(c, 24)
 		}
+		statusWidth := measure(locales.TranslationModelInUse(), locales.TranslationUseModel(), locales.TranslationModelUnused())
 		a.modelList.Key = func(i int) any { return models[i].ID }
 		a.modelList.Label = func(i int) string { return models[i].ID }
 		ui.Table(c, &a.modelList, []ui.TableColumn{
 			{Title: locales.TranslationKeep(), Width: measure(locales.TranslationKeep()), Fixed: true, Align: ui.Center},
 			{Title: locales.TranslationModel(), MinWidth: em(c, 80), Fixed: true},
-			{Title: locales.TranslationModelState(), Width: measure(locales.TranslationModelInUse(), locales.TranslationUseModel(), locales.TranslationModelUnused()), Fixed: true, Align: ui.Center},
+			{Title: locales.TranslationModelState(), Width: max(statusWidth+em(c, 24), measure(locales.TranslationModelInUse(), locales.TranslationModelState())), Fixed: true, Align: ui.Center},
+			// MyGo scrollbars overlay their content. A native empty column
+			// reserves a stable gutter in both the header and every row.
+			{ID: "scrollbar-gutter", Width: em(c, 20), Fixed: true},
 		}, len(models), func(i, col int) {
 			info := models[i]
 			switch col {
@@ -332,16 +338,16 @@ func (a *NativeApp) providerModelsView(c *ui.Context) {
 					label.TextColor(c.Theme().TextMuted)
 				}
 			case 2:
+				label := locales.TranslationUseModel()
 				if a.settings.ProviderModel == info.ID {
-					ui.Text(c, locales.TranslationModelInUse())
-				} else {
-					label := locales.TranslationUseModel()
-					if !p.KeepsModel(info.ID) {
-						label = locales.TranslationModelUnused()
-					}
-					ui.Button(c, label).Padding(em(c, 2), em(c, 8)).Disabled(!p.KeepsModel(info.ID)).
-						Label(locales.TranslationUseModelNamed(info.ID)).OnClick(func() { a.useProviderModel(info.ID) })
+					label = locales.TranslationModelInUse()
+				} else if !p.KeepsModel(info.ID) {
+					label = locales.TranslationModelUnused()
 				}
+				// Every state uses the same native button geometry, including
+				// the current model; only unused models are disabled/muted.
+				ui.Button(c, label).Width(statusWidth).Shrink(0).Padding(em(c, 2), em(c, 8)).Disabled(!p.KeepsModel(info.ID)).
+					Label(locales.TranslationUseModelNamed(info.ID)).OnClick(func() { a.useProviderModel(info.ID) })
 			}
 		}).Fill().Label(locales.TranslationModels())
 	})

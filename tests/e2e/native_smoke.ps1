@@ -1,4 +1,4 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark')
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark')
 $ErrorActionPreference = 'Stop'
 if($SubtitleMenus -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport)){throw 'Run subtitle menu presentation as a separate scenario'}
 if($LayoutNavigation -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport -or $SubtitleMenus)){throw 'Run layout/navigation as a separate scenario'}
@@ -12,6 +12,8 @@ public static class SmokeNative {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int command);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetDoubleClickTime();
+  [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
   public delegate bool Visitor(IntPtr h, IntPtr p);
   [DllImport("user32.dll")] public static extern bool EnumWindows(Visitor fn, IntPtr p);
   [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr h, Visitor fn, IntPtr p);
@@ -53,10 +55,55 @@ public static class SmokeNative {
     },IntPtr.Zero);
     return items;
   }
+  public static string MenuActivationError="";
+  static bool PressMenuKey(IntPtr owner, byte key) {
+    if(GetForegroundWindow()!=owner){MenuActivationError="Test owner is not foreground";return false;}
+    keybd_event(key,0,0,UIntPtr.Zero);
+    keybd_event(key,0,2,UIntPtr.Zero);
+    System.Threading.Thread.Sleep(75);
+    return true;
+  }
+  public static bool ChooseMenuItem(IntPtr owner, int pid, string label) {
+    IntPtr popup=IntPtr.Zero;
+    EnumWindows((candidate,p)=>{
+      uint id;GetWindowThreadProcessId(candidate,out id);
+      var name=new System.Text.StringBuilder(128);GetClassName(candidate,name,128);
+      if(id!=pid||name.ToString()!="#32768")return true;
+      popup=candidate;return false;
+    },IntPtr.Zero);
+    if(popup==IntPtr.Zero){MenuActivationError="No test-owned popup";return false;}
+    IntPtr menu=SendValue(popup,0x1e1,IntPtr.Zero,IntPtr.Zero);
+    IntPtr buffer=Marshal.AllocHGlobal(1024);
+    uint target=uint.MaxValue;
+    int count=GetMenuItemCount(menu);
+    try {
+      for(uint i=0;i<count;i++) {
+        var info=new MenuItemInfo{Size=(uint)Marshal.SizeOf(typeof(MenuItemInfo)),Mask=0x141,Text=buffer,Length=512};
+        if(!GetMenuItemInfo(menu,i,true,ref info)){MenuActivationError="Cannot read menu item";return false;}
+        if((info.Type&0x800)!=0||(info.State&3)!=0)continue;
+        if(Marshal.PtrToStringUni(buffer).Split('\t')[0]==label){target=i;break;}
+      }
+    } finally {Marshal.FreeHGlobal(buffer);}
+    if(target==uint.MaxValue){MenuActivationError="Requested item is absent or disabled";return false;}
+    // Context menus can start without a highlighted row and ignore Home.
+    // Navigate by observed native state instead of assuming a key count.
+    // Input stays outside enumeration and only reaches the verified owner;
+    // never synthesize an application WM_COMMAND.
+    SetForegroundWindow(owner);
+    System.Threading.Thread.Sleep(100);
+    for(int step=0;step<=count;step++) {
+      var state=new MenuItemInfo{Size=(uint)Marshal.SizeOf(typeof(MenuItemInfo)),Mask=1};
+      if(!GetMenuItemInfo(menu,target,true,ref state)){MenuActivationError="Cannot read highlighted item";return false;}
+      if((state.State&0x80)!=0)return PressMenuKey(owner,13); // Enter
+      if(step<count&&!PressMenuKey(owner,40))return false; // Down
+    }
+    MenuActivationError="Target was not highlighted after native navigation";
+    return false;
+  }
   public static bool RightClick(IntPtr window, int pid, int x, int y) {
     return PointerClick(window,pid,x,y,true);
   }
-  public static bool PointerClick(IntPtr window, int pid, int x, int y, bool right) {
+  public static bool PointerClick(IntPtr window, int pid, int x, int y, bool right, int hold=0) {
     // Send native pointer messages only to this test instance's MyGo surface.
     IntPtr surface=IntPtr.Zero;
     EnumChildWindows(window,(child,p)=>{
@@ -69,7 +116,9 @@ public static class SmokeNative {
     var point=new Point{X=x,Y=y};
     if(!ScreenToClient(surface,ref point))return false;
     var coords=new IntPtr((point.Y<<16)|(point.X&0xffff));
-    return PostMessage(surface,512,IntPtr.Zero,coords)&&PostMessage(surface,right?516u:513u,new IntPtr(right?2:1),coords)&&PostMessage(surface,right?517u:514u,IntPtr.Zero,coords);
+    if(!PostMessage(surface,512,IntPtr.Zero,coords)||!PostMessage(surface,right?516u:513u,new IntPtr(right?2:1),coords))return false;
+    if(hold>0)System.Threading.Thread.Sleep(hold);
+    return PostMessage(surface,right?517u:514u,IntPtr.Zero,coords);
   }
   public static bool Choose(int pid, string path) {
     bool done=false;
@@ -106,7 +155,7 @@ $subtitle = Join-Path $workPath 'test.srt'
 $sourceText = if ($TranslationEndpoint) { 'Hello, world' } elseif ($BilingualExport) { "Upper subtitle`n下行字幕" } else { '测试字幕' }
 [IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:02,900`n$sourceText`n",[Text.UTF8Encoding]::new($false))
 if($InterruptTranslation){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:01,400`n$sourceText`n`n2`n00:00:01,500 --> 00:00:02,900`nGood morning`n",[Text.UTF8Encoding]::new($false))}
-if($SubtitleMenus){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:00,900`nFirst subtitle`n`n2`n00:00:01,000 --> 00:00:01,900`nSecond subtitle`n`n3`n00:00:02,000 --> 00:00:02,900`nThird subtitle`n",[Text.UTF8Encoding]::new($false))}
+if($SubtitleMenus){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:00,900`nFirst subtitle.`n`n2`n00:00:01,000 --> 00:00:01,900`nSecond subtitle.`n`n3`n00:00:02,000 --> 00:00:02,500`n第一段字幕。`n`n4`n00:00:02,500 --> 00:00:02,900`n，第二段字幕。`n",[Text.UTF8Encoding]::new($false))}
 if($LayoutNavigation){
     $body=[Text.StringBuilder]::new()
     for($i=0;$i -lt 120;$i++){
@@ -116,7 +165,16 @@ if($LayoutNavigation){
     }
     [IO.File]::WriteAllText($subtitle,$body.ToString(),[Text.UTF8Encoding]::new($false))
 }
-$fixture=if($ComposeOutput){'testsrc2=size=1280x720:rate=30:duration=12'}else{'testsrc2=size=320x180:rate=10:duration=3'}
+if($SubtitleClicks){
+    $body=[Text.StringBuilder]::new()
+    for($i=0;$i -lt 160;$i++){
+        $start=[TimeSpan]::FromMilliseconds($i*1000).ToString('hh\:mm\:ss\,fff')
+        $end=[TimeSpan]::FromMilliseconds($i*1000+900).ToString('hh\:mm\:ss\,fff')
+        [void]$body.Append("$($i+1)`n$start --> $end`nClick subtitle $('{0:000}' -f ($i+1))`n`n")
+    }
+    [IO.File]::WriteAllText($subtitle,$body.ToString(),[Text.UTF8Encoding]::new($false))
+}
+$fixture=if($SubtitleClicks){'testsrc2=size=320x180:rate=2:duration=170'}elseif($ComposeOutput){'testsrc2=size=1280x720:rate=30:duration=12'}else{'testsrc2=size=320x180:rate=10:duration=3'}
 & ffmpeg -v error -f lavfi -i $fixture -c:v libx264 -pix_fmt yuv420p $video
 if($LASTEXITCODE -ne 0){throw 'Fixture creation failed'}
 $env:ONESUB_DATA_ROOT = Join-Path $workPath 'data'
@@ -130,9 +188,15 @@ if ($TranslationEndpoint) {
     $prefs+=@{providerUrl=$TranslationEndpoint;providerModel='local-protocol-test';targetLanguage='zh-CN';optimizeTimeline=$false}
 }
 if ($ProviderCatalogEndpoint) {
-    $prefs+=@{providerUrl=$ProviderCatalogEndpoint;providerModel='catalog-alpha';language='en';recognitionFormat='vtt'}
+    # Persist two complete accounts and their catalogs before launch. Their
+    # credential scopes are unique to this disposable local fixture.
+    $providerId='native-catalog-test-'+[guid]::NewGuid().ToString('N')
+    $prefs+=@{providerUrl=$ProviderCatalogEndpoint;providerModel='catalog-alpha';language='en';recognitionFormat='vtt';activeProvider=$providerId;providers=@(
+        @{id=$providerId;name='本地目录 A';url=$ProviderCatalogEndpoint;api='chat-completions';model='catalog-alpha';models=@(@{id='catalog-alpha'});catalog=@(@{id='catalog-alpha'},@{id='catalog-cached'})},
+        @{id=($providerId+'-other');name='本地目录 B';url=$ProviderCatalogEndpoint;api='chat-completions';model='catalog-other';models=@(@{id='catalog-other'});catalog=@(@{id='catalog-other'})}
+    )}
 }
-[IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),($prefs|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),($prefs|ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))
 if($Packaged){
     foreach($name in @('ONESUB_FFPROBE','ONESUB_FFMPEG','ONESUB_SUBTITLE_WORKER','ONESUB_STYLE_WORKER','ONESUB_SKILL_WORKER','ONESUB_SKILL_ROOT')){Remove-Item "Env:$name" -ErrorAction SilentlyContinue}
 }else{
@@ -234,14 +298,18 @@ function Open-SubtitleMenu($label) {
 }
 function Wait-SubtitleMenu {
     # Read the owner-drawn popup's Win32 labels, which UIA does not expose.
-    # This checks real menu presentation; command activation is covered by
-    # the native component tests and still needs interactive desktop input.
+    # The activation helper separately checks the real highlighted item.
     for($i=0;$i -lt 100;$i++) {
         $items=[SmokeNative]::MenuItems($p.Id)
         if($items){return $items}
         Start-Sleep -Milliseconds 100
     }
     throw 'Native subtitle menu did not appear'
+}
+function Choose-SubtitleMenu($label) {
+    $items=Wait-SubtitleMenu
+    if($items -notcontains $label -or -not [SmokeNative]::ChooseMenuItem($p.MainWindowHandle,$p.Id,$label)){throw "Native menu item could not be activated: $label ($([SmokeNative]::MenuActivationError))"}
+    Start-Sleep -Milliseconds 350
 }
 function Wait-VisibleSubtitle($text) {
     # Search only the virtual table, not the editor's copy of a selected cue.
@@ -280,6 +348,105 @@ function Press-PlaybackSpace {
     if([SmokeNative]::GetForegroundWindow() -ne $p.MainWindowHandle){throw 'Test window is not foreground; no keyboard input sent'}
     [System.Windows.Forms.SendKeys]::SendWait(' ')
 }
+function Read-PlaybackPosition {
+    return (Find-UI '播放位置').GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern).Current.Value
+}
+function Set-PlaybackPosition($seconds) {
+    # This pinned MyGo UIA RangeValue.SetValue only steps once; use the
+    # actual native slider track for an absolute seek and hold through a frame.
+    $slider=Find-UI '播放位置'
+    $r=$slider.Current.BoundingRectangle
+    $max=$slider.GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern).Current.Maximum
+    $x=$r.X+$r.Height/2+($r.Width-$r.Height)*$seconds/$max
+    if(-not [SmokeNative]::PointerClick($p.MainWindowHandle,$p.Id,[int]$x,[int]($r.Y+$r.Height/2),$false,80)){throw 'Native slider seek could not be sent'}
+    Start-Sleep -Milliseconds 350
+    if([Math]::Abs((Read-PlaybackPosition)-$seconds) -gt 1){throw 'Native slider did not seek to the requested test position'}
+}
+function Visible-ClickRow {
+    Wait-VisibleSubtitle 'Click subtitle 156'
+    $list=Find-UI '字幕列表'
+    $row=$list.FindFirst([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,'Click subtitle 156'))
+    return $row.Current.BoundingRectangle
+}
+function Pointer-ClickRow($r) {
+    if(-not [SmokeNative]::PointerClick($p.MainWindowHandle,$p.Id,[int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2),$false)){throw 'Native row click could not be sent'}
+}
+function Select-NativeOption($field,$label) {
+    # Select's popover uses its actual trigger, not a duplicate field label.
+    $root=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+    $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$field)
+    $trigger=$null
+    foreach($node in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)) {
+        $pattern=$null
+        if($node.TryGetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern,[ref]$pattern)){$trigger=$node;break}
+    }
+    if(-not $trigger){throw "Native select trigger unavailable: $field"}
+    Pointer-ClickRow $trigger.Current.BoundingRectangle
+    for($i=0;$i -lt 30;$i++){if(Find-UI $label){break};Start-Sleep -Milliseconds 100}
+    $choice=Find-UI $label
+    if(-not $choice){throw "Native select option unavailable: $field / $label"}
+    if(($field -eq '单击字幕' -or $field -eq '双击字幕') -and (Find-UI '定位，保持播放状态')){throw 'Retired seek action is still in a click menu'}
+    Pointer-ClickRow $choice.Current.BoundingRectangle
+    Start-Sleep -Milliseconds 300
+}
+function Set-SingleClickAction($label) {
+    Click-UI '设置';Select-Tab '设置分类' '常规'
+    Select-NativeOption '单击字幕' $label
+    Click-UI '关闭'
+}
+function Wait-PlaybackStarted {
+    for($i=0;$i -lt 50;$i++){if(Find-UI '暂停'){return};Start-Sleep -Milliseconds 50}
+    throw 'Playback did not start before the row-click scenario'
+}
+function Test-SubtitleClicks {
+    $wait=[int][SmokeNative]::GetDoubleClickTime()+400
+    Click-UI '设置';Select-Tab '设置分类' '常规'
+    Select-NativeOption '单击字幕' '定位并暂停'
+    Select-NativeOption '双击字幕' '定位并播放'
+    Click-UI '关闭'
+    Set-PlaybackPosition 20.2;Click-UI '播放';Wait-PlaybackStarted;Click-UI '返回底部'
+    $before=Visible-ClickRow
+    Pointer-ClickRow $before
+    Start-Sleep -Milliseconds 80
+    $between=Visible-ClickRow
+    if([Math]::Abs($before.Y-$between.Y) -gt 1 -or -not (Find-UI '暂停') -or (Read-PlaybackPosition) -gt 25){throw 'First click moved the row or paused/seeks before double-click detection'}
+    Pointer-ClickRow $before
+    Start-Sleep -Milliseconds 400
+    if(-not (Find-UI '暂停') -or (Read-PlaybackPosition) -lt 155 -or (Read-PlaybackPosition) -gt 158){throw 'Double-click did not seek and play the intended subtitle'}
+    # A lone pause click works during playback, without forced centering.
+    Click-UI '暂停';Set-PlaybackPosition 20.2;Click-UI '播放';Wait-PlaybackStarted;Click-UI '返回底部'
+    $before=Visible-ClickRow;Pointer-ClickRow $before
+    Start-Sleep -Milliseconds $wait
+    $after=Visible-ClickRow
+    if(-not (Find-UI '播放') -or [Math]::Abs((Read-PlaybackPosition)-155) -gt .05 -or [Math]::Abs($before.Y-$after.Y) -gt 1){throw 'Single seek/pause failed or centered the clicked row'}
+    Capture-Navigation 'single-pause.png'
+    # Select-only holds both selection and viewport until the locate command,
+    # including pause/resume. Playback itself must keep advancing.
+    Set-SingleClickAction '仅选择字幕'
+    Set-PlaybackPosition 20.2;Click-UI '播放';Wait-PlaybackStarted;Click-UI '返回底部'
+    $before=Visible-ClickRow;Pointer-ClickRow $before
+    Start-Sleep -Milliseconds $wait
+    Start-Sleep -Seconds 5
+    $selected=(Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+    $after=Visible-ClickRow
+    if($selected -ne 'Click subtitle 156' -or [Math]::Abs($before.Y-$after.Y) -gt 1 -or (Read-PlaybackPosition) -gt 35 -or -not (Find-UI '暂停')){throw 'Select-only did not retain selection/viewport or changed playback'}
+    Click-UI '暂停';Click-UI '播放';Start-Sleep -Milliseconds 400
+    if((Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne 'Click subtitle 156'){throw 'Playback resume released explicit selection hold'}
+    Click-UI '回到当前字幕';Start-Sleep -Milliseconds 400
+    if((Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'Click subtitle 156'){throw 'Locate command did not release follow hold'}
+    # Seek/play must work while the video is already playing, then keep following.
+    Click-UI '暂停';Set-SingleClickAction '定位并播放'
+    Set-PlaybackPosition 60.2;Click-UI '播放';Wait-PlaybackStarted;Click-UI '返回底部'
+    Pointer-ClickRow (Visible-ClickRow)
+    Start-Sleep -Milliseconds $wait
+    if(-not (Find-UI '暂停') -or (Read-PlaybackPosition) -lt 155 -or (Read-PlaybackPosition) -gt 158){throw 'Single seek/play did not work during playback'}
+    Set-PlaybackPosition 80.2;Start-Sleep -Milliseconds 300
+    $selected=(Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+    if($selected -notmatch '^Click subtitle 08[1-3]$'){throw "Seek/play stopped later follow: $selected"}
+    Wait-VisibleSubtitle $selected
+    Capture-Navigation 'single-play-follow.png'
+    Write-Output 'PASS: native pointer double-click during playback; lone pause without centering; select-only hold including pause/resume and locate; single play during playback and later follow'
+}
 try {
     Start-Sleep -Seconds 4
     if($p.HasExited){throw "Test application exited at startup: $($p.ExitCode)"}
@@ -291,6 +458,7 @@ try {
         $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {$_.Current.Name}
         throw 'Same-name subtitle was not loaded'
     }
+    if($SubtitleClicks){Test-SubtitleClicks;return}
     if($WorkflowLayout){[void][SmokeNative]::ShowWindow($p.MainWindowHandle,3);Start-Sleep -Milliseconds 800}
     # UIA is an explicit mode for a locked/remote desktop, not a passing
     # keyboard test. Default runs still require real foreground Space input.
@@ -326,7 +494,32 @@ try {
         }
     }
     if($ProviderCatalogEndpoint) {
+        if((Invoke-RestMethod "$ProviderCatalogEndpoint/test-state").requests -ne 0){throw 'Opening settings fetched models automatically'}
+        if((Find-UI '获取模型失败') -or -not (Find-UI '保留模型 catalog-cached')){throw 'Saved catalog was not restored without discovery'}
+        Select-Value '服务连接'
+        # This is not a real service credential. The fixture verifies that a
+        # manual fetch reads the saved key from this exact account scope.
+        (Input-UI 'API Key').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('onesub-local-catalog-test')
+        Click-UI '保存 Key'
+        if((Invoke-RestMethod "$ProviderCatalogEndpoint/test-state").requests -ne 0){throw 'Saving a key fetched models automatically'}
+        Select-NativeOption '供应商' '本地目录 B'
+        if((Read-Preferences).providerModel -ne 'catalog-other' -or -not (Find-UI '保留模型 catalog-other')){throw 'Switching provider lost its saved model/catalog'}
+        Select-NativeOption '供应商' '本地目录 A'
+        if((Read-Preferences).providerModel -ne 'catalog-alpha' -or -not (Find-UI '保留模型 catalog-cached') -or (Invoke-RestMethod "$ProviderCatalogEndpoint/test-state").requests -ne 0){throw 'Provider switching fetched a catalog or lost saved choices'}
+        Select-Value '服务连接'
+        $address=(Input-UI '服务地址').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+        $address.SetValue($ProviderCatalogEndpoint+'/');Start-Sleep -Milliseconds 200
+        $address=(Input-UI '服务地址').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+        $address.SetValue($ProviderCatalogEndpoint);Start-Sleep -Milliseconds 200
+        Select-Value '模型目录'
+        if((Invoke-RestMethod "$ProviderCatalogEndpoint/test-state").requests -ne 0){throw 'Editing an endpoint fetched models automatically'}
+        Click-UI '获取模型'
+        for($i=0;$i -lt 100;$i++){if(Find-UI '获取模型失败'){break};Start-Sleep -Milliseconds 100}
+        if(-not (Find-UI '获取模型失败')){throw 'Failed manual fetch did not report error'}
+        # Retry on the same saved provider; switching must not be necessary.
+        Click-UI '获取模型'
         for($i=0;$i -lt 100;$i++){if(Find-UI '保留模型 catalog-beta'){break};Start-Sleep -Milliseconds 100}
+        if((Invoke-RestMethod "$ProviderCatalogEndpoint/test-state").requests -ne 2 -or (Find-UI '获取模型失败')){throw 'Same-provider retry failed or sent extra requests'}
         $before=(Find-UI '设置内容').Current.BoundingRectangle
         $check=Find-UI '保留模型 catalog-beta'
         if(-not $check){throw 'Fetched models are not visible'}
@@ -348,10 +541,18 @@ try {
         Click-UI '获取模型';Start-Sleep -Milliseconds 500
         if((Read-Preferences).providerModel -ne 'catalog-beta' -or (Read-Preferences).providers[0].models.Count -ne 2){throw 'Refresh lost retained models'}
         if((Find-UI '设置内容').Current.BoundingRectangle -ne $before){throw 'Model state resized settings'}
+        $used=(Find-UI '使用模型 catalog-alpha').Current.BoundingRectangle
+        $unused=(Find-UI '使用模型 catalog-gamma').Current.BoundingRectangle
+        $current=(Find-UI '使用模型 catalog-beta').Current.BoundingRectangle
+        $catalog=(Find-UI '供应商模型目录').Current.BoundingRectangle
+        if([Math]::Abs($used.Width-$unused.Width) -gt 1 -or [Math]::Abs($current.Width-$unused.Width) -gt 1 -or $unused.Right -gt $catalog.Right-12){throw 'Native model status widths differ or overlap the scrollbar gutter'}
         $header=(Find-UI '供应商模型目录').Current.BoundingRectangle
         [void][SmokeNative]::PointerClick($p.MainWindowHandle,$p.Id,[int]($header.X+24),[int]($header.Y+12),$false)
         Start-Sleep -Milliseconds 350
         & $ScreenshotTool $p.Id (Join-Path $workPath 'model-library.png')
+        Select-Value '服务连接';Click-UI '删除 Key';Select-Value '模型目录'
+        if((Invoke-RestMethod "$ProviderCatalogEndpoint/test-state").requests -ne 3){throw 'Key deletion or view switching fetched models automatically'}
+        Write-Output 'PASS: saved catalogs restored; zero automatic GETs on entry/provider/key/endpoint changes; same-provider retry with saved credentials; equal native status widths and scrollbar gutter'
     }
     Click-UI '关闭'
     if($ProviderCatalogEndpoint) {
@@ -393,7 +594,7 @@ try {
             if((Find-UI $action).Current.BoundingRectangle -ne $before){throw 'Primary action scrolled with parameters'}
             if($tab -eq 'AI 翻译') {
                 if(Find-UI '并发批数'){throw 'Advanced scheduling is not initially separate'}
-                Click-UI '请求与批次设置';Scroll-PanelEnd '识别与翻译'
+                Click-UI '批次与标点设置';Scroll-PanelEnd '识别与翻译'
                 $a=(Find-UI '并发批数').Current.BoundingRectangle
                 $b=(Find-UI '每批字幕数').Current.BoundingRectangle
                 if([Math]::Abs($a.Y-$b.Y) -gt 1 -or $a.Right -ge $b.Left){throw 'Scheduling peer fields are not aligned'}
@@ -471,20 +672,43 @@ try {
         # Invoke closes the modal asynchronously. Wait for the workbench's
         # UIA nodes before measuring, as Select-Tab does after dialog changes.
         for($i=0;$i -lt 100;$i++){
-            if((Find-UI '插入／删除字幕') -and (Find-UI '字幕列表') -and (Find-UI '字幕编辑面板')){break}
+            if((Find-UI '字幕列表操作') -and (Find-UI '字幕列表') -and (Find-UI '字幕编辑面板')){break}
             Start-Sleep -Milliseconds 100
         }
-        $menu=(Find-UI '插入／删除字幕').Current.BoundingRectangle
+        $menu=(Find-UI '字幕列表操作').Current.BoundingRectangle
         $list=(Find-UI '字幕列表').Current.BoundingRectangle
         $editor=Find-UI '字幕编辑面板'
-        $name=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,'插入／删除字幕')
+        $name=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,'字幕列表操作')
         if($menu.Left -lt $list.Left -or $menu.Right -gt $list.Right -or $menu.Bottom -gt $list.Top -or $editor.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$name)){throw 'Structure menu is not confined to the subtitle list'}
-        & $ScreenshotTool $p.Id (Join-Path $workPath 'subtitle-list.png')
-        Open-SubtitleMenu 'Second subtitle'
+        $sourceHash=(Get-FileHash $subtitle -Algorithm SHA256).Hash
+        Open-SubtitleMenu 'Second subtitle.'
         $items=Wait-SubtitleMenu
-        if(($items -join '|') -ne '在前面插入字幕|在后面插入字幕|-|删除字幕'){throw "Incorrect native menu items: $items"}
-        # UIA publishes the next view after the synchronous native popup
-        # returns; selection and mutations are asserted by component tests.
+        if(($items -join '|') -ne '在前面插入字幕|在后面插入字幕|-|与上一条合并|与下一条合并|-|删除字幕'){throw "Incorrect native menu items: $items"}
+        Choose-SubtitleMenu '与上一条合并'
+        Wait-VisibleSubtitle 'First subtitle, Second subtitle.'
+        if(-not (Find-UI '# 1') -or (Input-UI '开始').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '00:00:00.100' -or (Input-UI '结束').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '00:00:01.900'){throw 'Previous merge lost numbering or its full time range'}
+        Open-SubtitleMenu '第一段字幕。';Choose-SubtitleMenu '与下一条合并'
+        Wait-VisibleSubtitle '第一段字幕，第二段字幕。'
+        if(-not (Find-UI '# 2')){throw 'Next merge did not renumber the selected subtitle'}
+        Click-UI '撤销';Wait-VisibleSubtitle '，第二段字幕。'
+        Click-UI '重做';Wait-VisibleSubtitle '第一段字幕，第二段字幕。'
+        # The list toolbar exposes the same merge commands and each merge is
+        # one undo step. Returning to two cues is the saved result below.
+        Click-UI '字幕列表操作';Choose-SubtitleMenu '与上一条合并'
+        Wait-VisibleSubtitle 'First subtitle, Second subtitle，第一段字幕，第二段字幕。'
+        Click-UI '撤销';Wait-VisibleSubtitle 'First subtitle, Second subtitle.'
+        Wait-VisibleSubtitle '第一段字幕，第二段字幕。'
+        if((Get-FileHash $subtitle -Algorithm SHA256).Hash -ne $sourceHash -or -not (Find-UI '未保存')){throw 'Merge silently wrote the source file or did not mark it unsaved'}
+        Click-UI '保存'
+        $expected="1`n00:00:00,100 --> 00:00:01,900`nFirst subtitle, Second subtitle.`n`n2`n00:00:02,000 --> 00:00:02,900`n第一段字幕，第二段字幕。"
+        for($i=0;$i -lt 100;$i++){
+            $saved=[IO.File]::ReadAllText($subtitle).Replace("`r`n","`n").TrimEnd([char]10)
+            if($saved -eq $expected){break}
+            Start-Sleep -Milliseconds 100
+        }
+        if($saved -ne $expected){throw 'Saved merge text, times or continuous numbering differ from the two cues'}
+        Capture-Navigation 'subtitle-merge.png'
+        Write-Output 'PASS: native context/toolbar previous/next merges; English/Chinese comma boundaries; full time ranges; single-step undo/redo; source unchanged until save; saved continuous numbering'
     }
     if ($TranslationEndpoint) {
         Select-Tab '识别与翻译' 'AI 翻译'
@@ -556,7 +780,7 @@ try {
         Write-Output 'PASS: automatic composition beside source; no report sidecar'
     }
     $inputMode=if($UIAPlayback){'UIA (keyboard not exercised)'}else{'Space'}
-    Write-Output "PASS: import (argument=$OpenArgument), same-name subtitle, playback/pause=$inputMode, settings, translation=$([bool]$TranslationEndpoint), upper/lower export=$BilingualExport, subtitle menu presentation=$SubtitleMenus"
+    Write-Output "PASS: import (argument=$OpenArgument), same-name subtitle, playback/pause=$inputMode, settings, translation=$([bool]$TranslationEndpoint), upper/lower export=$BilingualExport, subtitle merge/menu=$SubtitleMenus"
 } catch {
     Write-Output ("FAIL: native smoke: " + $_.Exception.Message)
     $p.Refresh()

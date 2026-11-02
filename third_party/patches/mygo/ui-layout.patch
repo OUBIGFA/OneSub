@@ -1,6 +1,8 @@
+diff --git a/ui/webview.go b/ui/webview.go
+index 96d800b..fa3eda4 100644
 --- a/ui/webview.go
 +++ b/ui/webview.go
-@@ -44,6 +44,21 @@
+@@ -44,6 +44,21 @@ func coreWebView(c *context, v NativeWebView) *node {
  	return e
  }
  
@@ -22,7 +24,7 @@
  // webPlace is where a frame shows a web view: hit is the index of its
  // element's own hit, inert that it shows but takes no pointer.
  type webPlace struct {
-@@ -63,7 +78,7 @@
+@@ -63,7 +78,7 @@ func (rt *engine) noteWebView(e *node, clip Rect, invisible bool) {
  	}
  	// The hole the painter makes: the content box on whole pixels. Native
  	// web views stay upright, covering a transformed box's bounds.
@@ -31,7 +33,7 @@
  	if s := rt.painted[2]; s > 0 {
  		x0, y0 := float32(math.Round(float64(b.X*s)))/s, float32(math.Round(float64(b.Y*s)))/s
  		x1, y1 := float32(math.Round(float64((b.X+b.W)*s)))/s, float32(math.Round(float64((b.Y+b.H)*s)))/s
-@@ -192,7 +207,7 @@
+@@ -192,7 +207,7 @@ func (rt *engine) overWebView() bool {
  // hole paints the hole showing the web view of e: its content box,
  // rounded as its border's inner edge less its padding.
  func (p *Painter) hole(e *node) {
@@ -40,6 +42,9 @@
  	if b.W <= 0 || b.H <= 0 {
  		return
  	}
+diff --git a/ui/onesub_layout_test.go b/ui/onesub_layout_test.go
+new file mode 100644
+index 0000000..0c6c5b6
 --- /dev/null
 +++ b/ui/onesub_layout_test.go
 @@ -0,0 +1,43 @@

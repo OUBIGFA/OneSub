@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/agnivade/levenshtein v1.2.1
-	github.com/egoist/mygo v0.6.5-0.20261026090713-558e498142b0
+	github.com/egoist/mygo v0.7.4
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	golang.org/x/image v0.46.0

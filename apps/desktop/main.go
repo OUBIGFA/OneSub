@@ -105,7 +105,10 @@ type NativeApp struct {
 	browseUntil                              time.Time // until when the user's browsing keeps the viewport
 	followRow                                int       // the row the playback follow centered, or -1
 	followPending                            bool      // the follow owes the viewport a move back
-	frameAspect                              float64   // the video's display width / height
+	followHeld                               bool      // explicit select-only holds selection until locate/seek
+	rowClick                                 *subtitleRowClick
+	pendingClick                             *subtitleClick
+	frameAspect                              float64 // the video's display width / height
 	modelStates                              map[string]string
 	modelSelection                           string
 	modelOpen                                bool
@@ -148,7 +151,7 @@ type NativeApp struct {
 	modelQuery                               string
 	modelEdit                                providerModelDraft
 	modelList                                ui.ListState
-	modelsEndpoint, modelsError              string
+	modelsError                              string
 	modelsLoading                            bool
 	modelsGeneration                         uint64
 	providerDelete                           bool
@@ -492,6 +495,8 @@ func (a *NativeApp) importFiles(ctx context.Context, paths []string, wordEvidenc
 			a.mediaURL = url
 			a.duration, a.frameAspect = float64(loaded.Media.DurationMs())/1000, loaded.Media.FrameAspect()
 			a.position, a.activeCue, a.paused = 0, -1, true
+			a.pendingClick, a.rowClick = nil, nil
+			a.resumeFollow()
 			a.loadVideo()
 			a.showImportResult(loaded)
 			if previewErr != nil {
@@ -573,6 +578,8 @@ func (a *NativeApp) replaceProject(next *project.Store, state project.Snapshot, 
 	a.position = 0
 	a.activeCue = -1
 	a.paused = true
+	a.pendingClick, a.rowClick = nil, nil
+	a.resumeFollow()
 	a.loadVideo()
 }
 func (a *NativeApp) candidatesView(c *ui.Context) {
@@ -954,13 +961,10 @@ func (a *NativeApp) syncPlayer() {
 				a.frameAspect = result.Aspect
 			}
 			// Playing again follows the playhead again, from its cue.
-			if a.paused && !result.Paused {
+			if a.paused && !result.Paused && !a.followHeld && a.pendingClick == nil {
 				a.list.StopScroll()
 				a.activeCue = -1
-				// The browsing that kept the viewport is over: playback
-				// takes the list back.
-				a.browseUntil = time.Time{}
-				a.followRow, a.followPending = -1, false
+				a.resumeFollow()
 			}
 			a.position = result.Position
 			a.duration = result.Duration

@@ -31,21 +31,24 @@ type SourceRange struct {
 }
 
 type Cue struct {
-	ID                string       `json:"id"`
-	Position          int          `json:"position"`
-	StartMs           int64        `json:"startMs"`
-	EndMs             int64        `json:"endMs"`
-	Text              string       `json:"text"`
-	OriginalText      string       `json:"originalText"`
-	Translated        bool         `json:"translated,omitempty"`
-	TranslationSource string       `json:"translationSource,omitempty"`
-	ReadOnly          bool         `json:"readOnly"`
-	TextLocked        bool         `json:"textLocked"`
-	TimeLocked        bool         `json:"timeLocked"`
-	Words             []Word       `json:"words,omitempty"`
-	SourceCueIDs      []string     `json:"sourceCueIds,omitempty"`
-	SourceRange       *SourceRange `json:"sourceRange,omitempty"`
-	TimingQuality     string       `json:"timingQuality,omitempty"`
+	ID                string   `json:"id"`
+	Position          int      `json:"position"`
+	StartMs           int64    `json:"startMs"`
+	EndMs             int64    `json:"endMs"`
+	Text              string   `json:"text"`
+	OriginalText      string   `json:"originalText"`
+	Translated        bool     `json:"translated,omitempty"`
+	TranslationSource string   `json:"translationSource,omitempty"`
+	ReadOnly          bool     `json:"readOnly"`
+	TextLocked        bool     `json:"textLocked"`
+	TimeLocked        bool     `json:"timeLocked"`
+	Words             []Word   `json:"words,omitempty"`
+	SourceCueIDs      []string `json:"sourceCueIds,omitempty"`
+	// MergedCueIDs are the original file blocks replaced by a manual merge.
+	// They are distinct from AI source provenance and flatten repeated merges.
+	MergedCueIDs  []string     `json:"mergedCueIds,omitempty"`
+	SourceRange   *SourceRange `json:"sourceRange,omitempty"`
+	TimingQuality string       `json:"timingQuality,omitempty"`
 }
 
 type Document struct {
@@ -197,6 +200,8 @@ func workerMessage(message string) string {
 		return locales.ErrSubtitleVttBlank()
 	case "E_ASS_FORMAT":
 		return locales.ErrSubtitleAssFormat()
+	case "E_MERGE_METADATA":
+		return locales.ErrMergeMetadata()
 	case "E_LINE_SELECTION":
 		return locales.ErrSubtitleLineSelection()
 	case "E_EMPTY_LINE":

@@ -67,7 +67,6 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 				iconButton(c, locales.TranslationFetchModels(), "rotate-cw").Disabled(a.modelsLoading || a.settings.ProviderURL == "").OnClick(a.fetchProviderModels)
 			})
 			a.providerModelsView(c)
-			ui.Divider(c)
 			ui.Grid(c).Columns(3).Gap(em(c, 20)).Children(func() {
 				info := a.settings.ModelInfo()
 				for _, field := range []struct {
@@ -89,9 +88,6 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 			})
 			muted(c, locales.TranslationLimitsNote()).FontSize(em(c, captionSize))
 		})
-		if a.settings.ProviderURL != a.modelsEndpoint {
-			a.fetchProviderModels()
-		}
 	})
 }
 
@@ -114,7 +110,7 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 			})
 		})
 		ui.Field(c, locales.TranslationEndpoint(), func() {
-			address := ui.TextInput(c, &a.settings.ProviderURL).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).Tooltip(a.settings.ProviderURL).Disabled(a.settings.Provider() == nil).OnChange(func() {
+			ui.TextInput(c, &a.settings.ProviderURL).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).Tooltip(a.settings.ProviderURL).Disabled(a.settings.Provider() == nil).OnChange(func() {
 				a.providerKey, a.keyStatus, a.modelsError = "", "", ""
 				a.modelsGeneration++
 				a.modelsLoading = false
@@ -123,9 +119,6 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 				}
 				a.saveSettings()
 			})
-			if !address.Focused() && a.settings.ProviderURL != a.modelsEndpoint {
-				a.fetchProviderModels()
-			}
 		})
 		ui.Field(c, "API Key", func() {
 			ui.TextInput(c, &a.providerKey).Password().Placeholder(locales.TranslationKeyPlaceholder()).Label("API Key").Disabled(a.settings.Provider() == nil)
@@ -138,7 +131,7 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 					return
 				}
 				a.clearError("provider-key")
-				a.providerKey, a.keyStatus, a.modelsEndpoint = "", locales.TranslationKeyDeleted(), ""
+				a.providerKey, a.keyStatus, a.modelsError = "", locales.TranslationKeyDeleted(), ""
 				a.modelsGeneration++
 				a.modelsLoading = false
 			})
@@ -148,11 +141,10 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 					return
 				}
 				a.clearError("provider-key")
-				a.providerKey, a.keyStatus, a.modelsEndpoint = "", locales.TranslationKeySaved(), ""
+				a.providerKey, a.keyStatus, a.modelsError = "", locales.TranslationKeySaved(), ""
 				a.modelsGeneration++
 				a.modelsLoading = false
 				a.providerSettingsTab = 0
-				a.fetchProviderModels()
 			})
 		})
 	})
@@ -303,6 +295,7 @@ func (a *NativeApp) startTranslation() {
 	root, _ := a.skillTools()
 	config := translator.Config{Endpoint: prefs.ProviderURL, API: prefs.ProviderAPI, Model: prefs.ProviderModel, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(a.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests), CacheDir: filepath.Join(a.dataRoot, "cache", "translation")}
 	config.Concurrency, config.BatchSize = prefs.TranslationConcurrency, prefs.TranslationBatchSize
+	config.Punctuation = prefs.TranslationPunctuation()
 	if info := prefs.ModelInfo(); info != nil {
 		config.MaxOutputTokens = info.MaxOutputTokens
 	}

@@ -1,6 +1,8 @@
+diff --git a/internal/windows/menu.go b/internal/windows/menu.go
+index d7924b0..667da50 100644
 --- a/internal/windows/menu.go
 +++ b/internal/windows/menu.go
-@@ -125,7 +125,7 @@
+@@ -131,7 +131,7 @@ func (b *Backend) buildMenu(m *platform.Menu, bar bool, owner int, accels map[ac
  		if !drawn {
  			return nil
  		}
@@ -9,96 +11,28 @@
  		looks = append(looks, l)
  		ownerDraw(h, pos, l.ftype(), b.menus.addLook(l))
  		return l
-@@ -276,7 +276,7 @@
+@@ -289,7 +289,7 @@ func (w *window) popupMenuBar(key uintptr) {
  		}
  		procAppendMenuW.Call(popup, flags, item, uintptr(unsafe.Pointer(&buf[0])))
  		if fluentMenus() {
--			l := &menuLook{owner: owner, label: string(utf16Decode(buf)), submenu: flags&mfPopup != 0, first: i == 0, last: i == count-1}
-+			l := &menuLook{owner: owner, label: string(utf16Decode(buf)), submenu: flags&mfPopup != 0, first: i == 0, last: i == count-1, dpi: dpiOf(w.hwnd)}
+-			l := &menuLook{owner: owner, label: string(utf16Decode(buf)), submenu: flags&mfPopup != 0, first: i == 0, last: i == count-1, menu: popup}
++			l := &menuLook{owner: owner, label: string(utf16Decode(buf)), submenu: flags&mfPopup != 0, first: i == 0, last: i == count-1, menu: popup, dpi: dpiOf(w.hwnd)}
  			ownerDraw(popup, i, 0, w.b.menus.addLook(l))
  		}
  	}
+diff --git a/internal/windows/menudraw.go b/internal/windows/menudraw.go
+index 3b594f5..c8e1124 100644
 --- a/internal/windows/menudraw.go
 +++ b/internal/windows/menudraw.go
-@@ -34,7 +34,7 @@
+@@ -34,6 +34,7 @@ const (
  	dtCalcRect             = 0x400
  	dtRight                = 0x002
  	srcCopy                = 0x00CC0020
--	smCxMenuCheck          = 71
 +	dtNoClip               = 0x100
  	spiGetNonClientMetrics = 0x0029
  	layoutRTL              = 0x1
  )
-@@ -47,6 +47,7 @@
- 	procSetMenuInfo                = user32.NewProc("SetMenuInfo")
- 	procGetSysColor                = user32.NewProc("GetSysColor")
- 	procSystemParametersInfoForDpi = user32.NewProc("SystemParametersInfoForDpi")
-+	procGetTextExtentPoint32W      = gdi32.NewProc("GetTextExtentPoint32W")
- )
- 
- // Popup items' metrics, in DIPs, after WinUI's MenuFlyoutItem: a highlight
-@@ -97,6 +98,8 @@
- 	// menu and pos are the menu holding the item and its position there.
- 	menu uintptr
- 	pos  int
-+	// dpi belongs to the popup's monitor, not its (possibly hidden) owner.
-+	dpi int
- }
- 
- // ftype returns the type the item has besides MFT_OWNERDRAW.
-@@ -218,6 +221,8 @@
- type menuFonts struct {
- 	text, glyphs uintptr
- 	fluent       bool // the glyphs are Segoe Fluent Icons'
-+	// extra is the width Windows adds to every owner-drawn item.
-+	extra int32
- }
- 
- // logFont is LOGFONTW.
-@@ -255,8 +260,8 @@
- 	if r, _, _ := procSystemParametersInfoForDpi.Call(spiGetNonClientMetrics, uintptr(ncm.Size), uintptr(unsafe.Pointer(&ncm)), 0, uintptr(dpi)); r != 0 {
- 		lf = ncm.MenuFont
- 	}
-+	f := menuFonts{extra: ownerDrawExtra(&lf)}
- 	lf.Height = int32(math.Round(float64(lf.Height) * 14 / 12))
--	f := menuFonts{}
- 	if string(utf16Decode(lf.FaceName[:])) == "Segoe UI" {
- 		v := lf
- 		v.FaceName = [32]uint16{}
-@@ -291,6 +296,32 @@
- 		procDeleteObject.Call(f.glyphs)
- 	}
- 	b.menuFonts = nil
-+}
-+
-+// ownerDrawExtra returns the width Windows adds to each owner-drawn item of
-+// a popup menu whose system menu font is lf: twice that font's average
-+// character width, as GdiGetCharDimensions measures it (the mean advance
-+// of the Latin alphabet, rounded). With Segoe UI this equals
-+// SM_CXMENUCHECK-1; with Microsoft YaHei UI, the menu font of Chinese
-+// Windows, SM_CXMENUCHECK is 2 pixels larger, so taking that off made
-+// every item 2 pixels narrower than its label. 0, so that items are only
-+// wider, when the font cannot be measured.
-+func ownerDrawExtra(lf *logFont) int32 {
-+	font, _, _ := procCreateFontIndirectW.Call(uintptr(unsafe.Pointer(lf)))
-+	if font == 0 {
-+		return 0
-+	}
-+	defer procDeleteObject.Call(font)
-+	dc, _, _ := procGetDC.Call(0)
-+	defer procReleaseDC.Call(0, dc)
-+	old, _, _ := procSelectObject.Call(dc, font)
-+	defer procSelectObject.Call(dc, old)
-+	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-+	var size struct{ CX, CY int32 }
-+	if r, _, _ := procGetTextExtentPoint32W.Call(dc, uintptr(unsafe.Pointer(u16(alphabet))), uintptr(len(alphabet)), uintptr(unsafe.Pointer(&size))); r == 0 {
-+		return 0
-+	}
-+	return 2 * ((size.CX/26 + 1) / 2)
- }
- 
- // The glyphs of Segoe Fluent Icons, also in Segoe MDL2 Assets.
-@@ -356,21 +387,38 @@
+@@ -360,21 +361,40 @@ func (b *Backend) setMenuBackground(menu uintptr) {
  	procSetMenuInfo.Call(menu, uintptr(unsafe.Pointer(&mi)))
  }
  
@@ -125,6 +59,8 @@
 +	return w
 +}
 +
++// Popup DPI is captured when the menu is built; a hidden tray owner does not
++// identify the monitor where the menu appears.
 +func (l *menuLook) popupDPI(hwnd uintptr) int {
 +	if l.dpi > 0 {
 +		return l.dpi
@@ -140,30 +76,22 @@
 -	dpi := dpiOf(hwnd)
 +	dpi := l.popupDPI(hwnd)
  	top, bottom := l.padding(dpi)
+ 	l.dpi = dpi
  	if l.separator {
- 		mis.ItemWidth, mis.ItemHeight = 0, uint32(toPx(menuSeparatorHeight, dpi)+top+bottom)
-@@ -379,7 +427,8 @@
- 	f := b.menuFace(dpi)
- 	dc, _, _ := procGetDC.Call(0)
- 	defer procReleaseDC.Call(0, dc)
--	w := toPx(menuInset+menuPadding, dpi)*2 + textWidth(dc, f.text, l.label)
-+	labelWidth, labelHeight := textSize(dc, f.text, l.label)
-+	w := toPx(menuInset+menuPadding, dpi)*2 + labelWidth
- 	if l.column {
- 		w += toPx(menuMarkColumn, dpi)
+@@ -394,7 +414,11 @@ func (b *Backend) measureItem(hwnd uintptr, l *menuLook, mis *measureItemStruct)
+ 		w = max(w-extra, 0)
  	}
-@@ -392,14 +441,14 @@
- 	if l.submenu {
- 		w += toPx(menuAccelGap/2+menuChevron, dpi)
- 	}
--	// Windows adds the width of its checks to that of every item.
--	check, _, _ := procGetSystemMetricsForDpi.Call(smCxMenuCheck, uintptr(dpi))
--	w = max(w-int32(check)+1, 0)
+ 	l.width = w
 -	mis.ItemWidth, mis.ItemHeight = uint32(w), uint32(toPx(menuItemHeight, dpi)+top+bottom)
-+	// Windows widens every owner-drawn item by an amount of its own: take
-+	// it off, so that the menu is as wide as its widest item needs.
-+	w = max(w-f.extra, 0)
++	f := b.menuFace(dpi)
++	dc, _, _ := procGetDC.Call(0)
++	_, labelHeight := textSize(dc, f.text, l.label)
++	procReleaseDC.Call(0, dc)
 +	mis.ItemWidth, mis.ItemHeight = uint32(w), popupItemHeight(dpi, labelHeight, top, bottom)
+ }
+ 
+ // itemWidth returns the width an item that isn't a separator needs at dpi:
+@@ -444,7 +468,7 @@ func (b *Backend) learnMenuExtra(l *menuLook, dpi int, w int32) {
  }
  
  func (b *Backend) drawItem(hwnd uintptr, l *menuLook, d *drawItemStruct) {
@@ -171,8 +99,8 @@
 +	dpi := l.popupDPI(hwnd)
  	p := b.menuPalette()
  	r := d.Item
- 	state := d.ItemState
-@@ -481,7 +530,10 @@
+ 	b.learnMenuExtra(l, dpi, r.Right-r.Left)
+@@ -527,7 +551,10 @@ func (b *Backend) drawItem(hwnd uintptr, l *menuLook, d *drawItemStruct) {
  		}
  		old, _, _ := procSelectObject.Call(dc, f.text)
  		defer procSelectObject.Call(dc, old)
@@ -184,7 +112,7 @@
  		if state&odsNoAccel != 0 {
  			flags |= dtHidePrefix
  		}
-@@ -492,7 +544,7 @@
+@@ -538,7 +565,7 @@ func (b *Backend) drawItem(hwnd uintptr, l *menuLook, d *drawItemStruct) {
  		if l.accel != "" {
  			procSetTextColor.Call(dc, uintptr(secondary))
  			s := u16(l.accel)
@@ -193,9 +121,11 @@
  		}
  	})
  	// Windows draws the arrow of a submenu after the item, in its colors:
+diff --git a/internal/windows/menudraw_test.go b/internal/windows/menudraw_test.go
+index 6a8e7ac..2673c1d 100644
 --- a/internal/windows/menudraw_test.go
 +++ b/internal/windows/menudraw_test.go
-@@ -2,7 +2,116 @@
+@@ -2,7 +2,125 @@
  
  package windows
  
@@ -254,15 +184,7 @@
 +	}
 +	defer procDestroyWindow.Call(hwnd)
 +	dpi := dpiOf(hwnd)
-+	menu, _, _ = procCreatePopupMenu.Call()
-+	defer procDestroyMenu.Call(menu)
-+	for i, label := range labels {
-+		procAppendMenuW.Call(menu, mfString, uintptr(i+1), uintptr(unsafe.Pointer(u16(label))))
-+		ownerDraw(menu, i, 0, b.menus.addLook(&menuLook{label: label, dpi: dpi, first: i == 0, last: i == len(labels)-1}))
-+	}
 +	defer b.dropMenuFonts()
-+	procSetTimer.Call(hwnd, 1, 200, 0)
-+	procTrackPopupMenuEx.Call(menu, tpmReturnCmd|tpmRightButton, 100, 100, hwnd, 0)
 +	f := b.menuFace(dpi)
 +	dc, _, _ := procGetDC.Call(0)
 +	defer procReleaseDC.Call(0, dc)
@@ -270,8 +192,25 @@
 +	for _, label := range labels {
 +		need = max(need, toPx(menuInset+menuPadding, dpi)*2+textWidth(dc, f.text, label))
 +	}
-+	if width < need || width > need+toPx(2, dpi) {
-+		t.Fatalf("items are %d pixels wide; the widest label needs %d", width, need)
++	for pass := 0; pass < 2; pass++ {
++		// Windows caches a handle's measured widths. Rebuild the popup as
++		// the application does, retaining only the backend's learned extra.
++		menu, _, _ = procCreatePopupMenu.Call()
++		owner := b.menus.newOwner()
++		for i, label := range labels {
++			procAppendMenuW.Call(menu, mfString, uintptr(i+1), uintptr(unsafe.Pointer(u16(label))))
++			ownerDraw(menu, i, 0, b.menus.addLook(&menuLook{label: label, owner: owner, menu: menu, pos: i, dpi: dpi, first: i == 0, last: i == len(labels)-1}))
++		}
++		width = 0
++		procSetTimer.Call(hwnd, 1, 200, 0)
++		procTrackPopupMenuEx.Call(menu, tpmReturnCmd|tpmRightButton, 100, 100, hwnd, 0)
++		procDestroyMenu.Call(menu)
++		b.menus.drop(owner)
++		// Upstream v0.7.4 learns the platform's extra width from the first
++		// visible menu. Both must fit; the second must use that learned width.
++		if width < need || pass > 0 && width > need+toPx(2, dpi) {
++			t.Fatalf("popup %d: items are %d pixels wide; the widest label needs %d", pass+1, width, need)
++		}
 +	}
 +}
 +
@@ -313,66 +252,7 @@
  
  // The highlights of menu items cover their pixels inside fully, those past
  // the rounded corners not at all, and those the corners cross partly.
---- a/internal/windows/surface.go
-+++ b/internal/windows/surface.go
-@@ -505,6 +505,15 @@
- 		procEndPaint.Call(hwnd, uintptr(unsafe.Pointer(&ps)))
- 		return 0, true
- 	case wmEraseBkgnd:
-+		// Under the web views' visuals is this window's own bitmap, which
-+		// shows where a page has not yet followed its place as it grows (a
-+		// split dragged fast): fill it with the window's background color,
-+		// not leave it as it was made, white.
-+		if s.layer != nil && s.w.bgBrush != 0 {
-+			var r rect
-+			procGetClientRect.Call(hwnd, uintptr(unsafe.Pointer(&r)))
-+			procFillRect.Call(wp, uintptr(unsafe.Pointer(&r)), s.w.bgBrush)
-+		}
- 		return 1, true
- 	case wmSize:
- 		if s.layer != nil {
-@@ -514,6 +523,8 @@
- 				v.placeEmbedded()
- 			}
- 			s.layer.commit()
-+			// A grown window has bitmap no one erased yet.
-+			procInvalidateRectW.Call(hwnd, 0, 1)
- 		}
- 		s.send(platform.SurfaceEvent{Kind: platform.SurfaceResize})
- 		// Draw at once, so the content follows the window while it is
---- a/internal/windows/webview_embed.go
-+++ b/internal/windows/webview_embed.go
-@@ -147,7 +147,9 @@
- 			// renderer again (Native), and frames drawn in memory go
- 			// through the compositor.
- 			s.send(platform.SurfaceEvent{Kind: platform.SurfaceRenew})
--			procInvalidateRectW.Call(s.hwnd, 0, 0)
-+			// Erase too: the bitmap under the web views takes the window's
-+			// background color (surface.go, wmEraseBkgnd).
-+			procInvalidateRectW.Call(s.hwnd, 0, 1)
- 		}
- 	}
- 	v := &window{
---- a/internal/windows/surface.go
-+++ b/internal/windows/surface.go
-@@ -214,10 +214,10 @@
- 	return platform.SurfaceNative{HWND: s.hwnd, Composed: s.viaComposition()}
- }
- 
--// viaComposition reports whether the frames show through
--// DirectComposition: in a window without a redirection bitmap, and over
--// web views.
--func (s *surface) viaComposition() bool { return s.w.noRedirect || s.layer != nil }
-+// Native UI uses composition from its first frame. A previous HWND flip
-+// swap chain can leave its last opaque frame in the window's redirection
-+// surface after release; later web-view holes would expose that old UI.
-+func (s *surface) viaComposition() bool { return true }
- 
- // ShowsMaterial reports whether the window shows its material behind the
- // content: it has one, no redirection bitmap to cover it, and DWM draws
---- a/internal/windows/menudraw_test.go
-+++ b/internal/windows/menudraw_test.go
-@@ -36,3 +36,19 @@
+@@ -36,3 +154,19 @@ func TestMenuColors(t *testing.T) {
  		t.Errorf("blend with none = %#x, want the background", got)
  	}
  }
@@ -392,3 +272,62 @@
 +		t.Fatal("first UI frame would create an HWND swap chain before the media layer")
 +	}
 +}
+diff --git a/internal/windows/surface.go b/internal/windows/surface.go
+index 07bb1ac..594bbc0 100644
+--- a/internal/windows/surface.go
++++ b/internal/windows/surface.go
+@@ -233,10 +233,10 @@ func (s *surface) Native() platform.SurfaceNative {
+ 	return platform.SurfaceNative{HWND: s.hwnd, Composed: s.viaComposition()}
+ }
+ 
+-// viaComposition reports whether the frames show through
+-// DirectComposition: in a window without a redirection bitmap, and over
+-// web views.
+-func (s *surface) viaComposition() bool { return s.w.noRedirect || s.layer != nil }
++// Native UI uses composition from its first frame. A previous HWND flip
++// swap chain can leave its last opaque frame in the window's redirection
++// surface after release; later web-view holes would expose that old UI.
++func (s *surface) viaComposition() bool { return true }
+ 
+ // ShowsMaterial reports whether the window shows its material behind the
+ // content: it has one, no redirection bitmap to cover it, and DWM draws
+@@ -697,6 +697,15 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
+ 		}
+ 		return 0, true
+ 	case wmEraseBkgnd:
++		// Under the web views' visuals is this window's own bitmap, which
++		// shows where a page has not yet followed its place as it grows (a
++		// split dragged fast): fill it with the window's background color,
++		// not leave it as it was made, white.
++		if s.layer != nil && s.w.bgBrush != 0 {
++			var r rect
++			procGetClientRect.Call(hwnd, uintptr(unsafe.Pointer(&r)))
++			procFillRect.Call(wp, uintptr(unsafe.Pointer(&r)), s.w.bgBrush)
++		}
+ 		return 1, true
+ 	case wmSize:
+ 		if s.layer != nil {
+@@ -706,6 +715,8 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
+ 				v.placeEmbedded()
+ 			}
+ 			s.layer.commit()
++			// A grown window has bitmap no one erased yet.
++			procInvalidateRectW.Call(hwnd, 0, 1)
+ 		}
+ 		s.send(platform.SurfaceEvent{Kind: platform.SurfaceResize})
+ 		// Draw at once, so the content follows the window while it is
+diff --git a/internal/windows/webview_embed.go b/internal/windows/webview_embed.go
+index c4bc778..2e62f57 100644
+--- a/internal/windows/webview_embed.go
++++ b/internal/windows/webview_embed.go
+@@ -147,7 +147,9 @@ func (s *surface) NewWebView(o *platform.WindowOptions, h platform.WindowHandler
+ 			// renderer again (Native), and frames drawn in memory go
+ 			// through the compositor.
+ 			s.send(platform.SurfaceEvent{Kind: platform.SurfaceRenew})
+-			procInvalidateRectW.Call(s.hwnd, 0, 0)
++			// Erase too: the bitmap under the web views takes the window's
++			// background color (surface.go, wmEraseBkgnd).
++			procInvalidateRectW.Call(s.hwnd, 0, 1)
+ 		}
+ 	}
+ 	v := &window{

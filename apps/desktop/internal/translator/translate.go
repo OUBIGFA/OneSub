@@ -40,6 +40,7 @@ type Config struct {
 	ProfileID, ProfilesDir string
 	// OptimizeTimeline rebuilds an ordinary SRT's timeline by sense groups
 	// before translating (see segment.go).
+	Punctuation      *subtitle.PunctuationOptions // local output only; never sent to the service
 	OptimizeTimeline bool
 	MaxRequests      int          // requests a run may send, retries included
 	MaxOutputTokens  int          // the selected provider's advertised output cap; zero: unspecified
@@ -481,7 +482,16 @@ func Translate(ctx context.Context, config Config, document subtitle.Document) (
 		cue := &result.Document.Cues[i]
 		cue.TranslationSource = subtitle.SourceText(*cue)
 		cue.Translated = true
-		cue.Text = polish(text, lang)
+		outputLanguage := lang
+		if config.Punctuation != nil {
+			// Explicit local preferences supersede the profile's mechanical
+			// trailing trim, not its prompt or any model-generated wording.
+			outputLanguage.FinalPunctuation = ""
+		}
+		cue.Text = polish(text, outputLanguage)
+		if config.Punctuation != nil {
+			cue.Text = config.Punctuation.Apply(cue.Text)
+		}
 		if missing := missingNumbers(cue.TranslationSource, cue.Text); len(missing) > 0 {
 			e.report.Warnings = append(e.report.Warnings, locales.WarnNumbers(i+1, strings.Join(missing, locales.ListSeparator())))
 		}

@@ -6,8 +6,19 @@
     "signing and clean-machine install/upgrade/uninstall acceptance"
   ],
   "mygo": {
-    "version": "v0.6.5-0.20261026090713-558e498142b0",
-    "license": "third_party/licenses/mygo.txt"
+    "version": "v0.7.4",
+    "repository": "https://github.com/egoist/mygo",
+    "revision": "9bd34e1eb9525d9a1fe698aadc964c49c8ff8e7e",
+    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.7.4.zip",
+    "archiveBytes": 7532078,
+    "archiveSha256": "70f732abb2c726cb22cc4233a26db33f43f7bb9065d27e7bb57c381aaa4d212b",
+    "moduleSum": "h1:0qkDpDRo7C9g8PM8eu4V6FVouhLiTrUdqKD6I31Lv3Q=",
+    "goModSum": "h1:dVav53PwF2xEotjf4oA5lTY2Jp2exgzyjLhbSXhbMwE=",
+    "spdx": "MIT",
+    "license": "third_party/licenses/mygo.txt",
+    "licenseSha256": "f0b56f4ab53beb6e18c5e155219c2e2b6000b5475c0ae3ddb3af3894fd9349b4",
+    "usage": "Native desktop controls, layout, themes, menus and embedded media WebView",
+    "modifications": "Four reviewed native/UI patches; see third_party/patches/mygo/README.md"
   },
   "mcpGoSdk": {
     "module": "github.com/modelcontextprotocol/go-sdk",

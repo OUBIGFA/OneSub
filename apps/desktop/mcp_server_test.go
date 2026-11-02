@@ -41,7 +41,7 @@ func TestMCPTranslationSavesAndResumes(t *testing.T) {
 			http.Error(w, "bad units", http.StatusBadRequest)
 			return
 		}
-		answer, _ := json.Marshal(map[string]string{payload.Units[0].ID: "你好，世界"})
+		answer, _ := json.Marshal(map[string]string{payload.Units[0].ID: "你好。世界。"})
 		chunk, _ := json.Marshal(string(answer))
 		w.Header().Set("Content-Type", "text/event-stream")
 		fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"content\":%s},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n", chunk)
@@ -49,6 +49,9 @@ func TestMCPTranslationSavesAndResumes(t *testing.T) {
 	defer provider.Close()
 	data := t.TempDir()
 	prefs := settings.Default()
+	// The MCP surface freezes the same local output options as the desktop;
+	// internal periods convert and the trailing period strips after the reply.
+	prefs.ReplacePeriods = true
 	prefs.ProviderURL, prefs.ProviderModel, prefs.OptimizeTimeline = provider.URL+"/v1", "protocol-test", false
 	if err := settings.Save(filepath.Join(data, "settings.json"), prefs); err != nil {
 		t.Fatal(err)
@@ -88,8 +91,9 @@ func TestMCPTranslationSavesAndResumes(t *testing.T) {
 		if err := json.Unmarshal(raw, &out); err != nil || out.Cues != 1 || out.SubtitlePath != filepath.Join(data, name) || len(out.Warnings) != 0 {
 			t.Fatal(string(raw), err)
 		}
-		if bytes, err := os.ReadFile(out.SubtitlePath); err != nil || !strings.Contains(string(bytes), "你好，世界") {
-			t.Fatal("translated file not published", err)
+		want := strings.Replace(source, "Hello, world", "你好，世界", 1)
+		if bytes, err := os.ReadFile(out.SubtitlePath); err != nil || strings.TrimSpace(string(bytes)) != strings.TrimSpace(want) {
+			t.Fatal("local punctuation choices did not reach the published MCP subtitle", err, string(bytes))
 		}
 	}
 	if requests.Load() != 1 {

@@ -87,6 +87,39 @@ func (s *Store) InsertCue(commandID string, expected int64, original bool, inser
 	})
 }
 
+// MergeCues commits one manual adjacency merge and all following positions as
+// one undo step. A stale revision or different neighbor never changes a track.
+func (s *Store) MergeCues(commandID string, expected int64, original bool, firstID, secondID string) (int64, error) {
+	return s.mutate(commandID, expected, func(tx *sql.Tx, cursor int64) (int64, error) {
+		table, track, err := manualTrack(tx, original)
+		if err != nil {
+			return cursor, err
+		}
+		cues, err := orderedCues(tx, table)
+		if err != nil {
+			return cursor, err
+		}
+		at := slices.IndexFunc(cues, func(cue subtitle.Cue) bool { return cue.ID == firstID })
+		if at < 0 || at+1 >= len(cues) || cues[at+1].ID != secondID {
+			return cursor, errors.New(locales.ErrCuePosition())
+		}
+		var format string
+		if err = tx.QueryRow("SELECT format FROM state WHERE singleton=1").Scan(&format); err != nil {
+			return cursor, err
+		}
+		merged, err := subtitle.MergeAdjacent(subtitle.Document{Format: format, Cues: cues}, at, "manual-"+commandID)
+		if err != nil {
+			return cursor, err
+		}
+		if original {
+			// Editing original segmentation remains the original track, not
+			// an AI-rebuilt source. Serialization keeps its separate block map.
+			merged.Cues[at].SourceCueIDs = nil
+		}
+		return recordTrackHistory(tx, cursor, cues[at:], merged.Cues[at:], track)
+	})
+}
+
 func (s *Store) DeleteCue(commandID string, expected int64, original bool, id string) (int64, error) {
 	return s.mutate(commandID, expected, func(tx *sql.Tx, cursor int64) (int64, error) {
 		table, track, err := manualTrack(tx, original)

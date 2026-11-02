@@ -10,18 +10,19 @@ import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = "github.com/egoist/mygo@v0.6.5-0.20261026090713-558e498142b0"
+MODULE = "github.com/egoist/mygo@v0.7.4"
 BASE_HASHES = {
-    "internal/windows/menu.go": "4694b0f050a10f85512a8f55ecefeaf15252d47994b27fd69f1235c15bf83fc5",
-    "internal/windows/menudraw.go": "aa49e1a0bbd0b763c69223b520251a27777d820de2334ae014dad62e1fcdd366",
+    "internal/windows/menu.go": "5ce380467e2c7dfea6630c48b2fe4959e6636ceb0f9ee1b5ca6b0b5723215689",
+    "internal/windows/menudraw.go": "9b8fba772f929529772d14974da158e0ce9074818c687172be417a590dd5494a",
     "internal/windows/menudraw_test.go": "aed92f41e8f97b0b17668e3643d829a068f75b447eb0514e5112e7a820014edf",
-    "internal/windows/surface.go": "2888504461944780a2a425042d0bcdc5d8f1e8722386f8af382fa182433e857a",
-    "internal/windows/webview_embed.go": "64fd60d9f67bf9f682ae397d7df660469c92ad53413a09b6abc3bc7807264784",
-    "ui/editor.go": "ca355433603a60456e3734af661ada751f2ec1d09f01b85cd03483d8c7897ba9",
-    "ui/editor_layout.go": "9f8a8f7754fb260b54591f28ea0189185fd38755e4e66d14890a8f72b0c81fa9",
+    "internal/windows/surface.go": "b540e4c3108de04773101deecac90c88d758c19fef3f9e7a455f0cd357d1c2da",
+    "internal/windows/webview_embed.go": "8c85adf2755182b775f16b339169c3a95c93878b0b1b7cab8040aa917ce28156",
+    "ui/editor.go": "ccd47423123eec58ef45adc1e3cfdf50d031bf06f8f02b1ff3ab4a84aa94f852",
+    "ui/editor_layout.go": "7d4240adf339db927a96a2deba10640e35d683f1a982d29a65fb6e9c1b82112e",
     "ui/list.go": "29438b0610a27eac698e614d932103318bface2550c2c867d9c13a7579e53289",
-    "ui/webview.go": "488de5ecde3b58828ad0cc7eea25bc50383fc56e94c53f179fb9bb5834155eb0",
-    "ui/textinput.go": "2b7a1b59aa2b564140724614c37eb71b0b6f3f3fe3bfa2af5f326b6a7d572f1c",
+    "ui/value_input.go": "c1006d34b8d8c886940fc45a494aedd0af861f8d917c146e8d955b17e85913a9",
+    "ui/webview.go": "dab6a5a5acb13b73cc6a5a4735ff37b384168b0026e64974e153bfeedcaf6637",
+    "ui/textinput.go": "ff198994adad8c2a820c209a8638709ec0ef40bb4c3f58c1cb45e36af93590fc",
 }
 
 
@@ -42,7 +43,7 @@ def mirror(source, output):
 def prepare():
     source = ROOT / ".local/gomodcache" / MODULE
     patches = [ROOT / "third_party/patches/mygo" / name for name in
-               ("windows-native.patch", "ui-interaction.patch", "ui-layout.patch")]
+               ("windows-native.patch", "ui-interaction.patch", "ui-layout.patch", "ui-row-click.patch")]
     relative = ".local/mygo-menu-source"
     output = ROOT / relative
     for name, expected in BASE_HASHES.items():
@@ -50,7 +51,9 @@ def prepare():
         if hashlib.sha256(data).hexdigest() != expected:
             raise RuntimeError(f"MyGo source changed; review native patches: {name}")
     stamp = output / ".onesub-patch-sha256"
-    fingerprint = hashlib.sha256(b"".join(p.read_bytes() for p in patches)).hexdigest()
+    # A new upstream version must refresh the mirror even when its patch text
+    # is unchanged; the locked module and patches together identify the output.
+    fingerprint = hashlib.sha256(MODULE.encode("ascii") + b"\0" + b"".join(p.read_bytes() for p in patches)).hexdigest()
     if not stamp.exists() or stamp.read_text() != fingerprint:
         # The pristine module, then the current patch on top of it.
         mirror(source, output)

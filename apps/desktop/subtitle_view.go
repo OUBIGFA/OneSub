@@ -42,7 +42,8 @@ func (a *NativeApp) browsing(now time.Time) bool {
 // locate button and a new playback do.
 func (a *NativeApp) resumeFollow() {
 	a.browseUntil = time.Time{}
-	a.followRow, a.followPending = -1, false
+	a.followHeld = false
+	a.followRow, a.followPending = -1, true
 }
 
 func subtitleSearchLabel(cues []subtitle.Cue) string {
@@ -79,6 +80,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			searchLabel := subtitleSearchLabel(searchCues)
 			searchWidth, _ := c.MeasureText(0, ui.Span{Text: searchLabel})
 			if ui.SearchField(c, &a.query).Placeholder(searchLabel).Label(locales.ListSearch()).Tooltip(searchLabel).MinWidth(max(em(c, 140), searchWidth+c.Theme().Space(11))).Grow(1).Changed() {
+				a.pendingClick = nil
 				a.list.StopScroll()
 				a.activeCue = -1
 				a.noteBrowse(c.Now())
@@ -131,7 +133,13 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 		selected := rowOf(a.selected)
 		a.list.Selected = &selected
 		a.list.Key = func(i int) any { return cues[rows[i]].ID }
+		a.list.KeepClickPosition = true
+		a.list.OnRowClick = func(row int, double bool) {
+			a.rowClick = &subtitleRowClick{index: rows[row], double: double}
+		}
 		a.list.CellMenu = func(m *ui.Menu, row, col int) {
+			a.pendingClick = nil
+			a.noteBrowse(c.Now())
 			index := rows[row]
 			// MyGo's single-selection list keeps its old selection on a
 			// right-click. Select this cue explicitly, without a playback action.
@@ -198,6 +206,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			// Navigation changes only the viewport. The playback still
 			// chooses the cue at the playhead; the list stays where the
 			// reader put it until the grace is over.
+			a.pendingClick = nil
 			a.noteBrowse(c.Now())
 			a.locateCue = -1
 		}).Label(locales.A11ySubtitleList()).ContextMenu(func(m *ui.Menu) {
@@ -209,18 +218,34 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 		// The scroll still happens; the playback's follow waits for the
 		// reading to be over.
 		table.HandleInput(func(ev ui.InputEvent) bool {
-			if ev.Kind == ui.InputScroll && !a.paused {
+			if ev.Kind == ui.InputScroll {
+				a.pendingClick = nil
+				a.noteBrowse(ev.Time)
+			} else if ev.Kind == ui.InputPointerDown {
+				// Stop following as soon as the first press begins, not just
+				// after release: the target row must stay under the pointer.
 				a.noteBrowse(ev.Time)
 			}
 			return false
 		})
-		if (table.Changed() || table.Submitted()) && selected >= 0 && selected < len(rows) {
-			action := a.settings.SingleClickAction
+		if click := a.rowClick; click != nil {
+			a.rowClick = nil
+			a.clickSubtitle(click.index, click.double, c.Now())
+		} else if (table.Changed() || table.Submitted()) && selected >= 0 && selected < len(rows) {
+			// Keyboard navigation selects without a mouse delay; Enter uses
+			// the explicit double-click action, as native lists activate rows.
+			a.pendingClick = nil
+			action := "none"
 			if table.Submitted() {
 				action = a.settings.DoubleClickAction
 			}
 			a.selectSubtitle(rows[selected], action)
 		}
+		a.finishSubtitleClick(c.Now())
+		if a.pendingClick != nil {
+			c.After(a.pendingClick.due.Sub(c.Now()))
+		}
+		locatedThisFrame := a.locateCue >= 0
 		if a.locateCue >= 0 {
 			if row := rowOf(a.locateCue); row >= 0 {
 				a.list.ScrollToAnimated(row, ui.Center, subtitleFollowAnimation)
@@ -231,7 +256,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 		// Dragging the scroll bar moves the followed row out of view, which
 		// the wheel's notches do too. The rows in view are those of the last
 		// frame, so this comes before this frame asks to scroll.
-		if !a.paused && a.followRow >= 0 {
+		if !a.paused && a.followRow >= 0 && !a.followHeld && a.pendingClick == nil && !locatedThisFrame {
 			if first, last := a.list.Visible(); last >= first && (a.followRow < first || a.followRow > last) {
 				a.noteBrowse(c.Now())
 				a.followPending = true
@@ -240,7 +265,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 		// While the video plays the cue at the playhead is chosen; the list
 		// keeps it in the middle until the user scrolls away. Typing keeps
 		// the cue being edited.
-		if a.settings.FollowPlayback && !a.paused && !a.savePromptOpen {
+		if a.settings.FollowPlayback && !a.paused && !a.savePromptOpen && !a.followHeld && a.pendingClick == nil {
 			active := cueAt(cues, a.position)
 			if active >= 0 && (active != a.activeCue || a.followPending) {
 				if active != a.activeCue {
@@ -281,6 +306,7 @@ func (a *NativeApp) locateCurrent() {
 	if a.snapshot == nil {
 		return
 	}
+	a.pendingClick = nil
 	cues := a.activeDocument().Cues
 	index := cueNear(cues, a.position)
 	if index < 0 {
@@ -346,7 +372,6 @@ func (a *NativeApp) editorView(c *ui.Context) {
 					timeComposing = timeComposing || input.Composing()
 				}
 			})
-			ui.Divider(c)
 			// The text speaks for itself; the name is for assistive technology.
 			if a.subtitleTab == 1 {
 				textTrack := a.editorTextTrack()
@@ -470,6 +495,7 @@ func (a *NativeApp) undo(redo bool) {
 	a.loadDraft()
 }
 func (a *NativeApp) changeSubtitleTab(tab int) {
+	a.pendingClick = nil
 	a.commitEdit(true)
 	a.subtitleTab = tab
 	a.selected = min(a.selected, len(a.activeDocument().Cues)-1)
@@ -480,17 +506,22 @@ func (a *NativeApp) changeSubtitleTab(tab int) {
 	a.activeCue = -1
 	// The other track is a new list: the follow starts again from the cue at
 	// the playhead, as it does for a new playback.
-	a.resumeFollow()
+	if !a.followHeld {
+		a.resumeFollow()
+	}
 	a.loadDraft()
 }
 func (a *NativeApp) selectSubtitle(index int, action string) {
-	a.commitEdit(true)
+	if !a.commitEdit(true) {
+		return
+	}
 	a.selected = index
 	a.loadDraft()
-	// A cue chosen to seek to is where the playback goes on: the follow
-	// takes the list back to it.
-	if action != "none" && action != "" {
-		a.resumeFollow()
+	if action == "none" || action == "" {
+		a.followHeld = true
+		a.list.StopScroll()
+		return
 	}
+	a.resumeFollow()
 	a.seekSubtitle(action)
 }

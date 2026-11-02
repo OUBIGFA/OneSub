@@ -181,6 +181,7 @@ static class Codec
         var newline = output.Contains("\r\n") ? "\r\n" : "\n";
         var spans = new List<(int Start, int Length)>();
         var ass = document.Format is "ass" or "ssa";
+        var blocks = ass ? [] : VttCues(output);
         var events = ass ? AssEvents(output) : [];
         if (ass)
         {
@@ -191,7 +192,7 @@ static class Codec
         }
         else
         {
-            foreach (var block in VttCues(output))
+            foreach (var block in blocks)
             {
                 var start = block.Index;
                 if (start > 1)
@@ -214,10 +215,34 @@ static class Codec
                 if (known.TryGetValue(document.Cues[n].Id, out next)) break;
                 else next = baseline.Cues.Count;
             if (!inserts.TryGetValue(next, out var text)) inserts[next] = text = new StringBuilder();
+            // A manual merge identifies the preserved blocks it replaces.
+            // Prefer their first template, not an unrelated preceding event.
+            var merged = cue.MergedCueIds.Where(known.ContainsKey).Select(id => known[id]).ToArray();
+            if (merged.Any(index => retained.ContainsKey(baseline.Cues[index].Id)))
+                throw new InvalidDataException("E_MERGE_METADATA");
             if (ass)
             {
                 if (cue.StartMs % 10 != 0 || cue.EndMs % 10 != 0) throw new InvalidDataException("E_ASS_TIMING");
-                var template = events[prior >= 0 ? prior : Math.Min(next, events.Count - 1)];
+                var template = events[merged.Length > 0 ? merged[0] : prior >= 0 ? prior : Math.Min(next, events.Count - 1)];
+                foreach (var index in merged)
+                {
+                    var other = events[index];
+                    // Positioning, karaoke and timed effects cannot retain two
+                    // independent event clocks/positions inside one merged line.
+                    if (AssMetadata(template) != AssMetadata(other) || Regex.IsMatch(baseline.Cues[index].Text, @"\\(?:pos|move|org|i?clip|fade?|t|k(?:f|o)?|K|an?|p)(?=[\d(+\-])"))
+                        throw new InvalidDataException("E_MERGE_METADATA");
+                }
+                if (merged.Length > 0)
+                {
+                    // A structural merge may add a static reset between spans,
+                    // but cannot use replacement IDs to remove protected tags.
+                    var expected = merged.SelectMany(index => Tokens(baseline.Cues[index].Text)).ToArray();
+                    int tokenIndex = 0;
+                    foreach (var token in Tokens(cue.Text))
+                        if (tokenIndex < expected.Length && token == expected[tokenIndex]) tokenIndex++;
+                        else if (token != "{\\r}") throw new InvalidDataException("E_ASS_TAGS");
+                    if (tokenIndex != expected.Length) throw new InvalidDataException("E_ASS_TAGS");
+                }
                 var colon = template.Prefix.IndexOf(':');
                 var fields = template.Prefix[(colon + 1)..].Split(',');
                 fields[template.StartField] = AssStamp(cue.StartMs);
@@ -228,7 +253,17 @@ static class Codec
             else
             {
                 if (cue.Text.Contains("\n\n")) throw new InvalidDataException("E_VTT_BLANK");
-                text.Append(newline).Append(Stamp(cue.StartMs)).Append(" --> ").Append(Stamp(cue.EndMs))
+                var prefix = "";
+                var settings = "";
+                if (merged.Length > 0)
+                {
+                    var block = blocks[merged[0]];
+                    settings = block.Groups["settings"].Value;
+                    if (merged.Any(index => blocks[index].Groups["settings"].Value != settings))
+                        throw new InvalidDataException("E_MERGE_METADATA");
+                    prefix = output[spans[merged[0]].Start..block.Index]; // keep the first cue identifier
+                }
+                text.Append(newline).Append(prefix).Append(Stamp(cue.StartMs)).Append(" --> ").Append(Stamp(cue.EndMs)).Append(settings)
                     .Append(newline).Append(cue.Text.Replace("\r\n", "\n").Replace("\n", newline)).Append(newline).Append(newline);
             }
         }
@@ -242,6 +277,14 @@ static class Codec
         if (inserts.TryGetValue(baseline.Cues.Count, out var tail))
             output += (output.EndsWith('\n') ? "" : newline) + tail;
         return output;
+    }
+
+    // A merged event can preserve only one non-text ASS property set.
+    static string AssMetadata(AssLine e)
+    {
+        var fields = e.Prefix[(e.Prefix.IndexOf(':') + 1)..].Split(',');
+        fields[e.StartField] = fields[e.EndField] = "";
+        return string.Join(",", fields);
     }
 
     static string AssStamp(long ms) => $"{ms / 3600000}:{ms / 60000 % 60:00}:{ms / 1000 % 60:00}.{ms / 10 % 100:00}";
@@ -324,4 +367,5 @@ sealed class Cue
     public string Text { get; set; } = "";
     public string OriginalText { get; set; } = "";
     public bool ReadOnly { get; set; }
+    public List<string> MergedCueIds { get; set; } = [];
 }

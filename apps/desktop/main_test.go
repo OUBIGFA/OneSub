@@ -117,7 +117,7 @@ func TestActionsMovedBesideTheirContent(t *testing.T) {
 	if !ok || panel.X <= style.X || panel.Y > style.Y+20 {
 		t.Fatal("recognition and translation not right of the style", style, panel)
 	}
-	if !tt.HasText("开始识别字幕") || !tt.HasText("中国（普通话）-ZH") || !tt.HasText("解码与标点设置") {
+	if !tt.HasText("开始识别字幕") || !tt.HasText("中国（普通话）-ZH") || !tt.HasText("解码设置") {
 		t.Fatal(tt.Texts())
 	}
 	if err := tt.Click("AI 翻译"); err != nil {
@@ -152,7 +152,7 @@ func TestEditingIsLiveAndCommitsAfterAPause(t *testing.T) {
 			t.Fatal("removed control still shown", label)
 		}
 	}
-	if !tt.HasText("序号 1") || !tt.HasText("#") || tt.HasText("序号\n") {
+	if !tt.HasText("# 1") || !tt.HasText("#") || tt.HasText("序号\n") {
 		t.Fatal(tt.Texts())
 	}
 	if err := tt.Click("字幕文字"); err != nil {
@@ -306,7 +306,7 @@ func TestEnglishInterface(t *testing.T) {
 	inLocale(t, "en", func() {
 		a := storeApp(t, subtitle.Cue{ID: "c1", Text: "Hello", OriginalText: "Hello", StartMs: 0, EndMs: 1000})
 		tt := settled(a.view, 1400, 900)
-		for _, label := range []string{"Add files", "Clear workbench", "Export subtitles", "Transcribe & translate", "Transcribe subtitles", "Export video", "Original subtitles", "Optimized subtitles", "Subtitle editor", "No. 1", "Save as", "Subtitle style"} {
+		for _, label := range []string{"Add files", "Clear workbench", "Export subtitles", "Transcribe & translate", "Transcribe subtitles", "Export video", "Original subtitles", "Optimized subtitles", "Subtitle editor", "# 1", "Save as", "Subtitle style"} {
 			if !tt.HasText(label) {
 				t.Fatal("missing English text", label, tt.Texts())
 			}

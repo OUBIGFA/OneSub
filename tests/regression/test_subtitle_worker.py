@@ -117,6 +117,90 @@ class SubtitleWorkerTests(unittest.TestCase):
                     self.assertIn("position:20%",saved)
                     self.assertNotIn("first-id",saved)
 
+    def test_manual_merge_preserves_metadata_and_renumbers_output(self):
+        samples = {
+            "srt": "1\n00:00:01,000 --> 00:00:02,000\nFirst.\n\n2\n00:00:02,000 --> 00:00:03,000\nSecond.\n\n3\n00:00:04,000 --> 00:00:05,000\nLast\n",
+            "vtt": "WEBVTT\n\nNOTE keep this\nmetadata\n\nfirst-id\n00:01.000 --> 00:02.000 align:start\nFirst.\n\nsecond-id\n00:02.000 --> 00:03.000 align:start\nSecond.\n\nlast-id\n00:04.000 --> 00:05.000\nLast\n",
+            "ass": ("[Script Info]\nScriptType: v4.00+\n[Custom]\nkeep=1\n[Events]\n"
+                    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+                    "Comment: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,Keep me\n"
+                    "Dialogue: 2,0:00:01.00,0:00:02.00,Default,Alice,0,0,0,,First.\n"
+                    "Dialogue: 2,0:00:02.00,0:00:03.00,Default,Alice,0,0,0,,Second.\n"
+                    "Dialogue: 2,0:00:04.00,0:00:05.00,Default,Alice,0,0,0,,Last\n"),
+        }
+        for fmt, original in samples.items():
+            with self.subTest(fmt=fmt):
+                doc = self.read("merge." + fmt, original)
+                merged = dict(doc["cues"][0], id="manual-merge", endMs=3000,
+                              text="First, Second.", mergedCueIds=["c1", "c2"])
+                doc["cues"] = [merged, doc["cues"][2]]
+                doc["cues"][1]["position"] = 1
+                request = self.root / (fmt + "-merge.json")
+                request.write_text(json.dumps(doc), encoding="utf-8")
+                output = self.root / ("merged." + fmt)
+                reply = self.request("write", request, output)
+                self.assertTrue(reply.get("ok"), reply)
+                saved = output.read_text(encoding="utf-8")
+                back = self.read("reread." + fmt, saved)
+                self.assertEqual([(c["position"], c["startMs"], c["endMs"], c["text"]) for c in back["cues"]],
+                                 [(0, 1000, 3000, "First, Second."), (1, 4000, 5000, "Last")])
+                if fmt == "srt":
+                    self.assertIn("\n\n2\n00:00:04,000", saved)
+                elif fmt == "vtt":
+                    self.assertIn("NOTE keep this\nmetadata", saved)
+                    self.assertIn("first-id", saved)
+                    self.assertIn("align:start", saved)
+                    self.assertNotIn("second-id", saved)
+                else:
+                    self.assertIn("[Custom]\nkeep=1", saved)
+                    self.assertIn("Comment: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,Keep me", saved)
+                    self.assertIn("Dialogue: 2,0:00:01.00,0:00:03.00,Default,Alice,0,0,0,,First, Second.", saved)
+
+    def test_manual_merge_rejects_incompatible_ass_events_and_vtt_settings(self):
+        for fmt, original in {
+            "vtt": "WEBVTT\n\n00:01.000 --> 00:02.000 align:start\nFirst\n\n00:02.000 --> 00:03.000 align:end\nSecond\n",
+            "ass": ("[Script Info]\nScriptType: v4.00+\n[Events]\n"
+                    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+                    "Dialogue: 2,0:00:01.00,0:00:02.00,Default,Alice,0,0,0,,First\n"
+                    "Dialogue: 3,0:00:02.00,0:00:03.00,Other,Bob,0,0,0,,Second\n"),
+        }.items():
+            doc = self.read("incompatible." + fmt, original)
+            doc["cues"] = [dict(doc["cues"][0], id="manual-merge", endMs=3000,
+                                text="First, Second", mergedCueIds=["c1", "c2"])]
+            request = self.root / (fmt + "-badmerge.json")
+            request.write_text(json.dumps(doc), encoding="utf-8")
+            output = self.root / ("badmerged." + fmt)
+            reply = self.request("write", request, output)
+            self.assertFalse(reply.get("ok"))
+            self.assertEqual(reply["error"], "E_MERGE_METADATA")
+            self.assertFalse(output.exists())
+
+    def test_ass_merge_keeps_tags_and_rejects_timed_effects(self):
+        prefix = ("[Script Info]\nScriptType: v4.00+\n[Events]\n"
+                  "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n")
+        # Each case needs its own protocol destination: the worker deliberately
+        # refuses to overwrite an existing parsed document.
+        for name, original_text, merged_text, error in (
+                ("static-tags", r"{\i1}First.{\i0}", r"{\i1}First{\i0}, {\r}Second.", None),
+                ("removed-tags", r"{\i1}First.{\i0}", "First, Second.", "E_ASS_TAGS"),
+                ("timed-tags", r"{\k50}First", r"{\k50}First, {\r}Second.", "E_MERGE_METADATA")):
+            with self.subTest(case=name):
+                original = prefix + f"Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,{original_text}\nDialogue: 0,0:00:02.00,0:00:03.00,Default,,0,0,0,,Second.\n"
+                doc = self.read("effect-" + name + ".ass", original)
+                doc["cues"] = [dict(doc["cues"][0], id="manual-merge", endMs=3000,
+                                    text=merged_text, mergedCueIds=["c1", "c2"])]
+                request = self.root / ("merge-effect-" + name + ".json")
+                request.write_text(json.dumps(doc), encoding="utf-8")
+                output = self.root / ("effect-" + name + "-output.ass")
+                reply = self.request("write", request, output)
+                if error:
+                    self.assertFalse(reply.get("ok"))
+                    self.assertEqual(reply["error"], error)
+                    self.assertFalse(output.exists())
+                else:
+                    self.assertTrue(reply.get("ok"), reply)
+                    self.assertIn(merged_text, output.read_text(encoding="utf-8"))
+
     def test_single_line_export_preserves_times_and_format_metadata(self):
         samples = {
             "srt": "1\n00:00:01,250 --> 00:00:03,000\n<i>Upper\n下行</i>\n\n2\n00:00:04,000 --> 00:00:05,000\nSingle\n",

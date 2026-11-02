@@ -163,12 +163,16 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 			// Accepted text in the normal color; text still being written
 			// muted, as it may change.
 			if l.final[row] {
-				ui.Text(c, l.texts[row])
+				text := l.texts[row]
+				if a.translationTask != nil && a.translationTask.Config.Punctuation != nil {
+					text = a.translationTask.Config.Punctuation.Apply(text)
+				}
+				ui.Text(c, text)
 			} else {
 				muted(c, l.texts[row])
 			}
 		}
-	}, func(bool) {}).Label(locales.TranslationLive())
+	}, func(bool) { a.noteBrowse(c.Now()) }).Label(locales.TranslationLive())
 	// The live list follows the playback like the subtitle list does, and
 	// yields the viewport the same way: the reader's own scrolling keeps
 	// the list where they left it until the grace is over.
@@ -182,7 +186,7 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 	if a.settings.FollowPlayback && !a.paused {
 		target = cueAt(l.units, a.position)
 	}
-	if target >= 0 && target != l.shown && !a.browsing(c.Now()) {
+	if target >= 0 && target != l.shown && !a.browsing(c.Now()) && !a.followHeld {
 		l.shown = target
 		for row, index := range rows {
 			if index == target {

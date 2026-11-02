@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"math"
 	"slices"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 func (a *NativeApp) subtitleActionsMenu(c *ui.Context) {
 	toolIcon(c, locales.SubtitleActionsMenu(), "ellipsis").Disabled(a.busy || a.snapshot == nil || a.showsTranslationProgress()).Menu(func(m *ui.Menu) {
+		a.pendingClick = nil
 		a.subtitleStructureMenu(m, a.selected)
 	})
 }
@@ -34,6 +36,16 @@ func (a *NativeApp) subtitleStructureMenu(m *ui.Menu, index int) {
 	}
 	if m.Item(locales.SubtitleInsertAfter()).Disabled(disabled).Chosen() {
 		a.openSubtitleInsert(id, false)
+	}
+	m.Separator()
+	canMerge := func(first int) bool {
+		return !disabled && first >= 0 && first+1 < len(cues) && !cues[first].ReadOnly && !cues[first+1].ReadOnly && cues[first].Translated == cues[first+1].Translated
+	}
+	if m.Item(locales.SubtitleMergePrevious()).Disabled(!canMerge(index - 1)).Chosen() {
+		a.mergeSubtitle(id, true)
+	}
+	if m.Item(locales.SubtitleMergeNext()).Disabled(!canMerge(index)).Chosen() {
+		a.mergeSubtitle(id, false)
 	}
 	m.Separator()
 	if m.Item(locales.SubtitleDelete()).Shortcut(0, ui.KeyDelete).Disabled(disabled || id == "" || protected).Chosen() {
@@ -89,6 +101,38 @@ func (a *NativeApp) insertSubtitle() {
 	a.status = locales.SubtitleInserted()
 }
 
+// Merging is a local list edit. Strict formats are serialized before the
+// transaction so incompatible ASS events or VTT settings never leave an
+// unsavable mutation in the project; no source file is written by this check.
+func (a *NativeApp) mergeSubtitle(id string, previous bool) {
+	if a.busy || a.snapshot == nil || a.store == nil || !a.commitEdit(true) {
+		return
+	}
+	doc := a.activeDocument()
+	at := slices.IndexFunc(doc.Cues, func(cue subtitle.Cue) bool { return cue.ID == id })
+	if previous {
+		at--
+	}
+	command := uuid.NewString()
+	merged, err := subtitle.MergeAdjacent(doc, at, "manual-"+command)
+	if err == nil && doc.Format != "srt" {
+		_, err = a.worker.Write(context.Background(), merged)
+	}
+	if err != nil {
+		a.showError("structure", err.Error())
+		return
+	}
+	if _, err = a.store.MergeCues(command, a.snapshot.Revision, a.subtitleTab == 0, doc.Cues[at].ID, doc.Cues[at+1].ID); err != nil {
+		a.showError("structure", err.Error())
+		return
+	}
+	a.refreshAfterStructure(at)
+	// A hand merge is being reviewed, even while playback continues. Keep
+	// that result selected until an explicit locate/seek releases the hold.
+	a.followHeld = true
+	a.status = locales.SubtitleMerged()
+}
+
 func (a *NativeApp) deleteSubtitle(id string) {
 	if a.busy || a.snapshot == nil || a.store == nil || !a.commitEdit(true) {
 		return
@@ -109,6 +153,7 @@ func (a *NativeApp) refreshAfterStructure(index int) {
 		return
 	}
 	a.clearError("structure")
+	a.pendingClick, a.rowClick = nil, nil
 	a.selected = index
 	a.setSnapshot(state)
 	a.loadDraft()

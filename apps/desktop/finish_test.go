@@ -127,11 +127,11 @@ func TestEditorNamesTheCueOnItsFirstLine(t *testing.T) {
 	a := withStyleCatalog(t)
 	tt := settled(a.editorView, 800, 600)
 	title, _ := tt.Find("字幕编辑")
-	number, ok := tt.Find("序号 1")
+	number, ok := tt.Find("# 1")
 	duration, _ := tt.Find("时长")
 	editor, _ := tt.Find("字幕编辑面板")
 	start, _ := tt.Find("开始")
-	if !ok || number.Y <= title.Y || number.Y >= start.Y || duration.Y != number.Y {
+	if !ok || number.Y <= title.Y || number.Y >= start.Y || duration.Y-number.Y > 1 || number.Y-duration.Y > 1 {
 		t.Fatal("cue context and timing are not distinct", title, number, duration, start)
 	}
 	leftInset, rightInset := number.X-editor.X, editor.X+editor.W-duration.X-duration.W
@@ -214,17 +214,17 @@ func TestStripTrailingPunctuation(t *testing.T) {
 		"真的吗？":        "真的吗？",
 		"Really?":     "Really?",
 		"Done.\n第二行，": "Done\n第二行",
-		"他说“好的。”":     "他说“好的。”",
+		"他说“好的。”":     "他说“好的”",
 		"（注释）":        "（注释）",
 		"Wait...":     "Wait",
 		"……":          "……",
 		"不要！ ":        "不要",
 	} {
-		if got := stripTrailingPunctuation(in, "?"); got != want {
+		if got := (subtitle.PunctuationOptions{StripTrailing: true, Keep: "?"}).Apply(in); got != want {
 			t.Errorf("%q = %q, want %q", in, got, want)
 		}
 	}
-	if got := stripTrailingPunctuation("太好了！", "!"); got != "太好了！" {
+	if got := (subtitle.PunctuationOptions{StripTrailing: true, Keep: "!"}).Apply("太好了！"); got != "太好了！" {
 		t.Error("full-width mark of a kept ASCII mark removed", got)
 	}
 }

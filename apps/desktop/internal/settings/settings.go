@@ -88,10 +88,11 @@ type Settings struct {
 	TopHeight   float64 `json:"topHeight"`
 	EditorWidth float64 `json:"editorWidth"`
 	StyleWidth  float64 `json:"styleWidth"`
-	// Recognized subtitles lose the punctuation that ends their lines,
-	// except the marks in KeepPunctuation, in ASCII or full width.
+	// Local translation-output cleanup. Recognition preserves its punctuation;
+	// existing saved strip/keep choices move with the controls.
 	StripPunctuation bool   `json:"stripPunctuation"`
 	KeepPunctuation  string `json:"keepPunctuation"`
+	ReplacePeriods   bool   `json:"replacePeriods"`
 	// BatchSources are the media files waiting in the recognition queue.
 	// The queue survives a restart, so a long list of files is not lost.
 	BatchSources []string `json:"batchSources,omitempty"`
@@ -104,6 +105,12 @@ const version = 5
 func Default() Settings {
 	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "zh", RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", CompressionFormat: "mp4", CompressionQuality: "crf23", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 400.0 / 7, StyleWidth: 30, StripPunctuation: true, KeepPunctuation: "?"}
 }
+
+// TranslationPunctuation freezes the local output options for a task.
+func (s Settings) TranslationPunctuation() *subtitle.PunctuationOptions {
+	return &subtitle.PunctuationOptions{StripTrailing: s.StripPunctuation, Keep: s.KeepPunctuation, ReplacePeriods: s.ReplacePeriods}
+}
+
 func Load(path string) (Settings, error) {
 	s := Default()
 	raw, err := os.ReadFile(path)
@@ -134,6 +141,13 @@ func Load(path string) (Settings, error) {
 		s.ModelPaths = map[string]string{}
 	}
 	s.restoreProviders()
+	// Retire seek-with-current-state without changing pane ratios or other
+	// preferences. Both click menus now have the same three explicit actions.
+	for _, action := range []*string{&s.SingleClickAction, &s.DoubleClickAction} {
+		if *action == "seek" {
+			*action = "seek-play"
+		}
+	}
 	s.Volume = max(0, min(100, s.Volume))
 	// A pane is never made too small to show or to drag back.
 	d := Default()

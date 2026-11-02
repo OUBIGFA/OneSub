@@ -280,6 +280,10 @@ func TestTranslationProgressNavigation(t *testing.T) {
 	}
 	l.latest = 76
 	tt.Advance(time.Second)
+	if first, _ := l.list.Visible(); first != 0 {
+		t.Fatal("translation progress stole the browsing viewport", first)
+	}
+	tt.Advance(browseGrace + time.Second)
 	if first, last := l.list.Visible(); first == 0 || first > 76 || last < 76 {
 		t.Fatal("translation updates stopped following after navigation", first, last)
 	}

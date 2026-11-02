@@ -37,7 +37,6 @@ func idSelect(c *ui.Context, value *string, options []option) ui.Element {
 func subtitleActions() []option {
 	return []option{
 		{"none", locales.ClickSelectOnly()},
-		{"seek", locales.ClickSeek()},
 		{"seek-pause", locales.ClickSeekPause()},
 		{"seek-play", locales.ClickSeekPlay()},
 	}
@@ -56,6 +55,13 @@ func (a *NativeApp) seekSubtitle(action string) {
 	cue := a.activeDocument().Cues[a.selected]
 	if script := subtitleSeekScript(action, cue.StartMs); script != "" {
 		a.activeCue = a.selected
+		a.position = float64(cue.StartMs) / 1000
+		a.paused = action == "seek-pause"
+		if action == "seek-play" {
+			// Explicit play seeks always show the target, even if it was
+			// already active or ordinary playback-follow is disabled.
+			a.locateCue = a.selected
+		}
 		a.evalPlayer(script)
 	}
 }
@@ -70,8 +76,6 @@ func subtitleSeekScript(action string, startMs int64) string {
 		return script + ";video.pause()"
 	case "seek-play":
 		return script + ";video.play()"
-	case "seek":
-		return script
 	default:
 		return ""
 	}

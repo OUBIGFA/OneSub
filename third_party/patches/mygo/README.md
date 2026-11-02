@@ -1,12 +1,12 @@
 # MyGo 原生 UI 与 Windows 层补丁
 
-上游：`egoist/mygo`，修订 `558e498142b0e91b8e659f7e1f9aae5a455108f3`，MIT，许可见 [mygo.txt](../../licenses/mygo.txt)。不替换菜单或绘制应用自有控件；保留 MyGo / Windows 的菜单渲染和行为。
+上游：`egoist/mygo v0.7.4`，修订 `9bd34e1eb9525d9a1fe698aadc964c49c8ff8e7e`，MIT，许可见 [mygo.txt](../../licenses/mygo.txt)，模块、源码 ZIP 与许可校验见 [运行时清单](../../manifests/runtimes.json)。不替换菜单或绘制应用自有控件；保留 MyGo / Windows 的菜单渲染和行为。
 
 ## 范围与原因
 
 `windows-native.patch` 修改 `internal/windows/menu.go`、`menudraw.go`、`surface.go`、`webview_embed.go`，并在上游测试文件中增加回归。菜单部分的范围是 MyGo 自绘的全部弹出菜单项：托盘菜单、按钮菜单（如预设的“更多”菜单）、右键菜单和文本编辑菜单。
 
-- **文案右缘被裁切（实测根因）**：Windows 会给每个自绘菜单项再加一段宽度，数值是系统菜单字体平均字宽的 2 倍（`GdiGetCharDimensions` 的算法）。原代码按 `SM_CXMENUCHECK - 1` 扣除。英文系统的菜单字体 Segoe UI 两者相等；中文系统的菜单字体 Microsoft YaHei UI 在 96 DPI 下 `SM_CXMENUCHECK` 为 17、平均字宽为 7，多扣 2 像素，菜单最宽一项的末字右缘被 `DrawText` 按文字区裁掉。现在按实测的系统菜单字体平均字宽扣除。
+- **弹出菜单宽度**：上游 `v0.7.4` 的 `itemWidth`／`learnMenuExtra` 按实际绘制宽度学习 Windows 给自绘菜单附加的空间；首个菜单完整预留，后续按实测值扣除，不再使用 `SM_CXMENUCHECK` 估算。本轮移除 OneSub 的 `ownerDrawExtra`、字体平均字宽算法与缓存字段，直接使用上游实现。原生回归按应用流程重建同项菜单两次，要求两次均不窄于完整文案，第二次使用已学习宽度。
 - **字形外伸被裁切**：YaHei UI 的部分字形比字宽多出 1 像素（左或右）。文字区两侧有 16 DIP 留白，现以 `DT_NOCLIP` 绘制，由菜单项自身的位图限定边界。
 - **显示器 DPI**：菜单建在指针所在显示器，托盘 owner 是隐藏窗口，DPI 不代表菜单所在显示器。现在把创建时的 DPI 保存在菜单项中，度量与绘制读取同一值。
 - **调整区域时视频区露白（实测根因）**：原生 UI 中的网页视图（播放器）经 DirectComposition 显示在画布子窗口之上，其下是该子窗口自己的位图；MyGo 对该窗口的擦除背景消息不做绘制，位图保持创建时的白色。快速拖动分隔条使播放器区域变大、网页尚未按新尺寸重绘时，这块白色露出。现在有网页视图时，擦除背景用窗口的背景色（OneSub 设为黑色）填充，并在创建网页图层和窗口尺寸变化时触发擦除；不额外叠加色块。
@@ -16,7 +16,7 @@
 `ui-interaction.patch` 复用固定版本已有的单行文字塑形和滚动动画，不引入另一套控件或绘图体系：
 
 - **长单行输入**：原生 `TextInput`、`Autocomplete` 等输入未聚焦时，仅绘制布局按可用宽度显示省略号。完整编辑布局、实际值、鼠标拖选、光标导航、IME 与辅助技术不变；密码继续掩码。绘制布局只缓存在对应编辑器，不放入全局文字缓存。单行占位文字也以省略号结束。
-- **复合输入占位文字**：固定版本的 `Placeholder` 只作用于控件自身，`SearchField`、`Combobox`、`TokenField` 外层未向内部输入转发，导致搜索范围文字不显示。现仅向 `field()` 明确标记的输入转发；完整编辑行为不变。单行占位文字沿用原生单行省略布局，而非 `NoWrap` 后直接裁切。
+- **复合输入占位文字**：`v0.7.4` 的 `Placeholder` 已通过原生 `focusTo` 向 `SearchField`、`Combobox`、`TokenField` 内部输入转发。本轮移除 OneSub 的递归查找转发补丁，直接使用上游接口；保留中英文当前范围及清空搜索的行为回归。单行长占位文字仍通过有限布局补丁使用省略号，而非 `NoWrap` 后直接裁切。
 - **字幕邻近行平滑定位**：`ListState.ScrollToAnimated` 将已测量的可见行位置交给现有 `ScrollState.ScrollTo`，沿用原生缓动、用户滚动中断当前动画和系统减少动态效果设置；远距离或未测量目标仍由原生 `ScrollTo` 定位，不按估计高度长距离飞行。列表首尾导航、切换轨道和过滤会清掉旧动画；应用的后续播放跟随不被用户滚动暂停。
 
 `ui-layout.patch` 处理固定版本 WebView 的原生尺寸缺口，不引入独立渲染器或控件体系。官方接口核对见 [Web view](https://mygo.egoist.dev/docs/ui/web-view) 与 [Layout](https://mygo.egoist.dev/docs/ui/layout)。
@@ -25,7 +25,15 @@
 - `TestOneSubContainedWebViewUsesCurrentFrame` 每次只执行单帧尺寸变化，验证横竖比例、原生位置与透明区域立即一致。既有上游 `TestWebView*` 同时运行。
 - 这些回归只证明布局与输入契约；桌面残影需另行复现和像素验证，不把结构修复等同于全部 GPU 问题已解决。
 
-`tools/prepare_mygo.py` 校验十个上游文件 SHA-256，把锁定依赖复制到忽略目录（只复制内容，不清理无关文件；重新应用前移除补丁自身新增的测试文件）、依次应用三个补丁，再以生成的 `-modfile` 定向替换 MyGo。Go 不允许覆盖模块缓存的 overlay；三个统一构建/测试入口因此共用该生成模块文件，不修改模块缓存或已跟踪的 `go.mod/go.sum`，不跟踪完整上游源码副本。上游变化时哈希不符即停止，需重新评估补丁。
+`ui-row-click.patch` 扩展固定版本的 `ListState` 原生行事件，修改 `ui/list.go` 与 `ui/value_input.go`，不绘制或替换列表：
+
+- `OnRowClick` 包括重复点击已选行；双击在第二次按下时单独回调，不在第二次释放后再次执行单击。未设置回调的列表保持既有行为。
+- `KeepClickPosition` 只禁止鼠标选择附带的自动滚动，原生选择、焦点、右键和键盘导航仍保留。应用立即选中字幕，将播放动作延迟到 Windows [GetDoubleClickTime](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getdoubleclicktime) 判定结束；双击取消待执行的单击，期间保持目标行不移动。
+- 应用回归覆盖播放/暂停下的 18 组单/双击动作组合，以及跟随开启/关闭下的 12 组单击动作、重复已选行、选择保留与定位恢复。它们使用真实 MyGo 输入和工程事务；最终桌面还须核对真实播放器与原生弹出菜单。
+
+`tools/prepare_mygo.py` 校验十一个上游文件 SHA-256，把锁定依赖复制到忽略目录（只复制内容，不清理无关文件；重新应用前移除补丁自身新增的测试文件）、依次应用四个补丁，再以生成的 `-modfile` 定向替换 MyGo。镜像指纹同时包含锁定版本与补丁内容，升级时即使补丁未变也会重建源码镜像。Go 不允许覆盖模块缓存的 overlay；三个统一构建/测试入口因此共用该生成模块文件，不修改模块缓存或已跟踪的 `go.mod/go.sum`，不跟踪完整上游源码副本。上游变化时哈希不符即停止，需重新评估补丁。
+
+版本锁定用于复现当前构建，不是长期停留在旧版的理由。按 [工作约定](../../../AGENTS.md) 持续同步上游最新版本；每次升级重新核对源码校验值、API 与这组补丁，已有上游能力不再重复保留补丁。完整构建、回归和相关桌面验收未通过时记录实际阻塞，不宣称升级完成。
 
 ## 验收边界
 
@@ -35,7 +43,7 @@
 - 以上 UI 回归随 `build/test.ps1` 运行；不把组件测试当作全部桌面交互验收。
 
 - `TestOneSubNativeSurfaceStartsComposed`：建立实际原生窗口，在任何 WebView 尚未存在时检查首帧的组合交换链契约；随菜单测试一起运行。它不替代真实桌面的快速分隔拖动与视频像素验收。
-- `TestOneSubPopupItemWidth`：弹出真实菜单，用 `GetMenuItemRect` 读取菜单项宽度，要求不小于最宽文字所需宽度（旧算法实测 156 < 158 像素，失败；修复后通过）。
+- `TestOneSubPopupItemWidth`：弹出真实菜单两次，用 `GetMenuItemRect` 读取菜单项宽度；首个完整预留，后续复用上游学习的附加宽度，均要求不小于最宽文字所需宽度，第二次不超过必要宽度加 2 DIP。
 - `TestOneSubPopupFontBounds`：真实 GDI 字体，以 14/48/64 字号验证中文行高与留白。
 - `TestOneSubPopupMonitorDPI`：96/144/192 DPI 下读取创建时的 DPI。
 - 桌面实测：中文 Windows 11、96 DPI 单显示器下截取托盘菜单与预设菜单，文字墨迹与参考渲染逐列一致。多显示器混合 DPI 未实机验收。

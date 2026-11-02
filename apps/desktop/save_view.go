@@ -384,6 +384,8 @@ func (a *NativeApp) clearWorkbench() {
 	a.query = ""
 	a.mediaURL = ""
 	a.position, a.duration, a.paused, a.activeCue, a.frameAspect = 0, 0, true, -1, 0
+	a.pendingClick, a.rowClick = nil, nil
+	a.resumeFollow()
 	a.loadVideo()
 	a.clearError("project")
 	a.clearError("player")
