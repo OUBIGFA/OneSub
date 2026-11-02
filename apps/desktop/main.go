@@ -357,7 +357,10 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 		if !a.showsTranslationProgress() {
 			if load := a.cueReading(a.selected); load.Problem() {
 				label, detail := a.readingLabel(a.activeDocument().Cues[a.selected], load)
-				muted(c, label).SingleLine().Shrink(0).Tooltip(detail)
+				ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Shrink(0).Children(func() {
+					icon(c, "triangle-alert").TextColor(c.Theme().Danger).Label(locales.A11yWarningIcon())
+					muted(c, locales.StatusOwnerSubtitle()+label).TextColor(c.Theme().Danger).SingleLine().Shrink(0).Tooltip(locales.StatusOwnerSubtitle() + detail)
+				})
 				readingHint = true
 			}
 		}
@@ -368,9 +371,12 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 				ui.Divider(c).Height(em(c, 16)).AlignSelf(ui.Center)
 			}
 			if a.errorText != "" {
-				ui.Text(c, a.errorText).TextColor(c.Theme().Danger).Grow(1).SingleLine().Tooltip(a.errorText)
+				ui.Row(c).Grow(1).MinWidth(0).Gap(em(c, 4)).AlignItems(ui.Center).Children(func() {
+					icon(c, "triangle-alert").TextColor(c.Theme().Danger).Label(locales.A11yWarningIcon())
+					ui.Text(c, locales.StatusOwnerError()+a.errorText).TextColor(c.Theme().Danger).Grow(1).MinWidth(0).SingleLine().Tooltip(locales.StatusOwnerError() + a.errorText)
+				})
 			} else {
-				muted(c, a.status).Grow(1).MinWidth(0).SingleLine().Tooltip(a.status)
+				muted(c, locales.StatusOwnerStatus()+a.status).Grow(1).MinWidth(0).SingleLine().Tooltip(locales.StatusOwnerStatus() + a.status)
 			}
 		} else {
 			ui.Text(c, "").Grow(1)
@@ -382,13 +388,13 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 			ui.Divider(c).Height(em(c, 16)).AlignSelf(ui.Center)
 		}
 		if canCancel {
-			ui.Button(c, locales.ActionCancelTask()).Padding(em(c, 2), em(c, 10)).OnClick(func() { a.cancel() })
+			ui.Button(c, locales.StatusOwnerTask()+locales.ActionCancelTask()).Padding(em(c, 2), em(c, 10)).OnClick(func() { a.cancel() })
 		}
 		if canCancel && canOpenOutput {
 			ui.Divider(c).Height(em(c, 16)).AlignSelf(ui.Center)
 		}
 		if canOpenOutput {
-			ui.Button(c, locales.ResultOpenFolder()).Padding(em(c, 2), em(c, 10)).OnClick(func() {
+			ui.Button(c, locales.StatusOwnerOutput()+locales.ResultOpenFolder()).Padding(em(c, 2), em(c, 10)).OnClick(func() {
 				if err := mygo.Shell.OpenPath(filepath.Dir(a.lastOutput)); err != nil {
 					a.showError("output-folder", err.Error())
 				} else {

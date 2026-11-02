@@ -205,6 +205,12 @@
       "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/skip-back.svg",
       "sha256": "ddf0b2217a4d6b0bf5d6ad4bbdbe87fd99bfa97e66a98d5076d4ed6d220f2a37",
       "bytes": 293
+    },
+    {
+      "path": "apps/desktop/icons/triangle-alert.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/triangle-alert.svg",
+      "sha256": "4866f38b8560d410f21e3226413e0b77997b6dfbb6931fadfe0a0d5aef9ffeb4",
+      "bytes": 345
     }
   ]
 }
