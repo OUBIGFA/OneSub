@@ -89,6 +89,10 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 					a.translationLive.shown = -1
 				}
 			}
+			if hasCues {
+				a.readingTools(c)
+				a.listTextTools(c)
+			}
 			if a.translationCandidate != nil {
 				ui.Button(c, locales.TranslationResults()).OnClick(func() { a.translationReview = true })
 			}
@@ -159,6 +163,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			maximum = max(maximum, cue.Position+1)
 		}
 		cols := []ui.TableColumn{numberColumn(c, maximum), timeColumn(c, locales.ListColumnStart()), timeColumn(c, locales.ListColumnEnd()), {Title: locales.ListColumnText(), Fixed: true}}
+		loads := a.readingLoads()
 		table := subtitleTable(c, &a.list, cols, len(rows), func(row, col int) {
 			index := rows[row]
 			cue := cues[index]
@@ -173,21 +178,26 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			}
 			// Secondary columns are muted, but on the accent of the chosen
 			// row they take its text color.
-			cell := func(value string) {
+			cell := func(value string) ui.Element {
 				t := ui.Text(c, value).FontSize(em(c, captionSize)).FontFeatures("tnum").SingleLine()
 				if index != a.selected {
 					t.TextColor(c.Theme().TextMuted)
 				}
+				return t
 			}
 			switch col {
 			case 0:
-				cell(fmt.Sprint(cue.Position + 1))
+				number := cell(fmt.Sprint(cue.Position + 1))
+				// Mark only the number; selected rows keep MyGo's uniform
+				// accent and readable text instead of a second surface.
+				if index != a.selected && a.draftReading(cue, index, loads[index]).Problem() {
+					number.TextColor(c.Theme().Danger)
+				}
 			case 1:
 				cell(stamp(start))
 			case 2:
 				cell(stamp(end))
 			default:
-				// Every line is shown; rows grow to their text.
 				ui.Column(c).Gap(em(c, 8)).Padding(em(c, 6), em(c, 2)).Children(func() {
 					if a.subtitleTab == 1 {
 						source := cueDisplayText(cue, 0)

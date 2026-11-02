@@ -6,8 +6,9 @@ import (
 	"unicode"
 )
 
-// PunctuationOptions is deterministic translation-output cleanup. It never
-// changes source tracks, timing, markup, locked cues, or a provider request.
+// PunctuationOptions is deterministic text cleanup. Automatic translation uses
+// it only on unlocked output; explicit list commands may apply it to the chosen
+// existing text track. Timing and markup are never changed here.
 type PunctuationOptions struct {
 	StripTrailing  bool   `json:"stripTrailing"`
 	Keep           string `json:"keep"`
@@ -57,10 +58,6 @@ func (p PunctuationOptions) Apply(text string) string {
 		for start > 0 && unicode.IsPunct(chars[visible[start-1]]) && !closingPunctuation(chars[visible[start-1]]) {
 			start--
 		}
-		trailing := len(chars)
-		if start < end {
-			trailing = visible[start]
-		}
 		remove := map[int]bool{}
 		if p.StripTrailing && start > 0 {
 			for j := end - 1; j >= start; j-- {
@@ -75,7 +72,7 @@ func (p PunctuationOptions) Apply(text string) string {
 			if remove[i] {
 				continue
 			}
-			if p.ReplacePeriods && !protected[i] && i < trailing {
+			if p.ReplacePeriods && !protected[i] {
 				switch r {
 				case '.', '．':
 					r = ','

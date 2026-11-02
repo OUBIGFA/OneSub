@@ -46,7 +46,11 @@ type Cue struct {
 	SourceCueIDs      []string `json:"sourceCueIds,omitempty"`
 	// MergedCueIDs are the original file blocks replaced by a manual merge.
 	// They are distinct from AI source provenance and flatten repeated merges.
-	MergedCueIDs  []string     `json:"mergedCueIds,omitempty"`
+	MergedCueIDs []string `json:"mergedCueIds,omitempty"`
+	// SplitCueIDs identify original file blocks used as strict format templates.
+	// SplitReview records heuristic pairing of simultaneous bilingual lines.
+	SplitCueIDs   []string     `json:"splitCueIds,omitempty"`
+	SplitReview   bool         `json:"splitReview,omitempty"`
 	SourceRange   *SourceRange `json:"sourceRange,omitempty"`
 	TimingQuality string       `json:"timingQuality,omitempty"`
 }
@@ -200,6 +204,8 @@ func workerMessage(message string) string {
 		return locales.ErrSubtitleVttBlank()
 	case "E_ASS_FORMAT":
 		return locales.ErrSubtitleAssFormat()
+	case "E_SPLIT_METADATA":
+		return locales.ReadingProtected()
 	case "E_MERGE_METADATA":
 		return locales.ErrMergeMetadata()
 	case "E_LINE_SELECTION":

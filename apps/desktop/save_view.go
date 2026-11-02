@@ -41,6 +41,7 @@ func trackHash(doc subtitle.Document, track int) string {
 // differ from their files.
 func (a *NativeApp) setSnapshot(state project.Snapshot) {
 	a.snapshot = &state
+	a.splitSkipped = nil
 	a.selected = min(a.selected, len(a.activeDocument().Cues)-1)
 	if a.selected < 0 && len(a.activeDocument().Cues) > 0 {
 		a.selected = 0

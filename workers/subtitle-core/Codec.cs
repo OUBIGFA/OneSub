@@ -217,14 +217,21 @@ static class Codec
             if (!inserts.TryGetValue(next, out var text)) inserts[next] = text = new StringBuilder();
             // A manual merge identifies the preserved blocks it replaces.
             // Prefer their first template, not an unrelated preceding event.
+            var split = cue.SplitCueIds.Where(known.ContainsKey).Select(id => known[id]).ToArray();
             var merged = cue.MergedCueIds.Where(known.ContainsKey).Select(id => known[id]).ToArray();
-            if (merged.Any(index => retained.ContainsKey(baseline.Cues[index].Id)))
+            var templates = split.Length > 0 ? split : merged;
+            if (templates.Any(index => retained.ContainsKey(baseline.Cues[index].Id)))
                 throw new InvalidDataException("E_MERGE_METADATA");
+            // A split introduces independent event clocks. Until tag-state
+            // splitting is supported, refuse tagged originals even if an
+            // edited replacement attempted to remove the protected syntax.
+            if (split.Any(index => Regex.IsMatch(baseline.Cues[index].Text, @"<[^>]+>|\{[^}]*\}")))
+                throw new InvalidDataException("E_SPLIT_METADATA");
             if (ass)
             {
                 if (cue.StartMs % 10 != 0 || cue.EndMs % 10 != 0) throw new InvalidDataException("E_ASS_TIMING");
-                var template = events[merged.Length > 0 ? merged[0] : prior >= 0 ? prior : Math.Min(next, events.Count - 1)];
-                foreach (var index in merged)
+                var template = events[templates.Length > 0 ? templates[0] : prior >= 0 ? prior : Math.Min(next, events.Count - 1)];
+                foreach (var index in templates)
                 {
                     var other = events[index];
                     // Positioning, karaoke and timed effects cannot retain two
@@ -255,13 +262,15 @@ static class Codec
                 if (cue.Text.Contains("\n\n")) throw new InvalidDataException("E_VTT_BLANK");
                 var prefix = "";
                 var settings = "";
-                if (merged.Length > 0)
+                if (templates.Length > 0)
                 {
-                    var block = blocks[merged[0]];
+                    var block = blocks[templates[0]];
                     settings = block.Groups["settings"].Value;
-                    if (merged.Any(index => blocks[index].Groups["settings"].Value != settings))
+                    if (templates.Any(index => blocks[index].Groups["settings"].Value != settings))
                         throw new InvalidDataException("E_MERGE_METADATA");
-                    prefix = output[spans[merged[0]].Start..block.Index]; // keep the first cue identifier
+                    prefix = output[spans[templates[0]].Start..block.Index]; // keep the first cue identifier
+                    if (split.Length > 0 && prefix.Trim().Length > 0)
+                        prefix = prefix.TrimEnd('\r', '\n') + "-" + cue.Id + newline;
                 }
                 text.Append(newline).Append(prefix).Append(Stamp(cue.StartMs)).Append(" --> ").Append(Stamp(cue.EndMs)).Append(settings)
                     .Append(newline).Append(cue.Text.Replace("\r\n", "\n").Replace("\n", newline)).Append(newline).Append(newline);
@@ -368,4 +377,5 @@ sealed class Cue
     public string OriginalText { get; set; } = "";
     public bool ReadOnly { get; set; }
     public List<string> MergedCueIds { get; set; } = [];
+    public List<string> SplitCueIds { get; set; } = [];
 }

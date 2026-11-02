@@ -53,6 +53,9 @@ func MergeAdjacent(doc Document, at int, id string) (Document, error) {
 			{cue.SourceCueIDs, &merged.SourceCueIDs}, {cue.MergedCueIDs, &merged.MergedCueIDs},
 		} {
 			ids := pair.from
+			if len(ids) == 0 && pair.to == &merged.MergedCueIDs {
+				ids = cue.SplitCueIDs
+			}
 			if len(ids) == 0 {
 				ids = []string{cue.ID}
 			}

@@ -81,6 +81,11 @@ type NativeApp struct {
 	list                                     ui.ListState
 	selected                                 int
 	query                                    string
+	readingSnapshot                          *project.Snapshot
+	readingTab                               int
+	reading                                  []subtitle.CueReadingLoad
+	splitSkipped                             map[string]string
+	findReplace                              findReplaceState
 	draft                                    string
 	start, end                               float64
 	editPending, composing, editing          bool
@@ -216,6 +221,7 @@ func (a *NativeApp) view(c *ui.Context) {
 	a.clearView(c)
 	a.presetDialogView(c)
 	a.insertSubtitleView(c)
+	a.findReplaceView(c)
 	a.observeStyle(c.Now())
 	// The panes keep the sizes the user drags them to, saved once the drag
 	// stops, as the other preferences.
@@ -246,6 +252,9 @@ func (a *NativeApp) view(c *ui.Context) {
 		} else {
 			c.After(a.previewDue.Sub(c.Now()))
 		}
+	}
+	if c.Shortcut(ui.Cmd, ui.KeyH) && !a.busy {
+		a.openFindReplace()
 	}
 	if c.Shortcut(ui.Cmd, ui.KeyS) && !a.busy {
 		a.saveTrack(a.subtitleTab, false)
@@ -342,10 +351,19 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 		}
 	}
 	ui.Row(c).Height(em(c, 32)).Padding(0, em(c, 12)).Gap(em(c, 12)).AlignItems(ui.Center).Background(look.chrome).FontSize(em(c, captionSize)).Label(locales.A11yStatusBar()).Children(func() {
+		// Reading advice belongs to the selected cue, separate from task
+		// results and errors. Resolve the draft each frame so it cannot linger
+		// after selecting or editing a readable cue.
+		if !a.showsTranslationProgress() {
+			if load := a.cueReading(a.selected); load.Problem() {
+				label, detail := a.readingLabel(a.activeDocument().Cues[a.selected], load)
+				muted(c, label).SingleLine().Shrink(0).Tooltip(detail)
+			}
+		}
 		if a.errorText != "" {
 			ui.Text(c, a.errorText).TextColor(c.Theme().Danger).Grow(1).SingleLine().Tooltip(a.errorText)
 		} else {
-			muted(c, a.status).Grow(1).SingleLine()
+			muted(c, a.status).Grow(1).MinWidth(0).SingleLine().Tooltip(a.status)
 		}
 		if a.busy && a.cancel != nil && !a.choosingFile && !a.composeRunning && !a.recognitionRunning && !a.translationRunning {
 			ui.Button(c, locales.ActionCancelTask()).Padding(em(c, 2), em(c, 10)).OnClick(func() { a.cancel() })

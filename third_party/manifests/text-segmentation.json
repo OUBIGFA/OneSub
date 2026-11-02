@@ -1,0 +1,17 @@
+{
+  "module": "github.com/go-text/typesetting",
+  "version": "v0.3.5",
+  "revision": "19482bd51f2338e34bacd8cfd3288a04bbadc598",
+  "repository": "https://github.com/go-text/typesetting",
+  "download": "https://proxy.golang.org/github.com/go-text/typesetting/@v/v0.3.5.zip",
+  "archiveBytes": 3566655,
+  "archiveSha256": "da9b93d086cf2bdf9073117c06673604bbf5eea62ca60d38db7fdbb335fdb4ba",
+  "moduleSum": "h1:XZPUooClHY0Vf/rFyUyuPRNEkawARaFzLMQcXLSEyPk=",
+  "goModSum": "h1:XZO1hD+nQVyvVa5IicQk7FsCa4PFQaJ2soWAP1f//68=",
+  "spdx": "Unlicense OR BSD-3-Clause",
+  "license": "third_party/licenses/go-text-typesetting.txt",
+  "licenseSha256": "6b1bf94c77d7faa0ce94f8745595bfaf4c404f8b3873f5c2ce55ca15f8e44eca",
+  "usage": "Direct use of segmenter for subtitle Unicode grapheme boundaries; same version already used by MyGo",
+  "modifications": "none",
+  "transitive": "pinned in apps/desktop/go.mod and go.sum; no new runtime or model"
+}
