@@ -597,6 +597,9 @@ func (a *NativeApp) replaceProject(next *project.Store, state project.Snapshot, 
 	a.settings.SubtitleOutput.Mode, a.settings.SubtitleOutput.SourceTrack = "source", "original"
 	a.selected = 0
 	a.translationCandidate = nil
+	// The footer action opens the last output. A previous project's artifact
+	// is not part of this workbench, so drop its path on a new import.
+	a.lastOutput = ""
 	a.translationLive, a.translationTask = nil, nil
 	a.settings.TranslationRecovery = ""
 	a.settings.Processing = nil

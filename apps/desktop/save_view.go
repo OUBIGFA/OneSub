@@ -383,6 +383,8 @@ func (a *NativeApp) clearWorkbench() {
 	a.savedHash, a.savedPath, a.unsaved = [2]string{}, [2]string{}, [2]bool{}
 	a.subtitleTab = 0
 	a.query = ""
+	// Keep the footer action only while its output belongs to the workbench.
+	a.lastOutput = ""
 	a.mediaURL = ""
 	a.position, a.duration, a.paused, a.activeCue, a.frameAspect = 0, 0, true, -1, 0
 	a.pendingClick, a.rowClick = nil, nil
