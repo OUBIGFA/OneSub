@@ -363,7 +363,8 @@ func timeColumn(c *ui.Context, title string) ui.TableColumn {
 }
 
 func (a *NativeApp) editorView(c *ui.Context) {
-	valid := !a.showsTranslationProgress() && a.snapshot != nil && a.selected >= 0 && a.selected < len(a.activeDocument().Cues)
+	cues := a.activeDocument().Cues
+	valid := !a.showsTranslationProgress() && a.snapshot != nil && a.selected >= 0 && a.selected < len(cues)
 	ui.Column(c).Fill().Label(locales.A11yEditorPanel()).Children(func() {
 		panelHeader(c, nil, func() { panelTitle(c, locales.EditorTitle()) }, func() {
 			ui.Toolbar(c, func() {
@@ -376,7 +377,7 @@ func (a *NativeApp) editorView(c *ui.Context) {
 			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.EditorNone()) })
 			return
 		}
-		cue := a.activeDocument().Cues[a.selected]
+		cue := cues[a.selected]
 		readonly := cue.ReadOnly || a.busy
 		fixedTiming := readonly || a.snapshot.Document.Format == "ass" || a.snapshot.Document.Format == "ssa"
 		// Allocate the remaining space in this frame, as the recognition
@@ -396,9 +397,24 @@ func (a *NativeApp) editorView(c *ui.Context) {
 					if i == 1 {
 						ui.Divider(c).Width(em(c, 16)).Height(1).AlignSelf(ui.Center)
 					}
-					input := timecodeField(c.Key(cue.ID), field.label, field.value, .001, fixedTiming, func() { a.changed(c.Now()) })
-					timeFocused = timeFocused || input.Focused()
-					timeComposing = timeComposing || input.Composing()
+					ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Shrink(0).Children(func() {
+						input := timecodeField(c.Key(cue.ID), field.label, field.value, .001, fixedTiming, func() { a.changed(c.Now()) })
+						timeFocused = timeFocused || input.Focused()
+						timeComposing = timeComposing || input.Composing()
+						// Compare the live draft with real document neighbors, never
+						// the search-filtered rows. Touching boundaries are not overlap.
+						millis := int64(math.Round(*field.value * 1000))
+						overlap := ""
+						if i == 0 && a.selected > 0 && millis < cues[a.selected-1].EndMs {
+							overlap = locales.EditorStartOverlap(cues[a.selected-1].Position + 1)
+						} else if i == 1 && a.selected+1 < len(cues) && millis > cues[a.selected+1].StartMs {
+							overlap = locales.EditorEndOverlap(cues[a.selected+1].Position + 1)
+						}
+						if overlap != "" {
+							input.TextColor(c.Theme().Danger).Tooltip(stamp(*field.value) + "\n" + overlap)
+							icon(c, "triangle-alert").TextColor(c.Theme().Danger).Shrink(0).Label(locales.A11yWarningIcon()).Tooltip(overlap)
+						}
+					})
 				}
 			})
 			// The text speaks for itself; the name is for assistive technology.
