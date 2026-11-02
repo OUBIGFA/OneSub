@@ -351,24 +351,43 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 		}
 	}
 	ui.Row(c).Height(em(c, 32)).Padding(0, em(c, 12)).Gap(em(c, 12)).AlignItems(ui.Center).Background(look.chrome).FontSize(em(c, captionSize)).Label(locales.A11yStatusBar()).Children(func() {
-		// Reading advice belongs to the selected cue, separate from task
-		// results and errors. Resolve the draft each frame so it cannot linger
-		// after selecting or editing a readable cue.
+		// Keep only actionable or transient content in the footer. A cue count
+		// and automatic association score do not help with the next action.
+		readingHint := false
 		if !a.showsTranslationProgress() {
 			if load := a.cueReading(a.selected); load.Problem() {
 				label, detail := a.readingLabel(a.activeDocument().Cues[a.selected], load)
 				muted(c, label).SingleLine().Shrink(0).Tooltip(detail)
+				readingHint = true
 			}
 		}
-		if a.errorText != "" {
-			ui.Text(c, a.errorText).TextColor(c.Theme().Danger).Grow(1).SingleLine().Tooltip(a.errorText)
+
+		hasStatus := a.errorText != "" || a.status != ""
+		if hasStatus {
+			if readingHint {
+				ui.Divider(c).Height(em(c, 16)).AlignSelf(ui.Center)
+			}
+			if a.errorText != "" {
+				ui.Text(c, a.errorText).TextColor(c.Theme().Danger).Grow(1).SingleLine().Tooltip(a.errorText)
+			} else {
+				muted(c, a.status).Grow(1).MinWidth(0).SingleLine().Tooltip(a.status)
+			}
 		} else {
-			muted(c, a.status).Grow(1).MinWidth(0).SingleLine().Tooltip(a.status)
+			ui.Text(c, "").Grow(1)
 		}
-		if a.busy && a.cancel != nil && !a.choosingFile && !a.composeRunning && !a.recognitionRunning && !a.translationRunning {
+
+		canCancel := a.busy && a.cancel != nil && !a.choosingFile && !a.composeRunning && !a.recognitionRunning && !a.translationRunning
+		canOpenOutput := a.lastOutput != "" && !a.busy
+		if readingHint || hasStatus {
+			ui.Divider(c).Height(em(c, 16)).AlignSelf(ui.Center)
+		}
+		if canCancel {
 			ui.Button(c, locales.ActionCancelTask()).Padding(em(c, 2), em(c, 10)).OnClick(func() { a.cancel() })
 		}
-		if a.lastOutput != "" && !a.busy {
+		if canCancel && canOpenOutput {
+			ui.Divider(c).Height(em(c, 16)).AlignSelf(ui.Center)
+		}
+		if canOpenOutput {
 			ui.Button(c, locales.ResultOpenFolder()).Padding(em(c, 2), em(c, 10)).OnClick(func() {
 				if err := mygo.Shell.OpenPath(filepath.Dir(a.lastOutput)); err != nil {
 					a.showError("output-folder", err.Error())
@@ -376,9 +395,6 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 					a.clearError("output-folder")
 				}
 			})
-		}
-		if a.snapshot != nil {
-			muted(c, locales.StatusCueCount(len(a.snapshot.Document.Cues))).SingleLine()
 		}
 	})
 }
@@ -562,13 +578,10 @@ func (a *NativeApp) importFiles(ctx context.Context, paths []string, wordEvidenc
 	}, nil
 }
 
-// An automatic score is announced only after both the primary and companion
-// have loaded. Failed matching keeps the existing scoped error visible.
+// Import warnings are scoped to the import operation. A successful
+// association stays out of the persistent footer.
 func (a *NativeApp) showImportResult(loaded importing.Loaded) {
 	a.showError("import", strings.Join(loaded.Warnings, locales.ListSeparator()))
-	if len(loaded.Warnings) == 0 && loaded.Selection.Match != nil {
-		a.status = locales.StatusAssociated(filepath.Base(loaded.Selection.Match.Path), loaded.Selection.Match.Score)
-	}
 }
 
 // replaceProject switches the workbench to another project. The subtitle

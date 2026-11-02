@@ -17,7 +17,7 @@
   "@replaceResult": {"placeholders":{"count":{"type":"int"},"cues":{"type":"int"}}},
   "textReplacePeriods": "Periods to commas",
   "textStripTrailing": "Remove final punctuation",
-  "textProcessScope": "Apply to all {scope} text, including cues hidden by search. Manual edits are included. Does not change translation settings or save files; the whole batch can be undone.",
+  "textProcessScope": "Apply to all {scope} text, including hidden and edited cues. Change subtitles only. Do not write files. Undo the batch.",
   "@textProcessScope": {"placeholders":{"scope":{}}},
   "textProcessResult": "Updated {count} cues · files unchanged until Save",
   "@textProcessResult": {"placeholders":{"count":{"type":"int"}}},

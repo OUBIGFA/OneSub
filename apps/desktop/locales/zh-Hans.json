@@ -17,7 +17,7 @@
   "@replaceResult": {"placeholders":{"count":{"type":"int"},"cues":{"type":"int"}}},
   "textReplacePeriods": "句号转逗号",
   "textStripTrailing": "移除句末标点",
-  "textProcessScope": "处理全部{scope}，包括被搜索隐藏的条目和手工编辑。仅修改当前字幕，不更改翻译选项、不写入源文件，整批可撤销。",
+  "textProcessScope": "处理全部{scope}。包括搜索隐藏的条目和手工编辑。只改字幕，不写文件。可撤销。",
   "@textProcessScope": {"placeholders":{"scope":{}}},
   "textProcessResult": "已修改 {count} 条字幕 · 点击保存后写入文件",
   "@textProcessResult": {"placeholders":{"count":{"type":"int"}}},
