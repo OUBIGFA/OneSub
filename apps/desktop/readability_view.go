@@ -147,13 +147,16 @@ func (a *NativeApp) smartSplitWork(id string) func(context.Context) (func(), err
 	doc, original, revision, store := a.activeDocument(), a.subtitleTab == 0, a.snapshot.Revision, a.store
 	command := uuid.NewString()
 	worker := a.worker
+	// Explicit splitting cleans both resulting text layers even when automatic
+	// translation cleanup is off; retain the user's chosen exception marks.
+	punctuation := subtitle.PunctuationOptions{StripTrailing: true, ReplacePeriods: true, Keep: a.settings.KeepPunctuation}
 	return func(ctx context.Context) (func(), error) {
 		var report subtitle.SplitReport
 		var err error
 		if id == "" {
-			report, err = subtitle.SmartSplit(ctx, doc, command, original)
+			report, err = subtitle.SmartSplit(ctx, doc, command, original, punctuation)
 		} else {
-			report, err = subtitle.SmartSplitCue(ctx, doc, command, original, id)
+			report, err = subtitle.SmartSplitCue(ctx, doc, command, original, id, punctuation)
 		}
 		if err != nil {
 			return nil, err
@@ -175,9 +178,9 @@ func (a *NativeApp) smartSplitWork(id string) func(context.Context) (func(), err
 				}
 			}
 			if id == "" {
-				_, err = store.SplitCues(ctx, command, revision, original)
+				_, err = store.SplitCues(ctx, command, revision, original, punctuation)
 			} else {
-				_, err = store.SplitCue(ctx, command, revision, original, id)
+				_, err = store.SplitCue(ctx, command, revision, original, id, punctuation)
 			}
 			if err != nil {
 				return nil, err

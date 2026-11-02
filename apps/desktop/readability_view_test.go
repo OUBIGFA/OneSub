@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -85,7 +86,7 @@ func TestReadingCacheAndOneBatchUndo(t *testing.T) {
 		t.Fatal("draft did not refresh reading load")
 	}
 	a.editPending = false
-	if _, err := a.store.SplitCues(context.Background(), "split", a.snapshot.Revision, true); err != nil {
+	if _, err := a.store.SplitCues(context.Background(), "split", a.snapshot.Revision, true, subtitle.PunctuationOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	a.refreshAfterStructure(0)
@@ -140,6 +141,59 @@ func TestSingleReadingSplitMenuAndCommandBothTracks(t *testing.T) {
 	}
 }
 
+// Explicit splitting always cleans the resulting source/translation pieces,
+// independently of automatic translation preferences, in the same undo step.
+func TestSmartSplitAutomaticallyCleansBothTextLayersWithOneUndo(t *testing.T) {
+	for _, tab := range []int{0, 1} {
+		t.Run(fmt.Sprint(tab), func(t *testing.T) {
+			a := storeApp(t, subtitle.Cue{ID: "target", Text: "Version 3.14 is ready. Are we done?", StartMs: 0, EndMs: 8000}, subtitle.Cue{ID: "neighbor", Text: "Keep this. Neighbor.", StartMs: 9000, EndMs: 15000})
+			if _, err := a.store.ApplyTranslation("translate", 0, []project.Edit{{ID: "target", Text: "版本3.14已经准备完成。还有问题？", StartMs: 0, EndMs: 8000}}); err != nil {
+				t.Fatal(err)
+			}
+			state, _ := a.store.Snapshot()
+			a.setSnapshot(state)
+			a.changeSubtitleTab(tab)
+			a.settings.StripPunctuation, a.settings.ReplacePeriods = false, false
+			a.settings.KeepPunctuation = "?"
+			before := *a.snapshot
+			work := a.smartSplitWork("target")
+			a.settings.KeepPunctuation = "!" // The task keeps its startup options.
+			apply, err := work(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			apply()
+			parts := a.activeDocument().Cues
+			if len(parts) != 3 || parts[2].Text != "Keep this. Neighbor." {
+				t.Fatal("single split changed a neighboring cue", parts)
+			}
+			source, translated := "", ""
+			for _, cue := range parts[:2] {
+				source += subtitle.SourceText(cue) + " "
+				translated += cue.Text
+				for _, text := range []string{subtitle.SourceText(cue), cue.Text} {
+					if strings.ContainsAny(text, ".。．") || strings.HasSuffix(text, ",") || strings.HasSuffix(text, "，") {
+						t.Fatal("split punctuation was not cleaned", text)
+					}
+				}
+			}
+			if source != "Version 3,14 is ready Are we done? " {
+				t.Fatal("cleanup order or kept question mark changed", source)
+			}
+			if tab == 1 && translated != "版本3,14已经准备完成还有问题？" {
+				t.Fatal("paired translation was not cleaned", translated)
+			}
+			if !reflect.DeepEqual(before.TrackDocument(1-tab), a.snapshot.TrackDocument(1-tab)) || a.settings.StripPunctuation || a.settings.ReplacePeriods {
+				t.Fatal("split changed the other track or translation preferences")
+			}
+			a.undo(false)
+			if !reflect.DeepEqual(before.Document, a.snapshot.Document) || !reflect.DeepEqual(before.SourceDocument, a.snapshot.SourceDocument) {
+				t.Fatal("one undo did not restore splitting and punctuation")
+			}
+		})
+	}
+}
+
 func BenchmarkReadingToolbar20000(b *testing.B) {
 	cues := make([]subtitle.Cue, 20000)
 	for i := range cues {
@@ -166,6 +220,20 @@ func TestReadingToolbarNarrowPane(t *testing.T) {
 					if !ok || bounds.X < 0 || bounds.X+bounds.W > float32(width)+1 {
 						t.Fatalf("clipped %q at width %v: %+v", label, width, bounds)
 					}
+				}
+				search, _ := tt.Find(locales.ListSearch())
+				replace, _ := tt.Find(locales.FindReplace())
+				if replace.X < search.X+search.W || replace.X-search.X-search.W > 8 || replace.Y > search.Y+search.H || replace.Y+replace.H < search.Y {
+					t.Fatal("find/replace is not immediately right of search", search, replace)
+				}
+				locate, _ := tt.Find(locales.ListLocate())
+				periods, _ := tt.Find(locales.TextReplacePeriods())
+				trailing, _ := tt.Find(locales.TextStripTrailing())
+				if periods.X <= locate.X+locate.W || trailing.X < periods.X+periods.W || periods.Y != locate.Y || trailing.Y != locate.Y {
+					t.Fatal("punctuation is not grouped after navigation", locate, periods, trailing)
+				}
+				if width == 900 && (trailing.X+trailing.W > search.X || trailing.Y > search.Y+search.H) {
+					t.Fatal("punctuation is not left of search", trailing, search)
 				}
 			}
 		})

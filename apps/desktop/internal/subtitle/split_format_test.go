@@ -30,7 +30,7 @@ func TestSmartSplitStrictFormatsUseOwnTemplateAndPreserveMetadata(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
-			r, err := SmartSplit(context.Background(), doc, "format", true)
+			r, err := SmartSplit(context.Background(), doc, "format", true, PunctuationOptions{StripTrailing: true, ReplacePeriods: true, Keep: "?"})
 			if err != nil || r.Changed != 1 {
 				t.Fatal(r, err)
 			}

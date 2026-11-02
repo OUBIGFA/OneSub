@@ -12,20 +12,20 @@ import (
 // SplitCues uses the same deterministic plan as the format preflight, but
 // resolves the current track inside the revision-checked transaction. One
 // command renumbers every affected cue and makes exactly one undo step.
-func (s *Store) SplitCues(ctx context.Context, command string, expected int64, original bool) (int64, error) {
-	return s.splitCues(ctx, command, expected, original, "")
+func (s *Store) SplitCues(ctx context.Context, command string, expected int64, original bool, punctuation subtitle.PunctuationOptions) (int64, error) {
+	return s.splitCues(ctx, command, expected, original, "", punctuation)
 }
 
 // SplitCue deliberately operates on the chosen cue, even when it is not long.
 // The other track and all other cue content/timing remain untouched.
-func (s *Store) SplitCue(ctx context.Context, command string, expected int64, original bool, id string) (int64, error) {
+func (s *Store) SplitCue(ctx context.Context, command string, expected int64, original bool, id string, punctuation subtitle.PunctuationOptions) (int64, error) {
 	if id == "" {
 		return 0, errors.New(locales.ErrCuePosition())
 	}
-	return s.splitCues(ctx, command, expected, original, id)
+	return s.splitCues(ctx, command, expected, original, id, punctuation)
 }
 
-func (s *Store) splitCues(ctx context.Context, command string, expected int64, original bool, id string) (int64, error) {
+func (s *Store) splitCues(ctx context.Context, command string, expected int64, original bool, id string, punctuation subtitle.PunctuationOptions) (int64, error) {
 	return s.mutate(command, expected, func(tx *sql.Tx, cursor int64) (int64, error) {
 		table, track, err := manualTrack(tx, original)
 		if err != nil {
@@ -42,9 +42,9 @@ func (s *Store) splitCues(ctx context.Context, command string, expected int64, o
 		document := subtitle.Document{Format: format, Cues: cues}
 		var report subtitle.SplitReport
 		if id == "" {
-			report, err = subtitle.SmartSplit(ctx, document, command, original)
+			report, err = subtitle.SmartSplit(ctx, document, command, original, punctuation)
 		} else {
-			report, err = subtitle.SmartSplitCue(ctx, document, command, original, id)
+			report, err = subtitle.SmartSplitCue(ctx, document, command, original, id, punctuation)
 		}
 		if err != nil {
 			return cursor, err

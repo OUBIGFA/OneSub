@@ -173,8 +173,12 @@ func TestSubtitleListActionsFitNarrowPanels(t *testing.T) {
 					a.draft = "Unsaved edit"
 					a.changed(time.Now())
 					a.translationCandidate = &translationCandidate{}
-					tt := settled(a.subtitlesView, width, 450)
-					labels := []string{locales.A11ySubtitleTabs(), locales.SubtitleActionsMenu(), locales.ListLocate(), locales.ListSearch(), locales.TranslationResults(), locales.ListUnsaved(), locales.ListSave(), locales.ListSaveAs()}
+					var danger ui.Color
+					tt := settled(func(c *ui.Context) {
+						danger = c.Theme().Danger
+						a.subtitlesView(c)
+					}, width, 450)
+					labels := []string{locales.A11ySubtitleTabs(), locales.SubtitleActionsMenu(), locales.ListLocate(), locales.ListSearch(), locales.TranslationResults(), locales.ListSave(), locales.ListSaveAs()}
 					boxes := []ui.Rect{}
 					for _, label := range labels {
 						r, ok := tt.Find(label)
@@ -187,6 +191,25 @@ func TestSubtitleListActionsFitNarrowPanels(t *testing.T) {
 							}
 						}
 						boxes = append(boxes, r)
+					}
+					// Unsaved is the visible save label, not another toolbar item.
+					save, _ := tt.Find(locales.ListSave())
+					status, found := tt.Find(locales.ListUnsaved())
+					if !found || status.X < save.X || status.Y < save.Y || status.X+status.W > save.X+save.W || status.Y+status.H > save.Y+save.H {
+						t.Fatal("unsaved status is outside the save button", save, status)
+					}
+					red := 0
+					image := tt.Image()
+					for y := int(status.Y); y < int(status.Y+status.H); y++ {
+						for x := int(status.X); x < int(status.X+status.W); x++ {
+							pixel := image.RGBAAt(x, y)
+							if pixel.R == danger.R && pixel.G == danger.G && pixel.B == danger.B {
+								red++
+							}
+						}
+					}
+					if red < 5 {
+						t.Fatal("unsaved label is not red", red)
 					}
 				})
 			})

@@ -9,22 +9,16 @@
   "modifications": "none",
   "files": [
     {
-      "path": "apps/desktop/icons/replace.svg",
-      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/replace.svg",
-      "sha256": "525842e0fe13d7a5fc015864ff9e67bf44dc9ae6a979c705196e1c9c893da773",
-      "bytes": 468
+      "path": "apps/desktop/icons/text-search.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/text-search.svg",
+      "sha256": "d061da4c197672050e7bbdec60e3442eebc1f2c9bd306be6ce6c20480c3ef8b6",
+      "bytes": 344
     },
     {
-      "path": "apps/desktop/icons/replace-all.svg",
-      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/replace-all.svg",
-      "sha256": "65b9bc62d401a1de0546bce542af8773cdeca98208af8f58ad9d1af5b696166a",
-      "bytes": 573
-    },
-    {
-      "path": "apps/desktop/icons/remove-formatting.svg",
-      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/remove-formatting.svg",
-      "sha256": "aa3e6103e5ed9b6a8323867c600b4af8c415680feb73cddf578337d3e756fe91",
-      "bytes": 336
+      "path": "apps/desktop/icons/quote.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/quote.svg",
+      "sha256": "3c7a2f8443ae5c88cb3f35fdcc27a037a1af13fe35be28eb8cabded8672a9ac1",
+      "bytes": 491
     },
     {
       "path": "apps/desktop/icons/folder-open.svg",

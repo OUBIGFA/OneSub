@@ -163,6 +163,11 @@ func TestEditingIsLiveAndCommitsAfterAPause(t *testing.T) {
 	if !tt.HasText("中文修改") || !a.editPending || !tt.HasText("未保存") {
 		t.Fatal("draft not shown live", tt.Texts())
 	}
+	save, _ := tt.Find("保存")
+	unsaved, found := tt.Find("未保存")
+	if !found || unsaved.X < save.X || unsaved.Y < save.Y || unsaved.X+unsaved.W > save.X+save.W || unsaved.Y+unsaved.H > save.Y+save.H {
+		t.Fatal("unsaved status occupies space outside the save action", save, unsaved)
+	}
 	before, _ := a.store.Snapshot()
 	if before.Revision != 0 {
 		t.Fatal("committed before the pause")

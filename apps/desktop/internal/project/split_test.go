@@ -25,7 +25,7 @@ func TestSmartSplitTransactionTracksHistoryAndReopen(t *testing.T) {
 			t.Fatal(err)
 		}
 		before, _ := s.Snapshot()
-		if _, err = s.SplitCues(context.Background(), "split", before.Revision, original); err != nil {
+		if _, err = s.SplitCues(context.Background(), "split", before.Revision, original, subtitle.PunctuationOptions{}); err != nil {
 			t.Fatal(err)
 		}
 		after, _ := s.Snapshot()
@@ -41,10 +41,10 @@ func TestSmartSplitTransactionTracksHistoryAndReopen(t *testing.T) {
 				t.Fatal("numbering")
 			}
 		}
-		if revision, err := s.SplitCues(context.Background(), "split", before.Revision, original); err != nil || revision != after.Revision {
+		if revision, err := s.SplitCues(context.Background(), "split", before.Revision, original, subtitle.PunctuationOptions{}); err != nil || revision != after.Revision {
 			t.Fatal("not idempotent", err)
 		}
-		if _, err = s.SplitCues(context.Background(), "stale", before.Revision, original); err == nil {
+		if _, err = s.SplitCues(context.Background(), "stale", before.Revision, original, subtitle.PunctuationOptions{}); err == nil {
 			t.Fatal("accepted stale revision")
 		}
 		if _, err = s.Undo("undo", after.Revision, false); err != nil {
@@ -81,14 +81,14 @@ func TestSingleSplitReadableCueDoesNotBatchOtherProblems(t *testing.T) {
 	}
 	defer s.Close()
 	before, _ := s.Snapshot()
-	if _, err = s.SplitCue(context.Background(), "single", before.Revision, true, "short"); err != nil {
+	if _, err = s.SplitCue(context.Background(), "single", before.Revision, true, "short", subtitle.PunctuationOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := s.Snapshot()
 	if len(after.SourceDocument.Cues) != 3 || after.SourceDocument.Cues[2].Text != before.SourceDocument.Cues[1].Text || after.SourceDocument.Cues[2].Position != 2 {
 		t.Fatal("wrong single-cue split", after)
 	}
-	if _, err = s.SplitCue(context.Background(), "single", before.Revision, true, "short"); err != nil {
+	if _, err = s.SplitCue(context.Background(), "single", before.Revision, true, "short", subtitle.PunctuationOptions{}); err != nil {
 		t.Fatal("not idempotent", err)
 	}
 	if _, err = s.Undo("undo", after.Revision, false); err != nil {
@@ -107,7 +107,7 @@ func TestOriginalSmartSplitMirrorsOnlyUntouchedWorkingTrack(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if _, err = s.SplitCues(context.Background(), "split", 0, true); err != nil {
+	if _, err = s.SplitCues(context.Background(), "split", 0, true, subtitle.PunctuationOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	state, _ := s.Snapshot()

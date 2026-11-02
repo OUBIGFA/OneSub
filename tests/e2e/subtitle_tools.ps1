@@ -75,6 +75,9 @@ function Capture($name) {
 }
 try {
  [void](Wait-UI '阅读负荷 2')
+ $search=Find-UI '搜索';$replace=Find-UI '查找替换';$locate=Find-UI '回到当前字幕';$periods=Find-UI '句号转逗号';$trailing=Find-UI '移除句末标点'
+ $sr=$search.Current.BoundingRectangle;$rr=$replace.Current.BoundingRectangle;$lr=$locate.Current.BoundingRectangle;$pr=$periods.Current.BoundingRectangle;$tr=$trailing.Current.BoundingRectangle
+ if($rr.Left -lt $sr.Right -or $rr.Top -ge $sr.Bottom -or $pr.Left -le $lr.Right -or $tr.Left -lt $pr.Right){throw 'Subtitle toolbar grouping/order incorrect'}
  Capture 'before.png'
  Set-Text '搜索' 'Done'
  Click-UI '阅读负荷 2'
@@ -83,8 +86,26 @@ try {
  Click-UI '智能拆分'
  [void](Wait-UI '阅读负荷 1')
  if((Get-FileHash $source).Hash -ne $initialHash){throw 'Split wrote the source before Save'}
+ $save=Find-UI '保存'
+ if(-not $save -or -not $save.Current.IsEnabled){throw 'Unsaved edits did not enable Save'}
  Capture 'split-source.png'
+ # MyGo exposes the labeled button as one accessibility leaf. Inspect the
+ # actual rendering inside that action rather than requiring a separate node.
+ Add-Type -AssemblyName System.Drawing
+ $saveBounds=$save.Current.BoundingRectangle;$rootBounds=(Root).Current.BoundingRectangle
+ $image=[Drawing.Bitmap]::new((Join-Path $workPath 'split-source.png'))
+ try {
+  $red=0
+  for($y=[Math]::Max(0,[int]($saveBounds.Top-$rootBounds.Top-12));$y -lt [Math]::Min($image.Height,[int]($saveBounds.Bottom-$rootBounds.Top+12));$y++){
+   for($x=[Math]::Max(0,[int]($saveBounds.Left-$rootBounds.Left-12));$x -lt [Math]::Min($image.Width,[int]($saveBounds.Right-$rootBounds.Left+12));$x++){
+    $pixel=$image.GetPixel($x,$y);if($pixel.R -gt 130 -and $pixel.R -gt 1.4*$pixel.G -and $pixel.R -gt 1.4*$pixel.B){$red++}
+   }
+  }
+  if($red -lt 10){throw 'Unsaved save action is not red in the desktop rendering'}
+ } finally {$image.Dispose()}
  Save-Subtitles
+ $splitTexts=Cue-Texts $source
+ foreach($text in $splitTexts[0..($splitTexts.Count-3)]){if($text -match '[.。．]|[,，]$'){throw 'Smart split did not remove final punctuation before converting internal periods'}}
  if((Assert-Sequence $source) -le 3){throw 'Source was not split'}
  if(-not ([IO.File]::ReadAllText($source).Contains('00:00:16,000'))){throw 'Original end changed'}
  if((Cue-Texts $source)[-2] -ne $second){throw 'Unsafe short cue was modified'}
@@ -126,6 +147,8 @@ try {
  Save-Subtitles
  Capture 'split-translated.png'
  if((Assert-Sequence $translated) -le 3){throw 'Working track was not split'}
+ $splitTexts=Cue-Texts $translated
+ foreach($text in $splitTexts[0..($splitTexts.Count-3)]){if($text -match '[.。．]|[,，]$'){throw 'Working split punctuation was not cleaned'}}
  if((Get-FileHash $source).Hash -ne $sourceHash){throw 'Working split changed original file'}
  Undo-Save
  Split-One '完成。'
@@ -143,7 +166,7 @@ try {
  foreach($text in (Cue-Texts $translated)){if($text.EndsWith('。')){throw 'Working trailing punctuation remained'}}
  if((Get-FileHash $source).Hash -ne $sourceHash){throw 'Working cleanup changed original file'}
  Capture 'finished.png'
- Write-Output 'PASS: packaged original/working split, problem navigation, unchanged files before Save, numbering, single/all replacement, manual punctuation with options off, one-step undo, independent tracks'
+ Write-Output 'PASS: packaged toolbar grouping, save status inside the action, original/working split with automatic punctuation cleanup, unchanged files before Save, numbering, single/all replacement, manual punctuation with options off, one-step undo, independent tracks'
 } catch {
  Capture 'failure.png'
  $root=Root;if($root){$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)|ForEach-Object{Write-Output ('UIA: '+$_.Current.Name)}}

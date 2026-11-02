@@ -56,14 +56,11 @@ func listTargetText(cue subtitle.Cue, track string) (string, bool) {
 	return subtitle.SourceText(cue), true
 }
 
-func (a *NativeApp) listTextTools(c *ui.Context) {
+func (a *NativeApp) listPunctuationTools(c *ui.Context) {
 	disabled := a.busy || a.showsTranslationProgress() || a.snapshot == nil
-	ui.Toolbar(c, func() {
-		toolIcon(c, locales.FindReplace(), "replace").Disabled(disabled).OnClick(a.openFindReplace)
-		hint := locales.TextProcessScope(a.textTargetLabel(a.editRebuiltSource))
-		toolIcon(c, locales.TextReplacePeriods(), "replace-all").Disabled(disabled).Tooltip(locales.TextReplacePeriods() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(false) })
-		toolIcon(c, locales.TextStripTrailing(), "remove-formatting").Disabled(disabled).Tooltip(locales.TextStripTrailing() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(true) })
-	}).Padding(0).Shrink(0)
+	hint := locales.TextProcessScope(a.textTargetLabel(a.editRebuiltSource))
+	toolIcon(c, locales.TextReplacePeriods(), "quote").Disabled(disabled).Tooltip(locales.TextReplacePeriods() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(false) })
+	toolIcon(c, locales.TextStripTrailing(), "eraser").Disabled(disabled).Tooltip(locales.TextStripTrailing() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(true) })
 }
 
 func (a *NativeApp) openFindReplace() {

@@ -56,7 +56,7 @@ func TestSmartSplitPreservesContentEnvelopeAndNumbering(t *testing.T) {
 		cue := Cue{ID: "a", Text: text, OriginalText: text, StartMs: 1000, EndMs: 25000}
 		doc := Document{Format: "srt", Cues: []Cue{cue, {ID: "b", Text: "Done", StartMs: 26000, EndMs: 27000}}}
 		before := append([]Cue{}, doc.Cues...)
-		r, err := SmartSplit(context.Background(), doc, "test", true)
+		r, err := SmartSplit(context.Background(), doc, "test", true, PunctuationOptions{})
 		if err != nil || r.Changed != 1 || r.Added < 1 {
 			t.Fatal(r, err)
 		}
@@ -85,6 +85,30 @@ func TestSmartSplitPreservesContentEnvelopeAndNumbering(t *testing.T) {
 	}
 }
 
+func TestSmartSplitCleansPunctuationAfterWordTimingAndKeepsSkippedCues(t *testing.T) {
+	words := []Word{{"Version 3.14 is ready. ", 1000, 4000}, {"Are we done with this operation?", 5000, 8000}}
+	text := words[0].Text + words[1].Text
+	cue := Cue{ID: "aligned", Text: text, Words: words, StartMs: 1000, EndMs: 9000}
+	skipped := Cue{ID: "short", Position: 1, Text: "This sentence has too little time. It must remain exactly unchanged.", StartMs: 10000, EndMs: 11000}
+	doc := Document{Format: "srt", Cues: []Cue{cue, skipped}}
+	report, err := SmartSplit(context.Background(), doc, "clean", true, PunctuationOptions{StripTrailing: true, ReplacePeriods: true, Keep: "?"})
+	if err != nil || report.Changed != 1 || report.Estimated != 0 || len(report.Document.Cues) != 3 {
+		t.Fatal(report, err)
+	}
+	first, second := report.Document.Cues[0], report.Document.Cues[1]
+	if first.Text != "Version 3,14 is ready" || second.Text != "Are we done with this operation?" {
+		t.Fatal("cleanup order or kept marks changed", first.Text, second.Text)
+	}
+	if first.OriginalText != strings.TrimSpace(words[0].Text) || first.StartMs != 1000 || first.EndMs != 5000 || second.StartMs != 5000 || second.EndMs != 9000 || first.TimingQuality != "aligned" || second.TimingQuality != "aligned" {
+		t.Fatal("cleanup replaced the original evidence or word timing", first, second)
+	}
+	last := report.Document.Cues[2]
+	last.Position = skipped.Position
+	if !reflect.DeepEqual(last, skipped) || doc.Cues[0].Text != text || doc.Cues[0].Words[0].Text != words[0].Text {
+		t.Fatal("cleanup touched skipped cues or mutated the input")
+	}
+}
+
 func TestSmartSplitUsesWordEvidenceAndRejectsStaleWords(t *testing.T) {
 	words := []Word{{"First sentence has enough words. ", 1000, 5000}, {"Second sentence is also quite long. ", 7000, 11000}, {"Finally this sentence finishes the explanation.", 13000, 19000}}
 	text := ""
@@ -96,7 +120,7 @@ func TestSmartSplitUsesWordEvidenceAndRejectsStaleWords(t *testing.T) {
 		if stale {
 			cue.Text = "Changed " + text
 		}
-		r, err := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "words", true)
+		r, err := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "words", true, PunctuationOptions{})
 		if err != nil || r.Changed != 1 {
 			t.Fatal(r, err)
 		}
@@ -123,19 +147,19 @@ func TestSmartSplitKeepsUnfixableCuesAndFastCuesRed(t *testing.T) {
 		{ID: "url", Text: "https://example.com/" + strings.Repeat("a", 80), StartMs: 0, EndMs: 10000},
 		{ID: "tags", Text: "<i>" + strings.Repeat("word ", 30) + "</i>", StartMs: 0, EndMs: 20000},
 	} {
-		r, err := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "keep", true)
+		r, err := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "keep", true, PunctuationOptions{})
 		if err != nil || r.Changed != 0 || len(r.Skipped) != 1 || r.Remaining != 1 {
 			t.Fatal(r, err)
 		}
 	}
 	cue := Cue{ID: "fast", Text: strings.Repeat("内容", 30), StartMs: 0, EndMs: 3000}
-	r, _ := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "fast", true)
+	r, _ := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "fast", true, PunctuationOptions{})
 	if r.Changed != 1 || r.Remaining == 0 {
 		t.Fatal("split pretended to cure speed", r)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := SmartSplit(ctx, Document{Cues: []Cue{cue}}, "cancel", true); err == nil {
+	if _, err := SmartSplit(ctx, Document{Cues: []Cue{cue}}, "cancel", true, PunctuationOptions{}); err == nil {
 		t.Fatal("ignored cancellation")
 	}
 }
@@ -149,7 +173,7 @@ func TestSmartSplitPairsBilingualAndPreservesMultilineLanes(t *testing.T) {
 			cue.Text = source + "\n" + translation
 			cue.Translated = false
 		}
-		r, err := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "pair", false)
+		r, err := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "pair", false, PunctuationOptions{})
 		if err != nil || r.Changed != 1 {
 			t.Fatal(r, err)
 		}
@@ -185,7 +209,7 @@ func TestSmartSplitResolvesLengthInOneBatchAndAvoidsShortPieces(t *testing.T) {
 	text := strings.Repeat("word ", 8) + "ab. " + strings.Repeat("word ", 7) + "abcd."
 	for _, duration := range []int64{16000, 2000} {
 		cue := Cue{ID: "balanced", Text: text, StartMs: 0, EndMs: duration}
-		report, err := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "balanced", true)
+		report, err := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "balanced", true, PunctuationOptions{})
 		if err != nil || report.Changed != 1 {
 			t.Fatal("available time was rejected", report, err)
 		}
@@ -201,7 +225,7 @@ func TestSmartSplitResolvesLengthInOneBatchAndAvoidsShortPieces(t *testing.T) {
 	// Imported bilingual lines are simultaneous. Their combined visible load
 	// still has to fit after each lane has been partitioned.
 	cue := Cue{ID: "multi", Text: strings.Repeat("word ", 16) + "\n" + strings.Repeat("内容", 24), StartMs: 0, EndMs: 24000}
-	report, err := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "multi", true)
+	report, err := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "multi", true, PunctuationOptions{})
 	if err != nil || report.Changed != 1 {
 		t.Fatal(report, err)
 	}
@@ -220,7 +244,7 @@ func TestSmartSplitSingleCueAlsoHandlesReadableCues(t *testing.T) {
 			t.Fatal("fixture is not readable", text)
 		}
 		doc := Document{Format: "srt", Cues: []Cue{cue, long}}
-		report, err := SmartSplitCue(context.Background(), doc, "single", true, "short")
+		report, err := SmartSplitCue(context.Background(), doc, "single", true, "short", PunctuationOptions{})
 		if err != nil || report.Changed != 1 || len(report.Document.Cues) != 3 {
 			t.Fatal(report, err)
 		}
@@ -235,7 +259,7 @@ func TestSmartSplitSingleCueAlsoHandlesReadableCues(t *testing.T) {
 		if report.Document.Cues[0].StartMs != 0 || report.Document.Cues[1].EndMs != 4000 {
 			t.Fatal("single split changed envelope")
 		}
-		if _, err := SmartSplitCue(context.Background(), doc, "missing", true, "missing"); err == nil {
+		if _, err := SmartSplitCue(context.Background(), doc, "missing", true, "missing", PunctuationOptions{}); err == nil {
 			t.Fatal("missing cue silently selected another target")
 		}
 	}

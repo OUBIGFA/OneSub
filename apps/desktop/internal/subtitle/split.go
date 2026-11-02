@@ -26,20 +26,22 @@ type SplitReport struct {
 
 // SmartSplit plans a whole-track local edit without mutating its input. The
 // caller must strictly serialize formats and commit at the same revision.
-func SmartSplit(ctx context.Context, doc Document, command string, original bool) (SplitReport, error) {
-	return smartSplit(ctx, doc, command, original, "")
+// Punctuation is applied only to successfully split pieces, after boundaries
+// and word timings have been resolved from the unchanged source text.
+func SmartSplit(ctx context.Context, doc Document, command string, original bool, punctuation PunctuationOptions) (SplitReport, error) {
+	return smartSplit(ctx, doc, command, original, "", punctuation)
 }
 
 // SmartSplitCue is an explicit single-cue command. It also accepts readable
 // cues, while still respecting word boundaries, protected formats and time.
-func SmartSplitCue(ctx context.Context, doc Document, command string, original bool, id string) (SplitReport, error) {
+func SmartSplitCue(ctx context.Context, doc Document, command string, original bool, id string, punctuation PunctuationOptions) (SplitReport, error) {
 	if id == "" {
 		return SplitReport{}, errors.New(locales.ErrCuePosition())
 	}
-	return smartSplit(ctx, doc, command, original, id)
+	return smartSplit(ctx, doc, command, original, id, punctuation)
 }
 
-func smartSplit(ctx context.Context, doc Document, command string, original bool, id string) (SplitReport, error) {
+func smartSplit(ctx context.Context, doc Document, command string, original bool, id string, punctuation PunctuationOptions) (SplitReport, error) {
 	if id != "" && !slices.ContainsFunc(doc.Cues, func(c Cue) bool { return c.ID == id }) {
 		return SplitReport{}, errors.New(locales.ErrCuePosition())
 	}
@@ -62,6 +64,16 @@ func smartSplit(ctx context.Context, doc Document, command string, original bool
 				}
 				out.Changed++
 				out.Added += len(parts) - 1
+				for i := range parts {
+					part := &parts[i]
+					source := punctuation.Apply(SourceText(*part))
+					if part.Translated {
+						part.TranslationSource = source
+						part.Text = punctuation.Apply(part.Text)
+					} else {
+						part.Text = source
+					}
+				}
 			}
 		}
 		for _, part := range parts {

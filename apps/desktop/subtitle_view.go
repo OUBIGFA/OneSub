@@ -72,6 +72,10 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 				toolIcon(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
 				a.subtitleActionsMenu(c)
 				toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
+				if hasCues {
+					ui.Divider(c).Height(em(c, 20)).AlignSelf(ui.Center).Margin(0, em(c, 4))
+					a.listPunctuationTools(c)
+				}
 			}).Padding(0).Shrink(0)
 			searchCues := a.activeDocument().Cues
 			if a.showsTranslationProgress() {
@@ -79,29 +83,44 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			}
 			searchLabel := subtitleSearchLabel(searchCues)
 			searchWidth, _ := c.MeasureText(0, ui.Span{Text: searchLabel})
-			if ui.SearchField(c, &a.query).Placeholder(searchLabel).Label(locales.ListSearch()).Tooltip(searchLabel).MinWidth(max(em(c, 140), searchWidth+c.Theme().Space(11))).Grow(1).Changed() {
-				a.pendingClick = nil
-				a.list.StopScroll()
-				a.activeCue = -1
-				a.noteBrowse(c.Now())
-				if a.translationLive != nil {
-					a.translationLive.list.StopScroll()
-					a.translationLive.shown = -1
+			searchMinimum := max(em(c, 140), searchWidth+c.Theme().Space(11))
+			// Search and replacement stay adjacent even when the outer toolbar
+			// wraps; navigation and punctuation form their own preceding group.
+			ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Grow(1).MinWidth(searchMinimum + em(c, 36)).Children(func() {
+				if ui.SearchField(c, &a.query).Placeholder(searchLabel).Label(locales.ListSearch()).Tooltip(searchLabel).MinWidth(searchMinimum).Grow(1).Changed() {
+					a.pendingClick = nil
+					a.list.StopScroll()
+					a.activeCue = -1
+					a.noteBrowse(c.Now())
+					if a.translationLive != nil {
+						a.translationLive.list.StopScroll()
+						a.translationLive.shown = -1
+					}
 				}
-			}
+				if hasCues {
+					ui.Toolbar(c, func() {
+						toolIcon(c, locales.FindReplace(), "text-search").Disabled(a.busy || a.showsTranslationProgress()).OnClick(a.openFindReplace)
+					}).Padding(0).Shrink(0)
+				}
+			})
 			if hasCues {
 				a.readingTools(c)
-				a.listTextTools(c)
 			}
 			if a.translationCandidate != nil {
 				ui.Button(c, locales.TranslationResults()).OnClick(func() { a.translationReview = true })
 			}
 			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Children(func() {
 				unsaved := a.trackUnsaved(a.subtitleTab)
+				label := locales.ListSave()
 				if unsaved {
-					ui.Badge(c, locales.ListUnsaved()).Background(studioColors(c).warningSoft).TextColor(c.Theme().Warning)
+					label = locales.ListUnsaved()
 				}
-				iconButton(c, locales.ListSave(), "save").Disabled(a.busy || a.showsTranslationProgress() || a.snapshot == nil || !unsaved).OnClick(func() { a.saveTrack(a.subtitleTab, false) })
+				// The file status is the save action itself; keep its accessible
+				// action name and tooltip so "Unsaved" still clearly means Save.
+				save := iconButton(c, label, "save").Label(locales.ListSave()).Tooltip(locales.ListSave()).Disabled(a.busy || a.showsTranslationProgress() || a.snapshot == nil || !unsaved).OnClick(func() { a.saveTrack(a.subtitleTab, false) })
+				if unsaved {
+					save.TextColor(c.Theme().Danger)
+				}
 				ui.Button(c, locales.ListSaveAs()).Disabled(a.busy || a.showsTranslationProgress() || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
 			})
 		})
