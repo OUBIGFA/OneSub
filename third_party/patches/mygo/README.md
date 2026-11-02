@@ -17,7 +17,8 @@
 
 - **长单行输入**：原生 `TextInput`、`Autocomplete` 等输入未聚焦时，仅绘制布局按可用宽度显示省略号。完整编辑布局、实际值、鼠标拖选、光标导航、IME 与辅助技术不变；密码继续掩码。绘制布局只缓存在对应编辑器，不放入全局文字缓存。单行占位文字也以省略号结束。
 - **复合输入占位文字**：`v0.7.4` 的 `Placeholder` 已通过原生 `focusTo` 向 `SearchField`、`Combobox`、`TokenField` 内部输入转发。本轮移除 OneSub 的递归查找转发补丁，直接使用上游接口；保留中英文当前范围及清空搜索的行为回归。单行长占位文字仍通过有限布局补丁使用省略号，而非 `NoWrap` 后直接裁切。
-- **字幕邻近行平滑定位**：`ListState.ScrollToAnimated` 将已测量的可见行位置交给现有 `ScrollState.ScrollTo`，沿用原生缓动、用户滚动中断当前动画和系统减少动态效果设置；远距离或未测量目标仍由原生 `ScrollTo` 定位，不按估计高度长距离飞行。列表首尾导航、切换轨道和过滤会清掉旧动画；应用的后续播放跟随不被用户滚动暂停。
+- **字幕邻近行平滑定位**：`ListState.ScrollToAnimated` 将已测量的可见行位置交给现有 `ScrollState.ScrollTo`，沿用原生缓动、用户滚动中断当前动画和系统减少动态效果设置；远距离或未测量目标仍由原生 `ScrollTo` 定位，不按估计高度长距离飞行。切换轨道和过滤会清掉旧动画；应用的后续播放跟随仍自动恢复。
+- **字幕首尾导航的缓出反馈**：官方 [List](https://mygo.egoist.dev/docs/ui/list) 的首尾定位没有动画参数；[Motion](https://mygo.egoist.dev/docs/ui/motion) 和 [Scroll view](https://mygo.egoist.dev/docs/ui/scroll) 已提供 `CubicBezier` 与 `ScrollState.ScrollTo`。有限扩展 `ListState.ScrollToEdgeAnimated` 先使用原生布局测量目标与最多一屏的落点走廊，再将这段滚动交给既有 `ScrollState`；远段直接跳过，不遍历整个列表的估计高度。应用采用 420 ms、`CubicBezier(0.22, 1, 0.36, 1)`，先快后慢、无回弹；末条超过一屏时仍定位到真实底部。用户滚动、反向导航和直接定位可中断，减少动态效果时直接到达。不修改普通播放跟随的 220 ms 节奏。
 
 `ui-layout.patch` 处理固定版本 WebView 的原生尺寸缺口，不引入独立渲染器或控件体系。官方接口核对见 [Web view](https://mygo.egoist.dev/docs/ui/web-view) 与 [Layout](https://mygo.egoist.dev/docs/ui/layout)。
 
@@ -39,7 +40,9 @@
 
 - `TestOneSubInputElisionKeepsEditing`：长中英文地址、密码、失焦省略、聚焦尾部编辑与鼠标越界拖选，不缩短实际值。
 - `TestOneSubCompositePlaceholderAndElision`：实际搜索、组合框、标签输入和建议输入的内部塑形布局，核对当前占位文字、单行省略、搜索清空后恢复，不以文案函数返回值代替显示验证。
-- `TestOneSubRowScrollUsesNativeMotion`：可变行高的真实 Table，验证中间帧、最终位置、减少动态效果和首尾导航中断动画。应用回归另验证后续播放跟随不会暂停。
+- `TestOneSubRowScrollUsesNativeMotion`：可变行高的真实 Table，验证中间帧、最终位置、减少动态效果和直接定位中断动画。应用回归另验证后续播放跟随自动恢复。
+- `TestOneSubEdgeScrollUsesNativeLanding`：20,000 行真实虚拟 Table，核对首尾定位的每四分之一段位移逐次缩小、最多一屏的落点、超高末行、选择不变与减少动态效果。
+- `TestOneSubEdgeScrollCanBeInterrupted`：核对滚轮、反向首尾导航与直接定位中断旧动画。应用回归通过实际导航按钮验证缓慢收尾，并覆盖原始／优化字幕、筛选、实时译文与中英文／缩放布局。
 - 以上 UI 回归随 `build/test.ps1` 运行；不把组件测试当作全部桌面交互验收。
 
 - `TestOneSubNativeSurfaceStartsComposed`：建立实际原生窗口，在任何 WebView 尚未存在时检查首帧的组合交换链契约；随菜单测试一起运行。它不替代真实桌面的快速分隔拖动与视频像素验收。

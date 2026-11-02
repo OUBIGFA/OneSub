@@ -153,7 +153,7 @@ func TestSubtitleScrollButtonsPreserveState(t *testing.T) {
 				if err := tt.Click(label); err != nil {
 					t.Fatal(err)
 				}
-				tt.Frame()
+				tt.Advance(subtitleNavigationAnimation.Duration + 20*time.Millisecond)
 				first, last := a.list.Visible()
 				if label == "返回顶部" && first != 0 || label == "返回底部" && (last != 149 || !a.list.AtEnd()) {
 					t.Fatal("navigation did not reach the list edge", label, first, last)
@@ -183,14 +183,14 @@ func TestSubtitleNavigationUsesFilteredLongList(t *testing.T) {
 	if err := tt.Click("返回底部"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Frame()
+	tt.Advance(subtitleNavigationAnimation.Duration + 20*time.Millisecond)
 	if _, last := a.list.Visible(); last != 6666 || !a.list.AtEnd() || !tt.HasText("Subtitle 19999 match") {
 		t.Fatal("bottom did not use filtered rows", last, tt.Texts())
 	}
 	if err := tt.Click("返回顶部"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Frame()
+	tt.Advance(subtitleNavigationAnimation.Duration + 20*time.Millisecond)
 	if first, _ := a.list.Visible(); first != 0 || !tt.HasText("Subtitle 1 match") {
 		t.Fatal("top did not use filtered rows", first)
 	}
@@ -290,7 +290,7 @@ func TestTranslationProgressNavigation(t *testing.T) {
 	if err := tt.Click("返回底部"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Frame()
+	tt.Advance(subtitleNavigationAnimation.Duration + 20*time.Millisecond)
 	if _, last := l.list.Visible(); last != 119 || !l.list.AtEnd() {
 		t.Fatal("live translation did not reach bottom", last)
 	}

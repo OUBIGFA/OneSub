@@ -562,7 +562,7 @@ func (a *NativeApp) selectSubtitle(index int, action string) {
 	}
 	a.selected = index
 	a.loadDraft()
-	if action == "none" || action == "" {
+	if action == "none" || action == "" || !a.playbackAvailable() {
 		a.followHeld = true
 		a.list.StopScroll()
 		return

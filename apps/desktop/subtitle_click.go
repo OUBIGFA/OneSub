@@ -26,6 +26,13 @@ func (a *NativeApp) clickSubtitle(index int, double bool, now time.Time) {
 	a.list.StopScroll()
 	a.locateCue = -1
 	a.noteBrowse(now)
+	if !a.playbackAvailable() {
+		// Keep editing available, but never queue a playback click that could
+		// fire after progress disappears during double-click detection.
+		a.pendingClick = nil
+		a.followHeld = true
+		return
+	}
 	if double {
 		a.pendingClick = nil
 		a.selectSubtitle(index, a.settings.DoubleClickAction)
@@ -45,7 +52,7 @@ func (a *NativeApp) finishSubtitleClick(now time.Time) {
 	if click == nil {
 		return
 	}
-	if a.snapshot == nil || a.settingsOpen || a.savePromptOpen ||
+	if !a.playbackAvailable() || a.snapshot == nil || a.settingsOpen || a.savePromptOpen ||
 		a.snapshot.Manifest.ID != click.projectID || a.subtitleTab != click.track ||
 		a.selected != click.index || click.index >= len(a.activeDocument().Cues) ||
 		a.activeDocument().Cues[click.index].ID != click.cueID {

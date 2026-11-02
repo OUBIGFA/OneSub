@@ -49,7 +49,7 @@ func (a *NativeApp) playbackActionField(c *ui.Context, label string, value *stri
 }
 
 func (a *NativeApp) seekSubtitle(action string) {
-	if a.mediaURL == "" || a.selected < 0 || a.snapshot == nil {
+	if !a.playbackAvailable() || a.selected < 0 || a.snapshot == nil {
 		return
 	}
 	cue := a.activeDocument().Cues[a.selected]

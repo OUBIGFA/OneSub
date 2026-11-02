@@ -1,8 +1,7 @@
 diff --git a/ui/editor.go b/ui/editor.go
-index 219cc19..c6b0a7d 100644
 --- a/ui/editor.go
 +++ b/ui/editor.go
-@@ -88,7 +88,10 @@ type editor struct {
+@@ -88,7 +88,10 @@
  	painted     spanPaint
  	// layout is what the last frame laid out of a single-line input or a
  	// selectable text; area lays out a text area (textarea.go).
@@ -15,10 +14,9 @@ index 219cc19..c6b0a7d 100644
  	layoutGeneration uint64
  	layoutCompose    string
 diff --git a/ui/editor_layout.go b/ui/editor_layout.go
-index ffbcd15..ff87a6f 100644
 --- a/ui/editor_layout.go
 +++ b/ui/editor_layout.go
-@@ -143,26 +143,51 @@ func (e *node) layoutInput(cw, ch float32) {
+@@ -143,26 +143,51 @@
  // placeholderParams lays out the placeholder of an empty input in a
  // content box width wide: in the input's style, its line height too, fixed
  // or not. A text area's placeholder wraps; a single-line input's stays on
@@ -75,27 +73,27 @@ index ffbcd15..ff87a6f 100644
  	ts := e.resolvedText()
  	if ed.buf.n == 0 && ed.compose == "" && ed.placeholder != "" {
 diff --git a/ui/list.go b/ui/list.go
-index 049cb81..fd1f08b 100644
 --- a/ui/list.go
 +++ b/ui/list.go
-@@ -192,6 +192,8 @@ type ListState struct {
+@@ -192,6 +192,9 @@
  	wroteY  float64
  	req     listRequest
  	heights listHeights
-+	// Nearby row following delegates motion and user interruption to ScrollState.
-+	scrollMotion *ScrollState
++	// Native ScrollState owns motion; edge requests wait for measured layout.
++	scrollMotion  *ScrollState
++	edgeAnimation *Animation
  
  	// scrolled tells that the app asked the list to scroll (ScrollTo,
  	// ScrollIntoView, ScrollToEnd): a mouse wheel's notches on their way
-@@ -294,13 +296,57 @@ type followMark struct {
+@@ -294,13 +297,67 @@
  // the list scrolls as the frame is laid out, to where the row is once it
  // is measured.
  func (s *ListState) ScrollTo(row int, align Align) {
 +	s.StopScroll()
  	s.req = listRequest{set: true, row: row, align: align}
  	s.scrolled = true
- }
- 
++}
++
 +// ScrollToAnimated glides a measured, nearby row to align. Call it from the
 +// view after building the list. Distant or unmeasured targets use ScrollTo:
 +// traversing thousands of unseen rows would hide the destination and depend
@@ -120,7 +118,7 @@ index 049cb81..fd1f08b 100644
 +	if s.scrollMotion == nil {
 +		s.scrollMotion = &ScrollState{X: float32(e.st.scrollX), Y: float32(e.st.scrollY), MaxX: float32(max(0, e.st.contentW-float64(e.st.w))), MaxY: float32(max(0, e.st.contentH-float64(e.st.h)))}
 +	}
-+	s.req, s.scrolled = listRequest{}, true
++	s.req, s.scrolled, s.edgeAnimation = listRequest{}, true, nil
 +	s.scrollMotion.ScrollTo(s.scrollMotion.X, y, animation)
 +	e.TrackScroll(s.scrollMotion)
 +	e.c.rt.requestFrame()
@@ -133,11 +131,21 @@ index 049cb81..fd1f08b 100644
 +
 +// StopScroll leaves the viewport where it is, for a changed filter or track.
 +func (s *ListState) StopScroll() {
++	s.edgeAnimation = nil
 +	if s.scrollMotion != nil {
 +		s.scrollMotion.glide = nil
 +	}
 +}
 +
++// ScrollToEdgeAnimated shows the start or end with a bounded landing. Layout
++// measures the destination, skips distant rows, then glides at most one viewport
++// using native ScrollState. The end includes the bottom of an oversized last row.
++func (s *ListState) ScrollToEdgeAnimated(toEnd bool, animation Animation) {
++	s.ScrollTo(0, Start)
++	s.req.end = toEnd
++	s.edgeAnimation = &animation
+ }
+ 
  // ScrollIntoView scrolls the list as little as shows row whole, as
  // Element.ScrollIntoView does an element.
  func (s *ListState) ScrollIntoView(row int) {
@@ -145,7 +153,7 @@ index 049cb81..fd1f08b 100644
  	s.req = listRequest{set: true, row: row, near: true}
  	s.scrolled = true
  }
-@@ -308,6 +354,7 @@ func (s *ListState) ScrollIntoView(row int) {
+@@ -308,6 +365,7 @@
  // ScrollToEnd scrolls the list to its end, where FollowEnd follows it
  // again.
  func (s *ListState) ScrollToEnd() {
@@ -153,7 +161,7 @@ index 049cb81..fd1f08b 100644
  	s.req = listRequest{set: true, end: true}
  	s.scrolled = true
  }
-@@ -486,6 +533,9 @@ func buildList(c *context, e, owner *node, s *ListState, n int, row func(i int),
+@@ -486,6 +544,9 @@
  	}
  	e.list, owner.rowsOf = f, f
  	wrapElement(owner).Bind(&s.Handle)
@@ -163,12 +171,54 @@ index 049cb81..fd1f08b 100644
  	s.sync(e, n)
  	f.pickForMenu()
  	if s.cursor() != nil && owner == e {
+@@ -1456,6 +1517,19 @@
+ 		}
+ 	}
+ 	glide := s.glideToEnd(e, n, lo, hi, H, padTop+padBottom+hs.top(n, gap)-gap, func(d float64) { shift(d); cover() })
++	edgeAnimation, edgeEnd := s.edgeAnimation, s.req.end
++	s.edgeAnimation = nil
++	var edgeTravel float64
++	if edgeAnimation != nil && s.laidOut && !e.c.rt.preferences().ReduceMotion && !e.c.rt.instant() {
++		// Measure both the destination and the short landing corridor now.
++		// New row heights cannot change the end offset midway through the glide.
++		target := padTop + hs.top(lo, gap) - yLo
++		edgeTravel = max(-H, min(st.scrollY-target, H))
++		if math.Abs(edgeTravel) > 0.5 {
++			shift(-edgeTravel)
++			cover()
++		}
++	}
+ 	for k := 0; k < listOverscan && hi < n-1 && ensure(hi+1); k++ {
+ 		yHi += ht(hi) + gap
+ 		hi++
+@@ -1541,6 +1615,22 @@
+ 	st.scrollTo(st.scrollX, scroll)
+ 	s.inset = inset
+ 	s.remember(e, first, last, hi == n-1 && end()-glide <= H+0.5, scroll)
++	if edgeAnimation != nil && math.Abs(edgeTravel) > 0.5 {
++		if s.scrollMotion == nil {
++			s.scrollMotion = &ScrollState{}
++		}
++		motion := s.scrollMotion
++		motion.X, motion.Y = float32(st.scrollX), float32(scroll)
++		motion.MaxX = float32(max(0, e.contentW-float64(w)))
++		motion.MaxY = float32(max(0, content-H))
++		target := float32(0)
++		if edgeEnd {
++			target = motion.MaxY
++		}
++		motion.ScrollTo(motion.X, target, *edgeAnimation)
++		e.TrackScroll(motion)
++		e.c.rt.requestFrame()
++	}
+ }
+ 
+ // glideToEnd moves the rows of a list following its end with a
 diff --git a/ui/onesub_interaction_test.go b/ui/onesub_interaction_test.go
 new file mode 100644
-index 0000000..e4ba4f2
 --- /dev/null
 +++ b/ui/onesub_interaction_test.go
-@@ -0,0 +1,157 @@
+@@ -0,0 +1,275 @@
 +package ui
 +
 +import (
@@ -324,5 +374,123 @@ index 0000000..e4ba4f2
 +		if first, _ := state.Visible(); first != 0 || state.Scrolling() {
 +			t.Fatal("edge navigation did not cancel motion", first)
 +		}
++	}
++}
++
++// Both edges are measured before the native scroll glide starts. Even a long
++// virtual table traverses only the landing viewport, never estimated whole-list
++// offsets; the last row may be taller than the viewport itself.
++func TestOneSubEdgeScrollUsesNativeLanding(t *testing.T) {
++	for _, toEnd := range []bool{false, true} {
++		for _, reduce := range []bool{false, true} {
++			for _, tallLast := range []bool{false, true} {
++				t.Run(fmt.Sprintf("end=%t/reduce=%t/tall=%t", toEnd, reduce, tallLast), func(t *testing.T) {
++					selected := 11
++					state := ListState{Selected: &selected}
++					const count = 20000
++					jump, edge := count/2, -1
++					animation := Animation{Duration: 420 * time.Millisecond, Ease: CubicBezier(0.22, 1, 0.36, 1)}
++					tt := coreNewTester(func(c *context) {
++						coreTable(c, &state, []TableColumn{{Title: "Subtitle"}}, count, func(row, col int) {
++							height := float32(32 + row%3*12)
++							if tallLast && row == count-1 {
++								height = 720
++							}
++							coreText(c, fmt.Sprint("Row ", row)).Height(height)
++						}).Fill()
++						if jump >= 0 {
++							state.ScrollTo(jump, Center)
++							jump = -1
++						}
++						if edge >= 0 {
++							state.ScrollToEdgeAnimated(edge == 1, animation)
++							edge = -1
++						}
++					}, 500, 400)
++					tt.SetPreferences(Preferences{ReduceMotion: reduce})
++					edge = 0
++					if toEnd {
++						edge = 1
++					}
++					tt.Frame()
++					positions := []float64{state.wroteY}
++					for range 4 {
++						tt.Advance(animation.Duration / 4)
++						positions = append(positions, state.wroteY)
++					}
++					tt.Advance(20 * time.Millisecond)
++					first, last := state.Visible()
++					if state.Scrolling() || selected != 11 || toEnd && (!state.AtEnd() || last != count-1) || !toEnd && first != 0 {
++						t.Fatal("edge glide did not settle without changing selection", first, last, selected)
++					}
++					travel := math.Abs(positions[4] - positions[0])
++					if reduce {
++						if travel > .5 {
++							t.Fatal("reduced motion still animated", positions)
++						}
++						return
++					}
++					if travel <= .5 || travel > float64(state.frame.e.st.h)+.5 {
++						t.Fatal("edge landing was instant or crossed more than one viewport", positions)
++					}
++					previous := travel
++					for i := 1; i < len(positions); i++ {
++						step := math.Abs(positions[i] - positions[i-1])
++						if step <= 0 || step >= previous {
++							t.Fatal("edge landing did not steadily decelerate", positions)
++						}
++						previous = step
++					}
++				})
++			}
++		}
++	}
++}
++
++func TestOneSubEdgeScrollCanBeInterrupted(t *testing.T) {
++	var state ListState
++	jump, edge := 100, -1
++	animation := Animation{Duration: 420 * time.Millisecond, Ease: EaseOut}
++	tt := coreNewTester(func(c *context) {
++		coreTable(c, &state, []TableColumn{{Title: "Subtitle"}}, 300, func(row, col int) {
++			coreText(c, fmt.Sprint("Row ", row)).Height(float32(32 + row%3*12))
++		}).Fill()
++		if jump >= 0 {
++			state.ScrollTo(jump, Start)
++			jump = -1
++		}
++		if edge >= 0 {
++			state.ScrollToEdgeAnimated(edge == 1, animation)
++			edge = -1
++		}
++	}, 500, 400)
++	edge = 1
++	tt.Frame()
++	tt.Advance(80 * time.Millisecond)
++	tt.Scroll(250, 200, 0, -120)
++	if state.Scrolling() {
++		t.Fatal("wheel did not cancel the edge glide")
++	}
++	tt.Advance(time.Second)
++	if state.AtEnd() {
++		t.Fatal("cancelled edge glide restarted after the wheel")
++	}
++	edge = 0
++	tt.Frame()
++	tt.Advance(80 * time.Millisecond)
++	edge = 1
++	tt.Frame()
++	tt.Advance(time.Second)
++	if !state.AtEnd() || state.Scrolling() {
++		t.Fatal("opposite navigation retained a stale destination")
++	}
++	edge = 0
++	tt.Frame()
++	tt.Advance(80 * time.Millisecond)
++	jump = 120
++	tt.Frame()
++	tt.Advance(time.Second)
++	if first, _ := state.Visible(); first != 120 || state.Scrolling() {
++		t.Fatal("immediate row navigation did not cancel the edge glide", first)
 +	}
 +}

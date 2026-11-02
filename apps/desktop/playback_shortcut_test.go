@@ -39,9 +39,9 @@ func TestSpaceRoutesToPlaybackWithoutTakingTextOrDialogKeys(t *testing.T) {
 		t.Fatal("playback changed behind a dialog")
 	}
 	open = false
-	for _, state := range []string{"no-media", "recognizing", "composing"} {
+	for _, state := range []string{"no-media", "recognizing", "composing", "translating"} {
 		a.mediaURL = "local-test-video"
-		a.recognitionRunning, a.composeRunning = false, false
+		a.recognitionRunning, a.composeRunning, a.translationRunning = false, false, false
 		switch state {
 		case "no-media":
 			a.mediaURL = ""
@@ -49,6 +49,8 @@ func TestSpaceRoutesToPlaybackWithoutTakingTextOrDialogKeys(t *testing.T) {
 			a.recognitionRunning = true
 		case "composing":
 			a.composeRunning = true
+		case "translating":
+			a.translationRunning = true
 		}
 		tt.Frame()
 		tt.Key(0, ui.KeySpace)

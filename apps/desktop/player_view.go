@@ -124,7 +124,7 @@ func (a *NativeApp) playerOverlay(c *ui.Context) {
 		return
 	}
 	layer.Label(locales.A11yVideo()).ContextMenu(func(m *ui.Menu) {
-		disabled := a.composeRunning
+		disabled := !a.playbackAvailable()
 		playLabel := locales.PlayerPlay()
 		if !a.paused {
 			playLabel = locales.PlayerPause()
@@ -152,8 +152,10 @@ func (a *NativeApp) playerOverlay(c *ui.Context) {
 	})
 }
 
+// Progress owns the player's interaction until the task ends. All native
+// playback entry points share this gate; unrelated busy operations do not.
 func (a *NativeApp) playbackAvailable() bool {
-	return a.mediaURL != "" && !a.composeRunning && !a.recognitionRunning
+	return a.mediaURL != "" && !a.composeRunning && !a.recognitionRunning && !a.translationRunning
 }
 
 func (a *NativeApp) togglePlayback() {

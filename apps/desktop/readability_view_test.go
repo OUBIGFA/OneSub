@@ -43,9 +43,12 @@ func TestReadingToolsBothTracksLocateOutsideSearchAndUpdateDraft(t *testing.T) {
 					}
 					a.status = "Previous operation"
 					footer := settled(func(c *ui.Context) { a.statusBar(c, studioColors(c)) }, 800, 32)
-					hint, shown := footer.Find(locales.ReadingLong())
-					result, _ := footer.Find(a.status)
-					if !shown || hint.X >= result.X {
+					// Ownership is part of the displayed text, not a separate label.
+					hintLabel := locales.StatusOwnerSubtitle() + locales.ReadingLong()
+					statusLabel := locales.StatusOwnerStatus() + a.status
+					hint, shown := footer.Find(hintLabel)
+					result, resultShown := footer.Find(statusLabel)
+					if !shown || !resultShown || hint.X >= result.X {
 						t.Fatal("selected reading hint is not first in the status bar", hint, result)
 					}
 					if err := tt.Click(locales.ReadingIssues(2)); err != nil {
@@ -64,7 +67,7 @@ func TestReadingToolsBothTracksLocateOutsideSearchAndUpdateDraft(t *testing.T) {
 					a.selected = 0
 					a.loadDraft()
 					footer.Frame()
-					if footer.HasText(locales.ReadingLong()) || !footer.HasText(a.status) {
+					if footer.HasText(hintLabel) || !footer.HasText(statusLabel) {
 						t.Fatal("reading hint stayed after selecting a readable cue")
 					}
 				})
