@@ -25,7 +25,8 @@ func TestReadingLoadSeparatesLengthAndSpeed(t *testing.T) {
 	}{
 		{"这是一条很短的字幕", 500, false, true},
 		{strings.Repeat("文", 26), 10000, true, false},
-		{strings.Repeat("a", 43), 10000, true, false},
+		{strings.Repeat("a", 84), 10000, false, false},
+		{strings.Repeat("a", 85), 10000, true, false},
 		{"<i>你好</i>", 1000, false, false},
 		{"你好（Hello）", 1000, false, false},
 	} {
@@ -86,7 +87,7 @@ func TestSmartSplitPreservesContentEnvelopeAndNumbering(t *testing.T) {
 }
 
 func TestSmartSplitCleansPunctuationAfterWordTimingAndKeepsSkippedCues(t *testing.T) {
-	words := []Word{{"Version 3.14 is ready. ", 1000, 4000}, {"Are we done with this operation?", 5000, 8000}}
+	words := []Word{{"Version 3.14 is ready today for every user on the platform. ", 1000, 4000}, {"Are we done with this operation?", 5000, 8000}}
 	text := words[0].Text + words[1].Text
 	cue := Cue{ID: "aligned", Text: text, Words: words, StartMs: 1000, EndMs: 9000}
 	skipped := Cue{ID: "short", Position: 1, Text: "This sentence has too little time. It must remain exactly unchanged.", StartMs: 10000, EndMs: 11000}
@@ -96,7 +97,7 @@ func TestSmartSplitCleansPunctuationAfterWordTimingAndKeepsSkippedCues(t *testin
 		t.Fatal(report, err)
 	}
 	first, second := report.Document.Cues[0], report.Document.Cues[1]
-	if first.Text != "Version 3.14 is ready" || second.Text != "Are we done with this operation?" {
+	if first.Text != "Version 3.14 is ready today for every user on the platform" || second.Text != "Are we done with this operation?" {
 		t.Fatal("cleanup order or kept marks changed", first.Text, second.Text)
 	}
 	if first.OriginalText != words[0].Text || first.StartMs != 1000 || first.EndMs != 5000 || second.StartMs != 5000 || second.EndMs != 9000 || first.TimingQuality != "aligned" || second.TimingQuality != "aligned" {
@@ -204,9 +205,9 @@ func TestSmartSplitPairsBilingualAndPreservesMultilineLanes(t *testing.T) {
 }
 
 func TestSmartSplitResolvesLengthInOneBatchAndAvoidsShortPieces(t *testing.T) {
-	// At 84 characters, a preferred sentence boundary at 43 would leave a
-	// still-long first cue. A single batch must look for a finer safe split.
-	text := strings.Repeat("word ", 8) + "ab. " + strings.Repeat("word ", 7) + "abcd."
+	// At 168 characters, a preferred sentence boundary at 83 would leave a
+	// still-long second cue. A single batch must look for a finer safe split.
+	text := strings.Repeat("word ", 16) + "ab. " + strings.Repeat("word ", 14) + "abcd."
 	for _, duration := range []int64{16000, 2400} {
 		cue := Cue{ID: "balanced", Text: text, StartMs: 0, EndMs: duration}
 		report, err := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "balanced", true, PunctuationOptions{})
@@ -238,7 +239,7 @@ func TestSmartSplitResolvesLengthInOneBatchAndAvoidsShortPieces(t *testing.T) {
 
 func TestSmartSplitSingleCueAlsoHandlesReadableCues(t *testing.T) {
 	// A readable cue remains eligible when it has independent sentences.
-	for _, text := range []string{"Check every file. Then run it.", "早上好大家好。晚上好各位好。"} {
+	for _, text := range []string{"Please check every single file. Then run the whole program.", "早上好大家好。晚上好各位好。"} {
 		cue := Cue{ID: "short", Text: text, StartMs: 0, EndMs: 4000}
 		long := Cue{ID: "long", Position: 1, Text: strings.Repeat("word ", 30), StartMs: 5000, EndMs: 25000}
 		if InspectCueReading(cue).Problem() {

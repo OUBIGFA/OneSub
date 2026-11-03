@@ -73,7 +73,7 @@ func TestSmartSplitTransactionTracksHistoryAndReopen(t *testing.T) {
 
 func TestSingleSplitReadableCueDoesNotBatchOtherProblems(t *testing.T) {
 	doc := subtitle.Document{Format: "srt", Cues: []subtitle.Cue{
-		{ID: "short", Text: "Check every file. Then run it.", StartMs: 0, EndMs: 4000},
+		{ID: "short", Text: "Please check every single file. Then run the whole program.", StartMs: 0, EndMs: 4000},
 		{ID: "long", Text: "This is a much longer neighboring subtitle which must remain unchanged by the single-cue command.", StartMs: 5000, EndMs: 19000},
 	}}
 	s, err := Create(filepath.Join(t.TempDir(), "single.onesub"), "", "", doc)

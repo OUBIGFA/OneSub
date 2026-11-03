@@ -10,9 +10,9 @@ import (
 func TestSplitCalloutExemptionRequiresRealSilenceOnBothSides(t *testing.T) {
 	for _, measured := range []bool{false, true} {
 		words := []Word{
-			{"This complete narration explains all the initial steps. ", 500, 5500},
+			{"This complete narration explains all the initial steps of the new system setup. ", 500, 5500},
 			{"Stop! ", 6200, 7500},
-			{"The following narration explains every remaining operation.", 8200, 20500},
+			{"The following narration explains every remaining operation of the whole system.", 8200, 20500},
 		}
 		if !measured {
 			words[0].EndMs, words[1].EndMs = 6000, 8000

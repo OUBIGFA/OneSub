@@ -213,19 +213,19 @@ func TestInterruptedTranslationReturnsAcceptedSubtitles(t *testing.T) {
 func TestCutStreamResumesOnlyMissingUnitsWithAnotherModel(t *testing.T) {
 	f, config := serve(t, func(s seen, n int) (string, string, int) {
 		if n == 1 {
-			return `{"1":"完整译文","2":"未完成`, "", 0
+			return `{"1":"完整译文 0","2":"未完成`, "", 0
 		}
 		return translated(s), "stop", 0
 	})
 	doc := testDocument(2)
 	first, err := Translate(context.Background(), config, doc)
-	if err == nil || first.Resume == nil || first.Resume.Completed[0] != "完整译文" || len(first.Resume.Completed) != 1 || len(f.seen()) != 1 {
+	if err == nil || first.Resume == nil || first.Resume.Completed[0] != "完整译文 0" || len(first.Resume.Completed) != 1 || len(f.seen()) != 1 {
 		t.Fatal("cut stream was not kept", err, first.Resume)
 	}
 	config.Model, config.CacheDir, config.Resume = "another-model", t.TempDir(), first.Resume
 	second, err := Translate(context.Background(), config, doc)
 	requests := f.seen()
-	if err != nil || len(requests) != 2 || len(requests[1].Payload.Units) != 1 || requests[1].Payload.Units[0].ID != "2" || second.Document.Cues[0].Text != "完整译文" || second.Report.Resumed != 1 {
+	if err != nil || len(requests) != 2 || len(requests[1].Payload.Units) != 1 || requests[1].Payload.Units[0].ID != "2" || second.Document.Cues[0].Text != "完整译文 0" || second.Report.Resumed != 1 {
 		t.Fatal("resume repeated completed units", err, requests, second.Report)
 	}
 	doc.Cues[0].Text = "Changed source"
@@ -464,13 +464,13 @@ func TestTranslateReadsLooseAnswers(t *testing.T) {
 func TestTranslateKeepsWhatACutAnswerFinished(t *testing.T) {
 	f, config := serve(t, func(s seen, n int) (string, string, int) {
 		if n == 1 {
-			return `{"1": "一", "2": "二", "3": "三`, "length", 0
+			return `{"1": "一 0", "2": "二 1", "3": "三 2`, "length", 0
 		}
 		return translated(s), "stop", 0
 	})
 	result, err := Translate(context.Background(), config, testDocument(3))
 	requests := f.seen()
-	if err != nil || len(requests) != 2 || len(requests[1].Payload.Units) != 1 || result.Document.Cues[2].Text != "译文 2" || result.Document.Cues[1].Text != "二" {
+	if err != nil || len(requests) != 2 || len(requests[1].Payload.Units) != 1 || result.Document.Cues[2].Text != "译文 2" || result.Document.Cues[1].Text != "二 1" {
 		t.Fatal(err, len(requests), result.Document.Cues)
 	}
 }

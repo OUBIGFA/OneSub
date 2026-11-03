@@ -93,7 +93,7 @@ func TestSplitUpgradeRoutesActualTextLanguages(t *testing.T) {
 		{splitWords, "Primero explicamos todos los pasos del proceso, pero después comprobamos cada resultado antes de terminar la operación."},
 		{splitWords, "Сначала мы подробно объясним порядок работы системы, а затем проверим все параметры и полученные результаты."},
 		{splitWords, "نشرح اليوم جميع خطوات العمل بالتفصيل، ثم نتحقق من كل النتائج قبل إكمال هذه العملية المهمة."},
-		{splitThai, "วันนี้เราจะอธิบายวิธีการทำงานของระบบอย่างละเอียด จากนั้นเราจะตรวจสอบผลลัพธ์ทั้งหมดก่อนดำเนินการต่อไป"},
+		{splitThai, "วันนี้เราจะอธิบายวิธีการทำงานของระบบอย่างละเอียด จากนั้นเราจะตรวจสอบผลลัพธ์ทั้งหมดก่อนดำเนินการต่อไป และสุดท้ายเราจะสรุปผลทั้งหมดให้ผู้ใช้ทุกคนเข้าใจอย่างชัดเจน"},
 	} {
 		t.Run(tc.text, func(t *testing.T) {
 			lane := newSplitText(tc.text)

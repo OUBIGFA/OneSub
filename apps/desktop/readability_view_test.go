@@ -110,7 +110,7 @@ func TestSingleReadingSplitMenuAndCommandBothTracks(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			for _, tab := range []int{0, 1} {
-				a := storeApp(t, subtitle.Cue{ID: "short", Text: "Check every file. Then run it.", StartMs: 0, EndMs: 4000}, subtitle.Cue{ID: "long", Text: strings.Repeat("word ", 30), StartMs: 5000, EndMs: 25000})
+				a := storeApp(t, subtitle.Cue{ID: "short", Text: "Please check every single file. Then run the whole program.", StartMs: 0, EndMs: 4000}, subtitle.Cue{ID: "long", Text: strings.Repeat("word ", 30), StartMs: 5000, EndMs: 25000})
 				if _, err := a.store.ApplyTranslation("translate", 0, []project.Edit{{ID: "short", Text: "早上好大家好。晚上好各位好。", StartMs: 0, EndMs: 4000}}); err != nil {
 					t.Fatal(err)
 				}
@@ -184,7 +184,7 @@ func TestSingleReadingSplitKeepsCompactCueWithoutAnEditBothTracks(t *testing.T) 
 func TestSmartSplitAutomaticallyCleansBothTextLayersWithOneUndo(t *testing.T) {
 	for _, tab := range []int{0, 1} {
 		t.Run(fmt.Sprint(tab), func(t *testing.T) {
-			a := storeApp(t, subtitle.Cue{ID: "target", Text: "Version 3.14 is ready. Are we done?", StartMs: 0, EndMs: 8000}, subtitle.Cue{ID: "neighbor", Text: "Keep this. Neighbor.", StartMs: 9000, EndMs: 15000})
+			a := storeApp(t, subtitle.Cue{ID: "target", Text: "Version 3.14 is ready today. Are we all done here?", StartMs: 0, EndMs: 8000}, subtitle.Cue{ID: "neighbor", Text: "Keep this. Neighbor.", StartMs: 9000, EndMs: 15000})
 			if _, err := a.store.ApplyTranslation("translate", 0, []project.Edit{{ID: "target", Text: "版本3.14已经准备完成。还有问题？", StartMs: 0, EndMs: 8000}}); err != nil {
 				t.Fatal(err)
 			}
@@ -215,7 +215,7 @@ func TestSmartSplitAutomaticallyCleansBothTextLayersWithOneUndo(t *testing.T) {
 					}
 				}
 			}
-			if source != "Version 3.14 is ready Are we done? " {
+			if source != "Version 3.14 is ready today Are we all done here? " {
 				t.Fatal("cleanup order or kept question mark changed", source)
 			}
 			if tab == 1 && translated != "版本3.14已经准备完成还有问题？" {
@@ -373,7 +373,7 @@ func TestReadingToolbarLargeCountsFitMinimumPane(t *testing.T) {
 		inLocale(t, language, func() {
 			cues := make([]subtitle.Cue, 20000)
 			for i := range cues {
-				cues[i] = subtitle.Cue{ID: fmt.Sprint(i), Text: strings.Repeat("word ", 15), StartMs: int64(i) * 16000, EndMs: int64(i)*16000 + 15000}
+				cues[i] = subtitle.Cue{ID: fmt.Sprint(i), Text: strings.Repeat("word ", 20), StartMs: int64(i) * 16000, EndMs: int64(i)*16000 + 15000}
 			}
 			a := storeApp(t, cues...)
 			tt := settled(a.subtitlesView, 320, 600)
@@ -390,7 +390,7 @@ func TestReadingToolbarLargeCountsFitMinimumPane(t *testing.T) {
 func TestReadingToolbarNarrowPane(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
-			a := storeApp(t, subtitle.Cue{ID: "a", Text: strings.Repeat("word ", 15), StartMs: 0, EndMs: 15000})
+			a := storeApp(t, subtitle.Cue{ID: "a", Text: strings.Repeat("word ", 20), StartMs: 0, EndMs: 15000})
 			for _, width := range []int{360, 520, 900} {
 				tt := settled(a.subtitlesView, width, 600)
 				for _, label := range []string{locales.ReadingSplitCount(1), locales.ReadingInspect(), locales.FindReplace(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.ListSaveAs()} {

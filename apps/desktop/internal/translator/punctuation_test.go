@@ -12,7 +12,7 @@ import (
 // AI request. Cached/resumed raw answers can be projected with new options.
 func TestTranslationPunctuationIsLocalAndPreservesSource(t *testing.T) {
 	f, config := serve(t, func(s seen, _ int) (string, string, int) {
-		return `{"1":"First. Next。 Done."}`, "stop", 0
+		return `{"1":"First 0. Next。 Done."}`, "stop", 0
 	})
 	config.TargetLanguage = "en"
 	doc := testDocument(1)
@@ -27,7 +27,7 @@ func TestTranslationPunctuationIsLocalAndPreservesSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(f.seen()) != 1 || plain.Document.Cues[0].Text != "First. Next。 Done." || cleaned.Document.Cues[0].Text != "First, Next， Done" {
+	if len(f.seen()) != 1 || plain.Document.Cues[0].Text != "First 0. Next。 Done." || cleaned.Document.Cues[0].Text != "First 0, Next， Done" {
 		t.Fatal("cleanup changed requests or output", len(f.seen()), plain.Document.Cues, cleaned.Document.Cues)
 	}
 	if !reflect.DeepEqual(doc.Cues[0], before) || cleaned.Document.Cues[0].StartMs != before.StartMs || cleaned.Document.Cues[0].TranslationSource != before.Text {
