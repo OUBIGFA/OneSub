@@ -2,9 +2,11 @@ package main
 
 import (
 	"embed"
+	"slices"
 	"strings"
 	"sync"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/models"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -35,7 +37,8 @@ type languageOption struct{ ID, Country, Label string }
 
 // OneAsr v1.3.0 requires an explicit language throughout ASR + alignment:
 // its forced aligner covers these 11 languages, and "auto" is read as
-// Chinese, not detected. So there is no automatic option.
+// Chinese, not detected. So there is no automatic option. The sherpa-onnx
+// models recognize the subsets in their catalog entries.
 func sourceLanguages() []languageOption {
 	return []languageOption{
 		{"zh", "cn", locales.LanguageChina() + "-ZH"}, {"en", "gb", locales.LanguageBritain() + "-EN"},
@@ -46,6 +49,32 @@ func sourceLanguages() []languageOption {
 		{"ru", "ru", locales.LanguageRussia() + "-RU"},
 	}
 }
+
+// modelLanguages are the source languages that the ASR model id
+// recognizes, in the order of sourceLanguages.
+func modelLanguages(id string) []languageOption {
+	model, err := models.ByID(id)
+	if err != nil {
+		return sourceLanguages()
+	}
+	out := []languageOption{}
+	for _, o := range sourceLanguages() {
+		if model.Supports(o.ID) {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
+// asrModelChanged saves a new choice of ASR model. The model keeps the
+// source language when it recognizes it, and otherwise takes its first.
+func (a *NativeApp) asrModelChanged() {
+	if languages := modelLanguages(a.settings.AsrModel); len(languages) > 0 && !slices.ContainsFunc(languages, func(o languageOption) bool { return o.ID == a.settings.Language }) {
+		a.settings.Language = languages[0].ID
+	}
+	a.saveSettings()
+}
+
 func targetLanguages() []languageOption {
 	return []languageOption{
 		{"zh-CN", "cn", locales.LanguageChina() + "-ZH-CN"}, {"en", "gb", locales.LanguageBritain() + "-EN"},

@@ -20,7 +20,7 @@ import (
 // their sentence, and region offsets remain on the original media clock.
 func TestSpeechRegionsExcludeLongSilence(t *testing.T) {
 	raw := []byte(`{"dur":52,"timestamps":[[0.07,1.12],[1.72,3.42],[4.02,5.47],[46.04,47.1],[47.7,49.41],[50.01,51.45]],"sample_rate_in":16000,"sample_rate_model":16000}`)
-	got, err := speechRegions(raw)
+	got, err := speechRegions(raw, 0)
 	want := []speechRegion{{StartMs: 0, EndMs: 5720}, {StartMs: 45790, EndMs: 51700}}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("regions = %+v, %v; want %+v", got, err, want)
@@ -28,7 +28,7 @@ func TestSpeechRegionsExcludeLongSilence(t *testing.T) {
 }
 
 func TestSpeechRegionsSilenceAndInvalidOutput(t *testing.T) {
-	got, err := speechRegions([]byte(`{"dur":45,"timestamps":[],"sample_rate_in":16000,"sample_rate_model":16000}`))
+	got, err := speechRegions([]byte(`{"dur":45,"timestamps":[],"sample_rate_in":16000,"sample_rate_model":16000}`), 0)
 	if err != nil || len(got) != 0 {
 		t.Fatalf("silence reached recognition: %+v, %v", got, err)
 	}
@@ -36,7 +36,7 @@ func TestSpeechRegionsSilenceAndInvalidOutput(t *testing.T) {
 		`null`, `[[5,4]]`, `[[-1,4]]`, `[[1,46]]`, `[[5,6],[1,2]]`, `[[1,3],[2,4]]`, `[[5]]`, `[[1,2,3]]`, `[[1,1.00001]]`,
 	} {
 		raw := fmt.Sprintf(`{"dur":45,"timestamps":%s,"sample_rate_in":16000,"sample_rate_model":16000}`, timestamps)
-		if _, err := speechRegions([]byte(raw)); err == nil {
+		if _, err := speechRegions([]byte(raw), 0); err == nil {
 			t.Fatalf("invalid VAD timestamps accepted: %s", raw)
 		}
 	}
@@ -45,7 +45,7 @@ func TestSpeechRegionsSilenceAndInvalidOutput(t *testing.T) {
 		`{"dur":2,"timestamps":[[0,1]],"sample_rate_in":48000,"sample_rate_model":16000}`,
 		`{"dur":1e20,"timestamps":[],"sample_rate_in":16000,"sample_rate_model":16000}`,
 	} {
-		if _, err := speechRegions([]byte(raw)); err == nil {
+		if _, err := speechRegions([]byte(raw), 0); err == nil {
 			t.Fatalf("invalid VAD metadata accepted: %s", raw)
 		}
 	}
@@ -53,7 +53,7 @@ func TestSpeechRegionsSilenceAndInvalidOutput(t *testing.T) {
 
 func TestSpeechRegionPaddingKeepsFileBoundsAndShortPauses(t *testing.T) {
 	raw := []byte(`{"dur":6,"timestamps":[[0,1],[2,3],[4.01,6]],"sample_rate_in":16000,"sample_rate_model":16000}`)
-	got, err := speechRegions(raw)
+	got, err := speechRegions(raw, 0)
 	want := []speechRegion{{StartMs: 0, EndMs: 3250}, {StartMs: 3760, EndMs: 6000}}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("regions = %+v, %v; want %+v", got, err, want)
@@ -96,12 +96,12 @@ func TestRecognitionWordRegionsRoundTripOnSourceClock(t *testing.T) {
 }
 
 func TestDetectSpeechDoesNotBypassFailureOrCancellation(t *testing.T) {
-	if _, err := detectSpeech(context.Background(), t.TempDir(), "absent.wav"); err == nil {
+	if _, err := detectSpeech(context.Background(), t.TempDir(), "absent.wav", 0); err == nil {
 		t.Fatal("missing VAD silently bypassed")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := detectSpeech(ctx, t.TempDir(), "absent.wav"); !errors.Is(err, context.Canceled) {
+	if _, err := detectSpeech(ctx, t.TempDir(), "absent.wav", 0); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation lost", err)
 	}
 }
@@ -119,7 +119,7 @@ func TestDetectSpeechRejectsSilentAudioIntegration(t *testing.T) {
 			if err := jobs.Run(ctx, jobs.CommandContext(ctx, ffmpeg, "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=16000:cl=mono", "-t", duration, "-c:a", "pcm_s16le", wav), nil); err != nil {
 				t.Fatal(err)
 			}
-			regions, err := detectSpeech(ctx, install, wav)
+			regions, err := detectSpeech(ctx, install, wav, 0)
 			if err != nil || len(regions) != 0 {
 				t.Fatalf("silence became speech: %+v, %v", regions, err)
 			}

@@ -104,7 +104,8 @@ func parseOneAsrStage(line string) (recognitionStep, bool) {
 }
 
 // recognitionStepLabel says a step in the app's language: OneSub's own
-// stages around the CLI, and the CLI's, with the chunk.
+// stages around the CLI, and the CLI's, with the chunk. A sherpa-onnx
+// recognition reports its inputs as the chunks of "transcribe".
 func recognitionStepLabel(step recognitionStep) string {
 	label := map[string]func() string{
 		"verify": locales.RecognitionVerify, "extract": locales.RecognitionExtract,
@@ -114,7 +115,7 @@ func recognitionStepLabel(step recognitionStep) string {
 		"plan": locales.RecognitionStagePlan, "hotwords": locales.RecognitionStageHotwords,
 		"load-asr": locales.RecognitionStageLoadAsr, "transcribe": locales.RecognitionStageTranscribe,
 		"load-aligner": locales.RecognitionStageLoadAligner, "align": locales.RecognitionStageAlign,
-		"export": locales.RecognitionStageExport,
+		"export": locales.RecognitionStageExport, "punctuate": locales.RecognitionStagePunctuate,
 	}[step.Stage]
 	if label == nil {
 		return ""

@@ -80,7 +80,7 @@ func newMCPServer(resources, dataRoot, ffmpeg string) (*mcp.Server, error) {
 		s.tools.styles.Executable = v
 	}
 	server := mcp.NewServer(&mcp.Implementation{Name: "onesub", Title: "OneSub", Version: "0.0.1+" + BuildNumber}, &mcp.ServerOptions{
-		Instructions: "OneSub makes subtitles on this computer. transcribe_media turns speech in a video or audio file into a subtitle file with the local OneAsr models; translate_subtitles translates a subtitle file with the AI service set in OneSub (it may cost money). Paths are absolute local paths. Results are new files beside the input; nothing is overwritten.",
+		Instructions: "OneSub makes subtitles on this computer. transcribe_media turns speech in a video or audio file into a subtitle file with the local speech recognition model chosen in OneSub; translate_subtitles translates a subtitle file with the AI service set in OneSub (it may cost money). Paths are absolute local paths. Results are new files beside the input; nothing is overwritten.",
 	})
 	no, yes := false, true
 	mcp.AddTool(server, &mcp.Tool{

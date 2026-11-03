@@ -40,17 +40,30 @@ func (t toolset) modelPath(prefs settings.Settings, id string) string {
 	return filepath.Join(t.dataRoot, "models", id)
 }
 
-// recognitionModels checks that the chosen models' folders exist.
+// recognitionModels checks that the chosen models' folders exist. A
+// sherpa-onnx model times its own tokens, so it has no aligner.
 func (t toolset) recognitionModels(prefs settings.Settings) (asr, aligner models.Model, err error) {
 	if asr, err = models.ByID(prefs.AsrModel); err != nil {
 		return
 	}
-	if aligner, err = models.ByID(prefs.Aligner); err != nil {
-		return
-	}
-	for _, m := range []models.Model{asr, aligner} {
-		if _, statErr := os.Stat(t.modelPath(prefs, m.ID)); statErr != nil {
-			return asr, aligner, errors.New(locales.ErrModelsNeeded())
+	if asr.Sherpa() {
+		switch {
+		case !asr.Supports(prefs.Language):
+			return asr, aligner, errors.New(locales.ErrLanguageUnsupported(asr.Label))
+		case prefs.VocalSeparation:
+			return asr, aligner, errors.New(locales.ErrVocalSeparationEngine())
+		}
+		if _, statErr := os.Stat(t.modelPath(prefs, asr.ID)); statErr != nil {
+			return asr, aligner, errors.New(locales.ErrAsrModelNeeded())
+		}
+	} else {
+		if aligner, err = models.ByID(prefs.Aligner); err != nil {
+			return
+		}
+		for _, m := range []models.Model{asr, aligner} {
+			if _, statErr := os.Stat(t.modelPath(prefs, m.ID)); statErr != nil {
+				return asr, aligner, errors.New(locales.ErrModelsNeeded())
+			}
 		}
 	}
 	if strings.TrimSpace(prefs.Hotwords) != "" {
@@ -71,10 +84,17 @@ func (t toolset) recognize(ctx context.Context, prefs settings.Settings, source 
 	}
 	asrDir, alignDir := t.modelPath(prefs, asr.ID), t.modelPath(prefs, aligner.ID)
 	step(recognitionStep{Stage: "verify"})
-	for _, m := range []struct {
+	checks := []struct {
 		model models.Model
 		dir   string
-	}{{asr, asrDir}, {aligner, alignDir}} {
+	}{{asr, asrDir}}
+	if !asr.Sherpa() {
+		checks = append(checks, struct {
+			model models.Model
+			dir   string
+		}{aligner, alignDir})
+	}
+	for _, m := range checks {
 		if err = models.Verify(ctx, m.model, m.dir); err != nil {
 			return "", nil, nil, err
 		}
@@ -82,6 +102,9 @@ func (t toolset) recognize(ctx context.Context, prefs settings.Settings, source 
 	install := filepath.Join(t.resources, "oneasr")
 	if value := os.Getenv("ONESUB_ONEASR_ROOT"); value != "" {
 		install = value
+	}
+	if asr.Sherpa() {
+		return t.recognizeWithSherpa(ctx, asr, asrDir, install, prefs.Language, source, step)
 	}
 	root, removeRoot, err := models.RuntimeRoot(ctx, t.worker.Scratch, map[string]string{asr.ID: asrDir, aligner.ID: alignDir})
 	if err != nil {
@@ -117,7 +140,7 @@ func (t toolset) recognize(ctx context.Context, prefs settings.Settings, source 
 		return "", nil, nil, apperr.Wrap(locales.ErrAudioExtract(err.Error(), ""), err)
 	}
 	step(recognitionStep{Stage: "vad"})
-	regions, err := detectSpeech(ctx, install, wav)
+	regions, err := detectSpeech(ctx, install, wav, 0)
 	if err != nil {
 		return "", nil, nil, err
 	}

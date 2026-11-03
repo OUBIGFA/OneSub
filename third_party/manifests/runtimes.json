@@ -3,7 +3,8 @@
   "publicReleaseApproved": false,
   "remainingMaterials": [
     "complete transitive binary notices and corresponding source/build materials",
-    "signing and clean-machine install/upgrade/uninstall acceptance"
+    "signing and clean-machine install/upgrade/uninstall acceptance",
+    "onnxruntime 1.28.2 ThirdPartyNotices for the bundled sherpa-onnx runtime"
   ],
   "mygo": {
     "version": "v0.7.4",
@@ -85,6 +86,55 @@
     "modelLicenseBlob": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
     "usage": "Same tag as OneAsr v1.3.0; default VAD detects speech before ASR, including short input",
     "modifications": "none; official Windows x64 executable renamed to fireredvad.exe"
+  },
+  "sherpaOnnx": {
+    "version": "v2.0.1",
+    "repository": "https://github.com/k2-fsa/sherpa-onnx",
+    "revision": "af2d8d81dbfa61c4cea4c568da78f3982edca005",
+    "download": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/sherpa-onnx-v2.0.1-win-x64-shared-MT-Release-no-tts.tar.bz2",
+    "archiveBytes": 25567228,
+    "archiveSha256": "a644dfe2f7944afec9a356d2557c0452380f20ffcf2f8c704653cfce37558596",
+    "files": [
+      {
+        "file": "sherpa-onnx-offline.exe",
+        "source": "bin/sherpa-onnx-offline.exe",
+        "bytes": 2763776,
+        "sha256": "047bff7c67bedbf99d1a0e55773ed6770f67d161466f6e4977af3e217de99e27"
+      },
+      {
+        "file": "onnxruntime.dll",
+        "source": "bin/onnxruntime.dll",
+        "bytes": 17799168,
+        "sha256": "7f66f939a881baf4f46a2216496798edf4a1429878b646d12674aa62f27d8a25"
+      },
+      {
+        "file": "onnxruntime_providers_shared.dll",
+        "source": "bin/onnxruntime_providers_shared.dll",
+        "bytes": 104960,
+        "sha256": "551d0e1fe4c227d8542314ba718d52f4379e0c7bfe729a37c59833a884e27b4d"
+      },
+      {
+        "file": "sherpa-onnx-c-api.dll",
+        "source": "lib/sherpa-onnx-c-api.dll",
+        "bytes": 3667968,
+        "sha256": "ee2af9f49b8fc5dae135ad20c0b955cbab90d17b79cc1ad0db91e03b24962f68"
+      }
+    ],
+    "spdx": "Apache-2.0",
+    "license": "third_party/licenses/sherpa-onnx.txt",
+    "onnxruntime": {
+      "version": "1.28.2",
+      "spdx": "MIT",
+      "license": "third_party/licenses/onnxruntime.txt",
+      "notices": "onnxruntime ThirdPartyNotices are not yet collected; listed in remainingMaterials"
+    },
+    "models": "Downloaded by the user from pinned Hugging Face revisions in apps/desktop/internal/models/catalog_sherpa.json; not bundled",
+    "modelLicenses": {
+      "SenseVoiceSmall, Paraformer-zh, CT-Transformer punctuation": "FunASR Model Open Source License 1.1, third_party/licenses/funasr-models.txt",
+      "Parakeet-TDT 0.6B v3": "CC-BY-4.0, NVIDIA (https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)"
+    },
+    "usage": "Official Windows x64 CPU CLI runs SenseVoice, Paraformer and Parakeet-TDT; the C API restores Paraformer punctuation in a child process",
+    "modifications": "none; four files taken unchanged from the official release archive"
   },
   "player": [
     {

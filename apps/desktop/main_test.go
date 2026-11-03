@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,14 @@ import (
 var testLocale = "zh-Hans"
 
 func TestMain(m *testing.M) {
+	// The test binary is also the punctuation child, as OneSub.exe is.
+	if len(os.Args) >= 2 && os.Args[1] == punctuateArgument {
+		if err := runPunctuate(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	i18n.SetLocaleFunc(func() string { return testLocale })
 	os.Exit(m.Run())
 }

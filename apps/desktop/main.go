@@ -850,6 +850,14 @@ func (a *NativeApp) activate() {
 func main() {
 	// "OneSub.exe mcp" is the MCP server a client starts, beside a window
 	// that may be open: it takes no instance lock and shows nothing.
+	// "OneSub.exe punctuate" is the child that restores Paraformer's
+	// punctuation, also without a window or lock.
+	if len(os.Args) >= 2 && os.Args[1] == punctuateArgument {
+		if err := runPunctuate(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == mcpArgument {
 		if err := serveMCP(); err != nil {
 			log.Fatal(err)

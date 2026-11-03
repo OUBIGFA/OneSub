@@ -35,6 +35,7 @@ try {
     if (-not (Test-Path 'build/output/oneasr/oneasr-cli.exe')) { throw 'Verified OneAsr v1.3.0 portable payload is required' }
     if ((Get-FileHash 'build/output/oneasr/oneasr-cli.exe' -Algorithm SHA256).Hash.ToLowerInvariant() -ne $runtime.oneasr.sha256) { throw 'OneAsr hash differs from the recorded build' }
     & (Join-Path $PSScriptRoot 'prepare-vad.ps1')
+    & (Join-Path $PSScriptRoot 'prepare-sherpa.ps1')
     $sourceIndex = Join-Path $root '.local/source-tree.index'
     if (Test-Path $sourceIndex) { Remove-Item $sourceIndex -Force }
     Copy-Item (Join-Path $root '.git/index') $sourceIndex -Force

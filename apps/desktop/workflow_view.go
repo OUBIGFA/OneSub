@@ -68,10 +68,10 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 						options = append(options, option{model.ID, model.Label})
 					}
 				}
-				idSelect(c, &a.settings.AsrModel, options).Label(locales.WorkflowRecognitionModel()).OnChange(a.saveSettings)
+				idSelect(c, &a.settings.AsrModel, options).Label(locales.WorkflowRecognitionModel()).OnChange(a.asrModelChanged)
 			})
 			ui.Field(c, locales.SettingsSourceLanguage(), func() {
-				languageSelect(c, &a.settings.Language, sourceLanguages(), a.busy).Label(locales.SettingsSourceLanguage()).OnChange(a.saveSettings)
+				languageSelect(c, &a.settings.Language, modelLanguages(a.settings.AsrModel), a.busy).Label(locales.SettingsSourceLanguage()).OnChange(a.saveSettings)
 			})
 		})
 	})
@@ -81,19 +81,25 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 		})
 		folderField(c, a.settings.RecognitionDir, locales.RecognitionBesideMedia(), a.busy, a.pickRecognitionDir, func() { a.settings.RecognitionDir = ""; a.saveSettings() })
 	})
+	// Backend, chunks and tokens are OneAsr's options; a sherpa-onnx model
+	// runs on the CPU in inputs of its own length.
+	oneAsr := true
+	if model, err := models.ByID(a.settings.AsrModel); err == nil {
+		oneAsr = !model.Sherpa()
+	}
 	ui.Collapsible(c, locales.WorkflowRecognitionAdvanced(), &a.recognitionAdvanced, func() {
 		parameterGrid(c, 170, 3, func() {
 			ui.Field(c, locales.SettingsBackend(), func() {
-				idSelect(c, &a.settings.Backend, []option{{"auto", locales.BackendAuto()}, {"gpu", "GPU"}, {"cpu", "CPU"}}).Label(locales.SettingsBackend()).OnChange(a.saveSettings)
+				idSelect(c, &a.settings.Backend, []option{{"auto", locales.BackendAuto()}, {"gpu", "GPU"}, {"cpu", "CPU"}}).Label(locales.SettingsBackend()).Disabled(!oneAsr).OnChange(a.saveSettings)
 			})
 			ui.Field(c, locales.SettingsChunk(), func() {
 				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-					number(c, locales.SettingsChunk(), &a.settings.ChunkSeconds, 30, 180, 1).OnChange(a.saveSettings)
+					number(c, locales.SettingsChunk(), &a.settings.ChunkSeconds, 30, 180, 1).Disabled(!oneAsr).OnChange(a.saveSettings)
 					muted(c, locales.UnitSeconds())
 				})
 			})
 			ui.Field(c, locales.SettingsMaxTokens(), func() {
-				number(c, locales.SettingsMaxTokens(), &a.settings.MaxTokens, 1, 32768, 1).OnChange(a.saveSettings)
+				number(c, locales.SettingsMaxTokens(), &a.settings.MaxTokens, 1, 32768, 1).Disabled(!oneAsr).OnChange(a.saveSettings)
 			})
 		})
 	})

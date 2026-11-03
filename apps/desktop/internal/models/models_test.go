@@ -13,13 +13,18 @@ import (
 	"time"
 )
 
-func TestCatalogHasAllEightChoices(t *testing.T) {
+func TestCatalogHasOneAsrAndSherpaChoices(t *testing.T) {
 	c := Catalog()
-	if len(c) != 8 {
+	if len(c) != 11 {
 		t.Fatal(len(c))
 	}
+	ids := map[string]bool{}
 	for _, m := range c {
-		if len(m.Files) == 0 || m.Size() == 0 {
+		if len(m.Files) == 0 || m.Size() == 0 || ids[m.ID] {
+			t.Fatal(m)
+		}
+		ids[m.ID] = true
+		if m.Sherpa() != (len(m.Languages) > 0) || (m.Sherpa() && m.Kind != "asr") {
 			t.Fatal(m)
 		}
 		for _, f := range m.Files {

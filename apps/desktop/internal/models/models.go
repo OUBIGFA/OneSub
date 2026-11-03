@@ -1,4 +1,5 @@
-// Package models consumes OneAsr's exact model IDs, file sizes and hashes.
+// Package models consumes OneAsr's exact model IDs, file sizes and hashes,
+// and the pinned sherpa-onnx models of the other recognition engines.
 package models
 
 import (
@@ -13,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +24,12 @@ import (
 
 //go:embed catalog.json
 var catalogJSON []byte
+
+// catalog_sherpa.json lists the sherpa-onnx models. It stays apart from
+// catalog.json, which tools/import_oneasr_catalog.py regenerates.
+//
+//go:embed catalog_sherpa.json
+var sherpaJSON []byte
 
 type File struct {
 	Name   string `json:"name"`
@@ -33,17 +41,43 @@ type Model struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
 	Kind  string `json:"kind"`
-	Files []File `json:"files"`
+	// Engine is the sherpa-onnx model family that runs an ASR model; it is
+	// empty for OneAsr's own models. Languages are the source languages a
+	// sherpa-onnx model recognizes.
+	Engine    string   `json:"engine,omitempty"`
+	Languages []string `json:"languages,omitempty"`
+	Files     []File   `json:"files"`
+}
+
+// Sherpa engines.
+const (
+	EngineSenseVoice = "sense-voice"
+	EngineParaformer = "paraformer"
+	EngineTransducer = "transducer"
+)
+
+// Sherpa reports whether sherpa-onnx, not OneAsr, runs the model. Such a
+// model needs no forced aligner: it times its own tokens.
+func (m Model) Sherpa() bool { return m.Engine != "" }
+
+// Supports reports whether the model recognizes language. OneAsr's models
+// support every source language the app lists.
+func (m Model) Supports(language string) bool {
+	return !m.Sherpa() || slices.Contains(m.Languages, language)
 }
 
 func Catalog() []Model {
-	var c struct {
-		Models []Model `json:"models"`
+	models := []Model{}
+	for _, data := range [][]byte{catalogJSON, sherpaJSON} {
+		var c struct {
+			Models []Model `json:"models"`
+		}
+		if err := json.Unmarshal(data, &c); err != nil {
+			panic(err)
+		}
+		models = append(models, c.Models...)
 	}
-	if err := json.Unmarshal(catalogJSON, &c); err != nil {
-		panic(err)
-	}
-	return c.Models
+	return models
 }
 func ByID(id string) (Model, error) {
 	for _, m := range Catalog() {

@@ -149,7 +149,11 @@ func (a *NativeApp) recognitionModelField(c *ui.Context, title, kind string, id 
 					options = append(options, option{m.ID, m.Label})
 				}
 			}
-			idSelect(c, id, options).Label(locales.A11yModelOf(title)).Grow(1).OnChange(a.saveSettings)
+			changed := a.saveSettings
+			if kind == "asr" {
+				changed = a.asrModelChanged
+			}
+			idSelect(c, id, options).Label(locales.A11yModelOf(title)).Grow(1).OnChange(changed)
 			ui.Button(c, locales.ModelManage()).Label(locales.A11yManageModel(title)).OnClick(func() { a.modelSelection = *id; a.modelOpen = true })
 		})
 		path := a.modelPath(*id)

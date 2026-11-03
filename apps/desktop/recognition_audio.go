@@ -22,7 +22,11 @@ type speechRegion struct {
 // Keep sentence pauses up to one second together and 250 ms of context on
 // either side, but never join across a long silence. This is input selection,
 // not another VAD implementation or a rewrite of OneAsr's chunk planner.
-func speechRegions(data []byte) ([]speechRegion, error) {
+// With maxMs above 0, no region lasts longer: speech is joined only while
+// it fits, and a longer stretch of speech is cut into equal parts. Context
+// never reaches past the middle of the pause to the next region, so no
+// audio is recognized twice.
+func speechRegions(data []byte, maxMs int64) ([]speechRegion, error) {
 	var wire struct {
 		Duration        float64     `json:"dur"`
 		Timestamps      [][]float64 `json:"timestamps"`
@@ -46,24 +50,40 @@ func speechRegions(data []byte) ([]speechRegion, error) {
 		if region.EndMs <= region.StartMs {
 			return nil, errors.New(locales.ErrSpeechRegions())
 		}
-		if len(regions) > 0 && region.StartMs-regions[len(regions)-1].EndMs <= 1000 {
-			regions[len(regions)-1].EndMs = region.EndMs
-		} else {
-			regions = append(regions, region)
+		if n := len(regions); n > 0 && region.StartMs-regions[n-1].EndMs <= 1000 && (maxMs <= 0 || region.EndMs-regions[n-1].StartMs <= maxMs) {
+			regions[n-1].EndMs = region.EndMs
+			continue
 		}
+		if maxMs > 0 && region.EndMs-region.StartMs > maxMs {
+			parts := (region.EndMs - region.StartMs + maxMs - 1) / maxMs
+			length := (region.EndMs - region.StartMs + parts - 1) / parts
+			for start := region.StartMs; start < region.EndMs; start += length {
+				regions = append(regions, speechRegion{StartMs: start, EndMs: min(start+length, region.EndMs)})
+			}
+			continue
+		}
+		regions = append(regions, region)
 	}
 	duration := int64(math.Round(wire.Duration * 1000))
-	for i := range regions {
-		regions[i].StartMs = max(0, regions[i].StartMs-250)
-		regions[i].EndMs = min(duration, regions[i].EndMs+250)
+	padded := append([]speechRegion{}, regions...)
+	for i := range padded {
+		before, after := int64(250), int64(250)
+		if i > 0 {
+			before = min(before, (regions[i].StartMs-regions[i-1].EndMs)/2)
+		}
+		if i+1 < len(regions) {
+			after = min(after, (regions[i+1].StartMs-regions[i].EndMs)/2)
+		}
+		padded[i].StartMs = max(0, regions[i].StartMs-before)
+		padded[i].EndMs = min(duration, regions[i].EndMs+after)
 	}
-	return regions, nil
+	return padded, nil
 }
 
 // detectSpeech uses the same FireRedVAD v1.0.0 model and VadConfig defaults
 // as OneAsr, including for short recordings. A missing/broken helper is an
 // error; it must not silently fall back to feeding silence to the recognizer.
-func detectSpeech(ctx context.Context, install, wav string) ([]speechRegion, error) {
+func detectSpeech(ctx context.Context, install, wav string, maxMs int64) ([]speechRegion, error) {
 	var output strings.Builder
 	const limit = 4 * 1024 * 1024
 	err := jobs.Run(ctx, jobs.CommandContext(ctx, filepath.Join(install, "fireredvad.exe"), "vad", wav), func(line string) {
@@ -78,7 +98,7 @@ func detectSpeech(ctx context.Context, install, wav string) ([]speechRegion, err
 	if output.Len() > limit {
 		return nil, errors.New(locales.ErrSpeechRegions())
 	}
-	return speechRegions([]byte(output.String()))
+	return speechRegions([]byte(output.String()), maxMs)
 }
 
 // recognitionRegion bounds normalization to actual input audio. In particular,

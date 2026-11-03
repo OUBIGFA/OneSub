@@ -8,8 +8,9 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
-// recognize invokes the existing OneAsr CLI. The CLI remains the ASR/aligner
-// authority; there is no replacement recognition implementation in the UI.
+// recognize invokes the chosen model's CLI: OneAsr, or sherpa-onnx. The CLI
+// remains the ASR/aligner authority; there is no replacement recognition
+// implementation in the UI.
 // Its result replaces the subtitles, so unsaved files are offered first.
 func (a *NativeApp) recognize() {
 	a.recognizeWithTranslation(false)
