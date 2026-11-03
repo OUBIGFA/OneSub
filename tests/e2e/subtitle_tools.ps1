@@ -36,6 +36,7 @@ function Click-UI($name){
   if($root){foreach($item in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name))){
    if(-not $item.Current.IsEnabled){continue};$pattern=$null
    if($item.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern,[ref]$pattern)){$pattern.Invoke();Start-Sleep -Milliseconds 300;return}
+   if($item.TryGetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern,[ref]$pattern)){$pattern.Expand();Start-Sleep -Milliseconds 300;return}
    if($item.TryGetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern,[ref]$pattern)){$pattern.Select();Start-Sleep -Milliseconds 300;return}
   }};Start-Sleep -Milliseconds 100
  };throw "Action unavailable: $name"
@@ -44,6 +45,12 @@ function Set-Text($name,$value){
  [void](Wait-UI $name)
  foreach($item in (Root).FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name))){
   $pattern=$null;if($item.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern,[ref]$pattern)){$pattern.SetValue($value);Start-Sleep -Milliseconds 200;return}
+ };throw "Input unavailable: $name"
+}
+function Read-Text($name){
+ [void](Wait-UI $name)
+ foreach($item in (Root).FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name))){
+  $pattern=$null;if($item.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern,[ref]$pattern)){return $pattern.Current.Value}
  };throw "Input unavailable: $name"
 }
 function Cue-Texts($path){return @([regex]::Matches([IO.File]::ReadAllText($path),'(?m)^\d+\r?\n[^\r\n]+ --> [^\r\n]+\r?\n([^\r\n]+)')|ForEach-Object{$_.Groups[1].Value})}
@@ -56,6 +63,25 @@ function Split-One($text) {
  for($i=0;$i -lt 100;$i++){if([SmokeNative]::MenuItems($p.Id)){break};Start-Sleep -Milliseconds 100}
  if(-not [SmokeNative]::ChooseMenuItem($p.MainWindowHandle,$p.Id,'智能拆分')){throw ('Single split menu activation failed: '+[SmokeNative]::MenuActivationError)}
  Start-Sleep -Milliseconds 500
+}
+function Check-CompactCue($previousText,$text,$path,$name) {
+ # Edit/save a real fixture, then use the real single-cue menu. A no-op must
+ # preserve bytes and must not insert an undo step before the text edit.
+ Set-Text '搜索' ''
+ # Undo leaves this fixture's final cue selected. Verify that state instead
+ # of invoking the row's non-actionable text leaf or clicking it again.
+ if((Read-Text '字幕文字') -ne $previousText){throw 'Compact fixture row is not selected'}
+ Set-Text '字幕文字' $text
+ Save-Subtitles
+ $savedHash=(Get-FileHash $path).Hash
+ Split-One $text
+ if((Read-Text '字幕文字') -ne $text){throw 'Compact cue text was split in the workbench'}
+ [void](Wait-UI '状态：字幕无需拆分，已保留原条目。')
+ if((Assert-Sequence $path) -ne 3 -or (Get-FileHash $path).Hash -ne $savedHash){throw 'Compact cue was fragmented or written by the split command'}
+ if((Cue-Texts $path)[-1] -ne $text){throw 'Compact cue text or punctuation changed'}
+ Capture $name
+ Undo-Save
+ if((Cue-Texts $path)[-1] -ne $previousText){throw 'No-op split inserted an undo step'}
 }
 function View-Long($count) {
  Click-UI '查看问题'
@@ -126,6 +152,11 @@ try {
  if((Assert-Sequence $source) -ne 4 -or (Cue-Texts $source)[0] -ne $first){throw 'Single split did not target only the readable cue'}
  Capture 'single-source.png'
  Undo-Save
+ foreach($case in @(
+  @{text='为什么公司几乎立即就道歉？';name='compact-question-source.png'},
+  @{text='你能不能具体讲讲发生了什么？';name='compact-predicate-source.png'},
+  @{text='Kylian Mbappé 是个极具统治力的球员';name='compact-name-source.png'}
+ )){Check-CompactCue $third $case.text $source $case.name}
  # One occurrence, then whole-track replacement despite an active filter.
  foreach($all in @($false,$true)){
   Set-Text '搜索' 'Check final'
@@ -166,6 +197,12 @@ try {
  if((Assert-Sequence $translated) -ne 4 -or (Get-FileHash $source).Hash -ne $sourceHash){throw 'Single working split did not preserve original track'}
  Capture 'single-translated.png'
  Undo-Save
+ foreach($case in @(
+  @{text='为什么公司几乎立即就道歉？';name='compact-question-translated.png'},
+  @{text='你能不能具体讲讲发生了什么？';name='compact-predicate-translated.png'},
+  @{text='Kylian Mbappé 是个极具统治力的球员';name='compact-name-translated.png'}
+ )){Check-CompactCue '最后检查所有输入，然后保存全部字幕结果。' $case.text $translated $case.name}
+ if((Get-FileHash $source).Hash -ne $sourceHash){throw 'Compact working-cue checks modified the original file'}
  Click-UI '查找替换';Set-Text '查找内容' '字幕';Set-Text '替换为' '台词';Click-UI '全部替换';Click-UI '关闭';Save-Subtitles
  if(-not ((Cue-Texts $translated)-join '').Contains('台词') -or (Get-FileHash $source).Hash -ne $sourceHash){throw 'Working replacement scope incorrect'}
  Undo-Save
@@ -176,7 +213,7 @@ try {
  foreach($text in (Cue-Texts $translated)){if($text.EndsWith('。')){throw 'Working trailing punctuation remained'}}
  if((Get-FileHash $source).Hash -ne $sourceHash){throw 'Working cleanup changed original file'}
  Capture 'finished.png'
- Write-Output 'PASS: packaged toolbar grouping, save status inside the action, original/working split with automatic punctuation cleanup, unchanged files before Save, numbering, single/all replacement, manual punctuation with options off, one-step undo, independent tracks'
+ Write-Output 'PASS: packaged toolbar grouping, save status inside the action, original/working split with automatic punctuation cleanup, compact questions and mixed names unchanged without an undo step, unchanged files before Save, numbering, single/all replacement, manual punctuation with options off, one-step undo, independent tracks'
 } catch {
  Capture 'failure.png'
  $root=Root;if($root){$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)|ForEach-Object{Write-Output ('UIA: '+$_.Current.Name)}}

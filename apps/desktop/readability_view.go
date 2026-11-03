@@ -127,6 +127,8 @@ func readingReason(reason string) string {
 		return locales.ReadingCapacity()
 	case "boundary":
 		return locales.ReadingNoBoundary()
+	case "readable":
+		return locales.ReadingReadable()
 	}
 	return ""
 }

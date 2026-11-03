@@ -46,6 +46,7 @@
   "readingPairing": "Source or translated text has insufficient complete segments. The cue was kept unchanged.",
   "readingCapacity": "The cue exceeds local split capacity. The cue was kept unchanged.",
   "readingNoBoundary": "No safe word or phrase boundary; the cue was kept unchanged.",
+  "readingReadable": "The cue needs no split. It remains unchanged.",
   "readingMetrics": "{name}: {units}/{limit} reading units · {rate}/{maxRate} units/s",
   "@readingMetrics": {"placeholders":{"name":{},"units":{},"limit":{},"rate":{},"maxRate":{}}},
   "readingResult": "Split {changed} cues · added {added} · check timing {estimated} · remaining issues {remaining}",

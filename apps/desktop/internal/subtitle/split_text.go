@@ -69,10 +69,11 @@ type textBoundary struct {
 }
 
 type splitText struct {
-	text         string
-	boundaries   []textBoundary
-	units, limit float64
-	language     splitLanguage
+	text                  string
+	boundaries            []textBoundary
+	units, limit, ceiling float64 // preferred line width and compact-utterance ceiling are distinct
+	language              splitLanguage
+	clauseOnly            bool // readable primary text needs a clause or measured pause, not a forced midpoint
 }
 
 type splitAnalysis struct {
@@ -124,11 +125,11 @@ func splitClusterUnits(g []rune, cjk bool) float64 {
 func newSplitText(text string) splitText {
 	language := splitLanguageOf(text)
 	cjk, _, _ := readingProfile(text)
-	limit := 38.0
+	limit, ceiling := 38.0, 42.0
 	if language == splitChinese || language == splitJapanese || language == splitKorean {
-		limit = 16
+		limit, ceiling = 16, 20
 	}
-	out := splitText{text: text, limit: limit, language: language}
+	out := splitText{text: text, limit: limit, ceiling: ceiling, language: language}
 	ws := splitAnalysisPool.Get().(*splitAnalysis)
 	defer splitAnalysisPool.Put(ws)
 	ws.runes, ws.bytes = ws.runes[:0], ws.bytes[:0]
@@ -188,6 +189,7 @@ func newSplitText(text string) splitText {
 		}
 	}
 	words := ws.seg.WordIterator()
+	nameEnd := -1
 	for words.Next() {
 		w := words.Word()
 		end, native := w.Offset+len(w.Text), false
@@ -202,6 +204,25 @@ func newSplitText(text string) splitText {
 				ws.blocked[i] = true
 			}
 		}
+		if language == splitChinese && !native && mixedLatinNameWord(w.Text) {
+			if nameEnd >= 0 {
+				joined := true
+				for _, r := range ws.runes[nameEnd:w.Offset] {
+					joined = joined && unicode.IsSpace(r)
+				}
+				if joined {
+					for cut := nameEnd; cut <= w.Offset; cut++ {
+						ws.blocked[cut] = true // Kylian / Mbappé is not a phrase boundary
+					}
+				}
+			}
+			nameEnd = end
+		} else {
+			nameEnd = -1
+		}
+	}
+	if language == splitChinese {
+		protectChineseConnections(text, ws)
 	}
 	for i := 1; i <= n; i++ {
 		ws.wordCount[i] = ws.wordCount[i-1] + ws.wordEnd[i]
@@ -278,22 +299,8 @@ func splitBoundaryPenalty(text string, index int, ws *splitAnalysis, language sp
 		return 0, false
 	}
 	if language == splitChinese {
-		// A standalone particle binds left; words such as 了解/过去/地理
-		// remain ordinary whole words instead of being banned by first rune.
-		if strings.ContainsRune(chineseParticles, ws.runes[index]) && ws.next[index] == index+1 {
-			return 0, false
-		}
-		before := strings.TrimSpace(text[:ws.bytes[index]])
-		if strings.ContainsRune("的地得", r) && !ws.blocked[left] {
-			return 0, false // a standalone modifier particle also needs its following head
-		}
-		for _, words := range [][]string{chineseClauseHeads, chinesePhraseHeads} {
-			for _, word := range words {
-				if strings.HasSuffix(before, word) {
-					return 0, false
-				}
-			}
-		}
+		// Grammar is a whole-token hard mask, including surrounding spaces;
+		// scoring cannot reintroduce it or reject 调和 merely for ending in 和.
 		if hasPhrasePrefix(right, chineseClauseHeads) {
 			return -5, true
 		}

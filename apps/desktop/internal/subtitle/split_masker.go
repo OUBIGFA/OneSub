@@ -67,7 +67,7 @@ func lineStartPunctuation(r rune) bool {
 	return unicode.In(r, unicode.Pe, unicode.Pf) || strings.ContainsRune("，。！？；：、,.!?;:…،؛؟", r)
 }
 
-var chineseClauseHeads = strings.Fields("但是 然而 虽然 雖然 因为 因為 所以 因此 而且 并且 並且 不过 不過 尽管 儘管 否则 否則 和")
+var chineseClauseHeads = strings.Fields("但是 然而 虽然 雖然 因为 因為 所以 因此 而且 并且 並且 不过 不過 尽管 儘管 否则 否則 然后 然後 于是 於是 接着 接著 和")
 var chinesePhraseHeads = strings.Fields("关于 關於 对于 對於 为了 為了 通过 通過 根据 根據 按照 至于 至於")
 var chineseSubjects = strings.Fields("我们 我們 你们 你們 他们 他們 这次 這次 下一个 下一個")
 var chineseParticles = "的地得着著了过過"

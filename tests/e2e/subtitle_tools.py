@@ -44,7 +44,10 @@ if __name__ == "__main__":
     thread.start()
     try:
         script = Path(__file__).with_suffix(".ps1").resolve()
-        invoke = (f"& ([scriptblock]::Create([IO.File]::ReadAllText({literal(script)}))) "
+        # Match the scripts' UTF-8 reader for native diagnostic output too.
+        # Windows PowerShell otherwise decodes MyGo/Go's UTF-8 as the ACP.
+        invoke = ("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); "
+                  f"& ([scriptblock]::Create([IO.File]::ReadAllText({literal(script)}))) "
                   f"-Exe {literal(args.exe)} -Work {literal(args.work)} "
                   f"-ScreenshotTool {literal(args.screenshot_tool)} -NativeHelpersPath {literal(Path(__file__).with_name('native_smoke.ps1').resolve())} -Appearance {literal(args.appearance)} "
                   f"-Endpoint 'http://127.0.0.1:{server.server_port}/v1'")

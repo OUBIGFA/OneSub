@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 func TestSmartSplitTransactionTracksHistoryAndReopen(t *testing.T) {
@@ -72,7 +73,7 @@ func TestSmartSplitTransactionTracksHistoryAndReopen(t *testing.T) {
 
 func TestSingleSplitReadableCueDoesNotBatchOtherProblems(t *testing.T) {
 	doc := subtitle.Document{Format: "srt", Cues: []subtitle.Cue{
-		{ID: "short", Text: "Hello wonderful world today.", StartMs: 0, EndMs: 4000},
+		{ID: "short", Text: "Check every file. Then run it.", StartMs: 0, EndMs: 4000},
 		{ID: "long", Text: "This is a much longer neighboring subtitle which must remain unchanged by the single-cue command.", StartMs: 5000, EndMs: 19000},
 	}}
 	s, err := Create(filepath.Join(t.TempDir(), "single.onesub"), "", "", doc)
@@ -97,6 +98,25 @@ func TestSingleSplitReadableCueDoesNotBatchOtherProblems(t *testing.T) {
 	undone, _ := s.Snapshot()
 	if !reflect.DeepEqual(before.Document, undone.Document) || !reflect.DeepEqual(before.SourceDocument, undone.SourceDocument) {
 		t.Fatal("single undo did not restore both mirrors")
+	}
+}
+
+func TestSingleSplitCompactCueDoesNotWriteHistory(t *testing.T) {
+	doc := subtitle.Document{Format: "srt", Cues: []subtitle.Cue{{ID: "compact", Text: "为什么公司几乎立即就道歉？", StartMs: 0, EndMs: 4000}}}
+	s, err := Create(filepath.Join(t.TempDir(), "compact.onesub"), "", "", doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	before, _ := s.Snapshot()
+	for _, original := range []bool{true, false} {
+		if _, err := s.SplitCue(context.Background(), "compact", before.Revision, original, "compact", subtitle.PunctuationOptions{StripTrailing: true, ReplacePeriods: true}); err == nil || err.Error() != locales.ErrNoEdits() {
+			t.Fatal("a no-op split was committed or returned an unrelated error", err)
+		}
+		after, _ := s.Snapshot()
+		if !reflect.DeepEqual(before, after) {
+			t.Fatal("no-op split changed document, revision or history", before, after)
+		}
 	}
 }
 

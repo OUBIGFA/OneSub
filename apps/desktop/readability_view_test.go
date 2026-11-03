@@ -110,8 +110,8 @@ func TestSingleReadingSplitMenuAndCommandBothTracks(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			for _, tab := range []int{0, 1} {
-				a := storeApp(t, subtitle.Cue{ID: "short", Text: "Hello wonderful world today.", StartMs: 0, EndMs: 4000}, subtitle.Cue{ID: "long", Text: strings.Repeat("word ", 30), StartMs: 5000, EndMs: 25000})
-				if _, err := a.store.ApplyTranslation("translate", 0, []project.Edit{{ID: "short", Text: "早上好大家好晚上好各位好", StartMs: 0, EndMs: 4000}}); err != nil {
+				a := storeApp(t, subtitle.Cue{ID: "short", Text: "Check every file. Then run it.", StartMs: 0, EndMs: 4000}, subtitle.Cue{ID: "long", Text: strings.Repeat("word ", 30), StartMs: 5000, EndMs: 25000})
+				if _, err := a.store.ApplyTranslation("translate", 0, []project.Edit{{ID: "short", Text: "早上好大家好。晚上好各位好。", StartMs: 0, EndMs: 4000}}); err != nil {
 					t.Fatal(err)
 				}
 				state, _ := a.store.Snapshot()
@@ -142,6 +142,37 @@ func TestSingleReadingSplitMenuAndCommandBothTracks(t *testing.T) {
 				a.undo(false)
 				if len(a.activeDocument().Cues) != 2 {
 					t.Fatal("single split was not one undo step")
+				}
+			}
+		})
+	}
+}
+
+func TestSingleReadingSplitKeepsCompactCueWithoutAnEditBothTracks(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			for _, tab := range []int{0, 1} {
+				a := storeApp(t, subtitle.Cue{ID: "short", Text: "为什么公司几乎立即就道歉？", StartMs: 0, EndMs: 4000}, subtitle.Cue{ID: "long", Text: strings.Repeat("word ", 30), StartMs: 5000, EndMs: 25000})
+				if _, err := a.store.ApplyTranslation("translate", 0, []project.Edit{{ID: "short", Text: "你能不能具体讲讲发生了什么？", StartMs: 0, EndMs: 4000}}); err != nil {
+					t.Fatal(err)
+				}
+				before, _ := a.store.Snapshot()
+				a.setSnapshot(before)
+				a.changeSubtitleTab(tab)
+				a.markSaved(0, "original.srt")
+				a.markSaved(1, "translated.srt")
+				apply, err := a.smartSplitWork("short")(context.Background())
+				if err != nil || apply == nil {
+					t.Fatal("a no-op split was reported as an error", err)
+				}
+				apply()
+				after, _ := a.store.Snapshot()
+				if !reflect.DeepEqual(before, after) || a.trackUnsaved(tab) || a.status != locales.ReadingReadable() {
+					t.Fatal("a compact cue created an edit or lost its no-split explanation", tab, a.status)
+				}
+				footer := settled(func(c *ui.Context) { a.statusBar(c, studioColors(c)) }, 640, 48)
+				if !footer.HasText(locales.StatusOwnerStatus() + locales.ReadingReadable()) {
+					t.Fatal("no-split explanation did not reach the native status bar", footer.Texts())
 				}
 			}
 		})

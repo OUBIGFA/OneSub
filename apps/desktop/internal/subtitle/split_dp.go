@@ -11,6 +11,7 @@ import (
 const (
 	minimumSplitDuration = int64(833)
 	preferredSplitSpan   = int64(1200)
+	meaningfulSplitPause = int64(500)
 	maximumSplitParts    = 16
 	maximumSplitBounds   = 256
 )
@@ -21,6 +22,16 @@ type splitClock struct {
 	times  map[int]int64
 	wordAt map[int]int
 	words  []Word
+}
+
+// pauseAt returns evidence only at validated internal word-clock boundaries.
+// Missing clocks are not a zero-length pause and never justify a short split.
+func (clock splitClock) pauseAt(offset int) (int64, bool) {
+	word, ok := clock.wordAt[offset]
+	if !ok || word <= 0 || word >= len(clock.words) {
+		return 0, false
+	}
+	return clock.words[word].StartMs - clock.words[word-1].EndMs, true
 }
 
 type splitDPWorkspace struct {
@@ -105,6 +116,12 @@ func (s splitText) partition(ctx context.Context, count int, clock splitClock, f
 				continue
 			}
 			b := bounds[j]
+			if part < count && s.clauseOnly && b.penalty >= 0 {
+				gap, measured := clock.pauseAt(b.offset)
+				if !measured || gap < meaningfulSplitPause {
+					continue // a readable utterance does not need an arbitrary lexical cut
+				}
+			}
 			for p := j - 1; p >= part-1; p-- {
 				previous := ws.cost[(part-1)*stride+p]
 				if math.IsInf(previous, 1) {
@@ -133,8 +150,7 @@ func (s splitText) partition(ctx context.Context, count int, clock splitClock, f
 				}
 				if part < count {
 					cost += b.penalty
-					if word, ok := clock.wordAt[b.offset]; ok && word > 0 && word < len(clock.words) {
-						gap := clock.words[word].StartMs - clock.words[word-1].EndMs
+					if gap, measured := clock.pauseAt(b.offset); measured {
 						if gap >= 300 {
 							cost -= math.Min(40, float64(gap-300)/15)
 						} else if gap < 80 && b.penalty >= -5 {

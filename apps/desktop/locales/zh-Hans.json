@@ -46,6 +46,7 @@
   "readingPairing": "原文或译文没有足够的完整分段，已保留原条目。",
   "readingCapacity": "字幕超出本地拆分容量，已保留原条目。",
   "readingNoBoundary": "没有安全的词语或分句边界，已保留原条目。",
+  "readingReadable": "字幕无需拆分，已保留原条目。",
   "readingMetrics": "{name}：{units}/{limit} 阅读单位 · {rate}/{maxRate} 单位/秒",
   "@readingMetrics": {"placeholders":{"name":{},"units":{},"limit":{},"rate":{},"maxRate":{}}},
   "readingResult": "已拆分 {changed} 条 · 新增 {added} 条 · 待校时 {estimated} 条 · 剩余问题 {remaining} 条",

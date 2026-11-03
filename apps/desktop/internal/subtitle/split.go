@@ -222,11 +222,25 @@ func splitCue(ctx context.Context, cue Cue, format, command string, original boo
 		lanes = append(slices.Clone(source), translated...)
 	}
 	primary, groupStart, groupEnd := primarySplitLane(lanes, len(source), !original && cue.Translated)
+	primaryText := SourceText(cue)
+	if !original && cue.Translated {
+		primaryText = cue.Text
+	}
+	// The 16/38-column target chooses cuts in long text; it does not force
+	// another split in a compact utterance. Use the specification's wider
+	// 20/42-column ceilings, plus the existing combined reading-load gate.
+	// A manual request can still separate independent clauses or real pauses.
+	lanes[primary].clauseOnly = !InspectReading(primaryText, cue.EndMs-cue.StartMs).TooLong
+	for i := groupStart; i < groupEnd; i++ {
+		lanes[primary].clauseOnly = lanes[primary].clauseOnly && lanes[i].units <= lanes[i].ceiling
+	}
 	maximum := min(maximumSplitParts, int((cue.EndMs-cue.StartMs)/preferredSplitSpan))
 	if maximum < 2 {
 		return nil, "duration", nil
 	}
-	count := max(2, int(math.Ceil(float64(cue.EndMs-cue.StartMs)/7000)))
+	// Slow delivery must not increase the number of linguistic pieces.
+	// Duration bounds feasibility, while the primary text bounds necessity.
+	count := 2
 	for i, lane := range lanes {
 		if len(lane.boundaries) > maximumSplitBounds {
 			return nil, "capacity", nil
@@ -236,7 +250,7 @@ func splitCue(ctx context.Context, cue Cue, format, command string, original boo
 			minimumCharacters = 4
 		}
 		maximum = min(maximum, len(lane.boundaries)-1, lane.boundaries[len(lane.boundaries)-1].characters/minimumCharacters)
-		if i >= groupStart && i < groupEnd {
+		if i >= groupStart && i < groupEnd && !lanes[primary].clauseOnly {
 			count = max(count, int(math.Ceil(lane.units/lane.limit)))
 		}
 	}
@@ -307,6 +321,9 @@ func splitCue(ctx context.Context, cue Cue, format, command string, original boo
 		}
 	}
 	if pieces == nil {
+		if lanes[primary].clauseOnly && reason == "boundary" {
+			reason = "readable"
+		}
 		return nil, reason, nil
 	}
 	count = len(cuts) - 1

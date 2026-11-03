@@ -237,7 +237,8 @@ func TestSmartSplitResolvesLengthInOneBatchAndAvoidsShortPieces(t *testing.T) {
 }
 
 func TestSmartSplitSingleCueAlsoHandlesReadableCues(t *testing.T) {
-	for _, text := range []string{"Hello wonderful world today.", "早上好大家好晚上好各位好"} {
+	// A readable cue remains eligible when it has independent sentences.
+	for _, text := range []string{"Check every file. Then run it.", "早上好大家好。晚上好各位好。"} {
 		cue := Cue{ID: "short", Text: text, StartMs: 0, EndMs: 4000}
 		long := Cue{ID: "long", Position: 1, Text: strings.Repeat("word ", 30), StartMs: 5000, EndMs: 25000}
 		if InspectCueReading(cue).Problem() {
