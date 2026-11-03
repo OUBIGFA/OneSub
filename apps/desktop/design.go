@@ -57,12 +57,18 @@ func icon(c *ui.Context, name string) ui.Element {
 
 // iconButton is a native button with an icon before its label.
 func iconButton(c *ui.Context, label, name string) ui.Element {
-	return ui.Button(c, "").Label(label).Tooltip(label).Children(func() { icon(c, name); ui.Text(c, label).SingleLine() })
+	return ui.Button(c, "").Label(label).Tooltip(label).Children(func() {
+		icon(c, name).Label(locales.A11yIconOf(label))
+		ui.Text(c, label).SingleLine()
+	})
 }
 
 // primaryIconButton is iconButton in the accent color, one per area.
 func primaryIconButton(c *ui.Context, label, name string) ui.Element {
-	return ui.PrimaryButton(c, "").Label(label).Tooltip(label).Children(func() { icon(c, name); ui.Text(c, label).SingleLine() })
+	return ui.PrimaryButton(c, "").Label(label).Tooltip(label).Children(func() {
+		icon(c, name).Label(locales.A11yIconOf(label))
+		ui.Text(c, label).SingleLine()
+	})
 }
 
 // toolIcon is an icon-only native button, square and with the icon in its

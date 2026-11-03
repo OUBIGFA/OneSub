@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,8 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
+	"github.com/egoist/mygo/ui"
 )
 
 func draftApp(t *testing.T) *NativeApp {
@@ -142,6 +145,87 @@ func TestDefaultSaveNamesFollowTheSubtitleOrVideo(t *testing.T) {
 	a.snapshot.Manifest.MediaPath = filepath.Join("videos", "talk.mp4")
 	if a.originalSubtitlePath() != "" || a.defaultTrackPath(0) != filepath.Join("videos", "talk.srt") {
 		t.Fatal("recognition output treated as the original file", a.defaultTrackPath(0))
+	}
+}
+
+// Save and Unsaved are two labels of one native button. Neither an edit nor
+// undo may resize its face or move the neighbouring Save As action.
+func TestSubtitleSaveStatusKeepsOneButtonWidth(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			for _, dark := range []bool{false, true} {
+				for _, scale := range []float32{1, 1.5, 2} {
+					for _, width := range []int{320, 640} {
+						t.Run(fmt.Sprintf("%s/dark%t/%g/%d", language, dark, scale, width), func(t *testing.T) {
+							a := draftApp(t)
+							tt := settled(a.subtitlesView, int(float32(width)*scale), int(600*scale))
+							tt.SetDark(dark)
+							tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
+							before, found := tt.Find(locales.ListSave())
+							beforeAs, foundAs := tt.Find(locales.ListSaveAs())
+							if !found || !foundAs {
+								t.Fatal("save actions missing")
+							}
+							a.draft = "手工校正"
+							a.changed(tt.Now())
+							tt.Frame()
+							after, _ := tt.Find(locales.ListSave())
+							afterAs, _ := tt.Find(locales.ListSaveAs())
+							if before != after || beforeAs != afterAs || !tt.HasText(locales.ListUnsaved()) {
+								t.Fatal("dirty state resized the save face or moved Save As", before, after, beforeAs, afterAs)
+							}
+							a.undo(false)
+							tt.Frame()
+							restored, _ := tt.Find(locales.ListSave())
+							if restored != before || a.trackUnsaved(0) || tt.HasText(locales.ListUnsaved()) {
+								t.Fatal("undo did not restore the same saved button")
+							}
+							captureRedesign(t, tt, fmt.Sprintf("save-width-%s-dark%t-%g-%d", language, dark, scale, width))
+						})
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestSubtitleSaveAsIconAndFileSeparator(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			a := draftApp(t)
+			var border ui.Color
+			tt := settled(func(c *ui.Context) {
+				border = c.Theme().Border
+				a.subtitlesView(c)
+			}, 1600, 600)
+			group, found := tt.Find(locales.A11ySubtitleFileActions())
+			save, _ := tt.Find(locales.ListSave())
+			saveAs, _ := tt.Find(locales.ListSaveAs())
+			inspect, _ := tt.Find(locales.ReadingInspect())
+			fileIcon, hasIcon := tt.Find(locales.A11yIconOf(locales.ListSaveAs()))
+			if !found || group.X <= inspect.X+inspect.W || save.X <= group.X || !hasIcon || fileIcon.W <= 0 || fileIcon.X < saveAs.X || fileIcon.X+fileIcon.W > saveAs.X+saveAs.W {
+				t.Fatal("save group separator or Save As icon missing", group, saveAs, fileIcon)
+			}
+			// A native Divider is a real vertical line, not blank padding.
+			longest := 0
+			frame := tt.Image()
+			for x := int(group.X); x < int(save.X); x++ {
+				run := 0
+				for y := int(group.Y); y < int(group.Y+group.H); y++ {
+					p := frame.RGBAAt(x, y)
+					if p.R == border.R && p.G == border.G && p.B == border.B {
+						run++
+						longest = max(longest, run)
+					} else {
+						run = 0
+					}
+				}
+			}
+			if longest < 10 {
+				t.Fatal("save group has no visible native separator", longest)
+			}
+			captureRedesign(t, tt, "subtitle-toolbar-"+language)
+		})
 	}
 }
 

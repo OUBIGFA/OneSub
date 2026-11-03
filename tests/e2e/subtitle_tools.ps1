@@ -56,6 +56,12 @@ function Split-One($text) {
  if(-not [SmokeNative]::ChooseMenuItem($p.MainWindowHandle,$p.Id,'智能拆分')){throw ('Single split menu activation failed: '+[SmokeNative]::MenuActivationError)}
  Start-Sleep -Milliseconds 500
 }
+function View-Long($count) {
+ Click-UI '查看问题'
+ for($i=0;$i -lt 100;$i++){if([SmokeNative]::MenuItems($p.Id)){break};Start-Sleep -Milliseconds 100}
+ if(-not [SmokeNative]::ChooseMenuItem($p.MainWindowHandle,$p.Id,"查看过长字幕 · $count 条")){throw ('Reading category menu activation failed: '+[SmokeNative]::MenuActivationError)}
+ Start-Sleep -Milliseconds 300
+}
 function Capture($name) {
  # Clear the UIA activation's synthetic hover/focus on a non-interactive
  # heading before taking a static image; never click an underlying modal.
@@ -74,17 +80,19 @@ function Capture($name) {
  if($LASTEXITCODE -ne 0){throw 'Screenshot failed'}
 }
 try {
- [void](Wait-UI '阅读负荷 2')
+ [void](Wait-UI '智能拆分 · 2 条长字幕')
+ $savedFace=(Wait-UI '保存').Current.BoundingRectangle
  $search=Find-UI '搜索';$replace=Find-UI '查找替换';$locate=Find-UI '回到当前字幕';$periods=Find-UI '句号转逗号';$trailing=Find-UI '移除句末标点'
  $sr=$search.Current.BoundingRectangle;$rr=$replace.Current.BoundingRectangle;$lr=$locate.Current.BoundingRectangle;$pr=$periods.Current.BoundingRectangle;$tr=$trailing.Current.BoundingRectangle
- if($rr.Left -lt $sr.Right -or $rr.Top -ge $sr.Bottom -or $pr.Left -le $lr.Right -or $tr.Left -lt $pr.Right){throw 'Subtitle toolbar grouping/order incorrect'}
+ if($rr.Left -lt $tr.Right -or $rr.Top -ge $tr.Bottom -or $pr.Left -le $lr.Right -or $tr.Left -lt $pr.Right){throw 'Subtitle toolbar grouping/order incorrect'}
+ if($sr.Top -lt $rr.Bottom -and $sr.Bottom -gt $rr.Top -and $sr.Left -lt $rr.Right){throw 'Search does not follow the editing tools'}
  Capture 'before.png'
  Set-Text '搜索' 'Done'
- Click-UI '阅读负荷 2'
- [void](Wait-UI '过长 · 过快')
+ View-Long 2
+ [void](Wait-UI '字幕：过长 · 过快')
  Capture 'selected-issue.png'
- Click-UI '智能拆分'
- [void](Wait-UI '阅读负荷 1')
+ Click-UI '智能拆分 · 2 条长字幕'
+ [void](Wait-UI '智能拆分 · 1 条长字幕')
  if((Get-FileHash $source).Hash -ne $initialHash){throw 'Split wrote the source before Save'}
  $save=Find-UI '保存'
  if(-not $save -or -not $save.Current.IsEnabled){throw 'Unsaved edits did not enable Save'}
@@ -93,6 +101,7 @@ try {
  # actual rendering inside that action rather than requiring a separate node.
  Add-Type -AssemblyName System.Drawing
  $saveBounds=$save.Current.BoundingRectangle;$rootBounds=(Root).Current.BoundingRectangle
+ if([Math]::Abs($saveBounds.Width-$savedFace.Width) -gt 1){throw 'Save and Unsaved use different button widths'}
  $image=[Drawing.Bitmap]::new((Join-Path $workPath 'split-source.png'))
  try {
   $red=0
@@ -143,7 +152,7 @@ try {
  for($i=0;$i -lt 300;$i++){if(Test-Path $translated){break};Start-Sleep -Milliseconds 100}
  if(-not (Test-Path $translated)){throw 'Translation output missing'}
  Click-UI '优化字幕'
- Click-UI '智能拆分'
+ Click-UI '智能拆分 · 2 条长字幕'
  Save-Subtitles
  Capture 'split-translated.png'
  if((Assert-Sequence $translated) -le 3){throw 'Working track was not split'}

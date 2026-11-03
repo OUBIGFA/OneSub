@@ -31,6 +31,14 @@ func (a *NativeApp) subtitleStructureMenu(m *ui.Menu, index int) {
 		protected = cues[index].ReadOnly
 	}
 	disabled := a.busy || a.snapshot == nil || a.showsTranslationProgress()
+	// Locating does not edit protected ASS content. Use an explicit pause
+	// action, never the user's configurable single/double-click preference.
+	if m.Item(locales.SubtitleLocateVideo()).Disabled(disabled || id == "" || !a.playbackAvailable()).Chosen() {
+		a.pendingClick, a.rowClick = nil, nil
+		a.list.StopScroll()
+		a.selectSubtitle(index, "seek-pause")
+	}
+	m.Separator()
 	if m.Item(locales.SubtitleInsertBefore()).Disabled(disabled).Chosen() {
 		a.openSubtitleInsert(id, true)
 	}

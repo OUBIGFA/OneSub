@@ -46,32 +46,64 @@ func (a *NativeApp) draftReading(cue subtitle.Cue, index int, load subtitle.CueR
 	return subtitle.InspectCueReading(cue)
 }
 
+// Counts and list navigation share each category's predicate. In particular,
+// speed and short duration never inflate the batch split's long-cue count.
+func matchesReadingIssue(load subtitle.CueReadingLoad, kind string) bool {
+	switch kind {
+	case "long":
+		return load.Long()
+	case "fast":
+		return load.Source.TooFast || load.Translation.TooFast
+	case "brief":
+		return load.Source.TooBrief || load.Translation.TooBrief
+	}
+	return false
+}
+
 func (a *NativeApp) readingTools(c *ui.Context) {
-	count := 0
+	long, fast, brief := 0, 0, 0
 	for i, load := range a.readingLoads() {
 		// Only the selected draft can differ from the cached snapshot. Do
 		// not resolve the full optimized document once per list item.
 		if i == a.selected && a.editPending {
 			load = a.cueReading(i)
 		}
-		if load.Problem() {
-			count++
+		// A paired source/translation is still one cue in each category.
+		if matchesReadingIssue(load, "long") {
+			long++
+		}
+		if matchesReadingIssue(load, "fast") {
+			fast++
+		}
+		if matchesReadingIssue(load, "brief") {
+			brief++
 		}
 	}
-	ui.Row(c).Gap(em(c, 8)).Shrink(0).AlignItems(ui.Center).Children(func() {
-		ui.Button(c, locales.ReadingIssues(count)).Disabled(count == 0 || a.showsTranslationProgress()).Tooltip(locales.ReadingLocateHint()).OnClick(a.locateReadingIssue)
-		ui.Button(c, locales.ReadingSplit()).Disabled(a.busy || a.showsTranslationProgress() || count == 0).Tooltip(locales.ReadingSplitHint()).OnClick(a.smartSplitSubtitles)
+	// The action itself names its target and count. Native wrapping keeps
+	// that complete label visible even with 20,000 cues in a narrow pane.
+	ui.Row(c).Gap(em(c, 8)).Wrap().Shrink(1).AlignItems(ui.Center).Children(func() {
+		ui.Button(c, locales.ReadingSplitCount(long)).Disabled(a.busy || a.showsTranslationProgress() || long == 0).Tooltip(locales.ReadingSplitHint()).OnClick(a.smartSplitSubtitles)
+		ui.MenuButton(c, locales.ReadingInspect(), func(m *ui.Menu) {
+			for _, entry := range []struct {
+				kind, label string
+				count       int
+			}{{"long", locales.ReadingViewLong(long), long}, {"fast", locales.ReadingViewFast(fast), fast}, {"brief", locales.ReadingViewBrief(brief), brief}} {
+				if m.Item(entry.label).Disabled(entry.count == 0).Chosen() {
+					a.locateReadingIssue(entry.kind)
+				}
+			}
+		}).Disabled(a.showsTranslationProgress() || long+fast+brief == 0).Tooltip(locales.ReadingInspectHint())
 	})
 }
 
-func (a *NativeApp) locateReadingIssue() {
+func (a *NativeApp) locateReadingIssue(kind string) {
 	if a.snapshot == nil || a.showsTranslationProgress() || !a.commitEdit(true) {
 		return
 	}
 	loads := a.readingLoads()
 	for offset := 1; offset <= len(loads); offset++ {
 		index := (max(a.selected, -1) + offset) % len(loads)
-		if !loads[index].Problem() {
+		if !matchesReadingIssue(loads[index], kind) {
 			continue
 		}
 		a.pendingClick, a.rowClick = nil, nil

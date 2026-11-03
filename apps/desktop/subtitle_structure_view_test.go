@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,7 +50,7 @@ func TestSubtitleContextMenuTargetsClickedCue(t *testing.T) {
 				if err := tt.RightClick("第二句"); err != nil {
 					t.Fatal(err)
 				}
-				want := []string{locales.SubtitleInsertBefore(), locales.SubtitleInsertAfter(), locales.ReadingSplit(), "-", locales.SubtitleMergePrevious(), locales.SubtitleMergeNext(), "-", locales.SubtitleDelete()}
+				want := []string{locales.SubtitleLocateVideo(), "-", locales.SubtitleInsertBefore(), locales.SubtitleInsertAfter(), locales.ReadingSplit(), "-", locales.SubtitleMergePrevious(), locales.SubtitleMergeNext(), "-", locales.SubtitleDelete()}
 				if !slices.Equal(tt.Menu(), want) {
 					t.Fatal("missing subtitle context actions", tt.Menu())
 				}
@@ -70,6 +71,90 @@ func TestSubtitleContextMenuTargetsClickedCue(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// The explicit menu seek uses the clicked cue's own track time, always pauses,
+// and never inherits the configurable single/double-click playback action.
+func TestSubtitleContextLocateVideoBothTracks(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			for _, tab := range []int{0, 1} {
+				for _, paused := range []bool{false, true} {
+					for _, action := range []string{"none", "seek-pause", "seek-play"} {
+						t.Run(fmt.Sprintf("%s/tab%d/paused%t/%s", language, tab, paused, action), func(t *testing.T) {
+							a := draftApp(t)
+							if _, err := a.store.Apply("manual-translation", a.snapshot.Revision, []project.Edit{{ID: "a", Track: "translation", Text: "First translation", StartMs: 100, EndMs: 2000}, {ID: "b", Track: "translation", Text: "Target translation", StartMs: 5000, EndMs: 7000}}); err != nil {
+								t.Fatal(err)
+							}
+							state, err := a.store.Snapshot()
+							if err != nil {
+								t.Fatal(err)
+							}
+							a.setSnapshot(state)
+							a.changeSubtitleTab(tab)
+							a.settings.SingleClickAction, a.settings.DoubleClickAction = action, action
+							a.mediaURL, a.position, a.paused = "local-test-video", 9.4, paused
+							cue := a.activeDocument().Cues[1]
+							a.query = cueDisplayText(cue, tab)
+							tt := settled(a.subtitlesView, 900, 500)
+							if err := tt.RightClick(a.query); err != nil {
+								t.Fatal(err)
+							}
+							if a.selected != 1 || a.position != 9.4 || a.paused != paused {
+								t.Fatal("opening the menu changed playback or selected a filtered row number")
+							}
+							if err := tt.ChooseMenuItem(locales.SubtitleLocateVideo()); err != nil {
+								t.Fatal(err)
+							}
+							tt.Advance(subtitleDoubleClickInterval() + time.Second)
+							if a.selected != 1 || a.position != float64(cue.StartMs)/1000 || !a.paused || a.followHeld || a.pendingClick != nil || a.rowClick != nil {
+								t.Fatal("menu seek did not locate and pause the clicked cue", a.selected, a.position, a.paused)
+							}
+							if a.settings.SingleClickAction != action || a.settings.DoubleClickAction != action {
+								t.Fatal("explicit menu action changed playback preferences")
+							}
+						})
+					}
+				}
+			}
+		})
+	}
+}
+
+// Locating does not edit ASS content, but missing media and active tasks must
+// disable the command immediately rather than replaying it after completion.
+func TestSubtitleContextLocateVideoAvailability(t *testing.T) {
+	for _, state := range []string{"protected", "no-media", "busy", "compose", "recognize", "translate"} {
+		t.Run(state, func(t *testing.T) {
+			a := storeApp(t, subtitle.Cue{ID: "cue", Text: "Target subtitle", StartMs: 2000, EndMs: 4000, ReadOnly: state == "protected"})
+			a.mediaURL, a.position, a.paused = "local-test-video", 9.4, true
+			if state == "no-media" {
+				a.mediaURL = ""
+			}
+			a.busy = state == "busy"
+			a.composeRunning, a.recognitionRunning, a.translationRunning = state == "compose", state == "recognize", state == "translate"
+			tt := settled(a.subtitlesView, 900, 500)
+			if err := tt.RightClick("Target subtitle"); err != nil {
+				t.Fatal(err)
+			}
+			err := tt.ChooseMenuItem(locales.SubtitleLocateVideo())
+			if state == "protected" {
+				if err != nil || a.position != 2 || !a.paused {
+					t.Fatal("format protection incorrectly blocked a non-editing seek", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), "disabled") || a.position != 9.4 || !a.paused {
+				t.Fatal("unavailable menu command changed playback", err, a.position)
+			}
+			tt.CloseMenu()
+			a.busy, a.composeRunning, a.recognitionRunning, a.translationRunning = false, false, false, false
+			tt.Advance(subtitleDoubleClickInterval() + time.Second)
+			if a.position != 9.4 || a.pendingClick != nil {
+				t.Fatal("blocked menu command replayed after the task")
+			}
+		})
 	}
 }
 
@@ -150,6 +235,9 @@ func TestEmptySubtitleListContextMenuCanInsert(t *testing.T) {
 	tt := settled(a.subtitlesView, 640, 450)
 	if err := tt.RightClick(locales.ListEmpty()); err != nil {
 		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem(locales.SubtitleLocateVideo()); err == nil {
+		t.Fatal("empty list enabled video positioning")
 	}
 	if err := tt.ChooseMenuItem(locales.SubtitleDelete()); err == nil {
 		t.Fatal("empty list enabled deletion")
@@ -241,8 +329,22 @@ func TestSubtitleListMenuPlacementAndKeyboard(t *testing.T) {
 					}
 				}
 			}
+			// A wrapped English toolbar can leave the second cue below the
+			// viewport. Use the real list navigation before testing its menu;
+			// the headless finder also knows overscanned, non-visible cells.
+			if err := tt.Click(locales.ListBottom()); err != nil {
+				t.Fatal(err)
+			}
+			tt.Advance(subtitleNavigationAnimation.Duration)
+			target, visible := tt.Find("第二句")
+			if !visible || target.W <= 0 || target.H <= 0 || target.Y+target.H/2 < list.Y || target.Y+target.H/2 >= list.Y+list.H {
+				t.Fatal("menu target is outside the visible list", language, list, target)
+			}
 			if err := tt.RightClick("第二句"); err != nil {
 				t.Fatal(err)
+			}
+			if len(tt.Menu()) == 0 || !tt.Focused(locales.A11ySubtitleList()) {
+				t.Fatal("visible row menu did not retain list focus", language, tt.Menu())
 			}
 			tt.CloseMenu()
 			tt.Key(ui.Shift, ui.KeyF10)

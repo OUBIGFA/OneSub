@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
@@ -29,12 +31,18 @@ func TestReadingToolsBothTracksLocateOutsideSearchAndUpdateDraft(t *testing.T) {
 					a.position = 1.5
 					a.paused = false
 					tt := settled(a.subtitlesView, 800, 560)
-					if !tt.HasText(locales.ReadingSplit()) {
-						t.Fatal("split tool missing")
+					if !tt.HasText(locales.ReadingSplitCount(2)) {
+						t.Fatal("split target count missing")
 					}
-					if err := tt.Click(locales.ReadingIssues(2)); err != nil {
-						t.Fatal(err)
+					nextLong := func() {
+						if err := tt.Click(locales.ReadingInspect()); err != nil {
+							t.Fatal(err)
+						}
+						if err := tt.ChooseMenuItem(locales.ReadingViewLong(2)); err != nil {
+							t.Fatal(err)
+						}
 					}
+					nextLong()
 					if a.selected != 1 || a.query != "" || a.position != 1.5 || !a.followHeld {
 						t.Fatal("locate changed playback or ignored search", a.selected, a.query)
 					}
@@ -51,15 +59,11 @@ func TestReadingToolsBothTracksLocateOutsideSearchAndUpdateDraft(t *testing.T) {
 					if !shown || !resultShown || hint.X >= result.X {
 						t.Fatal("selected reading hint is not first in the status bar", hint, result)
 					}
-					if err := tt.Click(locales.ReadingIssues(2)); err != nil {
-						t.Fatal(err)
-					}
+					nextLong()
 					if a.selected != 2 {
 						t.Fatal("not cycling")
 					}
-					if err := tt.Click(locales.ReadingIssues(2)); err != nil {
-						t.Fatal(err)
-					}
+					nextLong()
 					if a.selected != 1 {
 						t.Fatal("not wrapping")
 					}
@@ -212,13 +216,153 @@ func BenchmarkReadingToolbar20000(b *testing.B) {
 	}
 }
 
+// The split action counts only long cues. Its neutral face and the separate
+// category menu keep automatic splitting distinct from timing review.
+func TestReadingToolbarCountMatchesSplitAndCategoryNavigation(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			for _, tab := range []int{0, 1} {
+				t.Run(fmt.Sprintf("%s/%d", language, tab), func(t *testing.T) {
+					a := storeApp(t,
+						subtitle.Cue{ID: "normal", Text: "Short", StartMs: 0, EndMs: 2000},
+						subtitle.Cue{ID: "all", Text: strings.Repeat("长", 30), StartMs: 3000, EndMs: 3500},
+						subtitle.Cue{ID: "fast", Text: strings.Repeat("字", 10), StartMs: 4000, EndMs: 5000},
+						subtitle.Cue{ID: "brief", Text: "字", StartMs: 6000, EndMs: 6500})
+					if _, err := a.store.ApplyTranslation("translate", a.snapshot.Revision, []project.Edit{{ID: "all", Text: strings.Repeat("译", 35), StartMs: 3000, EndMs: 3500}}); err != nil {
+						t.Fatal(err)
+					}
+					state, err := a.store.Snapshot()
+					if err != nil {
+						t.Fatal(err)
+					}
+					a.setSnapshot(state)
+					a.changeSubtitleTab(tab)
+					a.query, a.position = "Short", 9.4
+					var danger ui.Color
+					tt := settled(func(c *ui.Context) {
+						danger = c.Theme().Danger
+						a.readingTools(c)
+					}, 800, 200)
+					split, found := tt.Find(locales.ReadingSplitCount(1))
+					if !found || tt.HasText(locales.A11yWarningIcon()) {
+						t.Fatal("split count is not part of a neutral action", tt.Texts())
+					}
+					frame := tt.Image()
+					for y := int(split.Y); y < int(split.Y+split.H); y++ {
+						for x := int(split.X); x < int(split.X+split.W); x++ {
+							p := frame.RGBAAt(x, y)
+							if p.R == danger.R && p.G == danger.G && p.B == danger.B {
+								t.Fatal("split target count is still red")
+							}
+						}
+					}
+					if err := tt.Click(locales.ReadingInspect()); err != nil {
+						t.Fatal(err)
+					}
+					if want := []string{locales.ReadingViewLong(1), locales.ReadingViewFast(2), locales.ReadingViewBrief(2)}; !slices.Equal(tt.Menu(), want) {
+						t.Fatal("categories do not count paired cues independently", tt.Menu())
+					}
+					if err := tt.ChooseMenuItem(locales.ReadingViewFast(2)); err != nil {
+						t.Fatal(err)
+					}
+					if a.selected != 1 || a.query != "" || a.position != 9.4 || !a.followHeld {
+						t.Fatal("category navigation ignored search or changed the video")
+					}
+					for _, target := range []struct {
+						label string
+						index int
+					}{{locales.ReadingViewFast(2), 2}, {locales.ReadingViewBrief(2), 3}, {locales.ReadingViewBrief(2), 1}} {
+						if err := tt.Click(locales.ReadingInspect()); err != nil {
+							t.Fatal(err)
+						}
+						if err := tt.ChooseMenuItem(target.label); err != nil {
+							t.Fatal(err)
+						}
+						if a.selected != target.index || a.position != 9.4 {
+							t.Fatal("category navigation selected another issue type", a.selected)
+						}
+					}
+					captureRedesign(t, tt, fmt.Sprintf("reading-action-%s-%d", language, tab))
+				})
+			}
+		})
+	}
+}
+
+func TestReadingToolbarDraftCountAndTimingOnlyIssues(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			a := storeApp(t, subtitle.Cue{ID: "normal", Text: "Short", StartMs: 0, EndMs: 4000})
+			tt := settled(a.readingTools, 800, 200)
+			if !tt.HasText(locales.ReadingSplitCount(0)) || tt.HasText(locales.A11yWarningIcon()) {
+				t.Fatal("zero split targets are not shown without a warning", tt.Texts())
+			}
+			a.draft = strings.Repeat("长", 30)
+			a.changed(tt.Now())
+			tt.Frame()
+			if !tt.HasText(locales.ReadingSplitCount(1)) || !a.editPending {
+				t.Fatal("draft did not immediately update the split target count")
+			}
+			a.draft, a.end = strings.Repeat("字", 10), 1
+			a.changed(tt.Now())
+			tt.Frame()
+			if !tt.HasText(locales.ReadingSplitCount(0)) {
+				t.Fatal("speed-only issue inflated the split count")
+			}
+			if err := tt.Click(locales.ReadingSplitCount(0)); err != nil || a.busy {
+				t.Fatal("zero long cues still started a split task", err)
+			}
+			if err := tt.Click(locales.ReadingInspect()); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.ChooseMenuItem(locales.ReadingViewLong(0)); err == nil {
+				t.Fatal("zero-count category is still enabled")
+			}
+			if err := tt.ChooseMenuItem(locales.ReadingViewFast(1)); err != nil {
+				t.Fatal("speed-only issue cannot be reviewed", err)
+			}
+			a.draft, a.end = "Short", 4
+			a.changed(tt.Now())
+			tt.Frame()
+			tt.Advance(time.Second)
+			if !tt.HasText(locales.ReadingSplitCount(0)) || tt.HasText(locales.A11yWarningIcon()) {
+				t.Fatal("cleared draft left a misleading warning")
+			}
+			if err := tt.Click(locales.ReadingInspect()); err != nil || len(tt.Menu()) != 0 {
+				t.Fatal("empty reading categories still open a menu", err)
+			}
+		})
+	}
+}
+
+// Large counts are user-facing subtitle counts too; they must not force the
+// whole reading group beyond the minimum panel width.
+func TestReadingToolbarLargeCountsFitMinimumPane(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			cues := make([]subtitle.Cue, 20000)
+			for i := range cues {
+				cues[i] = subtitle.Cue{ID: fmt.Sprint(i), Text: strings.Repeat("word ", 15), StartMs: int64(i) * 16000, EndMs: int64(i)*16000 + 15000}
+			}
+			a := storeApp(t, cues...)
+			tt := settled(a.subtitlesView, 320, 600)
+			for _, label := range []string{locales.ReadingSplitCount(len(cues)), locales.ReadingInspect()} {
+				bounds, found := tt.Find(label)
+				if !found || bounds.X < 0 || bounds.X+bounds.W > 320 {
+					t.Fatal("large reading count clipped in the minimum pane", language, label, bounds)
+				}
+			}
+		})
+	}
+}
+
 func TestReadingToolbarNarrowPane(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := storeApp(t, subtitle.Cue{ID: "a", Text: strings.Repeat("word ", 15), StartMs: 0, EndMs: 15000})
 			for _, width := range []int{360, 520, 900} {
 				tt := settled(a.subtitlesView, width, 600)
-				for _, label := range []string{locales.ReadingSplit(), locales.ReadingIssues(1), locales.FindReplace(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.ListSaveAs()} {
+				for _, label := range []string{locales.ReadingSplitCount(1), locales.ReadingInspect(), locales.FindReplace(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.ListSaveAs()} {
 					bounds, ok := tt.Find(label)
 					if !ok || bounds.X < 0 || bounds.X+bounds.W > float32(width)+1 {
 						t.Fatalf("clipped %q at width %v: %+v", label, width, bounds)
@@ -226,17 +370,17 @@ func TestReadingToolbarNarrowPane(t *testing.T) {
 				}
 				search, _ := tt.Find(locales.ListSearch())
 				replace, _ := tt.Find(locales.FindReplace())
-				if replace.X < search.X+search.W || replace.X-search.X-search.W > 8 || replace.Y > search.Y+search.H || replace.Y+replace.H < search.Y {
-					t.Fatal("find/replace is not immediately right of search", search, replace)
-				}
 				locate, _ := tt.Find(locales.ListLocate())
 				periods, _ := tt.Find(locales.TextReplacePeriods())
 				trailing, _ := tt.Find(locales.TextStripTrailing())
 				if periods.X <= locate.X+locate.W || trailing.X < periods.X+periods.W || periods.Y != locate.Y || trailing.Y != locate.Y {
 					t.Fatal("punctuation is not grouped after navigation", locate, periods, trailing)
 				}
-				if width == 900 && (trailing.X+trailing.W > search.X || trailing.Y > search.Y+search.H) {
-					t.Fatal("punctuation is not left of search", trailing, search)
+				if replace.X < trailing.X+trailing.W || replace.X-trailing.X-trailing.W > 8 || replace.Y != trailing.Y {
+					t.Fatal("find/replace is not immediately right of trailing punctuation", trailing, replace)
+				}
+				if width == 900 && (replace.X+replace.W > search.X || replace.Y > search.Y+search.H) {
+					t.Fatal("editing tools are not left of search", replace, search)
 				}
 			}
 		})
