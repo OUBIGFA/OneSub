@@ -26,7 +26,7 @@ type SplitReport struct {
 // Punctuation is applied only to successfully split pieces, after boundaries
 // and word timings have been resolved from the unchanged source text.
 func SmartSplit(ctx context.Context, doc Document, command string, original bool, punctuation PunctuationOptions) (SplitReport, error) {
-	return smartSplit(ctx, doc, command, original, "", punctuation)
+	return smartSplit(ctx, doc, command, original, "", false, punctuation)
 }
 
 // SmartSplitCue is an explicit single-cue command. It also accepts readable
@@ -35,10 +35,21 @@ func SmartSplitCue(ctx context.Context, doc Document, command string, original b
 	if id == "" {
 		return SplitReport{}, errors.New(locales.ErrCuePosition())
 	}
-	return smartSplit(ctx, doc, command, original, id, punctuation)
+	return smartSplit(ctx, doc, command, original, id, false, punctuation)
 }
 
-func smartSplit(ctx context.Context, doc Document, command string, original bool, id string, punctuation PunctuationOptions) (SplitReport, error) {
+// SmartSplitCueForced is the user's request to cut one cue that already reads
+// well. It uses any legal word boundary in place of a clause or measured
+// pause, so the cue becomes two parts. Word, protected-format and minimum-time
+// gates still apply.
+func SmartSplitCueForced(ctx context.Context, doc Document, command string, original bool, id string, punctuation PunctuationOptions) (SplitReport, error) {
+	if id == "" {
+		return SplitReport{}, errors.New(locales.ErrCuePosition())
+	}
+	return smartSplit(ctx, doc, command, original, id, true, punctuation)
+}
+
+func smartSplit(ctx context.Context, doc Document, command string, original bool, id string, force bool, punctuation PunctuationOptions) (SplitReport, error) {
 	if id != "" && !slices.ContainsFunc(doc.Cues, func(c Cue) bool { return c.ID == id }) {
 		return SplitReport{}, errors.New(locales.ErrCuePosition())
 	}
@@ -52,7 +63,7 @@ func smartSplit(ctx context.Context, doc Document, command string, original bool
 		if id == cue.ID || id == "" && InspectCueReading(cue).Long() {
 			var reason string
 			var err error
-			parts, reason, err = splitCue(ctx, cue, doc.Format, command, original)
+			parts, reason, err = splitCue(ctx, cue, doc.Format, command, original, force)
 			if err != nil {
 				return SplitReport{}, err
 			}
@@ -205,7 +216,7 @@ func partitionCue(ctx context.Context, cue Cue, format string, lanes []splitText
 	return pieces, offsets, cuts, "", nil
 }
 
-func splitCue(ctx context.Context, cue Cue, format, command string, original bool) ([]Cue, string, error) {
+func splitCue(ctx context.Context, cue Cue, format, command string, original bool, force bool) ([]Cue, string, error) {
 	if cue.ReadOnly {
 		return nil, "protected", nil
 	}
@@ -233,6 +244,9 @@ func splitCue(ctx context.Context, cue Cue, format, command string, original boo
 	lanes[primary].clauseOnly = !InspectReading(primaryText, cue.EndMs-cue.StartMs).TooLong
 	for i := groupStart; i < groupEnd; i++ {
 		lanes[primary].clauseOnly = lanes[primary].clauseOnly && lanes[i].units <= lanes[i].ceiling
+	}
+	if force {
+		lanes[primary].clauseOnly = false
 	}
 	maximum := min(maximumSplitParts, int((cue.EndMs-cue.StartMs)/preferredSplitSpan))
 	if maximum < 2 {

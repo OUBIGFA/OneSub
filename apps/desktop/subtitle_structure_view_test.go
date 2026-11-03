@@ -50,7 +50,7 @@ func TestSubtitleContextMenuTargetsClickedCue(t *testing.T) {
 				if err := tt.RightClick("第二句"); err != nil {
 					t.Fatal(err)
 				}
-				want := []string{locales.SubtitleLocateVideo(), "-", locales.SubtitleInsertBefore(), locales.SubtitleInsertAfter(), locales.ReadingSplit(), "-", locales.SubtitleMergePrevious(), locales.SubtitleMergeNext(), "-", locales.SubtitleDelete()}
+				want := []string{locales.SubtitleLocateVideo(), "-", locales.SubtitleInsertBefore(), locales.SubtitleInsertAfter(), locales.ReadingSplit(), locales.ReadingSplitForced(), "-", locales.SubtitleMergePrevious(), locales.SubtitleMergeNext(), "-", locales.SubtitleDelete()}
 				if !slices.Equal(tt.Menu(), want) {
 					t.Fatal("missing subtitle context actions", tt.Menu())
 				}

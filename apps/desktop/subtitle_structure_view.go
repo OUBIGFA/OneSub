@@ -46,7 +46,10 @@ func (a *NativeApp) subtitleStructureMenu(m *ui.Menu, index int) {
 		a.openSubtitleInsert(id, false)
 	}
 	if m.Item(locales.ReadingSplit()).Disabled(disabled || id == "" || protected).Chosen() {
-		a.smartSplitSubtitle(id)
+		a.smartSplitSubtitle(id, false)
+	}
+	if m.Item(locales.ReadingSplitForced()).Disabled(disabled || id == "" || protected).Chosen() {
+		a.smartSplitSubtitle(id, true)
 	}
 	m.Separator()
 	canMerge := func(first int) bool {

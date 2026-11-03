@@ -131,7 +131,7 @@ func TestSingleReadingSplitMenuAndCommandBothTracks(t *testing.T) {
 					t.Fatal("single-cue menu missing")
 				}
 				tt.CloseMenu()
-				apply, err := a.smartSplitWork("short")(context.Background())
+				apply, err := a.smartSplitWork("short", false)(context.Background())
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -161,7 +161,7 @@ func TestSingleReadingSplitKeepsCompactCueWithoutAnEditBothTracks(t *testing.T) 
 				a.changeSubtitleTab(tab)
 				a.markSaved(0, "original.srt")
 				a.markSaved(1, "translated.srt")
-				apply, err := a.smartSplitWork("short")(context.Background())
+				apply, err := a.smartSplitWork("short", false)(context.Background())
 				if err != nil || apply == nil {
 					t.Fatal("a no-op split was reported as an error", err)
 				}
@@ -176,6 +176,33 @@ func TestSingleReadingSplitKeepsCompactCueWithoutAnEditBothTracks(t *testing.T) 
 				}
 			}
 		})
+	}
+}
+
+// A forced split cuts a cue that already reads well, on a word boundary and
+// inside the original time, as one undo step. The normal command leaves it.
+func TestForcedSplitCutsReadableCueOnce(t *testing.T) {
+	a := storeApp(t, subtitle.Cue{ID: "short", Text: "The quick brown fox jumps over the lazy dog", StartMs: 0, EndMs: 6000})
+	a.changeSubtitleTab(0)
+	plain, err := a.smartSplitWork("short", false)(context.Background())
+	if err != nil || plain == nil {
+		t.Fatal(err)
+	}
+	plain()
+	if len(a.activeDocument().Cues) != 1 {
+		t.Fatal("the normal split changed a readable cue")
+	}
+	apply, err := a.smartSplitWork("short", true)(context.Background())
+	if err != nil || apply == nil {
+		t.Fatal(err)
+	}
+	apply()
+	cues := a.activeDocument().Cues
+	if len(cues) != 2 || cues[0].StartMs != 0 || cues[1].EndMs != 6000 || cues[0].EndMs != cues[1].StartMs {
+		t.Fatal("forced split did not produce two joined cues", cues)
+	}
+	if strings.Join(strings.Fields(cues[0].Text+" "+cues[1].Text), " ") != "The quick brown fox jumps over the lazy dog" {
+		t.Fatal("forced split changed the words", cues[0].Text, cues[1].Text)
 	}
 }
 
@@ -194,7 +221,7 @@ func TestSmartSplitAutomaticallyCleansBothTextLayersWithOneUndo(t *testing.T) {
 			a.settings.StripPunctuation, a.settings.ReplacePeriods = false, false
 			a.settings.KeepPunctuation = "?"
 			before := *a.snapshot
-			work := a.smartSplitWork("target")
+			work := a.smartSplitWork("target", false)
 			a.settings.KeepPunctuation = "!" // The task keeps its startup options.
 			apply, err := work(context.Background())
 			if err != nil {

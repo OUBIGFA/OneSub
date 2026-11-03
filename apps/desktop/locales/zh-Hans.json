@@ -33,6 +33,7 @@
   "readingViewBrief": "查看时长过短字幕 · {count} 条",
   "@readingViewBrief": {"placeholders":{"count":{"type":"int"}}},
   "readingSplit": "智能拆分",
+  "readingSplitForced": "强制拆分",
   "readingSplitHint": "按字幕语言拆分。优化字幕以译文为主。保留词语和总时间。缺少词级时间时估算切点。移除句末标点，其余句号转逗号。可撤销整批。",
   "readingLong": "过长",
   "readingFast": "过快",

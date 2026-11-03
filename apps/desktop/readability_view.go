@@ -168,18 +168,18 @@ func (a *NativeApp) readingLabel(cue subtitle.Cue, load subtitle.CueReadingLoad)
 	return strings.Join(labels, " · "), strings.Join(details, "\n")
 }
 
-func (a *NativeApp) smartSplitSubtitles() { a.smartSplitSubtitle("") }
+func (a *NativeApp) smartSplitSubtitles() { a.smartSplitSubtitle("", false) }
 
-func (a *NativeApp) smartSplitSubtitle(id string) {
+func (a *NativeApp) smartSplitSubtitle(id string, force bool) {
 	if a.busy || a.snapshot == nil || a.store == nil || a.showsTranslationProgress() || !a.commitEdit(true) {
 		return
 	}
-	a.run(locales.ReadingSplit(), a.smartSplitWork(id))
+	a.run(locales.ReadingSplit(), a.smartSplitWork(id, force))
 }
 
 // Freeze the track, target and revision before the task starts. The toolbar
 // calls the whole-track plan; the context menu calls the single-cue plan.
-func (a *NativeApp) smartSplitWork(id string) func(context.Context) (func(), error) {
+func (a *NativeApp) smartSplitWork(id string, force bool) func(context.Context) (func(), error) {
 	doc, original, revision, store := a.activeDocument(), a.subtitleTab == 0, a.snapshot.Revision, a.store
 	command := uuid.NewString()
 	worker := a.worker
@@ -191,6 +191,8 @@ func (a *NativeApp) smartSplitWork(id string) func(context.Context) (func(), err
 		var err error
 		if id == "" {
 			report, err = subtitle.SmartSplit(ctx, doc, command, original, punctuation)
+		} else if force {
+			report, err = subtitle.SmartSplitCueForced(ctx, doc, command, original, id, punctuation)
 		} else {
 			report, err = subtitle.SmartSplitCue(ctx, doc, command, original, id, punctuation)
 		}
@@ -215,6 +217,8 @@ func (a *NativeApp) smartSplitWork(id string) func(context.Context) (func(), err
 			}
 			if id == "" {
 				_, err = store.SplitCues(ctx, command, revision, original, punctuation)
+			} else if force {
+				_, err = store.SplitCueForced(ctx, command, revision, original, id, punctuation)
 			} else {
 				_, err = store.SplitCue(ctx, command, revision, original, id, punctuation)
 			}

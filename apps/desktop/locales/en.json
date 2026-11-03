@@ -33,6 +33,7 @@
   "readingViewBrief": "View brief cues · {count}",
   "@readingViewBrief": {"placeholders":{"count":{"type":"int"}}},
   "readingSplit": "Smart split",
+  "readingSplitForced": "Force split",
   "readingSplitHint": "Split long cues by their text language. Use translations as the primary text when present. Preserve words and total time. Estimate missing word timing. Remove final punctuation, then change sentence periods to commas. Undo the batch.",
   "readingLong": "Too long",
   "readingFast": "Too fast",
