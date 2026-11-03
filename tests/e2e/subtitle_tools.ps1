@@ -14,7 +14,8 @@ New-Item -ItemType Directory $workPath | Out-Null
 $source=Join-Path $workPath 'sample.srt'
 $first='First step explains the complete workflow. Next step checks every subtitle carefully, then saves the final result.'
 $second='这是显示时间不足的长字幕，拆分不能增加阅读时间，必须继续保留问题提示。'
-$body="1`n00:00:00,000 --> 00:00:16,000`n$first`n`n2`n00:00:17,000 --> 00:00:18,000`n$second`n`n3`n00:00:19,000 --> 00:00:21,000`nDone now.`n"
+$third='Check final inputs. Save every result.'
+$body="1`n00:00:00,000 --> 00:00:16,000`n$first`n`n2`n00:00:17,000 --> 00:00:18,000`n$second`n`n3`n00:00:19,000 --> 00:00:23,000`n$third`n"
 [IO.File]::WriteAllText($source,$body,[Text.UTF8Encoding]::new($false))
 $initialHash=(Get-FileHash $source).Hash
 $env:ONESUB_DATA_ROOT=Join-Path $workPath 'data'
@@ -87,7 +88,7 @@ try {
  if($rr.Left -lt $tr.Right -or $rr.Top -ge $tr.Bottom -or $pr.Left -le $lr.Right -or $tr.Left -lt $pr.Right){throw 'Subtitle toolbar grouping/order incorrect'}
  if($sr.Top -lt $rr.Bottom -and $sr.Bottom -gt $rr.Top -and $sr.Left -lt $rr.Right){throw 'Search does not follow the editing tools'}
  Capture 'before.png'
- Set-Text '搜索' 'Done'
+ Set-Text '搜索' 'Check final'
  View-Long 2
  [void](Wait-UI '字幕：过长 · 过快')
  Capture 'selected-issue.png'
@@ -120,14 +121,14 @@ try {
  if((Cue-Texts $source)[-2] -ne $second){throw 'Unsafe short cue was modified'}
  Undo-Save
  if((Cue-Texts $source).Count -ne 3){throw 'Single undo did not restore source'}
- Split-One 'Done now.'
+ Split-One $third
  Save-Subtitles
  if((Assert-Sequence $source) -ne 4 -or (Cue-Texts $source)[0] -ne $first){throw 'Single split did not target only the readable cue'}
  Capture 'single-source.png'
  Undo-Save
  # One occurrence, then whole-track replacement despite an active filter.
  foreach($all in @($false,$true)){
-  Set-Text '搜索' 'Done'
+  Set-Text '搜索' 'Check final'
   Click-UI '查找替换';Set-Text '查找内容' 'step';Set-Text '替换为' 'stage'
   Click-UI '查找下一处'
   Capture $(if($all){'replace-all.png'}else{'replace-one.png'})
@@ -143,7 +144,7 @@ try {
  Undo-Save
  Click-UI '移除句末标点';Save-Subtitles
  $texts=Cue-Texts $source
- if($texts[0].EndsWith('.') -or $texts[2] -ne 'Done now' -or -not $texts[0].Contains('workflow.')){throw 'Trailing cleanup changed internal punctuation'}
+ if($texts[0].EndsWith('.') -or $texts[2] -ne 'Check final inputs. Save every result' -or -not $texts[0].Contains('workflow.')){throw 'Trailing cleanup changed internal punctuation'}
  Undo-Save
  $sourceHash=(Get-FileHash $source).Hash
  # A single real local provider call creates the independent working track.
@@ -160,7 +161,7 @@ try {
  foreach($text in $splitTexts[0..($splitTexts.Count-3)]){if($text -match '[.。．]|[,，]$'){throw 'Working split punctuation was not cleaned'}}
  if((Get-FileHash $source).Hash -ne $sourceHash){throw 'Working split changed original file'}
  Undo-Save
- Split-One '完成。'
+ Split-One '最后检查所有输入，然后保存全部字幕结果。'
  Save-Subtitles
  if((Assert-Sequence $translated) -ne 4 -or (Get-FileHash $source).Hash -ne $sourceHash){throw 'Single working split did not preserve original track'}
  Capture 'single-translated.png'

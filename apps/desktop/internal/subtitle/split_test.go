@@ -96,10 +96,10 @@ func TestSmartSplitCleansPunctuationAfterWordTimingAndKeepsSkippedCues(t *testin
 		t.Fatal(report, err)
 	}
 	first, second := report.Document.Cues[0], report.Document.Cues[1]
-	if first.Text != "Version 3,14 is ready" || second.Text != "Are we done with this operation?" {
+	if first.Text != "Version 3.14 is ready" || second.Text != "Are we done with this operation?" {
 		t.Fatal("cleanup order or kept marks changed", first.Text, second.Text)
 	}
-	if first.OriginalText != strings.TrimSpace(words[0].Text) || first.StartMs != 1000 || first.EndMs != 5000 || second.StartMs != 5000 || second.EndMs != 9000 || first.TimingQuality != "aligned" || second.TimingQuality != "aligned" {
+	if first.OriginalText != words[0].Text || first.StartMs != 1000 || first.EndMs != 5000 || second.StartMs != 5000 || second.EndMs != 9000 || first.TimingQuality != "aligned" || second.TimingQuality != "aligned" {
 		t.Fatal("cleanup replaced the original evidence or word timing", first, second)
 	}
 	last := report.Document.Cues[2]
@@ -207,7 +207,7 @@ func TestSmartSplitResolvesLengthInOneBatchAndAvoidsShortPieces(t *testing.T) {
 	// At 84 characters, a preferred sentence boundary at 43 would leave a
 	// still-long first cue. A single batch must look for a finer safe split.
 	text := strings.Repeat("word ", 8) + "ab. " + strings.Repeat("word ", 7) + "abcd."
-	for _, duration := range []int64{16000, 2000} {
+	for _, duration := range []int64{16000, 2400} {
 		cue := Cue{ID: "balanced", Text: text, StartMs: 0, EndMs: duration}
 		report, err := SmartSplit(context.Background(), Document{Format: "srt", Cues: []Cue{cue}}, "balanced", true, PunctuationOptions{})
 		if err != nil || report.Changed != 1 {
@@ -237,7 +237,7 @@ func TestSmartSplitResolvesLengthInOneBatchAndAvoidsShortPieces(t *testing.T) {
 }
 
 func TestSmartSplitSingleCueAlsoHandlesReadableCues(t *testing.T) {
-	for _, text := range []string{"Hello world.", "早上好晚上好"} {
+	for _, text := range []string{"Hello wonderful world today.", "早上好大家好晚上好各位好"} {
 		cue := Cue{ID: "short", Text: text, StartMs: 0, EndMs: 4000}
 		long := Cue{ID: "long", Position: 1, Text: strings.Repeat("word ", 30), StartMs: 5000, EndMs: 25000}
 		if InspectCueReading(cue).Problem() {

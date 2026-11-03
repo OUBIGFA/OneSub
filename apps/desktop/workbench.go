@@ -61,6 +61,23 @@ func (a *NativeApp) hasRebuiltSubtitles() bool {
 	return a.snapshot.SourceDocument.Cues != nil && !reflect.DeepEqual(a.snapshot.Document.Cues, a.snapshot.SourceDocument.Cues)
 }
 
+// subtitleCounts describes the actual complete tracks, independently of the
+// selected tab/search and transient task/error text. A store mirror or pending
+// translation preview is not an optimized subtitle result.
+func (a *NativeApp) subtitleCounts() (original, optimized int) {
+	if a.snapshot == nil {
+		return 0, 0
+	}
+	if a.countSnapshot != a.snapshot {
+		a.countSnapshot = a.snapshot
+		a.originalCount, a.optimizedCount = len(a.snapshot.TrackDocument(0).Cues), 0
+		if a.hasRebuiltSubtitles() {
+			a.optimizedCount = len(a.snapshot.Document.Cues)
+		}
+	}
+	return a.originalCount, a.optimizedCount
+}
+
 // The rebuilt track has two editable texts on its own shared timeline.
 func (a *NativeApp) editorTextTrack() int {
 	if a.subtitleTab == 1 && !a.editRebuiltSource {

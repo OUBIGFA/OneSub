@@ -59,7 +59,7 @@ func listTargetText(cue subtitle.Cue, track string) (string, bool) {
 func (a *NativeApp) listPunctuationTools(c *ui.Context) {
 	disabled := a.busy || a.showsTranslationProgress() || a.snapshot == nil
 	hint := locales.TextProcessScope(a.textTargetLabel(a.editRebuiltSource))
-	toolIcon(c, locales.TextReplacePeriods(), "quote").Disabled(disabled).Tooltip(locales.TextReplacePeriods() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(false) })
+	toolIcon(c, locales.TextReplacePeriods(), "quote").Disabled(disabled).Tooltip(locales.TextReplacePeriods() + "\n" + locales.TextPeriodProtectionHint() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(false) })
 	toolIcon(c, locales.TextStripTrailing(), "eraser").Disabled(disabled).Tooltip(locales.TextStripTrailing() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(true) })
 }
 

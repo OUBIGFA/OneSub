@@ -110,8 +110,8 @@ func TestSingleReadingSplitMenuAndCommandBothTracks(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			for _, tab := range []int{0, 1} {
-				a := storeApp(t, subtitle.Cue{ID: "short", Text: "Hello world.", StartMs: 0, EndMs: 4000}, subtitle.Cue{ID: "long", Text: strings.Repeat("word ", 30), StartMs: 5000, EndMs: 25000})
-				if _, err := a.store.ApplyTranslation("translate", 0, []project.Edit{{ID: "short", Text: "早上好晚上好", StartMs: 0, EndMs: 4000}}); err != nil {
+				a := storeApp(t, subtitle.Cue{ID: "short", Text: "Hello wonderful world today.", StartMs: 0, EndMs: 4000}, subtitle.Cue{ID: "long", Text: strings.Repeat("word ", 30), StartMs: 5000, EndMs: 25000})
+				if _, err := a.store.ApplyTranslation("translate", 0, []project.Edit{{ID: "short", Text: "早上好大家好晚上好各位好", StartMs: 0, EndMs: 4000}}); err != nil {
 					t.Fatal(err)
 				}
 				state, _ := a.store.Snapshot()
@@ -179,15 +179,15 @@ func TestSmartSplitAutomaticallyCleansBothTextLayersWithOneUndo(t *testing.T) {
 				source += subtitle.SourceText(cue) + " "
 				translated += cue.Text
 				for _, text := range []string{subtitle.SourceText(cue), cue.Text} {
-					if strings.ContainsAny(text, ".。．") || strings.HasSuffix(text, ",") || strings.HasSuffix(text, "，") {
+					if strings.ContainsAny(strings.ReplaceAll(text, "3.14", ""), ".。．") || strings.HasSuffix(text, ",") || strings.HasSuffix(text, "，") {
 						t.Fatal("split punctuation was not cleaned", text)
 					}
 				}
 			}
-			if source != "Version 3,14 is ready Are we done? " {
+			if source != "Version 3.14 is ready Are we done? " {
 				t.Fatal("cleanup order or kept question mark changed", source)
 			}
-			if tab == 1 && translated != "版本3,14已经准备完成还有问题？" {
+			if tab == 1 && translated != "版本3.14已经准备完成还有问题？" {
 				t.Fatal("paired translation was not cleaned", translated)
 			}
 			if !reflect.DeepEqual(before.TrackDocument(1-tab), a.snapshot.TrackDocument(1-tab)) || a.settings.StripPunctuation || a.settings.ReplacePeriods {

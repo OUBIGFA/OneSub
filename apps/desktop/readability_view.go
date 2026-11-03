@@ -123,6 +123,8 @@ func readingReason(reason string) string {
 		return locales.ReadingShortTime()
 	case "bilingual":
 		return locales.ReadingPairing()
+	case "capacity":
+		return locales.ReadingCapacity()
 	case "boundary":
 		return locales.ReadingNoBoundary()
 	}

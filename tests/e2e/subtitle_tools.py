@@ -14,7 +14,7 @@ class Provider(BaseHTTPRequestHandler):
         request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         units = json.loads(request["messages"][1]["content"])["units"]
         Provider.requests += 1
-        texts = ["首先说明字幕处理的完整步骤。接下来仔细检查字幕内容，然后继续完成全部操作，最后保存字幕结果。", "字幕。", "完成。"]
+        texts = ["首先说明字幕处理的完整步骤。接下来仔细检查字幕内容，然后继续完成全部操作，最后保存字幕结果。", "字幕。", "最后检查所有输入，然后保存全部字幕结果。"]
         result = {u["id"]: texts[i % len(texts)] for i, u in enumerate(units)}
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")

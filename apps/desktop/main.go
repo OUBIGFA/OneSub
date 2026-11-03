@@ -82,6 +82,8 @@ type NativeApp struct {
 	selected                                 int
 	query                                    string
 	readingSnapshot                          *project.Snapshot
+	countSnapshot                            *project.Snapshot
+	originalCount, optimizedCount            int
 	readingTab                               int
 	reading                                  []subtitle.CueReadingLoad
 	splitSkipped                             map[string]string
@@ -350,16 +352,28 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 			a.errorText, a.errorShown, a.errorScope = "", "", ""
 		}
 	}
+	width, _ := c.Size()
+	compact := width < em(c, 680)
+	original, optimized := a.subtitleCounts()
+	counts := []string{}
+	if original > 0 {
+		counts = append(counts, locales.StatusOriginalCount(original))
+	}
+	if optimized > 0 {
+		counts = append(counts, locales.StatusOptimizedCount(optimized))
+	}
 	ui.Row(c).Height(em(c, 32)).Padding(0, em(c, 12)).Gap(em(c, 12)).AlignItems(ui.Center).Background(look.chrome).FontSize(em(c, captionSize)).Label(locales.A11yStatusBar()).Children(func() {
-		// Keep only actionable or transient content in the footer. A cue count
-		// and automatic association score do not help with the next action.
+		// Reading warnings and transient results stay on the left. Track counts
+		// have a separate stable slot immediately before the output action.
 		readingHint := false
 		if !a.showsTranslationProgress() {
 			if load := a.cueReading(a.selected); load.Problem() {
 				label, detail := a.readingLabel(a.activeDocument().Cues[a.selected], load)
 				ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Shrink(0).Children(func() {
-					icon(c, "triangle-alert").TextColor(c.Theme().Danger).Label(locales.A11yWarningIcon())
-					muted(c, locales.StatusOwnerSubtitle()+label).TextColor(c.Theme().Danger).SingleLine().Shrink(0).Tooltip(locales.StatusOwnerSubtitle() + detail)
+					icon(c, "triangle-alert").TextColor(c.Theme().Danger).Label(locales.A11yWarningIcon()).Tooltip(locales.StatusOwnerSubtitle() + detail)
+					if !compact {
+						muted(c, locales.StatusOwnerSubtitle()+label).TextColor(c.Theme().Danger).SingleLine().Shrink(0).Tooltip(locales.StatusOwnerSubtitle() + detail)
+					}
 				})
 				readingHint = true
 			}
@@ -384,23 +398,47 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 
 		canCancel := a.busy && a.cancel != nil && !a.choosingFile && !a.composeRunning && !a.recognitionRunning && !a.translationRunning
 		canOpenOutput := a.lastOutput != "" && !a.busy
-		if readingHint || hasStatus {
+		if (readingHint || hasStatus) && (canCancel || canOpenOutput || len(counts) > 0) {
 			ui.Divider(c).Height(em(c, 16)).AlignSelf(ui.Center)
 		}
 		if canCancel {
-			ui.Button(c, locales.StatusOwnerTask()+locales.ActionCancelTask()).Padding(em(c, 2), em(c, 10)).OnClick(func() { a.cancel() })
+			ui.Button(c, locales.StatusOwnerTask()+locales.ActionCancelTask()).Padding(em(c, 2), em(c, 10)).Shrink(0).OnClick(func() { a.cancel() })
 		}
-		if canCancel && canOpenOutput {
+		if canCancel && len(counts) > 0 {
+			ui.Divider(c).Height(em(c, 16)).AlignSelf(ui.Center)
+		}
+		if len(counts) > 0 {
+			// Two compact lines retain both complete labels in a narrow footer,
+			// without changing its height or reducing the shared caption size.
+			var group ui.Element
+			if compact && len(counts) > 1 {
+				group = ui.Column(c).Gap(0).Justify(ui.Center)
+			} else {
+				group = ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center)
+			}
+			group.Shrink(0).Children(func() {
+				for _, label := range counts {
+					muted(c, label).FontFeatures("tnum").LineHeight(1.1).SingleLine().Shrink(0).Tooltip(label)
+				}
+			})
+		}
+		if len(counts) > 0 && canOpenOutput {
 			ui.Divider(c).Height(em(c, 16)).AlignSelf(ui.Center)
 		}
 		if canOpenOutput {
-			ui.Button(c, locales.StatusOwnerOutput()+locales.ResultOpenFolder()).Padding(em(c, 2), em(c, 10)).OnClick(func() {
+			label := locales.StatusOwnerOutput() + locales.ResultOpenFolder()
+			open := func() {
 				if err := mygo.Shell.OpenPath(filepath.Dir(a.lastOutput)); err != nil {
 					a.showError("output-folder", err.Error())
 				} else {
 					a.clearError("output-folder")
 				}
-			})
+			}
+			if compact {
+				toolIcon(c, label, "folder-open").Shrink(0).OnClick(open)
+			} else {
+				ui.Button(c, label).Padding(em(c, 2), em(c, 10)).Shrink(0).OnClick(open)
+			}
 		}
 	})
 }

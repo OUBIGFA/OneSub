@@ -6,7 +6,7 @@
 
 文件名分级关联直接调用 MIT 的 `agnivade/levenshtein v1.2.1` 计算 Unicode 编辑距离，规范化与语言代码解析复用既有 `golang.org/x/text`。精确修订、模块／下载校验、许可与测试专用依赖见 [文件名匹配清单](manifests/filename-matching.json)。不复制上游算法，不采用 Subtitle Edit 按首个文件返回或任意截短名称的匹配实现。
 
-字幕阅读负荷与智能拆分的上游修订、实际阅读符号及采用／拒绝的算法边界见[调研记录](../docs/research/subtitle-readability.md)。没有复制 Subtitle Edit、stable-ts 或 VideoCaptioner 的拆分代码，也没有新增模型运行时；Unicode 字素边界直接调用现有 `Unlicense OR BSD-3-Clause` 的 `go-text/typesetting v0.3.5`，字符宽度使用既有 `golang.org/x/text v0.43.0`。字幕技能的阅读负荷阈值由轻量本地检测使用，许可沿用完整技能快照登记。
+字幕阅读负荷与智能拆分的上游修订、实际阅读符号及采用／拒绝的算法边界见[调研记录](../docs/research/subtitle-readability.md)。没有复制 Subtitle Edit、stable-ts 或 VideoCaptioner 的拆分代码。中文直接筛选 MIT 的 jieba 固定词典并编译为嵌入式双数组 Trie；日文／泰文移植 Apache-2.0 BudouX 的纯文本评分并保留原模型，见[集成登记](ports/subtitle-splitting/README.md)及[固定清单](manifests/subtitle-splitting.json)。没有新增 CGO、Python 或网络运行时；字典和模型以可复现 UTF-8 文本嵌入，不扩大仓库二进制例外。Unicode 字素／词界直接调用现有 `Unlicense OR BSD-3-Clause` 的 `go-text/typesetting v0.3.5`，字符宽度使用既有 `golang.org/x/text v0.43.0`。字幕技能的阅读负荷阈值由轻量本地检测使用，许可沿用完整技能快照登记。
 
 实际翻译协议与分段流程参考的 VideoCaptioner、SmartSub 固定修订、源码位置和适配边界见 [组件复用核查第 7 节](../docs/research/implementation-reuse.md#7-翻译协议容错与分段参考)。它们不是新增运行时依赖；完整字幕技能快照仍为质量规则来源。
 

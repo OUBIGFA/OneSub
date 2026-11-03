@@ -18,9 +18,8 @@ type PunctuationOptions struct {
 var punctuationMarkup = regexp.MustCompile(`<[^>\n]+>|\{\\[^}\n]*\}|\\[Nnh]`)
 var pairedMarks = map[rune]rune{'?': '？', '!': '！', ',': '，', '.': '。', ';': '；', ':': '：', '？': '?', '！': '!', '，': ',', '。': '.', '；': ';', '：': ':'}
 
-// Apply treats both real and ASS line breaks as line endings. Tags (including
-// decimal parameters and URLs) remain byte-for-byte intact. "All periods"
-// intentionally includes decimal/abbreviation dots in visible text.
+// Apply treats both real and ASS line breaks as line endings. Tags and literal
+// data remain byte-for-byte intact; only sentence periods become commas.
 func (p PunctuationOptions) Apply(text string) string {
 	if !p.StripTrailing && !p.ReplacePeriods {
 		return text
@@ -43,19 +42,31 @@ func (p PunctuationOptions) Apply(text string) string {
 				chars, protected = chars[:len(chars)-1], protected[:len(protected)-1]
 			}
 		}
-		visible := []int{}
+		visible, plainAt := []int{}, []int{}
+		var plain []rune
 		for i, r := range chars {
-			if !protected[i] && !unicode.IsSpace(r) {
+			if protected[i] {
+				continue
+			}
+			plain, plainAt = append(plain, r), append(plainAt, i)
+			if !unicode.IsSpace(r) {
 				visible = append(visible, i)
 			}
 		}
+		// Recognize the visible string once, so <i>bbc</i>.co.uk is the same
+		// literal as bbc.co.uk. Keep the original tag positions on output.
+		literals := literalRunes(string(plain))
+		literalAt, periods := make([]bool, len(chars)), make([]bool, len(chars))
+		for j, i := range plainAt {
+			literalAt[i], periods[i] = literals[j], sentencePeriod(plain, j, literals)
+		}
 		// Closing quotes/brackets do not make a preceding stop internal.
 		end := len(visible)
-		for end > 0 && closingPunctuation(chars[visible[end-1]]) {
+		for end > 0 && closingPunctuation(chars[visible[end-1]]) && !literalAt[visible[end-1]] {
 			end--
 		}
 		start := end
-		for start > 0 && unicode.IsPunct(chars[visible[start-1]]) && !closingPunctuation(chars[visible[start-1]]) {
+		for start > 0 && unicode.IsPunct(chars[visible[start-1]]) && !closingPunctuation(chars[visible[start-1]]) && !literalAt[visible[start-1]] {
 			start--
 		}
 		remove := map[int]bool{}
@@ -72,7 +83,7 @@ func (p PunctuationOptions) Apply(text string) string {
 			if remove[i] {
 				continue
 			}
-			if p.ReplacePeriods && !protected[i] {
+			if p.ReplacePeriods && periods[i] {
 				switch r {
 				case '.', '．':
 					r = ','

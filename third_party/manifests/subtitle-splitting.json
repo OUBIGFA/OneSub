@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "usage": "Offline subtitle language boundaries; embedded in the Go desktop executable; no added runtime process or network request",
+  "jiebaDictionary": {
+    "repository": "https://github.com/fxsjy/jieba",
+    "revision": "67fa2e36e72f69d9134b8a1037b83fbb070b9775",
+    "path": "extra_dict/dict.txt.big",
+    "gitBlob": "8e3b88ebbc8c42af1f3157f54b7d001c243d672d",
+    "download": "https://raw.githubusercontent.com/fxsjy/jieba/67fa2e36e72f69d9134b8a1037b83fbb070b9775/extra_dict/dict.txt.big",
+    "bytes": 8583143,
+    "sha256": "b16011275c42955ccd81fc1adecc93a59dbb7926af69d93fc95d4943d40f6aad",
+    "spdx": "MIT",
+    "copyright": "Copyright (c) 2013 Sun Junyi",
+    "license": "third_party/licenses/jieba.txt",
+    "licenseSha256": "18ba0984839f85853b29fadaf992f7dba8fd0ca0fbeae34de2b8735222dc7a37",
+    "selection": "65,000 highest-frequency 2-8 Han-character words plus reviewed subtitle phrases; preserve simplified and traditional spellings",
+    "compiler": "tools/build_split_lexicon.py",
+    "reviewedPhrases": "apps/desktop/internal/subtitle/dict/chinese_phrases.txt",
+    "reviewedPhrasesSha256": "fb4a46d1109710e4446d0fa7a2592bcaa6f1f370260ae0702bbf15f6156a84df",
+    "artifact": "apps/desktop/internal/subtitle/dict/chinese.json",
+    "artifactBytes": 802197,
+    "artifactSha256": "a5e317635e3b63a9cce3fce44c3b9fd29a9543f682309395273fef212d293b6c",
+    "words": 65048,
+    "states": 193324,
+    "runtimeArrayBytes": 1546592,
+    "modifications": "Frequency-selected dictionary compiled to a packed UTF-8 double-array trie with quantized unigram costs; no jieba Python code or HMM runtime copied"
+  },
+  "budoux": {
+    "repository": "https://github.com/google/budoux",
+    "revision": "32500e72b6aed75dda0bed91da45c476d9b60cec",
+    "spdx": "Apache-2.0",
+    "copyright": "Copyright 2021 Google LLC",
+    "license": "third_party/licenses/budoux.txt",
+    "licenseSha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+    "sourcePath": "budoux/parser.py",
+    "sourceDownload": "https://raw.githubusercontent.com/google/budoux/32500e72b6aed75dda0bed91da45c476d9b60cec/budoux/parser.py",
+    "sourceGitBlob": "a4ea341da8f285e38acf267c039652211fc7b67d",
+    "sourceBytes": 4982,
+    "sourceSha256": "5e189185fa15d097b1539541cd1b1b0f786118ede97b2bbaa918bee3fbb65a3c",
+    "port": "apps/desktop/internal/subtitle/split_budoux.go",
+    "modifications": "Port only plain-text Parser.parse scoring to Go; preserve half-integer base scores using doubled integers and expose byte/rune boundaries; omit HTML and all Python dependencies",
+    "models": [
+      {
+        "language": "ja",
+        "sourcePath": "budoux/models/ja.json",
+        "gitBlob": "94447a0c3c912b4eb3175ee5d59cc0718aff2a7a",
+        "download": "https://raw.githubusercontent.com/google/budoux/32500e72b6aed75dda0bed91da45c476d9b60cec/budoux/models/ja.json",
+        "artifact": "apps/desktop/internal/subtitle/dict/budoux-ja.json",
+        "bytes": 35861,
+        "sha256": "bd703175fdaec51612a4bdbb02f767cf7228d08b1ab37a3b58cb84cbbb956684",
+        "modifications": "none"
+      },
+      {
+        "language": "th",
+        "sourcePath": "budoux/models/th.json",
+        "gitBlob": "cd0102ae9e12287e2c8c666261ebfc84c235b865",
+        "download": "https://raw.githubusercontent.com/google/budoux/32500e72b6aed75dda0bed91da45c476d9b60cec/budoux/models/th.json",
+        "artifact": "apps/desktop/internal/subtitle/dict/budoux-th.json",
+        "bytes": 30936,
+        "sha256": "c8fcbe6572925c3293f64d0ca5aa1d08ec746a74e48b9eb1a0019ab9d5daaf50",
+        "modifications": "none"
+      }
+    ],
+    "scope": "Only published pretrained models are embedded; no KNBC or other training corpus is redistributed"
+  },
+  "unicodeWords": {
+    "module": "github.com/go-text/typesetting",
+    "version": "v0.3.5",
+    "manifest": "third_party/manifests/text-segmentation.json",
+    "usage": "Direct UAX #29 grapheme and word iteration for Korean eojeol, spaced scripts and mixed-text word protection",
+    "modifications": "none"
+  },
+  "transitive": "No new Go module dependencies; existing dependency and runtime locks remain in force"
+}

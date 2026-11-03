@@ -2,16 +2,13 @@ package subtitle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
-	"errors"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
-	"github.com/go-text/typesetting/segmenter"
 )
 
 // SplitReport retains unsolved cues rather than claiming a split cures fast
@@ -54,7 +51,11 @@ func smartSplit(ctx context.Context, doc Document, command string, original bool
 		parts := []Cue{cue}
 		if id == cue.ID || id == "" && InspectCueReading(cue).Long() {
 			var reason string
-			parts, reason = splitCue(cue, doc.Format, command, original)
+			var err error
+			parts, reason, err = splitCue(ctx, cue, doc.Format, command, original)
+			if err != nil {
+				return SplitReport{}, err
+			}
 			if len(parts) < 2 {
 				parts = []Cue{cue}
 				out.Skipped[cue.ID] = reason
@@ -67,9 +68,15 @@ func smartSplit(ctx context.Context, doc Document, command string, original bool
 				for i := range parts {
 					part := &parts[i]
 					source := punctuation.Apply(SourceText(*part))
+					if punctuation.StripTrailing {
+						source = strings.TrimSpace(source) // remove only split-edge padding during explicit cleanup
+					}
 					if part.Translated {
 						part.TranslationSource = source
 						part.Text = punctuation.Apply(part.Text)
+						if punctuation.StripTrailing {
+							part.Text = strings.TrimSpace(part.Text)
+						}
 					} else {
 						part.Text = source
 					}
@@ -88,114 +95,6 @@ func smartSplit(ctx context.Context, doc Document, command string, original bool
 		}
 	}
 	return out, nil
-}
-
-type textBoundary struct {
-	offset         int
-	units, penalty float64
-}
-type splitText struct {
-	text               string
-	boundaries         []textBoundary
-	units, limit, rate float64
-}
-
-// Only plain text is structurally split for now. Tag-state, karaoke and inline
-// timestamps must never be copied across independent event clocks. Newlines
-// are separate simultaneous lanes, so imported bilingual text is not sequenced.
-func splitLanes(text, format string) ([]splitText, string) {
-	if readingMarkup.MatchString(text) || strings.ContainsAny(text, "<>{}") || strings.Contains(text, "&") {
-		return nil, "protected"
-	}
-	if format == "ass" || format == "ssa" {
-		text = strings.NewReplacer(`\N`, "\n", `\n`, "\n").Replace(text)
-	}
-	if strings.Contains(text, `\`) {
-		return nil, "protected"
-	}
-	texts := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
-	lanes := make([]splitText, 0, len(texts))
-	for _, text := range texts {
-		if strings.TrimSpace(text) == "" {
-			return nil, "boundary"
-		}
-		lanes = append(lanes, newSplitText(text))
-	}
-	return lanes, ""
-}
-
-func newSplitText(text string) splitText {
-	cjk, limit, rate := readingProfile(text)
-	out := splitText{text: text, limit: limit, rate: rate, boundaries: []textBoundary{{}}}
-	var seg segmenter.Segmenter
-	seg.Init([]rune(text))
-	it := seg.GraphemeIterator()
-	depth := 0
-	for it.Next() {
-		g := it.Grapheme()
-		r := g.Text[0]
-		if strings.ContainsRune("([{（【「『《", r) {
-			depth++
-		}
-		if strings.ContainsRune(")]}）】」』》", r) && depth > 0 {
-			depth--
-		}
-		out.units += clusterUnits(g.Text, cjk)
-		end := g.OffsetInBytes + g.LengthInBytes
-		if end == len(text) {
-			break
-		}
-		if depth > 0 {
-			continue
-		}
-		next, _ := utf8.DecodeRuneInString(text[end:])
-		if strings.ContainsRune("，。！？；：、,.!?;:…)]}）】」』》”’", next) {
-			continue
-		}
-		// ASCII punctuation inside an unspaced token is not a phrase break:
-		// preserve URL schemes, numeric separators and code-like identifiers.
-		if strings.ContainsRune(",;:!?", r) && !unicode.IsSpace(next) && !isCJK(next) {
-			continue
-		}
-		penalty := 7.0
-		switch {
-		case unicode.IsSpace(r) || unicode.IsSpace(next):
-			penalty = 3
-		case strings.ContainsRune("。！？!?…", r):
-			penalty = 0
-		case strings.ContainsRune("，；：、,;:", r):
-			penalty = 1
-		case r == '.' && unicode.IsSpace(next):
-			penalty = 0
-		case isCJK(r) && isCJK(next):
-			penalty = 7
-		default:
-			continue
-		}
-		// A space after punctuation carries that punctuation's preference.
-		left := strings.TrimSpace(text[:end])
-		last, _ := utf8.DecodeLastRuneInString(left)
-		if strings.ContainsRune("。！？!?…", last) {
-			penalty = 0
-		}
-		if strings.ContainsRune("，；：、,;:", last) {
-			penalty = 1
-		}
-		if last == '.' {
-			word := left[strings.LastIndexAny(left, " \t")+1:]
-			if strings.Contains(strings.TrimSuffix(word, "."), ".") || slices.Contains([]string{"mr.", "mrs.", "ms.", "dr.", "prof.", "vs.", "etc.", "e.g.", "i.e."}, strings.ToLower(word)) || utf8.RuneCountInString(word) <= 2 {
-				continue
-			}
-			penalty = 0
-		}
-		out.boundaries = append(out.boundaries, textBoundary{end, out.units, penalty})
-	}
-	out.boundaries = append(out.boundaries, textBoundary{len(text), out.units, 0})
-	return out
-}
-
-func isCJK(r rune) bool {
-	return unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Hangul)
 }
 
 // Exact source coverage is required before using word evidence. A hand-edited
@@ -222,201 +121,193 @@ func wordBoundaries(cue Cue, text string) (map[int]int64, map[int]int) {
 	return times, words
 }
 
-// Choose balanced natural boundaries with bounded linear scans. No arbitrary
-// mid-word fallback is used for a URL, number, or unspaced non-CJK word.
-func (s splitText) divide(count int, times map[int]int64) ([]string, []int) {
-	bounds := s.boundaries
-	if times != nil {
-		bounds = slices.DeleteFunc(slices.Clone(bounds), func(b textBoundary) bool { _, ok := times[b.offset]; return !ok })
+// The original track is source-driven. An optimized cue with a translation is
+// translation-driven, even if the source has an ASR clock or is much longer.
+// Multi-line imports retain simultaneous lanes; the longest primary-group
+// lane drives cuts and the others project, never sequence top then bottom.
+func primarySplitLane(lanes []splitText, sourceCount int, translated bool) (int, int, int) {
+	first, last := 0, sourceCount
+	if translated {
+		first, last = sourceCount, len(lanes)
 	}
-	if len(bounds) < count+1 {
-		return nil, nil
-	}
-	parts, offsets := []string{}, []int{0}
-	previous := 0
-	for part := 1; part < count; part++ {
-		remaining := count - part
-		target := (s.units - bounds[previous].units) / float64(remaining+1)
-		best, score := -1, math.Inf(1)
-		for i := previous + 1; i < len(bounds)-remaining; i++ {
-			b := bounds[i]
-			units := b.units - bounds[previous].units
-			if units <= 0 || s.units-b.units <= 0 {
-				continue
-			}
-			if times != nil && (times[b.offset]-times[bounds[previous].offset] < 1000 || times[len(s.text)]-times[b.offset] < int64(remaining)*1000) {
-				continue
-			}
-			cost := math.Pow((units-target)/s.limit, 2)*20 + b.penalty
-			cost += math.Max(0, units/s.limit-1)*100 + math.Max(0, (s.units-b.units)/float64(remaining)/s.limit-1)*100
-			if cost < score {
-				best, score = i, cost
-			}
-			if units > max(s.limit, target)*2 && best >= 0 {
-				break
-			}
+	primary := first
+	for i := first + 1; i < last; i++ {
+		if lanes[i].units/lanes[i].limit > lanes[primary].units/lanes[primary].limit {
+			primary = i
 		}
-		if best < 0 {
-			return nil, nil
-		}
-		parts = append(parts, strings.TrimSpace(s.text[bounds[previous].offset:bounds[best].offset]))
-		offsets = append(offsets, bounds[best].offset)
-		previous = best
 	}
-	parts = append(parts, strings.TrimSpace(s.text[bounds[previous].offset:]))
-	offsets = append(offsets, len(s.text))
-	if slices.Contains(parts, "") {
-		return nil, nil
-	}
-	return parts, offsets
+	return primary, first, last
 }
 
-// partitionCue shares one timeline across all simultaneous text lanes. Missing
-// word times use proportional allocation constrained to a one-second minimum;
-// available time is redistributed, not shortened by artificial gaps.
-func partitionCue(cue Cue, format string, lanes []splitText, count int, times map[int]int64) ([][]string, []int, []int64, string) {
-	pieces := make([][]string, len(lanes))
-	var offsets []int
-	for i, lane := range lanes {
-		var evidence map[int]int64
-		if i == 0 {
-			evidence = times
-		}
-		parts, positions := lane.divide(count, evidence)
-		if len(parts) != count {
-			if len(lanes) > 1 {
-				return nil, nil, nil, "bilingual"
-			}
-			return nil, nil, nil, "boundary"
-		}
-		pieces[i] = parts
-		if i == 0 {
-			offsets = positions
-		}
+// partitionCue solves primary text, projects it to a real source clock when
+// available, then projects secondary text to the resulting shared times.
+// Estimated clocks redistribute within the envelope; aligned clocks never do.
+func partitionCue(ctx context.Context, cue Cue, format string, lanes []splitText, primary, count int, clock splitClock) ([][]string, [][]int, []int64, string, error) {
+	unit, minDuration := int64(1), minimumSplitDuration
+	if format == "ass" || format == "ssa" {
+		unit = 10
+		minDuration = (minDuration + unit - 1) / unit * unit
 	}
-	weights := make([]float64, count)
-	total := 0.0
-	for i := range count {
-		for lane, parts := range pieces {
-			cjk, _, _ := readingProfile(lanes[lane].text)
-			weights[i] = max(weights[i], readingUnits(parts[i], cjk)/lanes[lane].rate)
+	pieces, offsets := make([][]string, len(lanes)), make([][]int, len(lanes))
+	var primaryClock splitClock
+	if primary == 0 {
+		primaryClock = clock
+	}
+	var err error
+	pieces[primary], offsets[primary], err = lanes[primary].partition(ctx, count, primaryClock, nil, cue.EndMs-cue.StartMs, minDuration)
+	if err != nil || len(pieces[primary]) != count {
+		return nil, nil, nil, "boundary", err
+	}
+	fractions := lanes[primary].fractions(offsets[primary])
+	if clock.times != nil && primary != 0 {
+		// A translation determines linguistic cuts; its source chooses the
+		// nearest legal ASR boundaries, without estimating any word times.
+		pieces[0], offsets[0], err = lanes[0].partition(ctx, count, clock, fractions, 0, minDuration)
+		if err != nil || len(pieces[0]) != count {
+			return nil, nil, nil, "bilingual", err
 		}
-		weights[i] = max(0.1, weights[i])
-		total += weights[i]
 	}
 	cuts := make([]int64, count+1)
 	cuts[0], cuts[count] = cue.StartMs, cue.EndMs
-	unit := int64(1)
-	if format == "ass" || format == "ssa" {
-		unit = 10
-	}
+	remainingWeight := 1.0
 	for i := 1; i < count; i++ {
-		remaining := cue.EndMs - cuts[i-1]
-		ideal := int64(math.Round(float64(remaining)*weights[i-1]/total/float64(unit))) * unit
-		span := max(int64(1000), min(ideal, remaining-int64(count-i)*1000))
-		cuts[i] = cuts[i-1] + span
-		total -= weights[i-1]
-		if times != nil {
-			cuts[i] = times[offsets[i]]
+		if clock.times != nil {
+			cuts[i] = clock.times[offsets[0][i]]
+		} else {
+			// Clamp only estimated spans, distributing the remaining time by
+			// primary text weight. A five-character introduction may need
+			// 833 ms rather than its unclamped 700 ms, without adding a gap.
+			remaining := cue.EndMs - cuts[i-1]
+			weight := fractions[i] - fractions[i-1]
+			ideal := int64(math.Round(float64(remaining)*weight/remainingWeight/float64(unit))) * unit
+			span := max(minDuration, min(ideal, remaining-int64(count-i)*minDuration))
+			cuts[i] = cuts[i-1] + span
+			remainingWeight -= weight
 		}
 	}
 	for i := range count {
-		if cuts[i+1]-cuts[i] < 1000 || cuts[i]%unit != 0 || cuts[i+1]%unit != 0 {
-			return nil, nil, nil, "duration"
+		if cuts[i+1]-cuts[i] < minDuration || cuts[i]%unit != 0 || cuts[i+1]%unit != 0 {
+			return nil, nil, nil, "duration", nil
 		}
 	}
-	return pieces, offsets, cuts, ""
+	for i := range fractions {
+		fractions[i] = float64(cuts[i]-cue.StartMs) / float64(cue.EndMs-cue.StartMs)
+	}
+	for i, lane := range lanes {
+		if i == primary || i == 0 && clock.times != nil {
+			continue
+		}
+		pieces[i], offsets[i], err = lane.partition(ctx, count, splitClock{}, fractions, 0, minDuration)
+		if err != nil || len(pieces[i]) != count {
+			return nil, nil, nil, "bilingual", err
+		}
+	}
+	return pieces, offsets, cuts, "", nil
 }
 
-func splitCue(cue Cue, format, command string, original bool) ([]Cue, string) {
+func splitCue(ctx context.Context, cue Cue, format, command string, original bool) ([]Cue, string, error) {
 	if cue.ReadOnly {
-		return nil, "protected"
+		return nil, "protected", nil
 	}
 	source, reason := splitLanes(SourceText(cue), format)
 	if reason != "" {
-		return nil, reason
+		return nil, reason, nil
 	}
 	lanes := source
 	if cue.Translated {
 		translated, why := splitLanes(cue.Text, format)
 		if why != "" {
-			return nil, why
+			return nil, why, nil
 		}
 		lanes = append(slices.Clone(source), translated...)
 	}
-	load := InspectCueReading(cue)
-	count := max(2, int(math.Ceil(load.Source.Units/load.Source.MaxUnits)))
-	if cue.Translated {
-		count = max(count, int(math.Ceil(load.Translation.Units/load.Translation.MaxUnits)))
-	}
-	maximum := int((cue.EndMs - cue.StartMs) / 1000)
+	primary, groupStart, groupEnd := primarySplitLane(lanes, len(source), !original && cue.Translated)
+	maximum := min(maximumSplitParts, int((cue.EndMs-cue.StartMs)/preferredSplitSpan))
 	if maximum < 2 {
-		return nil, "duration"
+		return nil, "duration", nil
 	}
-	for _, lane := range lanes {
-		maximum = min(maximum, len(lane.boundaries)-1)
+	count := max(2, int(math.Ceil(float64(cue.EndMs-cue.StartMs)/7000)))
+	for i, lane := range lanes {
+		if len(lane.boundaries) > maximumSplitBounds {
+			return nil, "capacity", nil
+		}
+		minimumCharacters := 3 // three tiny complete words, or ten printed characters
+		if lane.language == splitChinese || lane.language == splitJapanese || lane.language == splitThai {
+			minimumCharacters = 4
+		}
+		maximum = min(maximum, len(lane.boundaries)-1, lane.boundaries[len(lane.boundaries)-1].characters/minimumCharacters)
+		if i >= groupStart && i < groupEnd {
+			count = max(count, int(math.Ceil(lane.units/lane.limit)))
+		}
 	}
 	if maximum < 2 {
 		if len(lanes) > 1 {
-			return nil, "bilingual"
+			return nil, "bilingual", nil
 		}
-		return nil, "boundary"
+		return nil, "boundary", nil
 	}
 	count = min(count, maximum)
-	var times map[int]int64
-	var wordAt map[int]int
+	var clock splitClock
 	if len(source) == 1 {
-		times, wordAt = wordBoundaries(cue, source[0].text)
-		if times != nil {
-			// A genuine pause helps rank otherwise similar natural boundaries.
-			// It cannot override the minimum duration or invent a cut in a word.
-			for i, boundary := range lanes[0].boundaries {
-				if word, ok := wordAt[boundary.offset]; ok && word > 0 && word < len(cue.Words) {
-					gap := cue.Words[word].StartMs - cue.Words[word-1].EndMs
-					lanes[0].boundaries[i].penalty -= min(4, float64(gap)/250)
-				}
-			}
-		}
+		clock.times, clock.wordAt = wordBoundaries(cue, source[0].text)
+		clock.words = cue.Words
 	}
 	separator := "\n"
 	if format == "ass" || format == "ssa" {
 		separator = `\N`
 	}
 	var pieces [][]string
-	var offsets []int
+	var offsets [][]int
 	var cuts []int64
 	bestLoad := math.Inf(1)
-	for candidate := count; candidate <= maximum; candidate++ {
-		parts, positions, boundaries, why := partitionCue(cue, format, lanes, candidate, times)
+	try := func(candidate int) (bool, error) {
+		parts, positions, boundaries, why, err := partitionCue(ctx, cue, format, lanes, primary, candidate, clock)
+		if err != nil {
+			return false, err
+		}
 		if why != "" {
-			if pieces == nil {
-				return nil, why
-			}
-			break
+			reason = why
+			return false, nil
 		}
 		longest := 0.0
 		for i := range candidate {
-			texts := make([]string, len(lanes))
-			for lane := range lanes {
-				texts[lane] = parts[lane][i]
+			texts := make([]string, groupEnd-groupStart)
+			for lane := groupStart; lane < groupEnd; lane++ {
+				text := parts[lane][i]
+				texts[lane-groupStart] = text
+				// Compare physical scan columns, including punctuation. Reading
+				// DU is a separate review signal and does not set line capacity.
+				columns := lanes[lane].unitsAt(positions[lane][i+1]) - lanes[lane].unitsAt(positions[lane][i])
+				longest = max(longest, columns/lanes[lane].limit)
 			}
-			for _, group := range [][]string{texts[:len(source)], texts[len(source):]} {
-				if len(group) == 0 {
-					continue
-				}
-				r := InspectReading(strings.Join(group, separator), boundaries[i+1]-boundaries[i])
-				longest = max(longest, r.Units/r.MaxUnits)
+			if len(texts) > 1 {
+				load := InspectReading(strings.Join(texts, separator), boundaries[i+1]-boundaries[i])
+				longest = max(longest, load.Units/load.MaxUnits)
 			}
 		}
-		// Retry finer partitions only while they improve the worst length.
-		// An indivisible URL/phrase must not turn other words into tiny cues.
-		if pieces != nil && longest >= bestLoad {
+		if longest < bestLoad {
+			pieces, offsets, cuts, bestLoad = parts, positions, boundaries, longest
+		}
+		return longest <= 1, nil
+	}
+	for candidate := count; candidate <= maximum; candidate++ {
+		fit, err := try(candidate)
+		if err != nil {
+			return nil, "", err
+		}
+		if fit {
 			break
 		}
-		pieces, offsets, cuts, bestLoad = parts, positions, boundaries, longest
-		if longest <= 1 {
-			break
+	}
+	// If the desired count has no legal path, absorb fragments by solving
+	// fewer whole phrases globally. Never relax a word, content or time gate.
+	for candidate := count - 1; pieces == nil && candidate >= 2; candidate-- {
+		if _, err := try(candidate); err != nil {
+			return nil, "", err
 		}
+	}
+	if pieces == nil {
+		return nil, reason, nil
 	}
 	count = len(cuts) - 1
 	from := cue.SplitCueIDs
@@ -447,16 +338,14 @@ func splitCue(cue Cue, format, command string, original bool) ([]Cue, string) {
 		if !original && len(part.SourceCueIDs) == 0 {
 			part.SourceCueIDs = []string{cue.ID}
 		}
-		// The old atom range covered a whole cue, not this new part. Retain
-		// actual source IDs, never misleading fine-grained atom provenance.
+		// An old atom range describes the unsplit cue. Preserve actual source
+		// IDs, never misleading fine-grained provenance or fabricated words.
 		part.SourceRange = nil
-		if times != nil {
+		if clock.times != nil {
 			part.TimingQuality = "aligned"
-			part.Words = slices.Clone(cue.Words[wordAt[offsets[i]]:wordAt[offsets[i+1]]])
-			part.Words[0].Text = strings.TrimLeftFunc(part.Words[0].Text, unicode.IsSpace)
-			part.Words[len(part.Words)-1].Text = strings.TrimRightFunc(part.Words[len(part.Words)-1].Text, unicode.IsSpace)
+			part.Words = slices.Clone(cue.Words[clock.wordAt[offsets[0][i]]:clock.wordAt[offsets[0][i+1]]])
 		}
 		out[i] = part
 	}
-	return out, ""
+	return out, "", nil
 }
