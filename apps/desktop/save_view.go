@@ -290,22 +290,38 @@ func (a *NativeApp) unsavedText() string {
 	return strings.Join(lines, "\n")
 }
 
-// savePromptView asks in MyGo's alert, whose last button is the default and
-// whose Escape cancels.
+// savePromptView asks before an action that would close unsaved subtitles.
+// Cancel and Escape close it and keep the work; afterSave is replaced by the
+// next prompt.
 func (a *NativeApp) savePromptView(c *ui.Context) {
 	if !a.savePromptOpen {
 		return
 	}
-	open := true
-	switch ui.AlertDialog(c, &open, locales.SavePromptTitle(), a.unsavedText(), locales.ActionCancel(), locales.SaveDiscard(), locales.SaveConfirm()) {
-	case 1:
-		a.finishSavePrompt("discard")
-	case 2:
-		a.finishSavePrompt("save")
-	default:
-		if !open {
-			a.finishSavePrompt("cancel")
-		}
+	a.saveChoiceDialog(c, &a.savePromptOpen, locales.SavePromptTitle(), a.unsavedText(), locales.SaveDiscard(), locales.SaveConfirm(),
+		func() { a.finishSavePrompt("discard") }, func() { a.finishSavePrompt("save") })
+}
+
+// saveChoiceDialog is a three-button confirmation that sizes to its content.
+// MyGo's alert has a fixed width, so long button names and file names overflow
+// it. Here the text wraps, the buttons wrap onto another line when the window
+// is narrow, and the width stays within the window.
+func (a *NativeApp) saveChoiceDialog(c *ui.Context, open *bool, title, message, discard, save string, onDiscard, onSave func()) {
+	vw, _ := c.Size()
+	modal := ui.Modal(c, open, func() {
+		ui.Column(c).MinWidth(min(em(c, 420), vw-c.Theme().Space(20))).MaxWidth(min(em(c, 720), vw-c.Theme().Space(20))).Gap(em(c, 16)).Label(title).Children(func() {
+			dialogTitle(c, title)
+			ui.Divider(c)
+			ui.Text(c, message)
+			ui.Divider(c)
+			ui.Row(c).Gap(em(c, 8)).Wrap().Justify(ui.End).Children(func() {
+				ui.Button(c, locales.ActionCancel()).OnClick(func() { *open = false })
+				ui.Button(c, discard).OnClick(func() { *open = false; onDiscard() })
+				ui.PrimaryButton(c, save).OnClick(func() { *open = false; onSave() })
+			})
+		})
+	})
+	if !c.Theme().Dark {
+		modal.Background(studioColors(c).panel)
 	}
 }
 
@@ -345,18 +361,16 @@ func (a *NativeApp) clearView(c *ui.Context) {
 		}
 		return
 	}
-	switch ui.AlertDialog(c, &a.clearOpen, locales.ClearTitle(), locales.ClearBody()+"\n"+a.unsavedText(), locales.ActionCancel(), locales.ClearDiscard(), locales.ClearSave()) {
-	case 1:
-		a.clearWorkbench()
-	case 2:
-		tracks := []int{}
-		for track, unsaved := range a.unsaved {
-			if unsaved {
-				tracks = append(tracks, track)
+	a.saveChoiceDialog(c, &a.clearOpen, locales.ClearTitle(), locales.ClearBody()+"\n"+a.unsavedText(), locales.ClearDiscard(), locales.ClearSave(),
+		a.clearWorkbench, func() {
+			tracks := []int{}
+			for track, unsaved := range a.unsaved {
+				if unsaved {
+					tracks = append(tracks, track)
+				}
 			}
-		}
-		a.saveTracks(tracks, false, a.clearWorkbench)
-	}
+			a.saveTracks(tracks, false, a.clearWorkbench)
+		})
 }
 
 // clearWorkbench closes the project and the video. No file is deleted.
