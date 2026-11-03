@@ -256,3 +256,30 @@ func TestClearWorkbenchConfirmsAndCloses(t *testing.T) {
 		t.Fatal(tt.Texts())
 	}
 }
+
+// The save choice grows to hold its three buttons: each name stays on one line
+// and all three share a row, in both languages and a narrow window.
+func TestSaveChoiceButtonsStayOnOneRow(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			for _, width := range []int{1400, 760} {
+				a := draftApp(t)
+				a.draft = "修改"
+				a.changed(time.Now())
+				a.requestClear()
+				tt := settled(a.view, width, 600)
+				labels := []string{locales.ActionCancel(), locales.ClearDiscard(), locales.ClearSave()}
+				first, ok := tt.Find(labels[0])
+				if !ok {
+					t.Fatal(tt.Texts())
+				}
+				for _, label := range labels {
+					box, found := tt.Find(label)
+					if !found || box.Y != first.Y || box.H != first.H || box.X+box.W > float32(width) {
+						t.Fatal("button wrapped or overflowed", language, width, label, box, first)
+					}
+				}
+			}
+		})
+	}
+}
