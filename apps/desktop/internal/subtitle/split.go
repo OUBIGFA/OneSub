@@ -237,9 +237,9 @@ func splitCue(ctx context.Context, cue Cue, format, command string, original boo
 	if !original && cue.Translated {
 		primaryText = cue.Text
 	}
-	// The 16-column (CJK) or two-line 76-column target chooses cuts in long
+	// The 16-column (CJK) or 56-column target chooses cuts in long
 	// text; it does not force another split in a compact utterance. Use the
-	// wider 20/84-column ceilings, plus the existing combined reading-load gate.
+	// wider 20/64-column ceilings, plus the existing combined reading-load gate.
 	// A manual request can still separate independent clauses or real pauses.
 	lanes[primary].clauseOnly = !InspectReading(primaryText, cue.EndMs-cue.StartMs).TooLong
 	for i := groupStart; i < groupEnd; i++ {

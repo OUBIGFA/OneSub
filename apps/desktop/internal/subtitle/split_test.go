@@ -25,8 +25,8 @@ func TestReadingLoadSeparatesLengthAndSpeed(t *testing.T) {
 	}{
 		{"这是一条很短的字幕", 500, false, true},
 		{strings.Repeat("文", 26), 10000, true, false},
-		{strings.Repeat("a", 84), 10000, false, false},
-		{strings.Repeat("a", 85), 10000, true, false},
+		{strings.Repeat("a", 64), 10000, false, false},
+		{strings.Repeat("a", 65), 10000, true, false},
 		{"<i>你好</i>", 1000, false, false},
 		{"你好（Hello）", 1000, false, false},
 	} {

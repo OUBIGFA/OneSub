@@ -55,9 +55,10 @@ func readingProfile(text string) (cjk bool, maxUnits, maxRate float64) {
 	case han > 0:
 		return true, 25, 4.5
 	default:
-		// Space-separated scripts show a subtitle in up to two lines of 42
-		// characters; 42 is one line, not the subtitle.
-		return false, 84, 17
+		// One 42-character line cut English into fragments and two full
+		// lines (84) kept it too long to read or translate. Allow a line and a
+		// half, 64 characters, as the comfortable maximum.
+		return false, 64, 17
 	}
 }
 
