@@ -22,46 +22,51 @@ func TestOutputArtifactsUseSelectedContentAndSmartSubLayers(t *testing.T) {
 	secondary.FontSize = 16
 	secondary.Italic = true
 	doc := subtitle.Document{Format: "srt", Cues: []subtitle.Cue{{ID: "c1", Text: "译文", TranslationSource: "Edited source", OriginalText: "raw source", Translated: true, StartMs: 1000, EndMs: 3000}}}
-	for _, mode := range []string{"source", "translation", "bilingual"} {
-		for _, format := range []string{"srt", "vtt"} {
-			selected, err := subtitle.SelectOutput(doc, subtitle.OutputOptions{Mode: mode, SourceFirst: true})
-			if err != nil {
-				t.Fatal(err)
-			}
-			selected.TargetFormat = format
-			raw, err := a.worker.Write(context.Background(), selected)
-			if err != nil {
-				t.Fatal(err)
-			}
-			path := filepath.Join(t.TempDir(), "output."+format)
-			os.WriteFile(path, raw, 0600)
-			read, err := a.worker.Read(context.Background(), path)
-			if err != nil || read.Cues[0].Text != selected.Cues[0].Text {
-				t.Fatal(read, err)
-			}
-			if strings.Contains(string(raw), "raw source") {
-				t.Fatal("immutable original replaced current source")
-			}
+	// Each content mode is written and read back once; SRT and VTT alternate
+	// because the libse round trip is format-specific, not mode-specific.
+	for i, mode := range []string{"source", "translation", "bilingual"} {
+		format := []string{"srt", "vtt"}[i%2]
+		selected, err := subtitle.SelectOutput(doc, subtitle.OutputOptions{Mode: mode, SourceFirst: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		selected.TargetFormat = format
+		raw, err := a.worker.Write(context.Background(), selected)
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(t.TempDir(), "output."+format)
+		os.WriteFile(path, raw, 0600)
+		read, err := a.worker.Read(context.Background(), path)
+		if err != nil || read.Cues[0].Text != selected.Cues[0].Text {
+			t.Fatal(read, err)
+		}
+		if strings.Contains(string(raw), "raw source") {
+			t.Fatal("immutable original replaced current source")
 		}
 	}
-	for _, primary := range []string{"source", "translation"} {
-		for _, sourceFirst := range []bool{false, true} {
-			opts := subtitle.OutputOptions{Mode: "bilingual", Primary: primary, SourceFirst: sourceFirst}
-			styled, err := a.styledDocument(context.Background(), project.Snapshot{Document: doc}, a.currentStyle, secondary, opts, 16.0/9)
-			if err != nil || len(styled.Report.MissingGlyphs) > 0 || len(styled.Fonts) == 0 {
-				t.Fatal(styled.Report, err)
-			}
-			main, second := "译文", "Edited source"
-			if primary == "source" {
-				main, second = second, main
-			}
-			want := "{\\rDefault}" + main + "\\N{\\rSecondary}" + second
-			if sourceFirst != (primary == "source") {
-				want = "{\\rSecondary}" + second + "\\N{\\rDefault}" + main
-			}
-			if !strings.Contains(styled.ASS, want) || !strings.Contains(styled.ASS, ",16,") {
-				t.Fatal(styled.ASS, want)
-			}
+	// Three style-worker builds cover both primaries, both orders and both
+	// resulting layer orders; the fourth combination repeats one of them.
+	for _, c := range []struct {
+		primary     string
+		sourceFirst bool
+	}{{"source", true}, {"source", false}, {"translation", true}} {
+		primary, sourceFirst := c.primary, c.sourceFirst
+		opts := subtitle.OutputOptions{Mode: "bilingual", Primary: primary, SourceFirst: sourceFirst}
+		styled, err := a.styledDocument(context.Background(), project.Snapshot{Document: doc}, a.currentStyle, secondary, opts, 16.0/9)
+		if err != nil || len(styled.Report.MissingGlyphs) > 0 || len(styled.Fonts) == 0 {
+			t.Fatal(styled.Report, err)
+		}
+		main, second := "译文", "Edited source"
+		if primary == "source" {
+			main, second = second, main
+		}
+		want := "{\\rDefault}" + main + "\\N{\\rSecondary}" + second
+		if sourceFirst != (primary == "source") {
+			want = "{\\rSecondary}" + second + "\\N{\\rDefault}" + main
+		}
+		if !strings.Contains(styled.ASS, want) || !strings.Contains(styled.ASS, ",16,") {
+			t.Fatal(styled.ASS, want)
 		}
 	}
 }

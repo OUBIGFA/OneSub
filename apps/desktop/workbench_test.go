@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,12 +18,31 @@ import (
 	"github.com/egoist/mygo"
 )
 
+// The real SmartSub catalog is read once per test binary: each worker launch
+// costs about a second and the catalog never changes during a run. Every app
+// decodes its own copy so tests that edit presets cannot leak into others.
+var styleCatalogOnce = sync.OnceValues(func() ([]byte, error) {
+	scratch, err := os.MkdirTemp("", "onesub-style-catalog-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(scratch)
+	catalog, err := styles.Client{Executable: os.Getenv("ONESUB_STYLE_WORKER"), Scratch: scratch}.Catalog(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(catalog)
+})
+
 func withStyleCatalog(t *testing.T) *NativeApp {
 	t.Helper()
 	a := nativeForTest(t)
-	client := styles.Client{Executable: os.Getenv("ONESUB_STYLE_WORKER"), Scratch: t.TempDir()}
-	catalog, err := client.Catalog(context.Background())
+	raw, err := styleCatalogOnce()
 	if err != nil {
+		t.Fatal(err)
+	}
+	var catalog styles.Catalog
+	if err = json.Unmarshal(raw, &catalog); err != nil {
 		t.Fatal(err)
 	}
 	a.styleCatalog = catalog

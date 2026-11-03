@@ -130,43 +130,47 @@ func TestTranslationSchedulingOnWorkbench(t *testing.T) {
 
 // A shortened inspector may scroll, but neither primary actions nor user-owned
 // divider ratios move with its content. No horizontal parameter overflow.
+// Both languages run at the shortest desktop height; the ultrawide case uses
+// English, whose longer labels are the first to overflow.
 func TestDesktopInspectorScrollKeepsCommandsAndDivider(t *testing.T) {
-	for _, language := range []string{"zh-Hans", "en"} {
-		for _, size := range [][2]int{{1920, 1040}, {2560, 1400}, {3440, 1392}} {
-			t.Run(fmt.Sprintf("%s/%dx%d", language, size[0], size[1]), func(t *testing.T) {
-				inLocale(t, language, func() {
-					a := withStyleCatalog(t)
-					a.snapshot.Manifest.MediaPath = "test.mp4"
-					a.splitY = 35
-					tt := settled(a.view, size[0], size[1])
-					for tab := 0; tab < 2; tab++ {
-						a.workflowTab = tab
-						for range 6 {
-							tt.Frame()
-						}
-						label := locales.WorkflowStartRecognize()
-						if tab == 1 {
-							label = locales.WorkflowStartTranslate()
-						}
-						command, _ := tt.Find(label)
-						panel, _ := tt.Find(locales.WorkflowTitle())
-						tt.Scroll(panel.X+panel.W/2, float32(size[1])-100, 0, 2000)
-						if after, _ := tt.Find(label); after != command {
-							t.Fatal("primary action scrolled away", command, after)
-						}
-						if a.workflowScroll.MaxX > 1 || a.styleScroll.MaxX > 1 {
-							t.Fatal("horizontal parameter overflow")
-						}
-						r, ok := tt.Find(locales.RecognitionResetFolder())
-						if !ok || r.W <= 0 || r.Y+r.H > float32(size[1])-32 || r.X+r.W > float32(size[0]) {
-							t.Fatal("destination action unreachable", r)
-						}
+	for _, c := range []struct {
+		language string
+		size     [2]int
+	}{{"zh-Hans", [2]int{1920, 1040}}, {"en", [2]int{1920, 1040}}, {"en", [2]int{3440, 1392}}} {
+		language, size := c.language, c.size
+		t.Run(fmt.Sprintf("%s/%dx%d", language, size[0], size[1]), func(t *testing.T) {
+			inLocale(t, language, func() {
+				a := withStyleCatalog(t)
+				a.snapshot.Manifest.MediaPath = "test.mp4"
+				a.splitY = 35
+				tt := settled(a.view, size[0], size[1])
+				for tab := 0; tab < 2; tab++ {
+					a.workflowTab = tab
+					for range 6 {
+						tt.Frame()
 					}
-					if a.splitY != 35 {
-						t.Fatal("content changed the user's divider")
+					label := locales.WorkflowStartRecognize()
+					if tab == 1 {
+						label = locales.WorkflowStartTranslate()
 					}
-				})
+					command, _ := tt.Find(label)
+					panel, _ := tt.Find(locales.WorkflowTitle())
+					tt.Scroll(panel.X+panel.W/2, float32(size[1])-100, 0, 2000)
+					if after, _ := tt.Find(label); after != command {
+						t.Fatal("primary action scrolled away", command, after)
+					}
+					if a.workflowScroll.MaxX > 1 || a.styleScroll.MaxX > 1 {
+						t.Fatal("horizontal parameter overflow")
+					}
+					r, ok := tt.Find(locales.RecognitionResetFolder())
+					if !ok || r.W <= 0 || r.Y+r.H > float32(size[1])-32 || r.X+r.W > float32(size[0]) {
+						t.Fatal("destination action unreachable", r)
+					}
+				}
+				if a.splitY != 35 {
+					t.Fatal("content changed the user's divider")
+				}
 			})
-		}
+		})
 	}
 }

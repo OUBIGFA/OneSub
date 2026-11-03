@@ -110,40 +110,42 @@ func TestRealCompositionPreservesChapterData(t *testing.T) {
 		t.Fatal("fixture did not produce a chapter data stream", input)
 	}
 	document := compositionTestDocument(t, worker, root, input.FrameAspect())
-	for _, mode := range []string{"hard", "soft"} {
-		for _, extension := range []string{".mp4", ".mkv"} {
-			for _, sample := range []bool{false, true} {
-				t.Run(fmt.Sprintf("%s%s/sample%t", mode, extension, sample), func(t *testing.T) {
-					output := filepath.Join(root, fmt.Sprintf("%s-%t%s", mode, sample, extension))
-					options := ComposeOptions{Source: source, Destination: output, Mode: mode, Quality: "lossless", Sample: sample, Language: "en"}
-					report, err := Compose(context.Background(), ffmpeg, probe, root, options, document, func(ComposeProgress) {})
-					if err != nil {
-						t.Fatal("chapter-bearing video rejected", err)
-					}
-					if report.Streams["video"] != 1 || report.Streams["audio"] != 2 || report.OutputSHA256 == "" {
-						t.Fatal("lost audiovisual streams or validation report", report)
-					}
-					if mode == "soft" && report.Streams["subtitle"] != 1 {
-						t.Fatal("soft subtitle missing", report)
-					}
-					assertChapterOutput(t, probe, output, sample)
-					if mode == "hard" {
-						// At three seconds the test subtitle is absent. Lossless
-						// encoding must preserve the decoded frame, not just QP args.
-						frameHash := func(path string) string {
-							out, err := exec.Command(ffmpeg, "-v", "error", "-ss", "3", "-i", path, "-map", "0:v:0", "-frames:v", "1", "-pix_fmt", "yuv420p", "-f", "hash", "-hash", "sha256", "-").CombinedOutput()
-							if err != nil {
-								t.Fatalf("decode frame: %v %s", err, out)
-							}
-							return strings.TrimSpace(string(out))
-						}
-						if frameHash(source) != frameHash(output) {
-							t.Fatal("lossless chapter handling changed a subtitle-free frame")
-						}
-					}
-				})
+	// Pairwise cases: every mode/container/sample pairing appears once, so each
+	// real encode still covers a distinct combination without the full matrix.
+	for _, c := range []struct {
+		mode, extension string
+		sample          bool
+	}{{"hard", ".mp4", false}, {"hard", ".mkv", true}, {"soft", ".mp4", true}, {"soft", ".mkv", false}} {
+		mode, extension, sample := c.mode, c.extension, c.sample
+		t.Run(fmt.Sprintf("%s%s/sample%t", mode, extension, sample), func(t *testing.T) {
+			output := filepath.Join(root, fmt.Sprintf("%s-%t%s", mode, sample, extension))
+			options := ComposeOptions{Source: source, Destination: output, Mode: mode, Quality: "lossless", Sample: sample, Language: "en"}
+			report, err := Compose(context.Background(), ffmpeg, probe, root, options, document, func(ComposeProgress) {})
+			if err != nil {
+				t.Fatal("chapter-bearing video rejected", err)
 			}
-		}
+			if report.Streams["video"] != 1 || report.Streams["audio"] != 2 || report.OutputSHA256 == "" {
+				t.Fatal("lost audiovisual streams or validation report", report)
+			}
+			if mode == "soft" && report.Streams["subtitle"] != 1 {
+				t.Fatal("soft subtitle missing", report)
+			}
+			assertChapterOutput(t, probe, output, sample)
+			if mode == "hard" {
+				// At three seconds the test subtitle is absent. Lossless
+				// encoding must preserve the decoded frame, not just QP args.
+				frameHash := func(path string) string {
+					out, err := exec.Command(ffmpeg, "-v", "error", "-ss", "3", "-i", path, "-map", "0:v:0", "-frames:v", "1", "-pix_fmt", "yuv420p", "-f", "hash", "-hash", "sha256", "-").CombinedOutput()
+					if err != nil {
+						t.Fatalf("decode frame: %v %s", err, out)
+					}
+					return strings.TrimSpace(string(out))
+				}
+				if frameHash(source) != frameHash(output) {
+					t.Fatal("lossless chapter handling changed a subtitle-free frame")
+				}
+			}
+		})
 	}
 }
 

@@ -20,8 +20,10 @@ func TestRealNonzeroStartComposition(t *testing.T) {
 	worker, ffmpeg, probe := compositionTestTools(t)
 	root := t.TempDir()
 	document := compositionTestDocument(t, worker, root, 16.0/9)
+	fixture := 0
 	for _, inputExt := range []string{"mp4", "mkv"} {
 		for _, offset := range []string{"0.033", "2", "-0.25"} {
+			fixture++
 			source := filepath.Join(root, "source-"+offset+"."+inputExt)
 			args := []string{"-v", "error"}
 			if offset == "-0.25" {
@@ -42,42 +44,44 @@ func TestRealNonzeroStartComposition(t *testing.T) {
 			if offset != "-0.25" && origin <= 0 {
 				t.Fatal("fixture did not have a positive start")
 			}
-			for _, mode := range []string{"hard", "soft"} {
-				for _, ext := range []string{"mp4", "mkv"} {
-					t.Run(fmt.Sprintf("%s/%s/%s/%s", inputExt, offset, mode, ext), func(t *testing.T) {
-						outputDir, scratch := t.TempDir(), t.TempDir()
-						target := filepath.Join(outputDir, "result."+ext)
-						opts := ComposeOptions{Source: source, Destination: target, Mode: mode, Quality: "lossless", Language: "en"}
-						report, err := Compose(context.Background(), ffmpeg, probe, scratch, opts, document, func(ComposeProgress) {})
+			// Each fixture is composed once per mode, alternating the output
+			// container, so all input/offset/mode/container pairings stay covered.
+			exts := []string{"mp4", "mkv"}
+			for i, mode := range []string{"hard", "soft"} {
+				ext := exts[(fixture+i)%2]
+				t.Run(fmt.Sprintf("%s/%s/%s/%s", inputExt, offset, mode, ext), func(t *testing.T) {
+					outputDir, scratch := t.TempDir(), t.TempDir()
+					target := filepath.Join(outputDir, "result."+ext)
+					opts := ComposeOptions{Source: source, Destination: target, Mode: mode, Quality: "lossless", Language: "en"}
+					report, err := Compose(context.Background(), ffmpeg, probe, scratch, opts, document, func(ComposeProgress) {})
+					if err != nil {
+						t.Fatal(err)
+					}
+					if report.SourceStart != origin || report.Streams["audio"] != 2 || report.OutputSHA256 == "" {
+						t.Fatal(report)
+					}
+					assertOnlyFiles(t, outputDir, filepath.Base(target))
+					assertOnlyFiles(t, scratch)
+					// Stream starts must retain relative timing. MP4 edit lists
+					// can hide preroll on negative inputs; check nonnegative inputs
+					// to avoid mistaking a decoder preroll packet for presentation.
+					if offset != "-0.25" {
+						output, err := Probe(context.Background(), probe, target)
 						if err != nil {
 							t.Fatal(err)
 						}
-						if report.SourceStart != origin || report.Streams["audio"] != 2 || report.OutputSHA256 == "" {
-							t.Fatal(report)
-						}
-						assertOnlyFiles(t, outputDir, filepath.Base(target))
-						assertOnlyFiles(t, scratch)
-						// Stream starts must retain relative timing. MP4 edit lists
-						// can hide preroll on negative inputs; check nonnegative inputs
-						// to avoid mistaking a decoder preroll packet for presentation.
-						if offset != "-0.25" {
-							output, err := Probe(context.Background(), probe, target)
-							if err != nil {
-								t.Fatal(err)
-							}
-							for index := 0; index < 3; index++ {
-								before, _ := strconv.ParseFloat(input.Streams[index].StartTime, 64)
-								after, _ := strconv.ParseFloat(output.Streams[index].StartTime, 64)
-								if math.Abs(after-(before-origin)) > .034 {
-									t.Fatalf("stream %d shifted: before=%g origin=%g after=%g", index, before, origin, after)
-								}
+						for index := 0; index < 3; index++ {
+							before, _ := strconv.ParseFloat(input.Streams[index].StartTime, 64)
+							after, _ := strconv.ParseFloat(output.Streams[index].StartTime, 64)
+							if math.Abs(after-(before-origin)) > .034 {
+								t.Fatalf("stream %d shifted: before=%g origin=%g after=%g", index, before, origin, after)
 							}
 						}
-						if mode == "soft" {
-							assertSubtitlePacketTime(t, probe, target, .1)
-						}
-					})
-				}
+					}
+					if mode == "soft" {
+						assertSubtitlePacketTime(t, probe, target, .1)
+					}
+				})
 			}
 		}
 	}

@@ -31,7 +31,7 @@ func TestRealImportPairAndBrokenCompanions(t *testing.T) {
 	if err := os.WriteFile(sub, []byte("1\n00:00:00,100 --> 00:00:00,900\n自制测试字幕\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	for _, names := range [][2]string{
+	for i, names := range [][2]string{
 		{"课程 01.mp4", "课程 01.srt"},
 		{"课程 01.mp4", "课程 01-zh.srt"},
 		{"Blender Material Editing.mp4", "Blnder Material Editing.srt"},
@@ -50,15 +50,23 @@ func TestRealImportPairAndBrokenCompanions(t *testing.T) {
 			}
 			sub = nextSub
 		}
-		for _, path := range []string{video, sub} {
+		// Discovery is pure, so both entry points are checked to pick the same
+		// pair; the real worker/ffprobe validation runs once per pair, entering
+		// from the video and the subtitle in turn.
+		selections := [2]Selection{}
+		for k, path := range []string{video, sub} {
 			selection, err := Discover([]string{path})
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := Load(context.Background(), selection, worker, probe)
-			if err != nil || len(got.Document.Cues) != 1 || !got.Media.HasVideo() || len(got.Warnings) != 0 || got.Selection.Match == nil {
-				t.Fatalf("validated weighted pair: %+v %v", got, err)
-			}
+			selections[k] = selection
+		}
+		if selections[0].Media != selections[1].Media || selections[0].Subtitle != selections[1].Subtitle {
+			t.Fatalf("entry points chose different pairs: %+v %+v", selections[0], selections[1])
+		}
+		got, err := Load(context.Background(), selections[i%2], worker, probe)
+		if err != nil || len(got.Document.Cues) != 1 || !got.Media.HasVideo() || len(got.Warnings) != 0 || got.Selection.Match == nil {
+			t.Fatalf("validated weighted pair: %+v %v", got, err)
 		}
 	}
 	if err := os.WriteFile(video, []byte("broken media"), 0600); err != nil {

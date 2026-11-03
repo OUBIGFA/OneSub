@@ -68,27 +68,28 @@ func TestRealSmartSubComposition(t *testing.T) {
 	if len(document.Fonts) == 0 || !strings.Contains(document.ASS, "测试字幕") {
 		t.Fatal("style worker did not produce fonts/ASS")
 	}
-	for _, mode := range []string{"hard", "soft"} {
-		for _, extension := range []string{".mp4", ".mkv"} {
-			output := filepath.Join(root, mode+extension)
-			options := ComposeOptions{Source: source, Destination: output, Mode: mode, Quality: "crf23", Language: "zh-CN", Revision: 1}
-			report, err := Compose(context.Background(), ffmpeg, probe, root, options, document, func(p ComposeProgress) {
-				if p.Stage == "" || p.Fraction < -1 || p.Fraction >= 1 {
-					t.Errorf("invalid progress: %+v", p)
-				}
-			})
-			if err != nil {
-				t.Fatal(mode, extension, err)
+	// Container handling is covered by the chapter and timing matrices; here
+	// each mode runs once with SmartSub fonts and a CRF level.
+	for _, c := range [][2]string{{"hard", ".mp4"}, {"soft", ".mkv"}} {
+		mode, extension := c[0], c[1]
+		output := filepath.Join(root, mode+extension)
+		options := ComposeOptions{Source: source, Destination: output, Mode: mode, Quality: "crf23", Language: "zh-CN", Revision: 1}
+		report, err := Compose(context.Background(), ffmpeg, probe, root, options, document, func(p ComposeProgress) {
+			if p.Stage == "" || p.Fraction < -1 || p.Fraction >= 1 {
+				t.Errorf("invalid progress: %+v", p)
 			}
-			if report.Streams["audio"] != 2 || report.OutputSHA256 == "" {
-				t.Fatal(report)
-			}
-			if mode == "soft" && report.Streams["subtitle"] != 1 {
-				t.Fatal("missing soft subtitle")
-			}
-			if _, err = Compose(context.Background(), ffmpeg, probe, root, options, document, func(ComposeProgress) {}); err == nil {
-				t.Fatal("overwrote output")
-			}
+		})
+		if err != nil {
+			t.Fatal(mode, extension, err)
+		}
+		if report.Streams["audio"] != 2 || report.OutputSHA256 == "" {
+			t.Fatal(report)
+		}
+		if mode == "soft" && report.Streams["subtitle"] != 1 {
+			t.Fatal("missing soft subtitle")
+		}
+		if _, err = Compose(context.Background(), ffmpeg, probe, root, options, document, func(ComposeProgress) {}); err == nil {
+			t.Fatal("overwrote output")
 		}
 	}
 }
