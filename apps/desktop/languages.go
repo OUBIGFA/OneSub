@@ -37,10 +37,12 @@ type languageOption struct{ ID, Country, Label string }
 
 // OneAsr v1.3.0 requires an explicit language throughout ASR + alignment:
 // its forced aligner covers these 11 languages, and "auto" is read as
-// Chinese, not detected. So there is no automatic option. The sherpa-onnx
-// models recognize the subsets in their catalog entries.
+// Chinese, not detected. "auto" detects the language first and chooses the
+// model of its group (see routeRecognition). The sherpa-onnx models
+// recognize the subsets in their catalog entries.
 func sourceLanguages() []languageOption {
 	return []languageOption{
+		{languageAuto, "", locales.LanguageAuto()},
 		{"zh", "cn", locales.LanguageChina() + "-ZH"}, {"en", "gb", locales.LanguageBritain() + "-EN"},
 		{"yue", "cn", locales.LanguageCantonese() + "-YUE"}, {"ja", "jp", locales.LanguageJapan() + "-JA"},
 		{"ko", "kr", locales.LanguageKorea() + "-KO"}, {"de", "de", locales.LanguageGermany() + "-DE"},
@@ -59,7 +61,8 @@ func modelLanguages(id string) []languageOption {
 	}
 	out := []languageOption{}
 	for _, o := range sourceLanguages() {
-		if model.Supports(o.ID) {
+		// Detection chooses the model itself, whatever model is chosen.
+		if o.ID == languageAuto || model.Supports(o.ID) {
 			out = append(out, o)
 		}
 	}
@@ -67,10 +70,12 @@ func modelLanguages(id string) []languageOption {
 }
 
 // asrModelChanged saves a new choice of ASR model. The model keeps the
-// source language when it recognizes it, and otherwise takes its first.
+// source language when it recognizes it (or detection is on), and
+// otherwise takes its first.
 func (a *NativeApp) asrModelChanged() {
-	if languages := modelLanguages(a.settings.AsrModel); len(languages) > 0 && !slices.ContainsFunc(languages, func(o languageOption) bool { return o.ID == a.settings.Language }) {
-		a.settings.Language = languages[0].ID
+	// languages[0] is automatic detection; a chosen language stays chosen.
+	if languages := modelLanguages(a.settings.AsrModel); len(languages) > 1 && !slices.ContainsFunc(languages, func(o languageOption) bool { return o.ID == a.settings.Language }) {
+		a.settings.Language = languages[1].ID
 	}
 	a.saveSettings()
 }

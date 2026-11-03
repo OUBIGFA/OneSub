@@ -21,6 +21,7 @@ import (
 func (a *NativeApp) recognitionPreferences() settings.Settings {
 	prefs := a.settings
 	prefs.ModelPaths = maps.Clone(prefs.ModelPaths)
+	prefs.LanguageModels = maps.Clone(prefs.LanguageModels)
 	return prefs
 }
 
@@ -61,6 +62,8 @@ type recognitionStep struct {
 	Stage           string
 	Done, Total     int
 	Region, Regions int
+	// Route is the language and model that "routed" reports.
+	Route recognitionRoute
 }
 
 // oneAsrStages are the stage names the pinned OneAsr v1.3.0 CLI writes to
@@ -103,6 +106,23 @@ func parseOneAsrStage(line string) (recognitionStep, bool) {
 	return step, true
 }
 
+// routeLabel says the language and model automatic recognition chose.
+func routeLabel(route recognitionRoute) string {
+	if route.Language == languageAuto {
+		return locales.RecognitionRouteUnclear(route.Model)
+	}
+	name := route.Language
+	for _, o := range sourceLanguages() {
+		if o.ID == route.Language {
+			name = o.Label
+		}
+	}
+	if route.Fallback {
+		return locales.RecognitionRouteFallback(name, route.Model)
+	}
+	return locales.RecognitionRouted(name, route.Model)
+}
+
 // recognitionStepLabel says a step in the app's language: OneSub's own
 // stages around the CLI, and the CLI's, with the chunk. A sherpa-onnx
 // recognition reports its inputs as the chunks of "transcribe".
@@ -116,7 +136,11 @@ func recognitionStepLabel(step recognitionStep) string {
 		"load-asr": locales.RecognitionStageLoadAsr, "transcribe": locales.RecognitionStageTranscribe,
 		"load-aligner": locales.RecognitionStageLoadAligner, "align": locales.RecognitionStageAlign,
 		"export": locales.RecognitionStageExport, "punctuate": locales.RecognitionStagePunctuate,
+		"lid": locales.RecognitionDetectLanguage,
 	}[step.Stage]
+	if step.Stage == "routed" {
+		return routeLabel(step.Route)
+	}
 	if label == nil {
 		return ""
 	}
@@ -158,6 +182,9 @@ func (a *NativeApp) recognitionProgressView(c *ui.Context) {
 // recognitionStepChanged takes a step from the recognition's goroutine.
 func (a *NativeApp) recognitionStepChanged(step recognitionStep) {
 	a.win.Update(func() {
+		if step.Stage == "routed" {
+			a.recognitionRoute = step.Route
+		}
 		a.recognitionStep = step
 		a.status = recognitionStepLabel(step)
 	})
@@ -207,6 +234,9 @@ func (a *NativeApp) finishRecognition(ctx context.Context, source, srt string, w
 		a.status = locales.RecognitionSaved(len(a.snapshot.Document.Cues), path)
 		if repaired > 0 {
 			a.status += locales.ListSeparator() + locales.RecognitionRepaired(repaired)
+		}
+		if a.recognitionRoute.Model != "" {
+			a.status += locales.ListSeparator() + routeLabel(a.recognitionRoute)
 		}
 		if a.rememberProcessing("translate", continueTranslation) {
 			a.recognitionFinished()

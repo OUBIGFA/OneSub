@@ -74,10 +74,18 @@ func (t toolset) recognitionModels(prefs settings.Settings) (asr, aligner models
 	return asr, aligner, nil
 }
 
-// recognize runs the pinned OneAsr CLI on source and returns its SRT and
-// word timings, in a scratch folder that cleanup removes. step hears the
+// recognize runs the chosen model's CLI on source, after detecting the
+// language when it is "auto", and returns its SRT and word timings, in a scratch folder that cleanup removes. step hears the
 // stages as they happen.
 func (t toolset) recognize(ctx context.Context, prefs settings.Settings, source string, step func(recognitionStep)) (srt string, words []byte, cleanup func(), err error) {
+	if prefs.Language == languageAuto {
+		// Detect the language first, then recognize with its model.
+		var route recognitionRoute
+		if prefs, route, err = t.routeRecognition(ctx, prefs, source, step); err != nil {
+			return "", nil, nil, err
+		}
+		step(recognitionStep{Stage: "routed", Route: route})
+	}
 	asr, aligner, err := t.recognitionModels(prefs)
 	if err != nil {
 		return "", nil, nil, err

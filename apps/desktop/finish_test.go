@@ -164,6 +164,7 @@ func TestTranslationShowsEachSubtitleAsItIsWritten(t *testing.T) {
 // A language is its flag, name and code, in the choice and in each option.
 func TestLanguagesShowFlagNameAndCode(t *testing.T) {
 	a := withStyleCatalog(t)
+	a.settings.Language = "zh"
 	tt := settled(a.workflowPanel, 800, 800)
 	if !tt.HasText("中国（普通话）-ZH") {
 		t.Fatal(tt.Texts())
@@ -172,7 +173,8 @@ func TestLanguagesShowFlagNameAndCode(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, o := range sourceLanguages() {
-		if !tt.HasText(o.Label) || languageFlags()[o.Country] == nil {
+		// Detection is no language of a country, so it has no flag.
+		if !tt.HasText(o.Label) || (languageFlags()[o.Country] == nil) != (o.ID == languageAuto) {
 			t.Fatal("option without its flag or label", o)
 		}
 	}

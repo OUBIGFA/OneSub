@@ -8,6 +8,7 @@
       "kind": "asr",
       "engine": "sense-voice",
       "languages": [
+        "auto",
         "zh",
         "en",
         "yue",
@@ -70,7 +71,25 @@
         "es",
         "it",
         "pt",
-        "ru"
+        "ru",
+        "bg",
+        "hr",
+        "cs",
+        "da",
+        "nl",
+        "et",
+        "fi",
+        "el",
+        "hu",
+        "lv",
+        "lt",
+        "mt",
+        "pl",
+        "ro",
+        "sk",
+        "sl",
+        "sv",
+        "uk"
       ],
       "files": [
         {
@@ -96,6 +115,26 @@
           "size": 93939,
           "sha256": "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d",
           "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/2bda32ec70b097a55adaa07d9a7173915b43cc78/tokens.txt"
+        }
+      ]
+    },
+    {
+      "id": "sherpa-whisper-tiny-int8",
+      "label": "Whisper tiny INT8",
+      "kind": "lid",
+      "engine": "whisper-lid",
+      "files": [
+        {
+          "name": "tiny-encoder.int8.onnx",
+          "size": 12937772,
+          "sha256": "d24fb083ae3b1041fc24e97971d60e280c9342201fbb67b0ab428a8b4a51a434",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/65176e2deb88badc814a94058666cadccc29b61c/tiny-encoder.int8.onnx"
+        },
+        {
+          "name": "tiny-decoder.int8.onnx",
+          "size": 89855401,
+          "sha256": "d2fece8dd42771f1df975c6c0445770d0c292bf7547c2cae04a6c0cc57540925",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/65176e2deb88badc814a94058666cadccc29b61c/tiny-decoder.int8.onnx"
         }
       ]
     }

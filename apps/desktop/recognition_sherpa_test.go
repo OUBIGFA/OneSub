@@ -66,7 +66,7 @@ func TestPCMWritesRegionWAV(t *testing.T) {
 
 func TestSherpaArgsUseRelativeModelFiles(t *testing.T) {
 	for _, m := range models.Catalog() {
-		if !m.Sherpa() {
+		if !m.Sherpa() || m.Kind != "asr" {
 			continue
 		}
 		args := strings.Join(sherpaArgs(m, `oneasr-models-1\models\`+m.ID, "zh"), " ")
@@ -234,7 +234,8 @@ func TestWorkflowSherpaModelLanguagesAndOptions(t *testing.T) {
 					if a.settings.Language != "en" {
 						t.Fatal("unsupported language kept", a.settings.Language)
 					}
-					if got := modelLanguages(a.settings.AsrModel); len(got) != 7 || got[0].ID != "en" {
+					// Automatic detection stays first for every model.
+					if got := modelLanguages(a.settings.AsrModel); len(got) != 8 || got[0].ID != languageAuto || got[1].ID != "en" {
 						t.Fatal(got)
 					}
 					a.recognitionAdvanced = true
@@ -258,5 +259,115 @@ func TestWorkflowSherpaModelLanguagesAndOptions(t *testing.T) {
 				})
 			})
 		}
+	}
+}
+
+// The models page holds the language detector and a model per language
+// group inside the fixed settings content, in both languages and widths.
+func TestSettingsLanguageRoutesFitFixedDialog(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		for _, width := range []int{900, 1400} {
+			t.Run(fmt.Sprintf("%s/%d", language, width), func(t *testing.T) {
+				inLocale(t, language, func() {
+					a := nativeForTest(t)
+					a.settingsOpen, a.settingsTab = true, 5
+					tt := settled(a.view, width, 640)
+					for range 6 {
+						tt.Frame()
+					}
+					captureRedesign(t, tt, fmt.Sprintf("settings-routes-%s-%d", language, width))
+					insideRedesign(t, tt, locales.A11ySettingsContent(), locales.ModelKindLid(), locales.RouteGroupEu())
+					if !tt.HasText("Parakeet-TDT 0.6B v3 INT8") || !tt.HasText("SenseVoiceSmall INT8") {
+						t.Fatal("default routes missing", tt.Texts())
+					}
+				})
+			})
+		}
+	}
+}
+
+func TestMajorityAndProbeWindows(t *testing.T) {
+	if v, ok := majority([]string{"zh", "ja", "zh"}); !ok || v != "zh" {
+		t.Fatal(v, ok)
+	}
+	if _, ok := majority([]string{"zh", "ja", "ko"}); ok {
+		t.Fatal("no majority accepted")
+	}
+	if _, ok := majority([]string{"zh", "ja"}); ok {
+		t.Fatal("split vote accepted")
+	}
+	if v, ok := majority([]string{"en"}); !ok || v != "en" {
+		t.Fatal(v, ok)
+	}
+	regions := []speechRegion{{0, 1}, {2, 3}, {4, 5}, {6, 7}, {8, 9}}
+	if got := pickWindows(regions); !reflect.DeepEqual(got, []speechRegion{{0, 1}, {4, 5}, {8, 9}}) {
+		t.Fatal(got)
+	}
+	if got := pickWindows(regions[:1]); len(got) != 1 {
+		t.Fatal(got)
+	}
+}
+
+func TestRouteModelKeepsValidChoices(t *testing.T) {
+	prefs := settings.Default()
+	if routeModel(prefs, "en") != "sherpa-parakeet-tdt-0.6b-v3-int8" || routeModel(prefs, "zh") != models.FallbackModel {
+		t.Fatal("defaults")
+	}
+	prefs.LanguageModels = map[string]string{"zh": "sherpa-paraformer-zh-int8", "ja": "sherpa-paraformer-zh-int8", "eu": "Qwen3-ASR-0.6B-hf"}
+	if routeModel(prefs, "zh") != "sherpa-paraformer-zh-int8" || routeModel(prefs, "ja") != models.FallbackModel || routeModel(prefs, "eu") != "Qwen3-ASR-0.6B-hf" {
+		t.Fatal("choices")
+	}
+}
+
+// Real detection and routing on the models' own recordings in six
+// languages: Cantonese, which Whisper reads as Chinese, comes out as
+// Cantonese through SenseVoiceSmall's confirmation.
+func TestRouteRecognitionDetectsRealSpeech(t *testing.T) {
+	modelsRoot := os.Getenv("ONESUB_SHERPA_TEST_MODELS")
+	if modelsRoot == "" || os.Getenv("ONESUB_ONEASR_ROOT") == "" || os.Getenv("ONESUB_FFMPEG") == "" {
+		t.Skip("set ONESUB_SHERPA_TEST_MODELS and run build/test.ps1")
+	}
+	root := t.TempDir()
+	tools := toolset{dataRoot: root, ffmpeg: os.Getenv("ONESUB_FFMPEG"), worker: subtitle.Client{Scratch: root}}
+	prefs := settings.Default()
+	for _, id := range []string{models.LanguageDetector, models.FallbackModel, "sherpa-parakeet-tdt-0.6b-v3-int8"} {
+		prefs.ModelPaths[id] = filepath.Join(modelsRoot, id)
+	}
+	for _, c := range []struct{ wav, language, model string }{
+		{"zh.wav", "zh", models.FallbackModel}, {"yue.wav", "yue", models.FallbackModel},
+		{"ja.wav", "ja", models.FallbackModel}, {"ko.wav", "ko", models.FallbackModel},
+		{"en.wav", "en", "sherpa-parakeet-tdt-0.6b-v3-int8"}, {"de.wav", "de", "sherpa-parakeet-tdt-0.6b-v3-int8"},
+	} {
+		t.Run(c.wav, func(t *testing.T) {
+			steps := []string{}
+			routed, route, err := tools.routeRecognition(context.Background(), prefs, filepath.Join(modelsRoot, "test_wavs", c.wav), func(s recognitionStep) { steps = append(steps, s.Stage) })
+			if err != nil {
+				t.Fatal(err)
+			}
+			if routed.Language != c.language || routed.AsrModel != c.model || route.Fallback || len(steps) == 0 || steps[0] != "lid" {
+				t.Fatalf("%+v %+v %v", route, routed.AsrModel, steps)
+			}
+		})
+	}
+	// A missing Parakeet model: English falls back to SenseVoiceSmall,
+	// German has no fallback; Chinese uses SenseVoiceSmall when its chosen
+	// Paraformer is missing.
+	prefs.ModelPaths["sherpa-parakeet-tdt-0.6b-v3-int8"] = filepath.Join(root, "absent")
+	if routed, route, err := tools.routeRecognition(context.Background(), prefs, filepath.Join(modelsRoot, "test_wavs", "en.wav"), func(recognitionStep) {}); err != nil || !route.Fallback || routed.AsrModel != models.FallbackModel || routed.Language != "en" {
+		t.Fatal(route, err)
+	}
+	if _, _, err := tools.routeRecognition(context.Background(), prefs, filepath.Join(modelsRoot, "test_wavs", "de.wav"), func(recognitionStep) {}); err == nil || !strings.Contains(err.Error(), "Parakeet") {
+		t.Fatal(err)
+	}
+	prefs.LanguageModels = map[string]string{"zh": "sherpa-paraformer-zh-int8"}
+	prefs.ModelPaths["sherpa-paraformer-zh-int8"] = filepath.Join(root, "absent")
+	routed, route, err := tools.routeRecognition(context.Background(), prefs, filepath.Join(modelsRoot, "test_wavs", "zh.wav"), func(recognitionStep) {})
+	if err != nil || !route.Fallback || routed.AsrModel != models.FallbackModel {
+		t.Fatal(route, err)
+	}
+	// Without the detector, automatic recognition says what to download.
+	prefs.ModelPaths[models.LanguageDetector] = filepath.Join(root, "absent")
+	if _, _, err := tools.routeRecognition(context.Background(), prefs, filepath.Join(modelsRoot, "test_wavs", "zh.wav"), func(recognitionStep) {}); err == nil || err.Error() != locales.ErrLanguageDetectorNeeded() {
+		t.Fatal(err)
 	}
 }

@@ -54,16 +54,73 @@ const (
 	EngineSenseVoice = "sense-voice"
 	EngineParaformer = "paraformer"
 	EngineTransducer = "transducer"
+	EngineWhisperLID = "whisper-lid"
 )
+
+// Automatic recognition: the language detector, the model each language
+// group uses unless the user chooses another, and the fallback model for
+// speech whose language stays unclear. The groups are the source
+// languages with a model of their own; "eu" is every European language
+// that Parakeet-TDT recognizes besides English.
+const (
+	LanguageDetector = "sherpa-whisper-tiny-int8"
+	FallbackModel    = "sherpa-sense-voice-small-int8"
+)
+
+// RouteGroups are the language groups of automatic recognition, in the
+// order the settings show them.
+var RouteGroups = []string{"zh", "yue", "ja", "ko", "en", "eu"}
+
+// RouteGroup is the group of a detected language: the language itself,
+// "eu" for the other European languages of Parakeet-TDT, or "" for one
+// that no group covers.
+func RouteGroup(language string) string {
+	switch language {
+	case "zh", "yue", "ja", "ko", "en":
+		return language
+	}
+	if parakeet, err := ByID("sherpa-parakeet-tdt-0.6b-v3-int8"); err == nil && slices.Contains(parakeet.Languages, language) {
+		return "eu"
+	}
+	return ""
+}
+
+// DefaultRoute is the model a group uses by default: SenseVoiceSmall for
+// Chinese, Cantonese, Japanese and Korean, Parakeet-TDT for English and
+// the European languages.
+func DefaultRoute(group string) string {
+	switch group {
+	case "en", "eu":
+		return "sherpa-parakeet-tdt-0.6b-v3-int8"
+	}
+	return FallbackModel
+}
+
+// GroupSupported reports whether model recognizes the languages of group.
+func (m Model) GroupSupported(group string) bool {
+	if m.Kind != "asr" {
+		return false
+	}
+	if group == "eu" {
+		return !m.Sherpa() || m.Engine == EngineTransducer
+	}
+	return m.Supports(group)
+}
 
 // Sherpa reports whether sherpa-onnx, not OneAsr, runs the model. Such a
 // model needs no forced aligner: it times its own tokens.
 func (m Model) Sherpa() bool { return m.Engine != "" }
 
-// Supports reports whether the model recognizes language. OneAsr's models
-// support every source language the app lists.
+// oneAsrLanguages are the languages OneAsr v1.3.0 recognizes with its
+// forced aligner; it has no automatic detection.
+var oneAsrLanguages = []string{"zh", "en", "yue", "ja", "ko", "de", "fr", "es", "it", "pt", "ru"}
+
+// Supports reports whether the model recognizes language.
 func (m Model) Supports(language string) bool {
-	return !m.Sherpa() || slices.Contains(m.Languages, language)
+	if !m.Sherpa() {
+		return slices.Contains(oneAsrLanguages, language)
+	}
+	return slices.Contains(m.Languages, language)
 }
 
 func Catalog() []Model {

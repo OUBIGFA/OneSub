@@ -102,6 +102,12 @@
         "sha256": "047bff7c67bedbf99d1a0e55773ed6770f67d161466f6e4977af3e217de99e27"
       },
       {
+        "file": "sherpa-onnx-offline-language-identification.exe",
+        "source": "bin/sherpa-onnx-offline-language-identification.exe",
+        "bytes": 897024,
+        "sha256": "7c1d8687ec1f827eac00878e59c0dbb31e66b128b0b7e0805ee823362c21856b"
+      },
+      {
         "file": "onnxruntime.dll",
         "source": "bin/onnxruntime.dll",
         "bytes": 17799168,
@@ -131,10 +137,11 @@
     "models": "Downloaded by the user from pinned Hugging Face revisions in apps/desktop/internal/models/catalog_sherpa.json; not bundled",
     "modelLicenses": {
       "SenseVoiceSmall, Paraformer-zh, CT-Transformer punctuation": "FunASR Model Open Source License 1.1, third_party/licenses/funasr-models.txt",
-      "Parakeet-TDT 0.6B v3": "CC-BY-4.0, NVIDIA (https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)"
+      "Parakeet-TDT 0.6B v3": "CC-BY-4.0, NVIDIA (https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)",
+      "Whisper tiny (language identification)": "MIT, OpenAI, third_party/licenses/whisper.txt"
     },
-    "usage": "Official Windows x64 CPU CLI runs SenseVoice, Paraformer and Parakeet-TDT; the C API restores Paraformer punctuation in a child process",
-    "modifications": "none; four files taken unchanged from the official release archive"
+    "usage": "Official Windows x64 CPU CLIs run SenseVoice, Paraformer and Parakeet-TDT and identify the spoken language with Whisper tiny; the C API restores Paraformer punctuation in a child process",
+    "modifications": "none; five files taken unchanged from the official release archive"
   },
   "player": [
     {

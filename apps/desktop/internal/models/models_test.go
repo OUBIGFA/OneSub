@@ -15,7 +15,7 @@ import (
 
 func TestCatalogHasOneAsrAndSherpaChoices(t *testing.T) {
 	c := Catalog()
-	if len(c) != 11 {
+	if len(c) != 12 {
 		t.Fatal(len(c))
 	}
 	ids := map[string]bool{}
@@ -24,7 +24,7 @@ func TestCatalogHasOneAsrAndSherpaChoices(t *testing.T) {
 			t.Fatal(m)
 		}
 		ids[m.ID] = true
-		if m.Sherpa() != (len(m.Languages) > 0) || (m.Sherpa() && m.Kind != "asr") {
+		if (m.Kind == "asr" && m.Sherpa()) != (len(m.Languages) > 0) || (m.Sherpa() && m.Kind != "asr" && m.Kind != "lid") {
 			t.Fatal(m)
 		}
 		for _, f := range m.Files {
@@ -34,6 +34,21 @@ func TestCatalogHasOneAsrAndSherpaChoices(t *testing.T) {
 		}
 	}
 }
+func TestRoutesCoverEveryGroup(t *testing.T) {
+	for _, group := range RouteGroups {
+		model, err := ByID(DefaultRoute(group))
+		if err != nil || !model.GroupSupported(group) {
+			t.Fatal(group, model, err)
+		}
+	}
+	if RouteGroup("nl") != "eu" || RouteGroup("yue") != "yue" || RouteGroup("th") != "" {
+		t.Fatal("language groups")
+	}
+	if lid, err := ByID(LanguageDetector); err != nil || lid.Kind != "lid" {
+		t.Fatal(lid, err)
+	}
+}
+
 func TestDownloadResumeAndHashValidation(t *testing.T) {
 	data := []byte("real fixture bytes")
 	hash := sha256.Sum256(data)

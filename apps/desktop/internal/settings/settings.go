@@ -32,15 +32,18 @@ type PendingProcessing struct {
 }
 
 type Settings struct {
-	Version                int                    `json:"version"`
-	UILanguage             string                 `json:"uiLanguage"` // "" follows the system
-	Appearance             string                 `json:"appearance"` // "dark", "light" or "system"
-	CloseToTray            bool                   `json:"closeToTray"`
-	ModelPaths             map[string]string      `json:"modelPaths"`
-	AsrModel               string                 `json:"asrModel"`
-	Aligner                string                 `json:"aligner"`
-	Backend                string                 `json:"backend"`
+	Version     int               `json:"version"`
+	UILanguage  string            `json:"uiLanguage"` // "" follows the system
+	Appearance  string            `json:"appearance"` // "dark", "light" or "system"
+	CloseToTray bool              `json:"closeToTray"`
+	ModelPaths  map[string]string `json:"modelPaths"`
+	AsrModel    string            `json:"asrModel"`
+	Aligner     string            `json:"aligner"`
+	Backend     string            `json:"backend"`
+	// Language is a source language, or "auto": detect it and use the model
+	// LanguageModels names for its group (or the group's default model).
 	Language               string                 `json:"language"`
+	LanguageModels         map[string]string      `json:"languageModels"`
 	ChunkSeconds           float64                `json:"chunkSeconds"`
 	MaxTokens              float64                `json:"maxTokens"`
 	VocalSeparation        bool                   `json:"vocalSeparation"`
@@ -103,7 +106,7 @@ type Settings struct {
 const version = 5
 
 func Default() Settings {
-	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "zh", RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", CompressionFormat: "mp4", CompressionQuality: "crf23", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 400.0 / 7, StyleWidth: 30, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
+	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "auto", LanguageModels: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", CompressionFormat: "mp4", CompressionQuality: "crf23", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 400.0 / 7, StyleWidth: 30, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
 }
 
 // TranslationPunctuation freezes the local output options for a task.
@@ -139,6 +142,9 @@ func Load(path string) (Settings, error) {
 	}
 	if s.ModelPaths == nil {
 		s.ModelPaths = map[string]string{}
+	}
+	if s.LanguageModels == nil {
+		s.LanguageModels = map[string]string{}
 	}
 	s.restoreProviders()
 	// Retire seek-with-current-state without changing pane ratios or other

@@ -20,7 +20,10 @@ func settingsGroup(c *ui.Context, title string, content func()) {
 // columns, so opening it never waits for previous-frame bounds to settle.
 func (a *NativeApp) settingsView(c *ui.Context) {
 	wasOpen := a.settingsOpen
-	labels := []string{locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsTranslation(), locales.SettingsTranslationRules(), locales.SettingsMcp()}
+	// Pages keep their numbers; models by language (5) follows recognition.
+	labels := []string{locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsTranslation(), locales.SettingsTranslationRules(), locales.SettingsMcp(), locales.SettingsLanguageRoutes()}
+	pageIcons := []string{"settings", "audio-lines", "languages", "file-down", "settings", "text-search"}
+	order := []int{0, 1, 5, 2, 3, 4}
 	fixedDialog(c, &a.settingsOpen, locales.SettingsTitle(), 1280, 800, func() {
 		content := func() {
 			ui.Column(c.Key(a.settingsTab)).Fill().Gap(em(c, 20)).Label(locales.A11ySettingsContent()).Children(func() {
@@ -35,8 +38,8 @@ func (a *NativeApp) settingsView(c *ui.Context) {
 				navigationWidth = max(navigationWidth, w)
 			}
 			ui.Sidebar(c, &selected, func() {
-				for tab, label := range labels {
-					ui.SidebarItem(c, strconv.Itoa(tab), icons[[]string{"settings", "audio-lines", "languages", "file-down", "settings"}[tab]], label)
+				for _, tab := range order {
+					ui.SidebarItem(c, strconv.Itoa(tab), icons[pageIcons[tab]], labels[tab])
 				}
 			}).Width(navigationWidth + em(c, 72)).Label(locales.A11ySettingsTabs()).OnChange(func() {
 				a.settingsTab, _ = strconv.Atoi(selected)
@@ -121,6 +124,19 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 		a.translationRulesView(c)
 	case 4:
 		a.mcpSettingsView(c)
+	case 5:
+		// The detector and the model of each language group, as automatic
+		// recognition ("auto" source language) uses them. One full-width
+		// group: model names stay whole at the smallest window.
+		settingsGroup(c, locales.SettingsLanguageRoutes(), func() {
+			lid := models.LanguageDetector
+			a.recognitionModelField(c, locales.ModelKindLid(), "lid", &lid)
+			parameterGrid(c, 230, 3, func() {
+				for _, group := range models.RouteGroups {
+					a.routeField(c, group)
+				}
+			})
+		})
 	}
 }
 
@@ -134,6 +150,33 @@ func (a *NativeApp) mcpSettingsView(c *ui.Context) {
 		ui.Button(c, locales.SettingsMcpCopy()).AlignSelf(ui.Start).OnClick(func() {
 			mygo.Clipboard.WriteText(config)
 			a.status = locales.SettingsMcpCopied()
+		})
+	})
+}
+
+// routeField chooses the model that automatic recognition uses for a
+// language group, among the models that recognize it.
+func (a *NativeApp) routeField(c *ui.Context, group string) {
+	title := locales.RouteGroupEu()
+	for _, o := range sourceLanguages() {
+		if o.ID == group {
+			title = o.Label
+		}
+	}
+	ui.Field(c, title, func() {
+		options := []option{}
+		for _, m := range models.Catalog() {
+			if m.GroupSupported(group) {
+				options = append(options, option{m.ID, m.Label})
+			}
+		}
+		chosen := routeModel(a.settings, group)
+		idSelect(c, &chosen, options).Label(title).OnChange(func() {
+			if a.settings.LanguageModels == nil {
+				a.settings.LanguageModels = map[string]string{}
+			}
+			a.settings.LanguageModels[group] = chosen
+			a.saveSettings()
 		})
 	})
 }

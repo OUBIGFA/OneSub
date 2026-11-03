@@ -22,7 +22,10 @@ $env:WEBVIEW2_USER_DATA_FOLDER=Join-Path $workPath 'webview'
 $env:XDG_RUNTIME_DIR=Join-Path $workPath 'ipc'
 if($env:XDG_RUNTIME_DIR.Length -gt 65){throw 'Use a shorter test directory for the isolated IPC socket'}
 New-Item -ItemType Directory -Path $env:ONESUB_DATA_ROOT,$env:XDG_RUNTIME_DIR | Out-Null
-$prefs=@{version=4;uiLanguage='zh-Hans';asrModel=$AsrModel;language=$Language;recognitionFormat='srt';closeToTray=$false;modelPaths=@{$AsrModel=(Join-Path $ModelsRoot $AsrModel)}}
+# Automatic recognition may use any model in ModelsRoot.
+$paths=@{}
+Get-ChildItem -LiteralPath $ModelsRoot -Directory | Where-Object {$_.Name -ne 'test_wavs'} | ForEach-Object {$paths[$_.Name]=$_.FullName}
+$prefs=@{version=4;uiLanguage='zh-Hans';asrModel=$AsrModel;language=$Language;recognitionFormat='srt';closeToTray=$false;modelPaths=$paths}
 [IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),($prefs|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
 if($Packaged){foreach($name in @('ONESUB_FFPROBE','ONESUB_FFMPEG','ONESUB_SUBTITLE_WORKER','ONESUB_STYLE_WORKER','ONESUB_SKILL_WORKER','ONESUB_SKILL_ROOT','ONESUB_ONEASR_ROOT','ONESUB_SHERPA_ROOT')){Remove-Item "Env:$name" -ErrorAction SilentlyContinue}}
 $p=Start-Process -FilePath ([IO.Path]::GetFullPath($Exe)) -ArgumentList ('"'+$video+'"') -PassThru -RedirectStandardError (Join-Path $workPath 'stderr.log')

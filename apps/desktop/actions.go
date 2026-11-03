@@ -47,7 +47,7 @@ func (a *NativeApp) recognizeWithTranslation(translate bool) {
 	prefs, style, aspect := a.recognitionPreferences(), a.currentStyle, a.frameAspect
 	a.recognitionRunning = true
 	a.recognitionStarted = time.Now()
-	a.recognitionStep = recognitionStep{Stage: "verify"}
+	a.recognitionStep, a.recognitionRoute = recognitionStep{Stage: "verify"}, recognitionRoute{}
 	a.evalPlayer("video.pause()")
 	a.run(locales.ActionRecognize(), func(ctx context.Context) (func(), error) {
 		srt, words, cleanup, err := t.recognize(ctx, prefs, source, a.recognitionStepChanged)

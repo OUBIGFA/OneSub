@@ -68,6 +68,12 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 						options = append(options, option{model.ID, model.Label})
 					}
 				}
+				if a.settings.Language == languageAuto {
+					// Detection chooses the model; Settings sets each language's.
+					auto := languageAuto
+					idSelect(c, &auto, []option{{languageAuto, locales.WorkflowModelAuto()}}).Label(locales.WorkflowRecognitionModel()).Disabled(true)
+					return
+				}
 				idSelect(c, &a.settings.AsrModel, options).Label(locales.WorkflowRecognitionModel()).OnChange(a.asrModelChanged)
 			})
 			ui.Field(c, locales.SettingsSourceLanguage(), func() {
@@ -82,9 +88,10 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 		folderField(c, a.settings.RecognitionDir, locales.RecognitionBesideMedia(), a.busy, a.pickRecognitionDir, func() { a.settings.RecognitionDir = ""; a.saveSettings() })
 	})
 	// Backend, chunks and tokens are OneAsr's options; a sherpa-onnx model
-	// runs on the CPU in inputs of its own length.
+	// runs on the CPU in inputs of its own length. Detection may choose
+	// either, so they stay on.
 	oneAsr := true
-	if model, err := models.ByID(a.settings.AsrModel); err == nil {
+	if model, err := models.ByID(a.settings.AsrModel); err == nil && a.settings.Language != languageAuto {
 		oneAsr = !model.Sherpa()
 	}
 	ui.Collapsible(c, locales.WorkflowRecognitionAdvanced(), &a.recognitionAdvanced, func() {

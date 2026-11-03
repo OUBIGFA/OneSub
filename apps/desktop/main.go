@@ -130,6 +130,7 @@ type NativeApp struct {
 	recognitionRunning                       bool
 	recognitionStarted                       time.Time
 	recognitionStep                          recognitionStep
+	recognitionRoute                         recognitionRoute
 	batchItems                               []batchItem
 	batchList                                ui.ListState
 	translationRunning                       bool
