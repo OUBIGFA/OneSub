@@ -55,7 +55,9 @@ func readingProfile(text string) (cjk bool, maxUnits, maxRate float64) {
 	case han > 0:
 		return true, 25, 4.5
 	default:
-		return false, 42, 17
+		// Space-separated scripts show a subtitle in up to two lines of 42
+		// characters; 42 is one line, not the subtitle.
+		return false, 84, 17
 	}
 }
 

@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
@@ -111,7 +112,7 @@ const DefaultBatchSize = 20
 
 const (
 	// version changes the cache key whenever the prompts change.
-	version = "onesub-translate/3"
+	version = "onesub-translate/4"
 	// contextChars: sources up to this size go whole to every request;
 	// longer ones are read once into a summary and working glossary.
 	contextChars = 12000
@@ -638,6 +639,17 @@ func (e *engine) translateAll(ctx context.Context, units []subtitle.Cue, todo []
 			chars += n
 			end++
 		}
+		// A full batch ends where a sentence does, so one sentence is not
+		// translated half in each of two requests. The last quarter of the
+		// batch is searched, the latest end first; with none, the cut stays.
+		if end < len(todo) {
+			for cut := end; cut > start+max(1, (end-start)*3/4); cut-- {
+				if sentenceEnd(units[todo[cut-1]].Text) {
+					end = cut
+					break
+				}
+			}
+		}
 		batches = append(batches, todo[start:end])
 		start = end
 	}
@@ -773,7 +785,7 @@ func (e *engine) translateUnits(ctx context.Context, units []subtitle.Cue, group
 		for _, p := range pairs {
 			if i, ok := ids[p.key]; ok {
 				text := strings.TrimSpace(p.value)
-				valid := text != "" && sameMarkup(units[i].Text, text) && (round >= 2 || !untranslated(units[i].Text, text, e.lang))
+				valid := text != "" && sameMarkup(units[i].Text, text) && (round >= 2 || !untranslated(units[i].Text, text, e.lang)) && (round > 0 || len(missingNumbers(units[i].Text, text)) == 0)
 				if valid && finished[i] != text {
 					finished[i] = text
 					e.keep(cacheKey(contextKey, p.key, units[i].Text), text)
@@ -818,6 +830,10 @@ func (e *engine) translateUnits(ctx context.Context, units []subtitle.Cue, group
 			problem = "unit " + id + " must keep its markup tags " + strings.Join(markupTags.FindAllString(units[i].Text, -1), " ") + " in order"
 		case round < 2 && untranslated(units[i].Text, text, e.lang):
 			problem = "unit " + id + " is still in the source language: translate it"
+		case round == 0 && len(missingNumbers(units[i].Text, text)) > 0:
+			// Asked again once with the numbers named; a later answer is
+			// accepted and the run warns, as "1st" may rightly become a word.
+			problem = "unit " + id + " dropped the source numbers " + strings.Join(missingNumbers(units[i].Text, text), ", ") + ": keep them, written as digits"
 		}
 		if problem != "" {
 			left = append(left, i)
@@ -924,6 +940,20 @@ func targetScript(l language) func(rune) bool {
 		return func(r rune) bool { return unicode.Is(unicode.Hangul, r) }
 	}
 	return nil
+}
+
+// sentenceEnd reports whether a subtitle closes its sentence: its text,
+// without closing tags, quotes or brackets, ends in a full stop, a question
+// or exclamation mark, or an ellipsis.
+func sentenceEnd(text string) bool {
+	text = strings.TrimRightFunc(trailingTags.ReplaceAllString(strings.TrimSpace(text), ""), func(r rune) bool {
+		return unicode.IsSpace(r) || strings.ContainsRune("\"'”’»」』）)]", r)
+	})
+	if text == "" {
+		return false
+	}
+	last, _ := utf8.DecodeLastRuneInString(text)
+	return strings.ContainsRune(".?!。？！…", last)
 }
 
 // isCJK is the skill checker's CJK_RE: ideographs and kana.

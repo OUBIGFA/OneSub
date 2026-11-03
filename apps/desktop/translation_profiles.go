@@ -2,21 +2,21 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/translator"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 func (a *NativeApp) reloadTranslationProfiles() {
+	// A broken user style is left out alone; the others stay usable and the
+	// error names it where the style is chosen.
 	profiles, err := translator.Profiles(filepath.Join(a.dataRoot, "translation-styles"))
-	if err != nil {
-		// Shown in the settings; an empty list is not loaded again each frame.
-		a.translationProfiles = []translator.Profile{}
-		a.profilesError = err.Error()
-		return
-	}
 	a.translationProfiles = profiles
 	a.profilesError = ""
+	if err != nil {
+		a.profilesError = err.Error()
+	}
 	if a.settings.TranslationProfile == "" {
 		a.settings.TranslationProfile = "general"
 		if a.settings.Domain3D {
@@ -30,7 +30,7 @@ func (a *NativeApp) reloadTranslationProfiles() {
 		}
 	}
 	if !found {
-		a.profilesError = locales.ErrProfileRemoved()
+		a.profilesError = strings.TrimSpace(locales.ErrProfileRemoved() + "\n" + a.profilesError)
 	}
 }
 

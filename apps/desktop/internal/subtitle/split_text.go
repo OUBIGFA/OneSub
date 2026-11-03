@@ -125,7 +125,9 @@ func splitClusterUnits(g []rune, cjk bool) float64 {
 func newSplitText(text string) splitText {
 	language := splitLanguageOf(text)
 	cjk, _, _ := readingProfile(text)
-	limit, ceiling := 38.0, 42.0
+	// Space-separated scripts hold two lines per subtitle (2 × 38 preferred,
+	// 2 × 42 at most); a one-line target cut English into fragments.
+	limit, ceiling := 76.0, 84.0
 	if language == splitChinese || language == splitJapanese || language == splitKorean {
 		limit, ceiling = 16, 20
 	}

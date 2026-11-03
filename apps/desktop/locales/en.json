@@ -886,6 +886,7 @@
   "errProfileContent": "Style {name} has no name or content",
   "errProfileMissing": "Translation style {id} was removed; choose another",
   "errProfileReference": "Style {name} names an invalid reference file: {reference}",
+  "errProfileReserved": "Style folder {name} uses a built-in style ID. Rename the folder.",
   "@errProfileReference": {"placeholders":{"name":{},"reference":{}}},
   "errEndpointInvalid": "Invalid endpoint",
   "errEndpointParts": "The endpoint cannot contain credentials, a query or a fragment",

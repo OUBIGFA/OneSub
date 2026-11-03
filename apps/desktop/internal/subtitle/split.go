@@ -226,9 +226,9 @@ func splitCue(ctx context.Context, cue Cue, format, command string, original boo
 	if !original && cue.Translated {
 		primaryText = cue.Text
 	}
-	// The 16/38-column target chooses cuts in long text; it does not force
-	// another split in a compact utterance. Use the specification's wider
-	// 20/42-column ceilings, plus the existing combined reading-load gate.
+	// The 16-column (CJK) or two-line 76-column target chooses cuts in long
+	// text; it does not force another split in a compact utterance. Use the
+	// wider 20/84-column ceilings, plus the existing combined reading-load gate.
 	// A manual request can still separate independent clauses or real pauses.
 	lanes[primary].clauseOnly = !InspectReading(primaryText, cue.EndMs-cue.StartMs).TooLong
 	for i := groupStart; i < groupEnd; i++ {
@@ -245,9 +245,12 @@ func splitCue(ctx context.Context, cue Cue, format, command string, original boo
 		if len(lane.boundaries) > maximumSplitBounds {
 			return nil, "capacity", nil
 		}
-		minimumCharacters := 3 // three tiny complete words, or ten printed characters
-		if lane.language == splitChinese || lane.language == splitJapanese || lane.language == splitThai {
+		minimumCharacters := 3 // Korean: three tiny complete words, or ten printed characters
+		switch lane.language {
+		case splitChinese, splitJapanese, splitThai:
 			minimumCharacters = 4
+		case splitWords:
+			minimumCharacters = 15 // three words and 15 printed characters
 		}
 		maximum = min(maximum, len(lane.boundaries)-1, lane.boundaries[len(lane.boundaries)-1].characters/minimumCharacters)
 		if i >= groupStart && i < groupEnd && !lanes[primary].clauseOnly {

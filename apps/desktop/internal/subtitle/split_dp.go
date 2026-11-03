@@ -47,6 +47,10 @@ func (s splitText) enoughContent(a, b textBoundary) bool {
 	if s.language == splitChinese || s.language == splitJapanese || s.language == splitThai {
 		return characters >= 4
 	}
+	if s.language == splitWords {
+		// A spaced piece is a readable phrase, not a three-letter word pair.
+		return words >= 3 && characters >= 15 || words >= 5
+	}
 	return words >= 3 || characters >= 10
 }
 

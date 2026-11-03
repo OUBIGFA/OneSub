@@ -690,6 +690,7 @@
   "errProfileContent": "风格 {name} 缺少名称或内容",
   "errProfileMissing": "翻译风格 {id} 已删除，请重新选择",
   "errProfileReference": "风格 {name} 引用了无效的参考文件：{reference}",
+  "errProfileReserved": "风格文件夹 {name} 与内置风格重名，请重命名文件夹",
   "errEndpointInvalid": "服务地址无效",
   "errEndpointParts": "服务地址不能包含凭据、查询参数或片段",
   "errEndpointHttps": "远程服务须使用 HTTPS，本地服务可使用 HTTP",

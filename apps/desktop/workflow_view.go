@@ -133,7 +133,7 @@ func (a *NativeApp) translateTab(c *ui.Context) {
 			ui.Field(c, locales.TranslationTarget(), func() {
 				languageSelect(c, &a.settings.TargetLanguage, targetLanguages(), a.busy).Label(locales.TranslationTarget()).OnChange(a.saveSettings)
 			})
-			ui.Field(c, locales.TranslationStyle(), func() { a.styleSelect(c).Disabled(a.busy) })
+			ui.Field(c, locales.TranslationStyle(), func() { a.styleSelect(c).Disabled(a.busy) }).Error(a.profilesError)
 		})
 		folderField(c, a.settings.TranslationDir, locales.TranslationBesideSource(), a.busy, a.pickTranslationDir, func() { a.settings.TranslationDir = ""; a.saveSettings() })
 	})
