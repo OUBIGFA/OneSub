@@ -447,6 +447,7 @@
   "exportUpperLine": "仅上行字幕",
   "exportLowerLine": "仅下行字幕",
   "exportPlainNote": "不保存字体和字号。需要独立主次样式时选择 ASS。",
+  "exportTextNote": "仅导出文字，不含序号、时间轴或样式。",
   "exportConfirm": "导出",
   "composeMode": "字幕模式",
   "composeHardMp4": "硬字幕（烧录） · MP4",

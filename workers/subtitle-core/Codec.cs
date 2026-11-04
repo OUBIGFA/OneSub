@@ -58,6 +58,9 @@ static class Codec
     public static string Write(Document document)
     {
         var target = string.IsNullOrEmpty(document.TargetFormat) ? document.Format : document.TargetFormat;
+        // A transcript has no time fields or strict subtitle layout to validate.
+        // Timed formats continue through the original validation and writer.
+        if (target == "txt") return WriteText(document);
         foreach (var cue in document.Cues)
         {
             if (cue.StartMs < 0 || cue.EndMs <= cue.StartMs || cue.EndMs > 9007199254740991L)
@@ -98,6 +101,44 @@ static class Codec
         return Format(target).ToText(normalized, "OneSub").Replace("\r\n", "\n") + "\n";
     }
 
+    // Plain text is an export-only projection of the selected, editable cues.
+    // Reuse libse's format-aware stripping; literal braces, backslashes and
+    // escaped markup in other formats must not become ASS/HTML instructions.
+    static string WriteText(Document document)
+    {
+        var output = new StringBuilder();
+        foreach (var cue in document.Cues)
+        {
+            var text = cue.Text;
+            if (document.Format is "ass" or "ssa")
+            {
+                // The helper removes one drawing span per call. Keep visible
+                // text before/after multiple spans, but never export geometry.
+                while (true)
+                {
+                    var withoutDrawing = AdvancedSubStationAlpha.RemoveDrawingTag(text);
+                    if (withoutDrawing == text) break;
+                    text = withoutDrawing;
+                }
+                text = Utilities.RemoveSsaTags(text, removeCommentBlocks: true);
+            }
+            else
+            {
+                text = HtmlUtil.RemoveHtmlTags(text);
+                if (document.Format == "vtt")
+                {
+                    text = HtmlUtil.RemoveOpenCloseTags(text, "c", "v", "lang", "ruby", "rt");
+                    text = Regex.Replace(text, @"<(?:\d{2,}:)?\d{2}:\d{2}\.\d{3}>", "");
+                }
+                // Decode after stripping, so &lt;i&gt; remains literal text.
+                text = System.Net.WebUtility.HtmlDecode(text);
+            }
+            text = text.Replace("\r\n", "\n").Replace("\r", "\n").Trim();
+            if (text.Length > 0) output.Append(text).Append('\n');
+        }
+        return output.ToString();
+    }
+
     // Exporting one displayed line is an explicit projection, separate from
     // strict text editing. Validate edits first, then preserve the serialized
     // file's timings, styles, comments and cue metadata while selecting text.
@@ -106,6 +147,14 @@ static class Codec
         if (selection.Line is not ("upper" or "lower"))
             throw new InvalidDataException("E_LINE_SELECTION");
         var input = selection.Document;
+        if (input.TargetFormat == "txt")
+        {
+            // TXT selects text without round-tripping a timed subtitle file.
+            // This copy came from the request artifact, never the source file.
+            foreach (var cue in input.Cues)
+                cue.Text = SelectLine(cue.Text, selection.Line == "lower", input.Format is "ass" or "ssa");
+            return input;
+        }
         var target = input.TargetFormat;
         input.TargetFormat = input.Format;
         var document = Parse(Write(input), input.Format);

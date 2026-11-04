@@ -753,21 +753,45 @@ try {
         if(-not (Find-UI $sourceText)){throw 'Translation undo did not restore the original'}
     }
     if($BilingualExport) {
-        foreach($choice in @(@{id='upper';label='仅上行字幕';kept='Upper subtitle';removed='下行字幕'},@{id='lower';label='仅下行字幕';kept='下行字幕';removed='Upper subtitle'})) {
-            Click-UI '导出字幕'
-            for($i=0;$i -lt 100;$i++){if(Find-UI '保留字幕行'){break};Start-Sleep -Milliseconds 100}
-            Click-UI '保留字幕行'
-            Select-Value $choice.label
-            & $ScreenshotTool $p.Id (Join-Path $workPath ("export-"+$choice.id+'.png'))
-            Click-UI '导出'
-            $output=Join-Path $workPath ("export-"+$choice.id+'.srt')
-            Choose-Path $output
-            for($i=0;$i -lt 100;$i++){if(Test-Path -LiteralPath $output){break};Start-Sleep -Milliseconds 100}
-            if(-not (Test-Path -LiteralPath $output)){throw 'Single-language export did not create a file'}
-            $saved=[IO.File]::ReadAllText($output)
-            if(-not $saved.Contains($choice.kept) -or $saved.Contains($choice.removed) -or -not $saved.Contains('00:00:00,100 --> 00:00:02,900')){throw 'Single-language export changed content or time'}
+        $sourceHash=(Get-FileHash $subtitle -Algorithm SHA256).Hash
+        $exportRoot=Join-Path $workPath 'exports'
+        New-Item -ItemType Directory $exportRoot | Out-Null
+        foreach($format in @('srt','txt')) {
+            foreach($choice in @(@{id='all';label='全部字幕行';kept=$sourceText},@{id='upper';label='仅上行字幕';kept='Upper subtitle'},@{id='lower';label='仅下行字幕';kept='下行字幕'})) {
+                Click-UI '导出字幕'
+                for($i=0;$i -lt 100;$i++){if(Find-UI '保留字幕行'){break};Start-Sleep -Milliseconds 100}
+                $action=(Find-UI '导出').Current.BoundingRectangle
+                Select-Value $format.ToUpperInvariant()
+                # The select's current-value text is not an actionable UIA
+                # option. Reuse the driver that clicks its real popup trigger.
+                Select-NativeOption '保留字幕行' $choice.label
+                if((Find-UI '导出').Current.BoundingRectangle -ne $action){throw 'Format/line choice moved the export action'}
+                if($format -eq 'txt' -and -not (Find-UI '仅导出文字，不含序号、时间轴或样式。')){throw 'TXT note is missing'}
+                $heading=(Find-UI '导出字幕').Current.BoundingRectangle
+                if(-not [SmokeNative]::PointerClick($p.MainWindowHandle,$p.Id,[int]($heading.X+24),[int]($heading.Y+16),$false)){throw 'Could not clear export focus adornments'}
+                Start-Sleep -Milliseconds 350
+                & $ScreenshotTool $p.Id (Join-Path $workPath ("export-"+$choice.id+'-'+$format+'.png'))
+                if($LASTEXITCODE -ne 0){throw 'Export screenshot failed'}
+                Click-UI '导出'
+                $output=Join-Path $exportRoot ("export-"+$choice.id+'.'+$format)
+                # Also exercise extension completion through the real picker.
+                $chosen=if($format -eq 'txt' -and $choice.id -eq 'all'){[IO.Path]::ChangeExtension($output,$null)}else{$output}
+                Choose-Path $chosen
+                for($i=0;$i -lt 100;$i++){if(Test-Path -LiteralPath $output){break};Start-Sleep -Milliseconds 100}
+                if(-not (Test-Path -LiteralPath $output)){throw 'Subtitle/text export did not create the selected file'}
+                $saved=[IO.File]::ReadAllText($output)
+                if($format -eq 'txt'){
+                    $expected=[Text.Encoding]::UTF8.GetBytes($choice.kept+"`n")
+                    if([BitConverter]::ToString([IO.File]::ReadAllBytes($output)) -ne [BitConverter]::ToString($expected)){throw 'TXT contains wrong text, times, numbers, styling or a BOM'}
+                }else{
+                    $expected="1`n00:00:00,100 --> 00:00:02,900`n"+$choice.kept
+                    if($saved.Replace("`r`n","`n").TrimEnd([char]10) -ne $expected){throw 'Timed export changed content, numbering or time'}
+                }
+            }
         }
-        if([IO.File]::ReadAllText($subtitle) -notmatch [regex]::Escape($sourceText)){throw 'Bilingual source was changed by export'}
+        if((Get-FileHash $subtitle -Algorithm SHA256).Hash -ne $sourceHash){throw 'Export changed the bilingual source file'}
+        if(@(Get-ChildItem -LiteralPath $exportRoot -Force).Count -ne 6){throw 'Export directory contains unrelated files'}
+        Write-Output 'PASS: packaged SRT/TXT all/upper/lower exports; exact UTF-8 text without BOM/times/numbers/styling; extension completion; fixed dialog action; source unchanged; only requested files'
     }
     if($ComposeOutput) {
         Click-UI '合成视频';Click-UI '开始合成'

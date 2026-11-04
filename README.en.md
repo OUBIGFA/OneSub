@@ -34,7 +34,7 @@ Recognition, editing, and export need no cloud account. Translation uses the AI 
 - **Punctuation handling**: OneSub processes punctuation locally after translation. It adds no request and changes no prompt. You can remove or keep final punctuation. You can convert `.` inside a sentence to `,` and `。` to `，`. Email addresses, URLs, numbers, abbreviations, file names, and ellipses are protected. Recognition output keeps its original punctuation.
 - **Rebuild timeline by sense group**: Continuous dialogue is regrouped into full sentences. Text is aligned back to word-level time. A cue without word-level time can only merge. OneSub does not invent time.
 - **Separate tracks**: Original, rebuilt, and translated tracks are independent. Edit, export, and undo each one (at least 200 steps). AI does not overwrite locked manual edits.
-- **Subtitles alone**: No video needed. Import SRT / VTT / ASS / SSA to edit, translate, and export. ASS keeps its layout.
+- **Subtitles alone**: No video needed. Import SRT / VTT / ASS / SSA to edit, translate, and export. ASS keeps its layout. Choose TXT to export plain text without cue numbers, timestamps, or styling.
 - **Video compression alone**: No subtitle needed. OneSub encodes H.264 into MP4 or MKV, keeps audio and chapters, and never overwrites the source video.
 - **Multi-engine local recognition**: SenseVoiceSmall, Paraformer-zh, Parakeet-TDT v3, and Qwen3-ASR. With source language set to "Auto-detect", OneSub detects the language first, then selects the matching model. Models download on demand with resume and SHA-256 checks.
 - **Silence protection**: VAD filters silence first. Long silence makes no false cues.

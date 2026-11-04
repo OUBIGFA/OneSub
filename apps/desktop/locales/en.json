@@ -552,6 +552,7 @@
   "exportUpperLine": "Upper line only",
   "exportLowerLine": "Lower line only",
   "exportPlainNote": "Fonts and sizes are not saved. Choose ASS for separate main and secondary styles.",
+  "exportTextNote": "Export text only, without cue numbers, timestamps or styling.",
   "exportConfirm": "Export",
   "composeMode": "Subtitle mode",
   "composeHardMp4": "Hard subtitles (burn-in) · MP4",

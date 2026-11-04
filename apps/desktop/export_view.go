@@ -108,7 +108,9 @@ func (a *NativeApp) exportView(c *ui.Context) {
 	}
 	var outputErr error
 	if a.exportOpen && a.snapshot != nil {
-		_, outputErr = subtitle.SelectOutput(a.snapshot.OutputDocument(a.settings.SubtitleOutput), a.settings.SubtitleOutput)
+		document := a.snapshot.OutputDocument(a.settings.SubtitleOutput)
+		document.TargetFormat = a.exportFormat
+		_, outputErr = subtitle.SelectOutput(document, a.settings.SubtitleOutput)
 	}
 	fixedDialog(c, &a.exportOpen, locales.MenuExportSubtitles(), 860, 560, func() {
 		ui.Grid(c).Columns(2).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
@@ -121,6 +123,7 @@ func (a *NativeApp) exportView(c *ui.Context) {
 					if a.snapshot != nil && a.snapshot.Document.Format == "ssa" {
 						formats = append(formats, "ssa")
 					}
+					formats = append(formats, "txt")
 					format, labels := 0, []string{}
 					for i, f := range formats {
 						labels = append(labels, strings.ToUpper(f))
@@ -138,6 +141,8 @@ func (a *NativeApp) exportView(c *ui.Context) {
 				ui.Column(c).MinHeight(em(c, 64)).Children(func() {
 					if outputErr != nil {
 						ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
+					} else if a.exportFormat == "txt" {
+						muted(c, locales.ExportTextNote()).FontSize(em(c, captionSize))
 					} else if a.exportFormat == "srt" || a.exportFormat == "vtt" {
 						muted(c, locales.ExportPlainNote()).FontSize(em(c, captionSize))
 					}
@@ -169,7 +174,9 @@ func (a *NativeApp) exportSubtitle() {
 	state, format, line := *a.snapshot, a.exportFormat, a.exportLines
 	options, style, secondary, aspect := a.settings.SubtitleOutput, a.currentStyle, a.secondaryStyle, a.frameAspect
 	a.run(locales.MenuExportSubtitles(), func(ctx context.Context) (func(), error) {
-		document, err := subtitle.SelectOutput(state.OutputDocument(options), options)
+		document := state.OutputDocument(options)
+		document.TargetFormat = format
+		document, err := subtitle.SelectOutput(document, options)
 		if err != nil {
 			return nil, err
 		}

@@ -255,6 +255,88 @@ class SubtitleWorkerTests(unittest.TestCase):
         self.assertFalse(reply.get("ok"))
         self.assertEqual(reply["error"], "E_LINE_SELECTION")
 
+    def test_txt_export_keeps_visible_text_without_subtitle_metadata(self):
+        srt_literal = r"Use file.srt at 1.25. a@b.com {keep} \notes <T> &lt;i&gt;literal&lt;/i&gt;"
+        samples = {
+            "srt": ("1\n00:00:01,250 --> 00:00:03,000\n<i>First &amp; second</i>\n下行 &#x4E16;&#x754C;\n\n"
+                    "2\n00:00:04,000 --> 00:00:05,000\n" + srt_literal + "\n",
+                    "First & second\n下行 世界\n" + srt_literal.replace("&lt;", "<").replace("&gt;", ">") + "\n"),
+            "vtt": ("WEBVTT\n\nNOTE keep this\nmetadata\n\nintro\n"
+                    "00:01.250 --> 00:03.000 align:start position:10%\n"
+                    "<v Alice><lang en><c.yellow><b>First &amp; second</b></c></lang></v>"
+                    "<00:00:01.750>\n<ruby>字<rt>じ</rt></ruby>\n\nlast\n"
+                    "00:04.000 --> 00:05.000\nMeet at 00:00:01.750 &lt;i&gt;literal&lt;/i&gt;\n",
+                    "First & second\n字じ\nMeet at 00:00:01.750 <i>literal</i>\n"),
+        }
+        # ASS comments and drawings are not transcript text. Mixed events keep
+        # the visible words on either side of every drawing span.
+        for fmt, script, fields, layer in (
+                ("ass", "v4.00+", "Layer", "0"),
+                ("ssa", "v4.00", "Marked", "Marked=0")):
+            original = (f"[Script Info]\nScriptType: {script}\n[Events]\n"
+                        f"Format: {fields}, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+                        f"Comment: {layer},0:00:00.00,0:00:01.00,Default,,0,0,0,,Keep me\n"
+                        f"Dialogue: {layer},0:00:01.25,0:00:03.00,Default,Alice,0,0,0,,"
+                        r"{\i1}First\hsecond{\i0}{comment}\N下行\n世界" + "\n"
+                        f"Dialogue: {layer},0:00:04.00,0:00:05.00,Default,,0,0,0,,"
+                        r"{\p1}m 0 0 l 20 20{\p0}" + "\n"
+                        f"Dialogue: {layer},0:00:06.00,0:00:07.00,Default,,0,0,0,,"
+                        r"前{\p1}m 0 0 l 20 20{\p0\fs20}中{\p2}m 0 0 l 30 30{\p0}后 <i> &amp;" + "\n")
+            samples[fmt] = (original, "First second\n下行\n世界\n前中后 <i> &amp;\n")
+        for fmt, (original, expected) in samples.items():
+            with self.subTest(fmt=fmt):
+                doc = self.read("transcript." + fmt, original)
+                source_file = self.root / ("transcript." + fmt)
+                before = source_file.read_bytes()
+                doc["targetFormat"] = "txt"
+                source = self.root / (fmt + "-txt.json")
+                source.write_text(json.dumps(doc), encoding="utf-8")
+                output = self.root / (fmt + ".txt")
+                reply = self.request("write", source, output)
+                self.assertTrue(reply.get("ok"), reply)
+                self.assertEqual(output.read_bytes(), expected.encode("utf-8"))
+                self.assertEqual(source_file.read_bytes(), before)
+
+    def test_txt_line_selection_needs_no_timeline(self):
+        doc = dict(format="srt", targetFormat="txt", cues=[
+            dict(id="c1", position=0, startMs=-1, endMs=-2,
+                 text="<i>Upper\n下行</i>", originalText="Evidence"),
+            dict(id="c2", position=1, startMs=0, endMs=0,
+                 text="Single", originalText="Single")])
+        for line, expected in (("all", "Upper\n下行\nSingle\n"),
+                               ("upper", "Upper\nSingle\n"),
+                               ("lower", "下行\nSingle\n")):
+            with self.subTest(line=line):
+                source = self.root / (line + "-txt-input.json")
+                source.write_text(json.dumps(doc if line == "all" else
+                                             dict(document=doc, line=line)), encoding="utf-8")
+                if line != "all":
+                    selected = self.root / (line + "-txt-selected.json")
+                    reply = self.request("select-lines", source, selected)
+                    self.assertTrue(reply.get("ok"), reply)
+                    source = selected
+                output = self.root / (line + "-untimed.txt")
+                reply = self.request("write", source, output)
+                self.assertTrue(reply.get("ok"), reply)
+                self.assertEqual(output.read_bytes(), expected.encode("utf-8"))
+        # Removing times from an export must not weaken timed subtitle writes.
+        doc["targetFormat"] = "srt"
+        source = self.root / "invalid-timed.json"
+        source.write_text(json.dumps(doc), encoding="utf-8")
+        output = self.root / "invalid-timed.srt"
+        reply = self.request("write", source, output)
+        self.assertEqual(reply.get("error"), "E_TIMING")
+        self.assertFalse(output.exists())
+
+    def test_empty_txt_export_has_no_placeholder_or_bom(self):
+        for name, cues in (("empty", []), ("styling", [dict(text="<i></i>", startMs=0, endMs=1000)])):
+            source = self.root / (name + "-txt.json")
+            source.write_text(json.dumps(dict(format="srt", targetFormat="txt", cues=cues)), encoding="utf-8")
+            output = self.root / (name + ".txt")
+            reply = self.request("write", source, output)
+            self.assertTrue(reply.get("ok"), reply)
+            self.assertEqual(output.read_bytes(), b"")
+
     def test_last_srt_subtitle_can_be_deleted(self):
         doc=self.read("last.srt","1\n00:00:00,000 --> 00:00:01,000\nLast\n")
         doc["cues"]=[]

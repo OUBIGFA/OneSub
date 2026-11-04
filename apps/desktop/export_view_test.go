@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
+	"github.com/egoist/mygo/ui"
 )
 
 func TestOutputArtifactsUseSelectedContentAndSmartSubLayers(t *testing.T) {
@@ -124,6 +126,108 @@ func TestExportLineChoicesKeepDialogSize(t *testing.T) {
 	}
 }
 
+func TestExportTxtFormatKeepsDialogSizeAndFirstFrame(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		for _, sourceFormat := range []string{"srt", "ssa"} {
+			for _, scale := range []float32{1, 1.5, 2} {
+				t.Run(fmt.Sprintf("%s/%s/%g", language, sourceFormat, scale), func(t *testing.T) {
+					inLocale(t, language, func() {
+						a := storeApp(t, subtitle.Cue{ID: "c1", Text: "First", OriginalText: "First", EndMs: 2000})
+						a.snapshot.Document.Format = sourceFormat
+						tt := ui.NewTester(a.exportView, int(800*scale), int(640*scale))
+						tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
+						for _, dark := range []bool{false, true} {
+							a.exportOpen = false
+							tt.SetDark(dark)
+							tt.Frame()
+							firstFrameSettled(t, tt, fmt.Sprintf("txt-dark%t", dark), func() {
+								a.exportOpen, a.exportFormat = true, "txt"
+							})
+							button, _ := tt.Find(locales.ExportConfirm())
+							area, _ := tt.Find(locales.MenuExportSubtitles())
+							formats := []string{"srt", "vtt", "ass"}
+							if sourceFormat == "ssa" {
+								formats = append(formats, "ssa")
+							}
+							formats = append(formats, "txt")
+							for _, format := range formats {
+								if err := tt.Click(strings.ToUpper(format)); err != nil {
+									t.Fatal(err, tt.Texts())
+								}
+								action, _ := tt.Find(locales.ExportConfirm())
+								dialog, _ := tt.Find(locales.MenuExportSubtitles())
+								if a.exportFormat != format || action != button || dialog != area {
+									t.Fatal("format choice changed dialog geometry or selected wrong data", format, action, button, dialog, area)
+								}
+								insideRedesign(t, tt, locales.MenuExportSubtitles(), "TXT", locales.ExportLines(), locales.ExportConfirm())
+							}
+							insideRedesign(t, tt, locales.MenuExportSubtitles(), locales.ExportTextNote())
+							if scale == 1 {
+								captureRedesign(t, tt, fmt.Sprintf("export-txt-%s-%s-dark%t", language, sourceFormat, dark))
+							}
+						}
+					})
+				})
+			}
+		}
+	}
+}
+
+func TestTxtAssBilingualOutputUsesSelectedOrderAndLines(t *testing.T) {
+	worker := subtitle.Client{Executable: os.Getenv("ONESUB_SUBTITLE_WORKER"), Scratch: t.TempDir()}
+	original := "[Script Info]\nScriptType: v4.00+\n[Events]\n" +
+		"Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n" +
+		"Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,{\\i1}Source text{\\i0}\n"
+	path := filepath.Join(t.TempDir(), "source.ass")
+	if err := os.WriteFile(path, []byte(original), 0600); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := worker.Read(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.Cues[0].TranslationSource = doc.Cues[0].Text
+	doc.Cues[0].Text, doc.Cues[0].Translated = "{\\i1}译文{\\i0}", true
+	doc.TargetFormat = "txt"
+	for _, sourceFirst := range []bool{false, true} {
+		upper, lower := "译文", "Source text"
+		if sourceFirst {
+			upper, lower = lower, upper
+		}
+		for _, line := range []string{"all", "upper", "lower"} {
+			selected, err := subtitle.SelectOutput(doc, subtitle.OutputOptions{Mode: "bilingual", SourceFirst: sourceFirst})
+			if err == nil {
+				selected, err = worker.SelectLines(context.Background(), selected, line)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := worker.Write(context.Background(), selected)
+			want := upper + "\n" + lower + "\n"
+			if line == "upper" {
+				want = upper + "\n"
+			} else if line == "lower" {
+				want = lower + "\n"
+			}
+			if err != nil || string(data) != want {
+				t.Fatal("TXT used wrong bilingual order/line or kept ASS syntax", sourceFirst, line, string(data), err)
+			}
+		}
+	}
+	before, err := os.ReadFile(path)
+	if err != nil || string(before) != original || doc.Cues[0].Text != "{\\i1}译文{\\i0}" {
+		t.Fatal("plain text export changed the source or working subtitle", err)
+	}
+	doc.TargetFormat = "ass"
+	if _, err := subtitle.SelectOutput(doc, subtitle.OutputOptions{Mode: "bilingual"}); err == nil {
+		t.Fatal("TXT weakened strict ASS bilingual protection")
+	}
+	doc.TargetFormat, doc.Cues[0].Translated = "txt", false
+	if _, err := subtitle.SelectOutput(doc, subtitle.OutputOptions{Mode: "bilingual"}); err == nil {
+		t.Fatal("TXT filled an incomplete translation with source text")
+	}
+}
+
 func TestImportedBilingualLineSelectionRoundTripsAndUsesSmartSub(t *testing.T) {
 	a := withStyleCatalog(t)
 	a.worker = subtitle.Client{Executable: os.Getenv("ONESUB_SUBTITLE_WORKER"), Scratch: t.TempDir()}
@@ -166,16 +270,16 @@ func TestExportSeparatesOriginalRebuiltAndTranslation(t *testing.T) {
 	}
 	a.setSnapshot(state)
 	for _, test := range []struct {
-		options      subtitle.OutputOptions
-		count        int
-		text, suffix string
+		options             subtitle.OutputOptions
+		count               int
+		text, plain, suffix string
 	}{
-		{subtitle.OutputOptions{Mode: "source", SourceTrack: "original"}, 2, "Hello", "original"},
-		{subtitle.OutputOptions{Mode: "source"}, 1, "Hello world", "rebuilt-source"},
-		{subtitle.OutputOptions{Mode: "translation"}, 1, "你好世界", "translated"},
-		{subtitle.OutputOptions{Mode: "bilingual"}, 1, "你好世界\nHello world", "bilingual"},
+		{subtitle.OutputOptions{Mode: "source", SourceTrack: "original"}, 2, "Hello", "Hello\nworld\n", "original"},
+		{subtitle.OutputOptions{Mode: "source"}, 1, "Hello world", "Hello world\n", "rebuilt-source"},
+		{subtitle.OutputOptions{Mode: "translation"}, 1, "你好世界", "你好世界\n", "translated"},
+		{subtitle.OutputOptions{Mode: "bilingual"}, 1, "你好世界\nHello world", "你好世界\nHello world\n", "bilingual"},
 	} {
-		for _, format := range []string{"srt", "vtt"} {
+		for _, format := range []string{"srt", "vtt", "txt"} {
 			selected, err := subtitle.SelectOutput(state.OutputDocument(test.options), test.options)
 			if err != nil {
 				t.Fatal(err)
@@ -190,8 +294,19 @@ func TestExportSeparatesOriginalRebuiltAndTranslation(t *testing.T) {
 				t.Fatal("ambiguous export filename", name)
 			}
 			path := filepath.Join(t.TempDir(), name)
-			if err = os.WriteFile(path, data, 0600); err != nil {
+			if err = subtitle.Replace(path, data); err != nil {
 				t.Fatal(err)
+			}
+			if format == "txt" {
+				written, err := os.ReadFile(path)
+				if err != nil || string(written) != test.plain {
+					t.Fatal("wrong TXT export content", test.options, string(written), err)
+				}
+				files, err := os.ReadDir(filepath.Dir(path))
+				if err != nil || len(files) != 1 {
+					t.Fatal("TXT export left unrelated files", files, err)
+				}
+				continue
 			}
 			read, err := a.worker.Read(context.Background(), path)
 			if err != nil || len(read.Cues) != test.count || read.Cues[0].Text != test.text {

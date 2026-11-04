@@ -55,7 +55,9 @@ func SelectOutput(doc Document, options OutputOptions) (Document, error) {
 	if o.Primary != "source" && o.Primary != "translation" {
 		return Document{}, errors.New(locales.ErrOutputPrimary())
 	}
-	if o.Mode == "bilingual" && (doc.Format == "ass" || doc.Format == "ssa") {
+	// Explicit TXT output has no ASS events to preserve. Other outputs keep
+	// the strict ASS/SSA rule against creating new bilingual event layouts.
+	if o.Mode == "bilingual" && (doc.Format == "ass" || doc.Format == "ssa") && doc.TargetFormat != "txt" {
 		return Document{}, errors.New(locales.ErrOutputAssBilingual())
 	}
 	if o.Mode != "source" {
