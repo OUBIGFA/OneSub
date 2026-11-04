@@ -57,14 +57,14 @@ func listTargetText(cue subtitle.Cue, track string) (string, bool) {
 }
 
 func (a *NativeApp) listPunctuationTools(c *ui.Context) {
-	disabled := a.busy || a.showsTranslationProgress() || a.snapshot == nil
+	disabled := a.busy || a.showsTranslationProgress() || len(a.activeDocument().Cues) == 0
 	hint := locales.TextProcessScope(a.textTargetLabel(a.editRebuiltSource))
 	toolIcon(c, locales.TextReplacePeriods(), "quote").Disabled(disabled).Tooltip(locales.TextReplacePeriods() + "\n" + locales.TextPeriodProtectionHint() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(false) })
 	toolIcon(c, locales.TextStripTrailing(), "eraser").Disabled(disabled).Tooltip(locales.TextStripTrailing() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(true) })
 }
 
 func (a *NativeApp) openFindReplace() {
-	if a.busy || a.snapshot == nil || a.showsTranslationProgress() || !a.commitEdit(true) {
+	if a.busy || len(a.activeDocument().Cues) == 0 || a.showsTranslationProgress() || !a.commitEdit(true) {
 		return
 	}
 	f := &a.findReplace

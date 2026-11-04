@@ -14,7 +14,7 @@ import (
 )
 
 func (a *NativeApp) subtitleActionsMenu(c *ui.Context) {
-	toolIcon(c, locales.SubtitleActionsMenu(), "ellipsis").Disabled(a.busy || a.snapshot == nil || a.showsTranslationProgress()).Menu(func(m *ui.Menu) {
+	toolIcon(c, locales.SubtitleActionsMenu(), "ellipsis").Disabled(a.busy || len(a.activeDocument().Cues) == 0 || a.showsTranslationProgress()).Menu(func(m *ui.Menu) {
 		a.pendingClick = nil
 		a.subtitleStructureMenu(m, a.selected)
 	})

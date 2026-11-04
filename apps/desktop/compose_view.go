@@ -49,7 +49,7 @@ func (a *NativeApp) composeView(c *ui.Context) {
 		hard := strings.HasPrefix(a.settings.ComposeMode, "hard")
 		ui.Grid(c).Columns(2).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
 			settingsGroup(c, locales.OutputTrackGroup(), func() {
-				ui.Grid(c).Columns(2).Gap(em(c, 16)).Children(func() { a.outputFields(c, true) })
+				a.outputColumn(c)
 			})
 			settingsGroup(c, locales.ComposeEncodingGroup(), func() {
 				ui.Field(c, locales.ComposeMode(), func() {
@@ -149,7 +149,11 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 	secondary, outputOptions := a.secondaryStyle, a.settings.SubtitleOutput
 	language := a.settings.TargetLanguage
 	if outputOptions.Normalized().Mode == "source" {
-		language = a.settings.Language
+		// Smart routing does not keep the language it detected.
+		language = "und"
+		if a.settings.RecognitionMode == recognitionManual {
+			language = a.settings.Language
+		}
 	}
 	if outputOptions.Normalized().Mode == "bilingual" {
 		language = "mul"

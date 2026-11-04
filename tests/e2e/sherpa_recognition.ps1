@@ -25,7 +25,10 @@ New-Item -ItemType Directory -Path $env:ONESUB_DATA_ROOT,$env:XDG_RUNTIME_DIR | 
 # Automatic recognition may use any model in ModelsRoot.
 $paths=@{}
 Get-ChildItem -LiteralPath $ModelsRoot -Directory | Where-Object {$_.Name -ne 'test_wavs'} | ForEach-Object {$paths[$_.Name]=$_.FullName}
-$prefs=@{version=4;uiLanguage='zh-Hans';asrModel=$AsrModel;language=$Language;recognitionFormat='srt';closeToTray=$false;modelPaths=$paths}
+# -Language route uses smart routing; any other value recognizes with AsrModel.
+$mode='manual'
+if($Language -eq 'route'){$mode='route';$Language='zh'}
+$prefs=@{version=4;uiLanguage='zh-Hans';recognitionMode=$mode;asrModel=$AsrModel;language=$Language;recognitionFormat='srt';closeToTray=$false;modelPaths=$paths}
 [IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),($prefs|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
 if($Packaged){foreach($name in @('ONESUB_FFPROBE','ONESUB_FFMPEG','ONESUB_SUBTITLE_WORKER','ONESUB_STYLE_WORKER','ONESUB_SKILL_WORKER','ONESUB_SKILL_ROOT','ONESUB_ONEASR_ROOT','ONESUB_SHERPA_ROOT')){Remove-Item "Env:$name" -ErrorAction SilentlyContinue}}
 $p=Start-Process -FilePath ([IO.Path]::GetFullPath($Exe)) -ArgumentList ('"'+$video+'"') -PassThru -RedirectStandardError (Join-Path $workPath 'stderr.log')
@@ -67,7 +70,9 @@ try {
   }
  }
  if($ScreenshotTool){& $ScreenshotTool $p.Id (Join-Path $workPath 'recognized.png') | Out-Host}
- Write-Output "PASS: $AsrModel recognized in the native window; $($blocks.Count) cues saved to $output, none in the silence"
+ $what=$AsrModel
+ if($mode -eq 'route'){$what='smart routing'}
+ Write-Output "PASS: $what recognized in the native window; $($blocks.Count) cues saved to $output, none in the silence"
  Write-Output $text
 } finally {
  $p.Refresh()

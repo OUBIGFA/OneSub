@@ -19,7 +19,7 @@
     "license": "third_party/licenses/mygo.txt",
     "licenseSha256": "f0b56f4ab53beb6e18c5e155219c2e2b6000b5475c0ae3ddb3af3894fd9349b4",
     "usage": "Native desktop controls, layout, themes, menus and embedded media WebView",
-    "modifications": "Four reviewed native/UI patches; see third_party/patches/mygo/README.md"
+    "modifications": "Five reviewed native/UI patches; see third_party/patches/mygo/README.md"
   },
   "mcpGoSdk": {
     "module": "github.com/modelcontextprotocol/go-sdk",

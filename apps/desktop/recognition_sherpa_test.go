@@ -111,10 +111,12 @@ func TestSherpaEnginesRecognizeRealSpeech(t *testing.T) {
 	cases := []struct{ model, language, wav, want string }{
 		{"sherpa-sense-voice-small-int8", "zh", "zh.wav", "开饭时间早上9点至下午5点。"},
 		{"sherpa-parakeet-tdt-0.6b-v3-int8", "en", "en.wav", "Ask not what your country can do for you"},
+		{"sherpa-parakeet-tdt-0.6b-v3-fp32", "en", "en.wav", "Ask not what your country can do for you"},
+		{"sherpa-parakeet-tdt-0.6b-v3-fp32", "de", "de.wav", "Alles hat ein Ende"},
 		{"sherpa-paraformer-zh-int8", "zh", "paraformer.wav", "我想说的是"},
 	}
 	for _, c := range cases {
-		t.Run(c.model, func(t *testing.T) {
+		t.Run(c.model+"/"+c.language, func(t *testing.T) {
 			model, err := models.ByID(c.model)
 			if err != nil {
 				t.Fatal(err)
@@ -159,14 +161,16 @@ func TestSherpaRecognitionSpeechGapIntegration(t *testing.T) {
 	}
 	for _, c := range []struct{ model, language, wav string }{
 		{"sherpa-sense-voice-small-int8", "zh", "zh.wav"},
+		{"sherpa-sense-voice-small-int8", "auto", "zh.wav"},
 		{"sherpa-parakeet-tdt-0.6b-v3-int8", "en", "en.wav"},
+		{"sherpa-parakeet-tdt-0.6b-v3-fp32", "en", "en.wav"},
 	} {
-		t.Run(c.model, func(t *testing.T) {
+		t.Run(c.model+"/"+c.language, func(t *testing.T) {
 			ctx := context.Background()
 			root := t.TempDir()
 			tools := toolset{dataRoot: root, ffmpeg: os.Getenv("ONESUB_FFMPEG"), worker: subtitle.Client{Executable: os.Getenv("ONESUB_SUBTITLE_WORKER"), Scratch: root}}
 			prefs := settings.Default()
-			prefs.AsrModel, prefs.Language = c.model, c.language
+			prefs.RecognitionMode, prefs.AsrModel, prefs.Language = recognitionManual, c.model, c.language
 			prefs.ModelPaths = map[string]string{c.model: filepath.Join(modelsRoot, c.model)}
 			speech, wav := filepath.Join(modelsRoot, "test_wavs", c.wav), filepath.Join(root, "speech-gap.wav")
 			if err := jobs.Run(ctx, jobs.CommandContext(ctx, tools.ffmpeg, "-v", "error", "-i", speech, "-f", "lavfi", "-t", "40", "-i", "anullsrc=r=16000:cl=mono", "-filter_complex", "[0:a]asplit=2[first][last];[first][1:a][last]concat=n=3:v=0:a=1[out]", "-map", "[out]", "-c:a", "pcm_s16le", wav), nil); err != nil {
@@ -229,13 +233,13 @@ func TestWorkflowSherpaModelLanguagesAndOptions(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/%d", language, width), func(t *testing.T) {
 				inLocale(t, language, func() {
 					a := nativeForTest(t)
-					a.settings.AsrModel, a.settings.Language = "sherpa-parakeet-tdt-0.6b-v3-int8", "zh"
+					a.settings.RecognitionMode, a.settings.AsrModel, a.settings.Language = recognitionManual, "sherpa-parakeet-tdt-0.6b-v3-int8", "zh"
 					a.asrModelChanged()
 					if a.settings.Language != "en" {
 						t.Fatal("unsupported language kept", a.settings.Language)
 					}
-					// Automatic detection stays first for every model.
-					if got := modelLanguages(a.settings.AsrModel); len(got) != 8 || got[0].ID != languageAuto || got[1].ID != "en" {
+					// Only a model that detects the language lists "auto".
+					if got := modelLanguages(a.settings.AsrModel); len(got) != 7 || got[0].ID != "en" {
 						t.Fatal(got)
 					}
 					a.recognitionAdvanced = true
@@ -253,7 +257,7 @@ func TestWorkflowSherpaModelLanguagesAndOptions(t *testing.T) {
 					}
 					a.settings.AsrModel = "Qwen3-ASR-0.6B-hf"
 					a.asrModelChanged()
-					if a.settings.Language != "en" || len(modelLanguages(a.settings.AsrModel)) != len(sourceLanguages()) {
+					if a.settings.Language != "en" || len(modelLanguages(a.settings.AsrModel)) != len(sourceLanguages())-1 {
 						t.Fatal("OneAsr languages changed")
 					}
 				})
@@ -369,5 +373,32 @@ func TestRouteRecognitionDetectsRealSpeech(t *testing.T) {
 	prefs.ModelPaths[models.LanguageDetector] = filepath.Join(root, "absent")
 	if _, _, err := tools.routeRecognition(context.Background(), prefs, filepath.Join(modelsRoot, "test_wavs", "zh.wav"), func(recognitionStep) {}); err == nil || err.Error() != locales.ErrLanguageDetectorNeeded() {
 		t.Fatal(err)
+	}
+}
+
+// Smart routing asks for no model or language; choosing a model shows both,
+// and a detecting model alone offers its own "auto".
+func TestWorkflowRecognitionModes(t *testing.T) {
+	a := nativeForTest(t)
+	if a.settings.RecognitionMode != recognitionRouted {
+		t.Fatal("smart routing is not the default", a.settings.RecognitionMode)
+	}
+	tt := settled(a.workflowPanel, 450, 900)
+	if !tt.HasText(locales.RecognitionModeRouted()) || tt.HasText(locales.SettingsSourceLanguage()) || tt.HasText("Qwen3-ASR 0.6B") {
+		t.Fatal(tt.Texts())
+	}
+	a.settings.RecognitionMode, a.settings.AsrModel, a.settings.Language = recognitionManual, models.FallbackModel, languageAuto
+	a.asrModelChanged()
+	if a.settings.Language != languageAuto {
+		t.Fatal("SenseVoiceSmall lost its own detection")
+	}
+	tt = settled(a.workflowPanel, 450, 900)
+	if !tt.HasText(locales.SettingsSourceLanguage()) || !tt.HasText("SenseVoiceSmall INT8") {
+		t.Fatal(tt.Texts())
+	}
+	a.settings.AsrModel = "Qwen3-ASR-0.6B-hf"
+	a.asrModelChanged()
+	if a.settings.Language != "zh" {
+		t.Fatal("OneAsr kept auto", a.settings.Language)
 	}
 }

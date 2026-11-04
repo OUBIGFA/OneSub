@@ -17,6 +17,7 @@ func TestWorkflowFieldsHaveTaskHierarchy(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := nativeForTest(t)
+			a.settings.RecognitionMode = recognitionManual
 			tt := settled(a.workflowPanel, 1200, 1000)
 			for range 4 {
 				tt.Frame()

@@ -20,10 +20,11 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 			if a.workflowTab == 0 {
 				ui.Segmented(c, &a.recognitionMode, locales.RecognitionCurrentFile(), locales.RecognitionFileQueue()).AlignSelf(ui.Center).Label(locales.RecognitionTarget())
 				hasMedia := a.snapshot != nil && a.snapshot.Manifest.MediaPath != ""
+				manualUnavailable := a.settings.RecognitionMode == recognitionManual && !a.selectedAsrDownloaded()
 				if a.recognitionMode == 1 {
-					startButton(c, locales.BatchStart(), "audio-lines", a.busy || a.pendingBatchCount() == 0, a.startBatchRecognition)
+					startButton(c, locales.BatchStart(), "audio-lines", a.busy || a.pendingBatchCount() == 0 || manualUnavailable, a.startBatchRecognition)
 				} else {
-					startButton(c, locales.WorkflowStartRecognize(), "audio-lines", a.busy || !hasMedia, a.recognize)
+					startButton(c, locales.WorkflowStartRecognize(), "audio-lines", a.busy || !hasMedia || manualUnavailable, a.recognize)
 				}
 			} else {
 				hasCues := a.snapshot != nil && len(a.snapshot.Document.Cues) > 0
@@ -57,27 +58,43 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 	} else if !a.busy && a.settings.Processing != nil && a.settings.Processing.Stage == "recognize" {
 		muted(c, locales.RecognitionRestartNote())
 	}
+	routed := a.settings.RecognitionMode != recognitionManual
 	parameterGroup(c, locales.WorkflowRecognitionSettings(), func() {
-		toolIcon(c, locales.WorkflowModels(), "settings").OnClick(func() { a.settingsOpen, a.settingsTab = true, 1 })
+		// Smart routing's models are set by language; a chosen model in the
+		// models page.
+		page := 1
+		if routed {
+			page = 5
+		}
+		toolIcon(c, locales.WorkflowModels(), "settings").OnClick(func() { a.settingsOpen, a.settingsTab = true, page })
 	}, func() {
+		ui.Field(c, locales.RecognitionMode(), func() {
+			idSelect(c, &a.settings.RecognitionMode, []option{{recognitionRouted, locales.RecognitionModeRouted()}, {recognitionManual, locales.RecognitionModeManual()}}).Label(locales.RecognitionMode()).Disabled(a.busy).OnChange(func() {
+				// A chosen model keeps only a language it recognizes.
+				a.asrModelChanged()
+			})
+		})
+		if routed {
+			return
+		}
 		parameterGrid(c, 210, 2, func() {
 			ui.Field(c, locales.WorkflowRecognitionModel(), func() {
-				options := []option{}
-				for _, model := range models.Catalog() {
-					if model.Kind == "asr" {
-						options = append(options, option{model.ID, model.Label})
-					}
+				// Management retains the full catalog; recognition lists only
+				// complete local model files and never exposes a missing choice.
+				options := a.downloadedAsrModels()
+				placeholder := locales.RecognitionChooseDownloadedModel()
+				if len(options) == 0 {
+					placeholder = locales.RecognitionNoDownloadedModel()
 				}
-				if a.settings.Language == languageAuto {
-					// Detection chooses the model; Settings sets each language's.
-					auto := languageAuto
-					idSelect(c, &auto, []option{{languageAuto, locales.WorkflowModelAuto()}}).Label(locales.WorkflowRecognitionModel()).Disabled(true)
-					return
-				}
-				idSelect(c, &a.settings.AsrModel, options).Label(locales.WorkflowRecognitionModel()).OnChange(a.asrModelChanged)
+				chosen := a.settings.AsrModel
+				idSelect(c, &chosen, options, placeholder).Label(locales.WorkflowRecognitionModel()).Disabled(a.busy || len(options) == 0).OnChange(func() {
+					a.settings.AsrModel = chosen
+					a.asrModelChanged()
+				})
 			})
+		}, func() {
 			ui.Field(c, locales.SettingsSourceLanguage(), func() {
-				languageSelect(c, &a.settings.Language, modelLanguages(a.settings.AsrModel), a.busy).Label(locales.SettingsSourceLanguage()).OnChange(a.saveSettings)
+				languageSelect(c, &a.settings.Language, modelLanguages(a.settings.AsrModel), a.busy || !a.selectedAsrDownloaded()).Label(locales.SettingsSourceLanguage()).OnChange(a.sourceLanguageChanged)
 			})
 		})
 	})
@@ -88,10 +105,10 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 		folderField(c, a.settings.RecognitionDir, locales.RecognitionBesideMedia(), a.busy, a.pickRecognitionDir, func() { a.settings.RecognitionDir = ""; a.saveSettings() })
 	})
 	// Backend, chunks and tokens are OneAsr's options; a sherpa-onnx model
-	// runs on the CPU in inputs of its own length. Detection may choose
+	// runs on the CPU in inputs of its own length. Smart routing may choose
 	// either, so they stay on.
 	oneAsr := true
-	if model, err := models.ByID(a.settings.AsrModel); err == nil && a.settings.Language != languageAuto {
+	if model, err := models.ByID(a.settings.AsrModel); err == nil && !routed {
 		oneAsr = !model.Sherpa()
 	}
 	ui.Collapsible(c, locales.WorkflowRecognitionAdvanced(), &a.recognitionAdvanced, func() {
@@ -99,12 +116,14 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 			ui.Field(c, locales.SettingsBackend(), func() {
 				idSelect(c, &a.settings.Backend, []option{{"auto", locales.BackendAuto()}, {"gpu", "GPU"}, {"cpu", "CPU"}}).Label(locales.SettingsBackend()).Disabled(!oneAsr).OnChange(a.saveSettings)
 			})
+		}, func() {
 			ui.Field(c, locales.SettingsChunk(), func() {
 				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
 					number(c, locales.SettingsChunk(), &a.settings.ChunkSeconds, 30, 180, 1).Disabled(!oneAsr).OnChange(a.saveSettings)
 					muted(c, locales.UnitSeconds())
 				})
 			})
+		}, func() {
 			ui.Field(c, locales.SettingsMaxTokens(), func() {
 				number(c, locales.SettingsMaxTokens(), &a.settings.MaxTokens, 1, 32768, 1).Disabled(!oneAsr).OnChange(a.saveSettings)
 			})
@@ -138,6 +157,7 @@ func (a *NativeApp) translateTab(c *ui.Context) {
 	}, func() {
 		parameterGrid(c, 190, 2, func() {
 			ui.Field(c, locales.TranslationProvider(), func() { a.providerSelect(c) })
+		}, func() {
 			ui.Field(c, locales.TranslationModel(), func() { a.providerModelSelect(c) })
 		})
 	})
@@ -146,25 +166,28 @@ func (a *NativeApp) translateTab(c *ui.Context) {
 			ui.Field(c, locales.TranslationTarget(), func() {
 				languageSelect(c, &a.settings.TargetLanguage, targetLanguages(), a.busy).Label(locales.TranslationTarget()).OnChange(a.saveSettings)
 			})
+		}, func() {
 			ui.Field(c, locales.TranslationStyle(), func() { a.styleSelect(c).Disabled(a.busy) }).Error(a.profilesError)
 		})
 		folderField(c, a.settings.TranslationDir, locales.TranslationBesideSource(), a.busy, a.pickTranslationDir, func() { a.settings.TranslationDir = ""; a.saveSettings() })
 	})
 	ui.Collapsible(c, locales.WorkflowTranslationAdvanced(), &a.translationAdvanced, func() {
-		parameterGrid(c, 180, 2, func() {
-			for _, field := range []struct {
-				label string
-				value *int
-			}{
-				{locales.TranslationConcurrency(), &a.settings.TranslationConcurrency},
-				{locales.TranslationBatchSize(), &a.settings.TranslationBatchSize},
-			} {
+		cells := []func(){}
+		for _, field := range []struct {
+			label string
+			value *int
+		}{
+			{locales.TranslationConcurrency(), &a.settings.TranslationConcurrency},
+			{locales.TranslationBatchSize(), &a.settings.TranslationBatchSize},
+		} {
+			cells = append(cells, func() {
 				ui.Field(c, field.label, func() {
 					value := float64(*field.value)
 					number(c, field.label, &value, 1, 10000, 1).OnChange(func() { *field.value = int(value); a.saveSettings() })
 				})
-			}
-		})
+			})
+		}
+		parameterGrid(c, 180, 2, cells...)
 		ui.Checkbox(c, &a.settings.StripPunctuation, locales.WorkflowStripPunctuation()).OnChange(a.saveSettings)
 		ui.Field(c, locales.WorkflowKeepPunctuation(), func() {
 			ui.TextInput(c, &a.settings.KeepPunctuation).Width(em(c, 120)).Placeholder("?").Label(locales.WorkflowKeepPunctuation()).Disabled(!a.settings.StripPunctuation).OnChange(a.saveSettings)

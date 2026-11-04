@@ -20,10 +20,11 @@
 - **字幕邻近行平滑定位**：`ListState.ScrollToAnimated` 将已测量的可见行位置交给现有 `ScrollState.ScrollTo`，沿用原生缓动、用户滚动中断当前动画和系统减少动态效果设置；远距离或未测量目标仍由原生 `ScrollTo` 定位，不按估计高度长距离飞行。切换轨道和过滤会清掉旧动画；应用的后续播放跟随仍自动恢复。
 - **字幕首尾导航的缓出反馈**：官方 [List](https://mygo.egoist.dev/docs/ui/list) 的首尾定位没有动画参数；[Motion](https://mygo.egoist.dev/docs/ui/motion) 和 [Scroll view](https://mygo.egoist.dev/docs/ui/scroll) 已提供 `CubicBezier` 与 `ScrollState.ScrollTo`。有限扩展 `ListState.ScrollToEdgeAnimated` 先使用原生布局测量目标与最多一屏的落点走廊，再将这段滚动交给既有 `ScrollState`；远段直接跳过，不遍历整个列表的估计高度。应用采用 420 ms、`CubicBezier(0.22, 1, 0.36, 1)`，先快后慢、无回弹；末条超过一屏时仍定位到真实底部。用户滚动、反向导航和直接定位可中断，减少动态效果时直接到达。不修改普通播放跟随的 220 ms 节奏。
 
-`ui-layout.patch` 处理固定版本 WebView 的原生尺寸缺口，不引入独立渲染器或控件体系。官方接口核对见 [Web view](https://mygo.egoist.dev/docs/ui/web-view) 与 [Layout](https://mygo.egoist.dev/docs/ui/layout)。
+`ui-layout.patch` 处理固定版本 WebView 的原生尺寸缺口，并为应用首帧验收提供单帧测试入口；不引入独立渲染器或控件体系。官方接口核对见 [Web view](https://mygo.egoist.dev/docs/ui/web-view) 与 [Layout](https://mygo.egoist.dev/docs/ui/layout)。
 
 - **媒体本帧定位**：`WebView` 的 `Fit(Contain)` 配合 `AspectRatio`，在最终内容框内居中计算媒体矩形；原生视口和透明区域使用同一矩形。应用不再先读上一帧 `Bounds()` 后设置视频尺寸。未使用此组合的 WebView 行为不变。
 - `TestOneSubContainedWebViewUsesCurrentFrame` 每次只执行单帧尺寸变化，验证横竖比例、原生位置与透明区域立即一致。既有上游 `TestWebView*` 同时运行。
+- **真实单帧验收**：上游 `Tester.Frame()` 会自动运行最多 20 帧，不能证明第一帧已稳定。有限扩展 `Tester.FrameOnce()` 只执行一帧，不排空后续无效化；既有 `Frame()` 行为不变。应用用刻意延后一帧的宽度变化验证该入口确实能暴露跳动，再逐页比较第一帧与稳定帧，覆盖智能路由、指定模型、队列、中英文、浅深色和 100%/150%/200% 文字缩放。
 - 这些回归只证明布局与输入契约；桌面残影需另行复现和像素验证，不把结构修复等同于全部 GPU 问题已解决。
 
 `ui-row-click.patch` 扩展固定版本的 `ListState` 原生行事件，修改 `ui/list.go` 与 `ui/value_input.go`，不绘制或替换列表：
@@ -32,7 +33,12 @@
 - `KeepClickPosition` 只禁止鼠标选择附带的自动滚动，原生选择、焦点、右键和键盘导航仍保留。应用立即选中字幕，将播放动作延迟到 Windows [GetDoubleClickTime](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getdoubleclicktime) 判定结束；双击取消待执行的单击，期间保持目标行不移动。
 - 应用回归覆盖播放/暂停下的 18 组单/双击动作组合，以及跟随开启/关闭下的 12 组单击动作、重复已选行、选择保留与定位恢复。它们使用真实 MyGo 输入和工程事务；最终桌面还须核对真实播放器与原生弹出菜单。
 
-`tools/prepare_mygo.py` 校验十一个上游文件 SHA-256，把锁定依赖复制到忽略目录（只复制内容，不清理无关文件；重新应用前移除补丁自身新增的测试文件）、依次应用四个补丁，再以生成的 `-modfile` 定向替换 MyGo。镜像指纹同时包含锁定版本与补丁内容，升级时即使补丁未变也会重建源码镜像。Go 不允许覆盖模块缓存的 overlay；三个统一构建/测试入口因此共用该生成模块文件，不修改模块缓存或已跟踪的 `go.mod/go.sum`，不跟踪完整上游源码副本。上游变化时哈希不符即停止，需重新评估补丁。
+`ui-sidebar.patch` 修改 `ui/sidebar.go` 的选中项样式，不替换或绘制侧栏：
+
+- 上游 `v0.7.4` 的 `Sidebar` 仅在自身持有键盘焦点时用强调色显示选中项，失去焦点改为灰色（同 AppKit）。设置对话框打开后焦点在下一帧才落到侧栏，点击内容区空白处又失去焦点，选中项因此在蓝、灰之间跳变。补丁让选中项始终使用强调色；键盘焦点继续由上游已有的焦点环表示，方向键、点击、辅助技术角色不变。
+- `TestOneSubSidebarChosenKeepsAccent` 比较侧栏持有与失去焦点时选中项的像素，去掉补丁时失败。应用侧 `TestPagesAreSettledInTheirFirstFrame` 逐页比对设置首帧与稳定帧；`TestSettingsSidebarKeepsAccentAcrossBlankClicks` 在真实设置视图中点击标题空白，并切换窗口焦点，逐帧核对所有分类的选中项像素。
+
+`tools/prepare_mygo.py` 校验十三个上游文件 SHA-256，把锁定依赖复制到忽略目录（只复制内容，不清理无关文件；重新应用前移除补丁自身新增的测试文件）、依次应用五个补丁，再以生成的 `-modfile` 定向替换 MyGo。镜像指纹同时包含锁定版本与补丁内容，升级时即使补丁未变也会重建源码镜像。Go 不允许覆盖模块缓存的 overlay；三个统一构建/测试入口因此共用该生成模块文件，不修改模块缓存或已跟踪的 `go.mod/go.sum`，不跟踪完整上游源码副本。上游变化时哈希不符即停止，需重新评估补丁。
 
 版本锁定用于复现当前构建，不是长期停留在旧版的理由。按 [工作约定](../../../AGENTS.md) 持续同步上游最新版本；每次升级重新核对源码校验值、API 与这组补丁，已有上游能力不再重复保留补丁。完整构建、回归和相关桌面验收未通过时记录实际阻塞，不宣称升级完成。
 

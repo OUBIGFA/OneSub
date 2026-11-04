@@ -1,0 +1,68 @@
+diff --git a/ui/sidebar.go b/ui/sidebar.go
+--- a/ui/sidebar.go
++++ b/ui/sidebar.go
+@@ -182,15 +182,16 @@ func coreSidebarItem(c *context, id string, icon *SVG, label string) *node {
+ 		}
+ 	}
+ 	iconColor := t.Accent
++	_ = focused
+ 	switch {
+-	case chosen && focused:
++	case chosen:
++		// OneSub: the chosen item keeps the accent whether or not the
++		// sidebar has the focus, so clicking elsewhere in a window, or a
++		// dialog moving the focus as it opens, never flips it to gray. The
++		// focus ring below shows the keyboard focus.
+ 		item.checked = 2
+ 		item.Background(t.Accent).TextColor(t.AccentText)
+ 		iconColor = t.AccentText
+-	case chosen:
+-		// Chosen in a sidebar without the focus, in gray, as AppKit's.
+-		item.checked = 2
+-		item.Background(t.SurfacePressed)
+ 	default:
+ 		item.checked = 1
+ 		item.styleFn = func(item *node) {
+diff --git a/ui/onesub_sidebar_test.go b/ui/onesub_sidebar_test.go
+new file mode 100644
+--- /dev/null
++++ b/ui/onesub_sidebar_test.go
+@@ -0,0 +1,38 @@
++package ui
++
++import "testing"
++
++// The chosen sidebar item draws the same with and without the focus.
++func TestOneSubSidebarChosenKeepsAccent(t *testing.T) {
++	selected := "b"
++	focus := true
++	tt := NewTester(func(c *Context) {
++		Row(c).Fill().Children(func() {
++			s := Sidebar(c, &selected, func() {
++				SidebarItem(c, "a", nil, "First")
++				SidebarItem(c, "b", nil, "Second")
++			})
++			if focus {
++				s.AutoFocus()
++			}
++			Button(c, "Elsewhere")
++		})
++	}, 320, 200)
++	tt.Frame()
++	tt.Frame()
++	focused := append([]byte{}, tt.Image().Pix...)
++	focus = false
++	if err := tt.Click("Elsewhere"); err != nil {
++		t.Fatal(err)
++	}
++	tt.Frame()
++	r, _ := tt.Find("Second")
++	img := tt.Image()
++	at := func(pix []byte) [4]byte {
++		i := img.PixOffset(int(r.X)+2, int(r.Y+r.H/2))
++		return [4]byte{pix[i], pix[i+1], pix[i+2], pix[i+3]}
++	}
++	if at(focused) != at(img.Pix) {
++		t.Fatal("the chosen item changed with the focus", at(focused), at(img.Pix))
++	}
++}

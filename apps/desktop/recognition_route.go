@@ -18,6 +18,9 @@ import (
 
 const (
 	languageAuto = "auto"
+	// recognitionRouted and recognitionManual are the recognition modes.
+	recognitionRouted = "route"
+	recognitionManual = "manual"
 	// probeSeconds of the recording's start are searched for speech to
 	// detect its language; a recording without speech there is searched
 	// whole.
@@ -195,7 +198,7 @@ func (t toolset) identifyLanguages(ctx context.Context, detector models.Model, d
 	votes := []string{}
 	for _, name := range names {
 		var output strings.Builder
-		command := jobs.CommandContext(ctx, cli, "--whisper-encoder="+filepath.ToSlash(filepath.Join(rel, "tiny-encoder.int8.onnx")), "--whisper-decoder="+filepath.ToSlash(filepath.Join(rel, "tiny-decoder.int8.onnx")), "--num-threads=2", name)
+		command := jobs.CommandContext(ctx, cli, "--whisper-encoder="+filepath.ToSlash(filepath.Join(rel, detector.Part("tiny-encoder"))), "--whisper-decoder="+filepath.ToSlash(filepath.Join(rel, detector.Part("tiny-decoder"))), "--num-threads=2", name)
 		command.Dir = scratch
 		if err = jobs.Run(ctx, command, func(line string) { output.WriteString(strings.TrimSpace(line)) }); err != nil {
 			return nil, apperr.Wrap(locales.ErrSherpaRecognition(err.Error(), ""), err)

@@ -138,7 +138,7 @@ func TestRecognitionSpeechGapIntegration(t *testing.T) {
 	root := t.TempDir()
 	tools := toolset{dataRoot: root, ffmpeg: os.Getenv("ONESUB_FFMPEG"), worker: subtitle.Client{Executable: os.Getenv("ONESUB_SUBTITLE_WORKER"), Scratch: root}}
 	prefs := settings.Default()
-	prefs.AsrModel, prefs.Aligner, prefs.Language = "Qwen3-ASR-1.7B-hf", "Qwen3-ForcedAligner-0.6B-hf", "en"
+	prefs.RecognitionMode, prefs.AsrModel, prefs.Aligner, prefs.Language = recognitionManual, "Qwen3-ASR-1.7B-hf", "Qwen3-ForcedAligner-0.6B-hf", "en"
 	prefs.ModelPaths = map[string]string{prefs.AsrModel: filepath.Join(modelsRoot, prefs.AsrModel), prefs.Aligner: filepath.Join(modelsRoot, prefs.Aligner)}
 	speech, wav := filepath.Join(root, "speech.wav"), filepath.Join(root, "speech-gap.wav")
 	for _, args := range [][]string{

@@ -33,14 +33,15 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 						ui.Segmented(c, &a.styleLayer, locales.StylePrimaryLayer(), locales.StyleSecondaryLayer()).Label(locales.A11yStyleLayers()).AlignSelf(ui.Center)
 					}
 					layer := a.editedLayer()
-					parameterGrid(c, 240, 2, func() {
-						a.outputFields(c, false)
-						if !ass {
+					cells := a.outputFields(c, false)
+					if !ass {
+						cells = append(cells, func() {
 							ui.Field(c, locales.StylePreset(), func() {
 								ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() { a.presetControls(c, layer) })
 							})
-						}
-					})
+						})
+					}
+					parameterGrid(c, 240, 2, cells...)
 					if ass {
 						muted(c, locales.StyleKeepAss())
 						return
@@ -225,6 +226,7 @@ func (a *NativeApp) textSection(c *ui.Context, style *styles.Style) {
 	})
 	parameterGrid(c, 160, 2, func() {
 		ui.Field(c, locales.StyleFontSize(), func() { number(c, locales.StyleFontSize(), &style.FontSize, 1, 72, .5) })
+	}, func() {
 		ui.Field(c, locales.StyleColor(), func() { colorWell(c, locales.StyleTextColor(), &style.PrimaryColor) })
 	})
 	ui.Field(c, locales.StyleEmphasis(), func() {
@@ -258,25 +260,31 @@ func (a *NativeApp) appearanceSection(c *ui.Context, style *styles.Style) {
 			}
 		}
 	})
-	parameterGrid(c, 210, 2, func() {
-		if box {
+	if box {
+		parameterGrid(c, 210, 2, func() {
 			ui.Field(c, locales.StylePadding(), func() { number(c, locales.StyleBoxPadding(), &style.Outline, 0, 10, .1) })
+		}, func() {
 			ui.Field(c, locales.StyleBackground(), func() { colorWell(c, locales.StyleBoxColor(), &style.BackColor) })
+		}, func() {
 			ui.Field(c, locales.StyleBoxOpacityShort(), func() { percent(c, locales.StyleBoxOpacity(), &style.BackOpacity) })
-			return
-		}
+		})
+		return
+	}
+	parameterGrid(c, 210, 2, func() {
 		ui.Field(c, locales.StyleBorderOutline(), func() {
 			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 				colorWell(c, locales.StyleOutlineColor(), &style.OutlineColor)
 				number(c, locales.StyleOutlineWidth(), &style.Outline, 0, 10, .1)
 			})
 		})
+	}, func() {
 		ui.Field(c, locales.StyleShadow(), func() {
 			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 				colorWell(c, locales.StyleShadowColor(), &style.BackColor)
 				number(c, locales.StyleShadowDistance(), &style.Shadow, 0, 10, .1)
 			})
 		})
+	}, func() {
 		ui.Field(c, locales.StyleShadowOpacityShort(), func() { percent(c, locales.StyleShadowOpacity(), &style.BackOpacity) })
 	})
 }
@@ -301,7 +309,9 @@ func (a *NativeApp) layoutSection(c *ui.Context, style *styles.Style) {
 	ui.Divider(c)
 	parameterGrid(c, 160, 3, func() {
 		ui.Field(c, locales.StyleMarginLeft(), func() { number(c, locales.StyleMarginLeft(), &style.MarginL, 0, 384, 1) })
+	}, func() {
 		ui.Field(c, locales.StyleMarginRight(), func() { number(c, locales.StyleMarginRight(), &style.MarginR, 0, 384, 1) })
+	}, func() {
 		ui.Field(c, locales.StyleMarginVertical(), func() { number(c, locales.StyleMarginVertical(), &style.MarginV, 0, 288, 1) })
 	})
 }

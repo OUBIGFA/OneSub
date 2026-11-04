@@ -40,57 +40,64 @@ func (a *NativeApp) outputModes() []option {
 
 // In dialogs, content spans the two-column grid; language order and priority
 // occupy the second row. In the inspector each field keeps its natural width.
-func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) {
+func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) []func() {
 	o := a.settings.SubtitleOutput.Normalized()
 	mode := o.Mode
 	if mode == "source" && o.SourceTrack == "original" {
 		mode = "original"
 	}
-	content := ui.Field(c, locales.OutputContent(), func() {
-		idSelect(c, &mode, a.outputModes()).Label(locales.OutputContent()).OnChange(func() {
-			o.Mode, o.SourceTrack = mode, ""
-			if mode == "original" {
-				o.Mode, o.SourceTrack = "source", "original"
-			}
-			a.settings.SubtitleOutput = o
-			a.saveSettings()
+	cells := []func(){func() {
+		ui.Field(c, locales.OutputContent(), func() {
+			idSelect(c, &mode, a.outputModes()).Label(locales.OutputContent()).OnChange(func() {
+				o.Mode, o.SourceTrack = mode, ""
+				if mode == "original" {
+					o.Mode, o.SourceTrack = "source", "original"
+				}
+				a.settings.SubtitleOutput = o
+				a.saveSettings()
+			})
 		})
-	})
-	if keepRoom {
-		content.ColumnSpan(2)
-	}
+	}}
 	bilingual := o.Mode == "bilingual"
 	if !bilingual && !keepRoom {
-		return
+		return cells
 	}
 	order := "translation-first"
 	if o.SourceFirst {
 		order = "source-first"
 	}
-	// Bilingual options remain in the dialog grid when disabled; the style
+	// Bilingual options remain in the dialog when disabled; the style
 	// inspector omits them for single-language output.
 	fit := func(e ui.Element) {
 		if !keepRoom {
 			e.AlignSelf(ui.Start)
 		}
 	}
-	orderField := ui.Field(c, locales.OutputOrder(), func() {
-		fit(idSelect(c, &order, []option{{"translation-first", locales.OutputTranslationFirst()}, {"source-first", locales.OutputSourceFirst()}}).Label(locales.OutputOrder()).Disabled(!bilingual).OnChange(func() {
-			o.SourceFirst = order == "source-first"
-			a.settings.SubtitleOutput = o
-			a.saveSettings()
-		}))
+	return append(cells, func() {
+		ui.Field(c, locales.OutputOrder(), func() {
+			fit(idSelect(c, &order, []option{{"translation-first", locales.OutputTranslationFirst()}, {"source-first", locales.OutputSourceFirst()}}).Label(locales.OutputOrder()).Disabled(!bilingual).OnChange(func() {
+				o.SourceFirst = order == "source-first"
+				a.settings.SubtitleOutput = o
+				a.saveSettings()
+			}))
+		})
+	}, func() {
+		ui.Field(c, locales.OutputPrimary(), func() {
+			fit(idSelect(c, &o.Primary, []option{{"translation", locales.TabTranslation()}, {"source", locales.TabSource()}}).Label(locales.OutputPrimary()).Disabled(!bilingual).OnChange(func() {
+				a.settings.SubtitleOutput = o
+				a.saveSettings()
+			}))
+		})
 	})
-	primaryField := ui.Field(c, locales.OutputPrimary(), func() {
-		fit(idSelect(c, &o.Primary, []option{{"translation", locales.TabTranslation()}, {"source", locales.TabSource()}}).Label(locales.OutputPrimary()).Disabled(!bilingual).OnChange(func() {
-			a.settings.SubtitleOutput = o
-			a.saveSettings()
-		}))
+}
+
+// outputColumn stacks the output fields of a dialog, one a line.
+func (a *NativeApp) outputColumn(c *ui.Context) {
+	ui.Column(c).Gap(em(c, 16)).Children(func() {
+		for _, cell := range a.outputFields(c, true) {
+			cell()
+		}
 	})
-	if keepRoom {
-		orderField.ColumnSpan(2)
-		primaryField.ColumnSpan(2)
-	}
 }
 
 // exportView separates content, format and line selection, with an anchored
@@ -106,7 +113,7 @@ func (a *NativeApp) exportView(c *ui.Context) {
 	fixedDialog(c, &a.exportOpen, locales.MenuExportSubtitles(), 860, 560, func() {
 		ui.Grid(c).Columns(2).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
 			settingsGroup(c, locales.OutputTrackGroup(), func() {
-				ui.Grid(c).Columns(2).Gap(em(c, 16)).Children(func() { a.outputFields(c, true) })
+				a.outputColumn(c)
 			})
 			settingsGroup(c, locales.ExportFileOptions(), func() {
 				ui.Field(c, locales.ExportFormat(), func() {

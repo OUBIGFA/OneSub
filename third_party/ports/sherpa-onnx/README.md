@@ -10,7 +10,7 @@
 
 ## 模型
 
-模型不随安装器分发，由用户在模型管理中下载。地址固定到下列 Hugging Face 修订，文件大小和 SHA-256 记录在 `apps/desktop/internal/models/catalog_sherpa.json`。
+模型不随安装器分发，由用户在模型管理中下载。地址固定到下列 Hugging Face 修订，文件大小和 SHA-256 记录在 `apps/desktop/internal/models/catalog_sherpa.json`。Parakeet 的原始模型由 [NVIDIA](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) 提供，适用 [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)；INT8 与 FP32 是 sherpa-onnx 的 ONNX 转换资产。
 
 | OneSub 模型 ID | 来源仓库与修订 | 原始模型 | 许可 |
 | --- | --- | --- | --- |
@@ -18,7 +18,10 @@
 | `sherpa-paraformer-zh-int8` | `csukuangfj/sherpa-onnx-paraformer-zh-2023-09-14` @ `def02708` | Paraformer-large 中文 | 同上；转换仓库标注 Apache-2.0 |
 | 同上（`punct.onnx`） | `csukuangfj/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12` @ `432aeba6` | CT-Transformer 中英标点 | FunASR 模型许可 1.1 |
 | `sherpa-parakeet-tdt-0.6b-v3-int8` | `csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8` @ `2bda32ec` | NVIDIA Parakeet-TDT 0.6B v3 | CC-BY-4.0 |
+| `sherpa-parakeet-tdt-0.6b-v3-fp32` | `csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3` @ `1a468a35` | NVIDIA Parakeet-TDT 0.6B v3，未量化 ONNX | CC-BY-4.0 |
 | `sherpa-whisper-tiny-int8`（语言检测） | `csukuangfj/sherpa-onnx-whisper-tiny` @ `65176e2d` | OpenAI Whisper tiny | MIT，见[许可](../../licenses/whisper.txt) |
+
+FP32 的 `encoder.weights` 是 `encoder.onnx` 的外部数据，不能省略、改名或换目录；5 个文件合计 2,549,800,429 字节，已下载文件与固定修订的大小及 SHA-256 一致。FP32 与 INT8 共用 25 种语言、同一 CLI 和时间转换，不声明 FP32 的识别质量优于 INT8。2026-11-04 核查 `csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-fp16` @ `abb5c91f` 只有 `.gitattributes`，GitHub `asr-models` 也只有 v3 INT8 资产；其他 FP16 转换仓库使用合并的 `decoder_joint-model.onnx`，不是当前 sherpa-onnx 的 encoder/decoder/joiner 接口。因此 FP16 不列入可选模型，不使用空仓库或不同接口伪造下载渠道。
 
 选型依据（2026-11-04 在本机用各仓库自带录音实测）：
 
@@ -41,5 +44,5 @@
 ## 构建与验证
 
 - `build/prepare-sherpa.ps1` 按清单取得或校验发布包，只解出 5 个文件到 `build/output/sherpa-onnx/`；`build/build-windows.ps1` 自动调用。
-- `build/test.ps1` 设置 `ONESUB_SHERPA_ROOT`。再把 `ONESUB_SHERPA_TEST_MODELS` 指向按模型 ID 分目录的模型根目录（含 16 kHz 的 `test_wavs/zh.wav`、`en.wav`、`paraformer.wav`），即运行真实推理回归：三个引擎各识别自带录音；SenseVoice 与 Parakeet 另跑“语音 + 40 秒静音 + 语音”与全静音。自动识别回归对中、粤、日、韩、英、德 6 段录音检测并路由，另测首选模型缺失时的保底与报错、检测模型缺失时的报错。测试不下载模型。
+- `build/test.ps1` 设置 `ONESUB_SHERPA_ROOT`。再把 `ONESUB_SHERPA_TEST_MODELS` 指向按模型 ID 分目录的模型根目录（含 16 kHz 的 `test_wavs/zh.wav`、`en.wav`、`paraformer.wav`），即运行真实推理回归：四个识别模型各识别自带录音；SenseVoice、Parakeet INT8 与 FP32 另跑“语音 + 40 秒静音 + 语音”与全静音。自动识别回归对中、粤、日、韩、英、德 6 段录音检测并路由，另测首选模型缺失时的保底与报错、检测模型缺失时的报错。测试不下载模型。
 - 仓库自带录音只验证链路，不代表识别质量。中文、英文、粤语、日语、韩语与欧洲语言的 CER/WER、时间误差与静音幻觉仍需按 [实施与验收](../../../docs/roadmap.md) 建立评测集。

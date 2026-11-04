@@ -51,6 +51,7 @@ func (a *NativeApp) settingsView(c *ui.Context) {
 	})
 	if wasOpen && !a.settingsOpen {
 		a.commitProviderModelInput()
+		a.refreshDownloadedAsrModels()
 	}
 }
 
@@ -125,17 +126,17 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 	case 4:
 		a.mcpSettingsView(c)
 	case 5:
-		// The detector and the model of each language group, as automatic
-		// recognition ("auto" source language) uses them. One full-width
-		// group: model names stay whole at the smallest window.
+		// The detector and the model of each language group used by smart
+		// routing. One full-width group keeps model names usable at the
+		// smallest window.
 		settingsGroup(c, locales.SettingsLanguageRoutes(), func() {
 			lid := models.LanguageDetector
 			a.recognitionModelField(c, locales.ModelKindLid(), "lid", &lid)
-			parameterGrid(c, 230, 3, func() {
-				for _, group := range models.RouteGroups {
-					a.routeField(c, group)
-				}
-			})
+			cells := []func(){}
+			for _, group := range models.RouteGroups {
+				cells = append(cells, func() { a.routeField(c, group) })
+			}
+			parameterGrid(c, 230, 3, cells...)
 		})
 	}
 }
@@ -181,6 +182,41 @@ func (a *NativeApp) routeField(c *ui.Context, group string) {
 	})
 }
 
+// modelSummary explains the selected asset, not an unverified quality claim.
+// Keep each catalog choice explicit so similarly named ASR and hotword models
+// cannot inherit one another's capabilities.
+func modelSummary(id string) string {
+	switch id {
+	case "Qwen3-ASR-0.6B-hf":
+		return locales.ModelSummaryQwenSmall()
+	case "Qwen3-ASR-1.7B-hf":
+		return locales.ModelSummaryQwenLarge()
+	case "Qwen3-ASR-0.6B-int8":
+		return locales.ModelSummaryQwenSmallInt8()
+	case "Qwen3-ASR-1.7B-int8":
+		return locales.ModelSummaryQwenLargeInt8()
+	case "sherpa-sense-voice-small-int8":
+		return locales.ModelSummarySenseVoice()
+	case "sherpa-paraformer-zh-int8":
+		return locales.ModelSummaryParaformer()
+	case "sherpa-parakeet-tdt-0.6b-v3-int8":
+		return locales.ModelSummaryParakeetInt8()
+	case "sherpa-parakeet-tdt-0.6b-v3-fp32":
+		return locales.ModelSummaryParakeetFp32()
+	case "omniASR-CTC-300M-v2-hf":
+		return locales.ModelSummaryCtc()
+	case "Qwen3-ForcedAligner-0.6B-hf":
+		return locales.ModelSummaryQwenAligner()
+	case "htdemucs_ft":
+		return locales.ModelSummaryDemucs()
+	case "SenseVoiceSmall":
+		return locales.ModelSummaryHotword()
+	case models.LanguageDetector:
+		return locales.ModelSummaryLid()
+	}
+	return ""
+}
+
 // Kind and IDs are consumed from OneAsr's catalog; auxiliary models cannot be
 // selected as the ASR engine or forced aligner. Management stays beside the use.
 func (a *NativeApp) recognitionModelField(c *ui.Context, title, kind string, id *string) {
@@ -196,12 +232,19 @@ func (a *NativeApp) recognitionModelField(c *ui.Context, title, kind string, id 
 			if kind == "asr" {
 				changed = a.asrModelChanged
 			}
-			idSelect(c, id, options).Label(locales.A11yModelOf(title)).Grow(1).OnChange(changed)
+			if kind == "asr" {
+				a.settingsAsrSelect(c).Label(locales.A11yModelOf(title)).Grow(1)
+			} else {
+				idSelect(c, id, options).Label(locales.A11yModelOf(title)).Grow(1).OnChange(changed)
+			}
 			ui.Button(c, locales.ModelManage()).Label(locales.A11yManageModel(title)).OnClick(func() { a.modelSelection = *id; a.modelOpen = true })
 		})
+		// The explanation is immediately below the selected model, before
+		// its folder. Native text wraps instead of hiding the useful hint.
+		muted(c, modelSummary(*id)).FontSize(em(c, captionSize)).MinWidth(0)
 		path := a.modelPath(*id)
 		muted(c, path).SingleLine().Tooltip(path).FontSize(em(c, captionSize)).MinWidth(0)
-	}).Margin(0)
+	}).Margin(0).Gap(em(c, 8))
 }
 
 // modelStageLabel says the download stages of package models.
@@ -226,14 +269,29 @@ func (a *NativeApp) modelManagerView(c *ui.Context) {
 		ui.AlertDialog(c, &a.modelOpen, locales.ModelFiles(), err.Error(), locales.ActionClose())
 		return
 	}
+	downloaded := model.FilesPresent(a.modelPath(model.ID))
+	assets, assetErr := modelAssetPaths(model, a.modelPath(model.ID))
 	fixedDialog(c, &a.modelOpen, model.Label, 720, 400, func() {
 		settingsGroup(c, locales.ModelFiles(), func() {
-			ui.Row(c).Gap(em(c, 24)).Wrap().AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(em(c, 16)).Wrap().AlignItems(ui.Center).Children(func() {
+				ui.MenuButton(c, locales.ModelCatalog(), func(m *ui.Menu) {
+					for _, candidate := range models.Catalog() {
+						label := candidate.Label
+						if !candidate.FilesPresent(a.modelPath(candidate.ID)) {
+							label += " · " + locales.ModelNotDownloaded()
+						}
+						if m.Item(label).Checked(candidate.ID == model.ID).Chosen() {
+							a.modelSelection = candidate.ID
+						}
+					}
+				}).Disabled(a.busy)
 				ui.Text(c, locales.ModelSize(float64(model.Size())/1e9))
 				ui.Spacer(c)
 				state := a.modelStates[model.ID]
-				if state == "" {
-					state = locales.ModelStateUnknown()
+				if !downloaded && (state == "" || state == locales.ModelStateVerified()) {
+					state = locales.ModelNotDownloaded()
+				} else if downloaded && state == "" {
+					state = locales.ModelDownloaded()
 				}
 				ui.Badge(c, state).Label(locales.A11yModelState())
 			})
@@ -241,9 +299,17 @@ func (a *NativeApp) modelManagerView(c *ui.Context) {
 			ui.TextInput(c, &path).ReadOnly(true).Label(locales.A11yModelFolder()).Tooltip(path)
 		})
 	}, func() {
-		ui.Button(c, locales.ModelChooseFolder()).Disabled(a.busy).OnClick(func() { a.pickModelDir(model) })
+		ui.Button(c, locales.ModelDelete()).TextColor(c.Theme().Danger).Disabled(a.busy || assetErr != nil || len(assets) == 0).OnClick(func() { a.modelRecycle = model.ID })
+		ui.Button(c, locales.ModelChooseFolder()).Label(locales.A11yModelChooseFolder()).Disabled(a.busy).OnClick(func() { a.pickModelDir(model) })
 		ui.Button(c, locales.ModelVerify()).Disabled(a.busy).OnClick(func() { a.verifyModel(model) })
 		ui.Button(c, locales.ActionClose()).OnClick(func() { a.modelOpen = false })
-		primaryIconButton(c, locales.ModelDownload(), "download").Disabled(a.busy).OnClick(func() { a.downloadModel(model) })
+		downloadWidth, _ := c.MeasureText(0, ui.Span{Text: locales.ModelDownload()})
+		readyWidth, _ := c.MeasureText(0, ui.Span{Text: locales.ModelDownloaded()})
+		width := max(downloadWidth, readyWidth) + em(c, iconSize) + c.Theme().Space(8.5) + 2
+		if downloaded {
+			iconButton(c, locales.ModelDownloaded(), "download").Width(width).Label(locales.ModelDownload()).Description(locales.ModelDownloaded()).Disabled(true)
+		} else {
+			primaryIconButton(c, locales.ModelDownload(), "download").Width(width).Disabled(a.busy).OnClick(func() { a.downloadModel(model) })
+		}
 	})
 }

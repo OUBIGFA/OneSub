@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/models"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/security"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
@@ -165,7 +166,14 @@ func (s mcpServer) transcribe(ctx context.Context, req *mcp.CallToolRequest, in 
 		if !known {
 			return nil, subtitleOut{}, fmt.Errorf("unknown language %q; see list_languages", in.Language)
 		}
-		prefs.Language = in.Language
+		// "auto" is smart routing; a named language skips detection and
+		// uses the model set for its language.
+		prefs.RecognitionMode, prefs.Language = recognitionManual, in.Language
+		if in.Language == languageAuto {
+			prefs.RecognitionMode = recognitionRouted
+		} else if group := models.RouteGroup(in.Language); group != "" {
+			prefs.AsrModel = routeModel(prefs, group)
+		}
 	}
 	if in.Format != "" {
 		prefs.RecognitionFormat = strings.ToLower(in.Format)

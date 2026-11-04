@@ -74,11 +74,11 @@ func (t toolset) recognitionModels(prefs settings.Settings) (asr, aligner models
 	return asr, aligner, nil
 }
 
-// recognize runs the chosen model's CLI on source, after detecting the
-// language when it is "auto", and returns its SRT and word timings, in a scratch folder that cleanup removes. step hears the
-// stages as they happen.
+// recognize runs the selected model's CLI after language detection in smart
+// mode. It returns SRT and word timings in a scratch folder that cleanup
+// removes. step reports the actual recognition stages.
 func (t toolset) recognize(ctx context.Context, prefs settings.Settings, source string, step func(recognitionStep)) (srt string, words []byte, cleanup func(), err error) {
-	if prefs.Language == languageAuto {
+	if prefs.RecognitionMode == recognitionRouted {
 		// Detect the language first, then recognize with its model.
 		var route recognitionRoute
 		if prefs, route, err = t.routeRecognition(ctx, prefs, source, step); err != nil {

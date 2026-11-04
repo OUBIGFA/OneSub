@@ -87,8 +87,9 @@ func TestWholeStudioPresentation(t *testing.T) {
 
 func TestStudioCommonOptionsAndAdvancedOptionsAreSeparate(t *testing.T) {
 	a := nativeForTest(t)
+	a.settings.RecognitionMode = recognitionManual
 	tt := settled(a.workflowPanel, 900, 1000)
-	for _, label := range []string{locales.WorkflowRecognitionModel(), locales.SettingsSourceLanguage(), locales.ExportFormat(), locales.WorkflowRecognitionAdvanced()} {
+	for _, label := range []string{locales.RecognitionMode(), locales.WorkflowRecognitionModel(), locales.SettingsSourceLanguage(), locales.ExportFormat(), locales.WorkflowRecognitionAdvanced()} {
 		if !tt.HasText(label) {
 			t.Fatal("common recognition option missing", label)
 		}

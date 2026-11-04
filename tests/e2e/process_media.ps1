@@ -22,7 +22,7 @@ $env:WEBVIEW2_USER_DATA_FOLDER=Join-Path $workPath 'webview'
 $env:XDG_RUNTIME_DIR=Join-Path $workPath 'ipc'
 if($env:XDG_RUNTIME_DIR.Length -gt 65){throw 'Use a shorter test directory for the isolated IPC socket'}
 New-Item -ItemType Directory -Path $env:ONESUB_DATA_ROOT,$env:XDG_RUNTIME_DIR | Out-Null
-$prefs=@{version=4;uiLanguage='zh-Hans';asrModel='Qwen3-ASR-1.7B-hf';aligner='Qwen3-ForcedAligner-0.6B-hf';language='en';backend='auto';providerUrl=$TranslationEndpoint;providerModel='local-protocol-test';targetLanguage='zh-CN';optimizeTimeline=$false;translationConcurrency=2;translationBatchSize=20;modelPaths=@{'Qwen3-ASR-1.7B-hf'=(Join-Path $ModelsRoot 'Qwen3-ASR-1.7B-hf');'Qwen3-ForcedAligner-0.6B-hf'=(Join-Path $ModelsRoot 'Qwen3-ForcedAligner-0.6B-hf')}}
+$prefs=@{version=4;uiLanguage='zh-Hans';recognitionMode='manual';asrModel='Qwen3-ASR-1.7B-hf';aligner='Qwen3-ForcedAligner-0.6B-hf';language='en';backend='auto';providerUrl=$TranslationEndpoint;providerModel='local-protocol-test';targetLanguage='zh-CN';optimizeTimeline=$false;translationConcurrency=2;translationBatchSize=20;modelPaths=@{'Qwen3-ASR-1.7B-hf'=(Join-Path $ModelsRoot 'Qwen3-ASR-1.7B-hf');'Qwen3-ForcedAligner-0.6B-hf'=(Join-Path $ModelsRoot 'Qwen3-ForcedAligner-0.6B-hf')}}
 [IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),($prefs|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
 if($Packaged){foreach($name in @('ONESUB_FFPROBE','ONESUB_FFMPEG','ONESUB_SUBTITLE_WORKER','ONESUB_STYLE_WORKER','ONESUB_SKILL_WORKER','ONESUB_SKILL_ROOT','ONESUB_ONEASR_ROOT')){Remove-Item "Env:$name" -ErrorAction SilentlyContinue}}
 else {$env:ONESUB_FFPROBE=(Get-Command ffprobe).Source;$env:ONESUB_FFMPEG=(Get-Command ffmpeg).Source}

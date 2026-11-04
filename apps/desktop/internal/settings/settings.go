@@ -40,10 +40,17 @@ type Settings struct {
 	AsrModel    string            `json:"asrModel"`
 	Aligner     string            `json:"aligner"`
 	Backend     string            `json:"backend"`
-	// Language is a source language, or "auto": detect it and use the model
-	// LanguageModels names for its group (or the group's default model).
-	Language               string                 `json:"language"`
-	LanguageModels         map[string]string      `json:"languageModels"`
+	// RecognitionMode is "route": detect the language and use the model
+	// LanguageModels names for its group (or the group's default model); or
+	// "manual": AsrModel with Language, which is "auto" only for a model
+	// that detects the language itself.
+	RecognitionMode string            `json:"recognitionMode"`
+	Language        string            `json:"language"`
+	LanguageModels  map[string]string `json:"languageModels"`
+	// ManualLanguages remembers the source-language choice per ASR model.
+	// A detecting model defaults to auto once; later explicit choices survive
+	// switching models or recognition modes.
+	ManualLanguages        map[string]string      `json:"manualLanguages,omitempty"`
 	ChunkSeconds           float64                `json:"chunkSeconds"`
 	MaxTokens              float64                `json:"maxTokens"`
 	VocalSeparation        bool                   `json:"vocalSeparation"`
@@ -106,7 +113,7 @@ type Settings struct {
 const version = 5
 
 func Default() Settings {
-	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", Language: "auto", LanguageModels: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", CompressionFormat: "mp4", CompressionQuality: "crf23", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 400.0 / 7, StyleWidth: 30, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
+	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", RecognitionMode: "route", Language: "zh", LanguageModels: map[string]string{}, ManualLanguages: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", CompressionFormat: "mp4", CompressionQuality: "crf23", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 400.0 / 7, StyleWidth: 30, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
 }
 
 // TranslationPunctuation freezes the local output options for a task.
@@ -123,6 +130,9 @@ func Load(path string) (Settings, error) {
 	if err != nil {
 		return s, err
 	}
+	// An absent mode belongs to an older settings file. Do not replace a
+	// user's fixed model/language with routing merely by opening it.
+	s.RecognitionMode = ""
 	if err = json.Unmarshal(raw, &s); err != nil {
 		return Default(), err
 	}
@@ -145,6 +155,22 @@ func Load(path string) (Settings, error) {
 	}
 	if s.LanguageModels == nil {
 		s.LanguageModels = map[string]string{}
+	}
+	if s.RecognitionMode == "" && s.Language != "auto" {
+		s.RecognitionMode = "manual"
+	}
+	if s.RecognitionMode != "manual" {
+		s.RecognitionMode = "route"
+	}
+	if s.ManualLanguages == nil {
+		s.ManualLanguages = map[string]string{}
+	}
+	if s.RecognitionMode == "manual" {
+		// An existing fixed-language workflow is an explicit choice, not
+		// a new model selection that should revert to automatic detection.
+		if _, remembered := s.ManualLanguages[s.AsrModel]; !remembered {
+			s.ManualLanguages[s.AsrModel] = s.Language
+		}
 	}
 	s.restoreProviders()
 	// Retire seek-with-current-state without changing pane ratios or other

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/models"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
@@ -29,6 +30,13 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 	i18n.SetLocaleFunc(func() string { return testLocale })
+	if len(os.Args) == 3 && os.Args[1] == modelRecycleTestArgument {
+		if err := runModelRecycleTestChild(os.Args[2]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	os.Exit(m.Run())
 }
 
@@ -41,8 +49,8 @@ func inLocale(t *testing.T, tag string, fn func()) {
 	fn()
 }
 
-// settled is a tester whose view ran the frames that apply what one frame
-// measures, as the style sections' widths, as the app's next frames do.
+// settled drains ordinary native focus/input invalidations for interaction
+// tests. First-frame layout tests must use FrameOnce instead of this helper.
 func settled(view func(*ui.Context), width, height int) *ui.Tester {
 	tt := ui.NewTester(view, width, height)
 	tt.Frame()
@@ -64,7 +72,15 @@ func nativeForTest(t *testing.T) *NativeApp {
 		icons[strings.TrimSuffix(e.Name(), ".svg")] = ui.MustParseSVG(data)
 	}
 	prefs := settings.Default()
-	return &NativeApp{dataRoot: t.TempDir(), settings: prefs, splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
+	a := &NativeApp{dataRoot: t.TempDir(), settings: prefs, splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
+	// General UI tests use a populated availability snapshot, as a configured
+	// workbench does. Discovery tests clear it and exercise real local files.
+	for _, model := range models.Catalog() {
+		if model.Kind == "asr" {
+			a.downloadedAsr = append(a.downloadedAsr, option{model.ID, model.Label})
+		}
+	}
+	return a
 }
 
 // storeApp opens a real project store with the given cues as the workbench.
@@ -126,8 +142,8 @@ func TestActionsMovedBesideTheirContent(t *testing.T) {
 	if !ok || panel.X <= style.X || panel.Y > style.Y+20 {
 		t.Fatal("recognition and translation not right of the style", style, panel)
 	}
-	// The source language is detected by default.
-	if !tt.HasText("开始识别字幕") || !tt.HasText("自动检测") || !tt.HasText("按语言自动选择") || !tt.HasText("解码设置") {
+	// Smart routing is the default; it asks for no model or language.
+	if !tt.HasText("开始识别字幕") || !tt.HasText("智能路由") || tt.HasText("源语言") || !tt.HasText("解码设置") {
 		t.Fatal(tt.Texts())
 	}
 	if err := tt.Click("AI 翻译"); err != nil {

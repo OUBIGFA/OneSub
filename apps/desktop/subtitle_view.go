@@ -72,11 +72,11 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 				toolIcon(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
 				a.subtitleActionsMenu(c)
 				toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
-				if hasCues {
-					ui.Divider(c).Height(em(c, 20)).AlignSelf(ui.Center).Margin(0, em(c, 4))
-					a.listPunctuationTools(c)
-					toolIcon(c, locales.FindReplace(), "text-search").Disabled(a.busy || a.showsTranslationProgress()).OnClick(a.openFindReplace)
-				}
+				// Keep every command visible; the current track controls its
+				// availability, not whether it is built into the toolbar.
+				ui.Divider(c).Height(em(c, 20)).AlignSelf(ui.Center).Margin(0, em(c, 4))
+				a.listPunctuationTools(c)
+				toolIcon(c, locales.FindReplace(), "text-search").Disabled(!hasCues || a.busy || a.showsTranslationProgress()).OnClick(a.openFindReplace)
 			}).Padding(0).Shrink(0)
 			searchCues := a.activeDocument().Cues
 			if a.showsTranslationProgress() {
@@ -87,7 +87,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			searchMinimum := max(em(c, 140), searchWidth+c.Theme().Space(11))
 			// Editing tools form one group before search, so Find and replace
 			// stays next to punctuation even when the outer toolbar wraps.
-			if ui.SearchField(c, &a.query).Placeholder(searchLabel).Label(locales.ListSearch()).Tooltip(searchLabel).MinWidth(searchMinimum).Grow(1).Changed() {
+			if ui.SearchField(c, &a.query).Placeholder(searchLabel).Label(locales.ListSearch()).Tooltip(searchLabel).Disabled(len(searchCues) == 0).MinWidth(searchMinimum).Grow(1).Changed() {
 				a.pendingClick = nil
 				a.list.StopScroll()
 				a.activeCue = -1
@@ -97,12 +97,10 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 					a.translationLive.shown = -1
 				}
 			}
-			if hasCues {
-				a.readingTools(c)
-			}
-			if a.translationCandidate != nil {
-				ui.Button(c, locales.TranslationResults()).OnClick(func() { a.translationReview = true })
-			}
+			a.readingTools(c)
+			// Keep the review slot icon-sized. A long disabled label would
+			// wrap again and leave no subtitle row at the minimum pane size.
+			toolIcon(c, locales.TranslationResults(), "languages").Disabled(a.translationCandidate == nil).OnClick(func() { a.translationReview = true })
 			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Label(locales.A11ySubtitleFileActions()).Children(func() {
 				// The divider travels with the file actions when groups wrap.
 				ui.Divider(c).Height(em(c, 20)).AlignSelf(ui.Center).Margin(0, em(c, 4))
@@ -122,7 +120,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 				if unsaved {
 					save.TextColor(c.Theme().Danger)
 				}
-				iconButton(c, locales.ListSaveAs(), "file-down").Disabled(a.busy || a.showsTranslationProgress() || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
+				iconButton(c, locales.ListSaveAs(), "file-down").Disabled(a.busy || a.showsTranslationProgress() || !hasCues || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
 			})
 		})
 		if a.showsTranslationProgress() {

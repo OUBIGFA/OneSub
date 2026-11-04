@@ -77,7 +77,6 @@ type NativeApp struct {
 	workflowTab                              int // 0 recognition, 1 translation
 	recognitionMode                          int // 0 current media, 1 file queue; both use settings
 	workflowScroll, styleScroll              ui.ScrollState
-	toolbarHeight                            float32 // measured native toolbar, including text scale
 	list                                     ui.ListState
 	selected                                 int
 	query                                    string
@@ -117,8 +116,10 @@ type NativeApp struct {
 	pendingClick                             *subtitleClick
 	frameAspect                              float64 // the video's display width / height
 	modelStates                              map[string]string
+	downloadedAsr                            []option // complete local ASR files; nil refreshes once
 	modelSelection                           string
 	modelOpen                                bool
+	modelRecycle                             string // model ID awaiting a native recycle confirmation
 	exportOpen                               bool
 	exportFormat                             string
 	exportLines                              string // all, upper or lower; export-only projection
@@ -214,6 +215,7 @@ func (a *NativeApp) view(c *ui.Context) {
 	}
 	a.settingsView(c)
 	a.modelManagerView(c)
+	a.modelRecycleView(c)
 	a.candidatesView(c)
 	a.exportView(c)
 	a.composeView(c)
@@ -278,10 +280,7 @@ func (a *NativeApp) view(c *ui.Context) {
 func (a *NativeApp) paneSizes(c *ui.Context) (player, top, style, editor float32) {
 	player, top, style, editor = a.splitX, a.splitY, a.styleSplit, a.editorSplit
 	width, height := c.Size()
-	toolbar := a.toolbarHeight
-	if toolbar == 0 {
-		toolbar = em(c, 44)
-	}
+	toolbar := em(c, toolbarSize)
 	// Two horizontal rules and the split's own one-DIP line are not part
 	// of either pane. Include them instead of leaving a phantom scrollbar.
 	height -= toolbar + em(c, 32) + 3
@@ -311,7 +310,7 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 		}
 		return iconButton(c, label, name)
 	}
-	bar := ui.Row(c).Children(func() {
+	ui.Row(c).Children(func() {
 		ui.Grid(c).ColumnTracks(ui.Fr(1), ui.FitContent(), ui.Fr(1)).Grow(1).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 				iconButton(c, locales.ActionAddFiles(), "folder-open").MinHeight(em(c, 38)).Disabled(a.busy).OnClick(a.pickFiles)
@@ -329,12 +328,12 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 				command(locales.ActionCompose(), "clapperboard").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" || len(a.snapshot.Document.Cues) == 0).OnClick(a.compose)
 			})
 		})
-	}).Gap(em(c, 16)).Padding(em(c, 12), em(c, 20)).Background(look.chrome).Label(locales.A11yToolbar())
-	if h := bar.Bounds().H; h > 0 && h != a.toolbarHeight {
-		a.toolbarHeight = h
-		c.After(0)
-	}
+	}).Height(em(c, toolbarSize)).Shrink(0).AlignItems(ui.Center).Gap(em(c, 16)).Padding(em(c, 12), em(c, 20)).Background(look.chrome).Label(locales.A11yToolbar())
 }
+
+// toolbarSize is the top bar's height: the 42 of the primary action and
+// 12 above and below. Pane sizes use it in the same frame, unmeasured.
+const toolbarSize = 66
 
 // errorDuration is how long the status bar shows an error before it goes
 // back to the last status.
@@ -719,6 +718,7 @@ func (a *NativeApp) pickModelDir(m models.Model) {
 		return func() {
 			a.settings.ModelPaths[m.ID] = paths[0]
 			a.modelStates[m.ID] = locales.ModelStateUnverified()
+			a.refreshDownloadedAsrModels()
 			a.saveSettings()
 		}, nil
 	})
@@ -727,7 +727,7 @@ func (a *NativeApp) verifyModel(m models.Model) {
 	dir := a.modelPath(m.ID)
 	a.run(locales.TaskVerifyModel(), func(ctx context.Context) (func(), error) {
 		err := models.Verify(ctx, m, dir)
-		return func() { a.modelStates[m.ID] = locales.ModelStateVerified() }, err
+		return func() { a.modelStates[m.ID] = locales.ModelStateVerified(); a.refreshDownloadedAsrModels() }, err
 	})
 }
 func (a *NativeApp) downloadModel(m models.Model) {
@@ -738,7 +738,7 @@ func (a *NativeApp) downloadModel(m models.Model) {
 				a.modelStates[m.ID] = locales.ModelProgress(modelStageLabel(p.Stage), float64(p.Done)*100/float64(p.Total))
 			})
 		})
-		return func() { a.modelStates[m.ID] = locales.ModelStateVerified() }, err
+		return func() { a.modelStates[m.ID] = locales.ModelStateVerified(); a.refreshDownloadedAsrModels() }, err
 	})
 }
 
@@ -927,6 +927,7 @@ func main() {
 	}
 	defer preview.Close()
 	a := &NativeApp{resources: resources, dataRoot: data, settings: prefs, settingsError: prefsErr != nil, preview: preview, worker: subtitle.Client{Executable: filepath.Join(resources, "subtitle-core", "OneSub.SubtitleCore.exe"), Scratch: scratch}, probe: filepath.Join(resources, "media-tools", "ffprobe.exe"), ffmpeg: filepath.Join(resources, "media-tools", "ffmpeg.exe"), splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
+	a.refreshDownloadedAsrModels()
 	if prefsErr != nil {
 		a.showError("settings", locales.ErrSettingsUnreadable())
 	}
@@ -982,6 +983,7 @@ func main() {
 		if err = a.makeTray(); err != nil {
 			a.showError("tray", locales.ErrTrayUnavailable())
 		}
+		a.win.OnFocus(a.refreshDownloadedAsrModels)
 		a.win.OnFileDrop(func(e *mygo.FileDropEvent) {
 			a.acceptFiles(append([]string{}, e.Paths...))
 		})

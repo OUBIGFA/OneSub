@@ -1,3 +1,24 @@
+diff --git a/ui/headless.go b/ui/headless.go
+--- a/ui/headless.go
++++ b/ui/headless.go
+@@ -447,6 +447,17 @@
+ // Frame renders another frame, as when the view's state changed.
+ func (t *Tester) Frame() { t.h.requested.Store(true); t.settle() }
+ 
++// FrameOnce renders exactly one frame without draining later invalidations.
++// Normal Frame settles up to 20 frames; first-frame layout regressions must
++// observe the first presentation before that loop can conceal a jump.
++func (t *Tester) FrameOnce() {
++	t.frameAt = t.Now()
++	t.h.requested.Store(false)
++	t.h.invalidated.Store(false)
++	t.runLater()
++	t.rt.runFrame()
++}
++
+ // FramePending reports whether the view still asks for a frame, as one
+ // that animates or never settles does after an input or Frame. The
+ // frames of After and Painter.After wait for Advance to reach their
 diff --git a/ui/webview.go b/ui/webview.go
 index 96d800b..fa3eda4 100644
 --- a/ui/webview.go

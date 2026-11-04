@@ -166,7 +166,7 @@ func TestBatchQueueSharesTheRecognitionPage(t *testing.T) {
 					t.Fatal("queue control is missing", language, label)
 				}
 			}
-			settingsLabels := []string{locales.WorkflowRecognitionSettings(), locales.SettingsSourceLanguage(), locales.ExportFormat(), locales.WorkflowRecognitionAdvanced()}
+			settingsLabels := []string{locales.WorkflowRecognitionSettings(), locales.RecognitionMode(), locales.ExportFormat(), locales.WorkflowRecognitionAdvanced()}
 			for _, label := range settingsLabels {
 				if tt.HasText(label) {
 					t.Fatal("queue duplicates current-file settings", language, label)

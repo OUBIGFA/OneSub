@@ -119,6 +119,71 @@
       ]
     },
     {
+      "id": "sherpa-parakeet-tdt-0.6b-v3-fp32",
+      "label": "Parakeet-TDT 0.6B v3 FP32",
+      "kind": "asr",
+      "engine": "transducer",
+      "languages": [
+        "en",
+        "de",
+        "fr",
+        "es",
+        "it",
+        "pt",
+        "ru",
+        "bg",
+        "hr",
+        "cs",
+        "da",
+        "nl",
+        "et",
+        "fi",
+        "el",
+        "hu",
+        "lv",
+        "lt",
+        "mt",
+        "pl",
+        "ro",
+        "sk",
+        "sl",
+        "sv",
+        "uk"
+      ],
+      "files": [
+        {
+          "name": "encoder.onnx",
+          "size": 41766257,
+          "sha256": "3eed7ce424bf8339ad09233533c687e2dbd07e74ccf5027b5e7344019ea373b0",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3/resolve/1a468a35cbba69418f126de829e75261dea4a4e4/encoder.onnx"
+        },
+        {
+          "name": "encoder.weights",
+          "size": 2435420160,
+          "sha256": "3af3f51af5f2d01dbbf5af47d42c7962a2c205f11004254bb4f2b979862f39a8",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3/resolve/1a468a35cbba69418f126de829e75261dea4a4e4/encoder.weights"
+        },
+        {
+          "name": "decoder.onnx",
+          "size": 47233743,
+          "sha256": "d593cdb0e571f5a457ec2219af9968cbf6b0e8198e8f7839b40a8754593bf68c",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3/resolve/1a468a35cbba69418f126de829e75261dea4a4e4/decoder.onnx"
+        },
+        {
+          "name": "joiner.onnx",
+          "size": 25286330,
+          "sha256": "b9b0bcf88ac571902e69a6536223ed2d94885e981b85045410f1403d53121a63",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3/resolve/1a468a35cbba69418f126de829e75261dea4a4e4/joiner.onnx"
+        },
+        {
+          "name": "tokens.txt",
+          "size": 93939,
+          "sha256": "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3/resolve/1a468a35cbba69418f126de829e75261dea4a4e4/tokens.txt"
+        }
+      ]
+    },
+    {
       "id": "sherpa-whisper-tiny-int8",
       "label": "Whisper tiny INT8",
       "kind": "lid",

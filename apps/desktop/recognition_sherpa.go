@@ -100,16 +100,18 @@ func (t toolset) recognizeWithSherpa(ctx context.Context, asr models.Model, asrD
 // sherpaArgs are the CLI options that load model from dir, a path relative
 // to the CLI's working folder.
 func sherpaArgs(model models.Model, dir, language string) []string {
-	file := func(name string) string { return filepath.ToSlash(filepath.Join(dir, name)) }
+	// Each part is the catalog file named after it (encoder.int8.onnx,
+	// encoder.onnx), so precisions of one model share this code.
+	file := func(part string) string { return filepath.ToSlash(filepath.Join(dir, model.Part(part))) }
 	threads := fmt.Sprintf("--num-threads=%d", min(8, max(1, runtime.NumCPU()/2)))
-	args := []string{"--tokens=" + file("tokens.txt"), threads}
+	args := []string{"--tokens=" + file("tokens"), threads}
 	switch model.Engine {
 	case models.EngineSenseVoice:
-		args = append(args, "--sense-voice-model="+file("model.int8.onnx"), "--sense-voice-language="+language, "--sense-voice-use-itn=1")
+		args = append(args, "--sense-voice-model="+file("model"), "--sense-voice-language="+language, "--sense-voice-use-itn=1")
 	case models.EngineParaformer:
-		args = append(args, "--paraformer="+file("model.int8.onnx"))
+		args = append(args, "--paraformer="+file("model"))
 	case models.EngineTransducer:
-		args = append(args, "--encoder="+file("encoder.int8.onnx"), "--decoder="+file("decoder.int8.onnx"), "--joiner="+file("joiner.int8.onnx"), "--model-type=nemo_transducer")
+		args = append(args, "--encoder="+file("encoder"), "--decoder="+file("decoder"), "--joiner="+file("joiner"), "--model-type=nemo_transducer")
 	}
 	return args
 }

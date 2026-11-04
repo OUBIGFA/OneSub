@@ -14,15 +14,20 @@ type option struct{ ID, Label string }
 
 // idSelect is a native Select over labels that stores the option's ID, so
 // saved choices survive a change of the interface language.
-func idSelect(c *ui.Context, value *string, options []option) ui.Element {
+// An optional placeholder is shown only when the stored choice is absent;
+// it is not added to the selectable items.
+func idSelect(c *ui.Context, value *string, options []option, placeholder ...string) ui.Element {
 	labels, chosen := make([]string, len(options)), ""
+	if len(placeholder) > 0 {
+		chosen = placeholder[0]
+	}
 	for i, o := range options {
 		labels[i] = o.Label
 		if o.ID == *value {
 			chosen = o.Label
 		}
 	}
-	return ui.Select(c, &chosen, labels).OnChange(func() {
+	return ui.Select(c, &chosen, labels).Tooltip(chosen).OnChange(func() {
 		for _, o := range options {
 			if o.Label == chosen {
 				*value = o.ID

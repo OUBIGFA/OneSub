@@ -11,10 +11,80 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/models"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// The official MCP client exercises the real recognition pipeline. Manual
+// FP32 works without the detector; auto reads the saved language mapping and
+// uses FP32 instead of the deliberately unavailable manual model. Only the
+// requested subtitle reaches each output directory.
+func TestMCPRecognitionUsesManualAndRoutedFP32(t *testing.T) {
+	modelsRoot := os.Getenv("ONESUB_SHERPA_TEST_MODELS")
+	if modelsRoot == "" {
+		t.Skip("set ONESUB_SHERPA_TEST_MODELS and run build/test.ps1")
+	}
+	data := t.TempDir()
+	server, err := newMCPServer(t.TempDir(), data, os.Getenv("ONESUB_FFMPEG"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	serverSide, clientSide := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(ctx, serverSide, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverSession.Close()
+	client := mcp.NewClient(&mcp.Implementation{Name: "recognition-test", Version: "1"}, nil)
+	session, err := client.Connect(ctx, clientSide, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	const fp32 = "sherpa-parakeet-tdt-0.6b-v3-fp32"
+	for _, mode := range []string{recognitionManual, recognitionRouted} {
+		t.Run(mode, func(t *testing.T) {
+			prefs := settings.Default()
+			prefs.RecognitionMode, prefs.AsrModel, prefs.Language = mode, fp32, "en"
+			prefs.ModelPaths[fp32] = filepath.Join(modelsRoot, fp32)
+			prefs.LanguageModels["en"] = fp32
+			args := map[string]any{"media_path": filepath.Join(modelsRoot, "test_wavs", "en.wav"), "output_dir": t.TempDir()}
+			if mode == recognitionRouted {
+				prefs.AsrModel = models.FallbackModel
+				prefs.ModelPaths[models.LanguageDetector] = filepath.Join(modelsRoot, models.LanguageDetector)
+				args["language"] = languageAuto
+			}
+			if err := settings.Save(filepath.Join(data, "settings.json"), prefs); err != nil {
+				t.Fatal(err)
+			}
+			result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "transcribe_media", Arguments: args})
+			if err != nil || result.IsError {
+				t.Fatal("MCP recognition failed", mode, result, err)
+			}
+			raw, err := json.Marshal(result.StructuredContent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out subtitleOut
+			if err := json.Unmarshal(raw, &out); err != nil || out.Cues == 0 || filepath.Dir(out.SubtitlePath) != args["output_dir"] {
+				t.Fatal("MCP returned no recognition artifact", string(raw), err)
+			}
+			text, err := os.ReadFile(out.SubtitlePath)
+			if err != nil || !strings.Contains(string(text), "Ask not what your country can do for you") {
+				t.Fatal("FP32 speech did not reach the subtitle", string(text), err)
+			}
+			files, err := os.ReadDir(filepath.Dir(out.SubtitlePath))
+			if err != nil || len(files) != 1 || filepath.Ext(files[0].Name()) != ".srt" {
+				t.Fatal("MCP recognition wrote unrelated output files", files, err)
+			}
+		})
+	}
+}
 
 // Translation uses the same streamed engine and real subtitle/checker
 // workers as the desktop. A second MCP call reuses accepted results but

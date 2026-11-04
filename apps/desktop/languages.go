@@ -37,9 +37,9 @@ type languageOption struct{ ID, Country, Label string }
 
 // OneAsr v1.3.0 requires an explicit language throughout ASR + alignment:
 // its forced aligner covers these 11 languages, and "auto" is read as
-// Chinese, not detected. "auto" detects the language first and chooses the
-// model of its group (see routeRecognition). The sherpa-onnx models
-// recognize the subsets in their catalog entries.
+// Chinese, not detected. The sherpa-onnx models recognize the subsets in
+// their catalog entries; "auto" is SenseVoiceSmall's own detection. Smart
+// routing (see routeRecognition) needs no language or model at all.
 func sourceLanguages() []languageOption {
 	return []languageOption{
 		{languageAuto, "", locales.LanguageAuto()},
@@ -61,22 +61,43 @@ func modelLanguages(id string) []languageOption {
 	}
 	out := []languageOption{}
 	for _, o := range sourceLanguages() {
-		// Detection chooses the model itself, whatever model is chosen.
-		if o.ID == languageAuto || model.Supports(o.ID) {
+		// "auto" only for a model that detects the language itself.
+		if model.Supports(o.ID) {
 			out = append(out, o)
 		}
 	}
 	return out
 }
 
-// asrModelChanged saves a new choice of ASR model. The model keeps the
-// source language when it recognizes it (or detection is on), and
-// otherwise takes its first.
+// asrModelChanged restores this model's language, or defaults a first choice
+// to its own detection when supported. It never resets a later user override.
 func (a *NativeApp) asrModelChanged() {
-	// languages[0] is automatic detection; a chosen language stays chosen.
-	if languages := modelLanguages(a.settings.AsrModel); len(languages) > 1 && !slices.ContainsFunc(languages, func(o languageOption) bool { return o.ID == a.settings.Language }) {
-		a.settings.Language = languages[1].ID
+	languages := modelLanguages(a.settings.AsrModel)
+	if len(languages) == 0 {
+		return
 	}
+	language, remembered := a.settings.ManualLanguages[a.settings.AsrModel]
+	supported := func(id string) bool {
+		return slices.ContainsFunc(languages, func(o languageOption) bool { return o.ID == id })
+	}
+	switch {
+	case remembered && supported(language):
+		a.settings.Language = language
+	case supported(languageAuto):
+		a.settings.Language = languageAuto
+	case !supported(a.settings.Language):
+		a.settings.Language = languages[0].ID
+	}
+	a.sourceLanguageChanged()
+}
+
+// A manual language change belongs to the current model, not to the next
+// model selected. Store it before saving so a later return preserves it.
+func (a *NativeApp) sourceLanguageChanged() {
+	if a.settings.ManualLanguages == nil {
+		a.settings.ManualLanguages = map[string]string{}
+	}
+	a.settings.ManualLanguages[a.settings.AsrModel] = a.settings.Language
 	a.saveSettings()
 }
 

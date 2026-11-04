@@ -80,38 +80,25 @@ func toolIcon(c *ui.Context, label, name string) ui.Element {
 }
 
 // panelHeader is the row every panel starts with, the same height in each,
-// so titles and actions line up across the workbench. Each side would be
-// as wide as the wider one, by their contents' widths in the last frame,
-// which centers the middle part in the panel; with less room, a side gives
-// way down to its own content, never further, and the middle shrinks, as a
-// file name does.
+// so titles and actions line up across the workbench. A native grid of
+// equal flexible sides around the middle centers it in the panel in the
+// same layout pass, as the top bar does; the middle shrinks, as a file name
+// does.
 func panelHeader(c *ui.Context, start, middle, end func()) {
-	row := ui.Row(c).Height(em(c, headerSize)).Padding(0, em(c, 8)).Gap(em(c, 4)).AlignItems(ui.Center).Shrink(0).Background(c.Theme().Surface)
-	widths := ui.Local(row, "sides", func() [2]float32 { return [2]float32{} })
-	row.Children(func() {
-		side := func(i int, justify ui.Align, gap float32, content func()) {
-			ui.Row(c).Width(max(widths[0], widths[1])).MinWidth(widths[i]).Shrink(1).Justify(justify).Children(func() {
-				inner := ui.Row(c).Gap(gap).AlignItems(ui.Center).Shrink(0)
-				if content != nil {
-					inner.Children(content)
-				}
-				if w := inner.Bounds().W; w > 0 && w != widths[i] {
-					widths[i] = w
-					c.After(0)
-				}
-			})
+	ui.Grid(c).ColumnTracks(ui.Fr(1), ui.FitContent(), ui.Fr(1)).Height(em(c, headerSize)).Padding(0, em(c, 8)).GapX(em(c, 4)).AlignItems(ui.Center).Shrink(0).Background(c.Theme().Surface).Children(func() {
+		side := func(justify ui.Align, gap float32, content func()) {
+			row := ui.Row(c).Gap(gap).Justify(justify).AlignItems(ui.Center).MinWidth(0)
+			if content != nil {
+				row.Children(content)
+			}
 		}
-		side(0, ui.Start, em(c, 8), start)
-		ui.Spacer(c)
-		if middle != nil {
-			ui.Row(c).Shrink(1).MinWidth(0).Gap(em(c, 8)).AlignItems(ui.Center).Children(middle)
-		}
-		ui.Spacer(c)
-		side(1, ui.End, em(c, 4), func() {
-			if end != nil {
-				end()
+		side(ui.Start, em(c, 8), start)
+		ui.Row(c).MinWidth(0).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+			if middle != nil {
+				middle()
 			}
 		})
+		side(ui.End, em(c, 4), end)
 	})
 }
 
@@ -168,16 +155,19 @@ func parameterGroup(c *ui.Context, title string, action, fields func()) {
 }
 
 // parameterGrid sets a deliberate density ceiling instead of packing every
-// field that happens to fit on one line. Equal native grid columns give each
-// related decision room; narrow panes become one column without shrinking text.
-func parameterGrid(c *ui.Context, minimum float32, maximum int, fields func()) ui.Element {
-	grid := ui.Grid(c).GapX(em(c, 20)).GapY(em(c, 16)).AlignItems(ui.Start)
-	room := ui.Local(grid, "field-room", func() float32 { return 0 })
-	columns := max(1, min(maximum, int((*room+em(c, 20))/(em(c, minimum)+em(c, 20)))))
-	grid.Columns(columns).Children(fields)
-	if width := grid.Bounds().W; width > 0 && width != *room {
-		*room = width
-		c.After(0)
-	}
-	return grid
+// field that happens to fit on one line: at most maximum cells a line, each
+// at least minimum wide; narrow panes become one column without shrinking
+// text. Native flex wrapping decides the lines from the real width in the
+// same layout pass. No size measured in an earlier frame decides the
+// layout, so a page is placed correctly in its first frame (see
+// layout_frame_test.go).
+func parameterGrid(c *ui.Context, minimum float32, maximum int, cells ...func()) ui.Element {
+	// A basis between 1/(maximum+1) and 1/maximum of the line lets at most
+	// maximum cells share it; growing fills it.
+	share := 50 * (1/float32(maximum) + 1/float32(maximum+1))
+	return ui.Row(c).Wrap().GapX(em(c, 20)).GapY(em(c, 16)).AlignItems(ui.Start).Children(func() {
+		for _, cell := range cells {
+			ui.Column(c).Grow(1).BasisPercent(share).MinWidth(em(c, minimum)).Children(cell)
+		}
+	})
 }

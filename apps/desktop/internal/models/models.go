@@ -107,6 +107,19 @@ func (m Model) GroupSupported(group string) bool {
 	return m.Supports(group)
 }
 
+// Part is the name of the model's file for part: the first file named
+// part, then a dot, as encoder.int8.onnx or encoder.onnx for "encoder", or
+// tokens.txt for "tokens". Data that an ONNX file loads beside itself, as
+// encoder.weights, is no part of its own. A missing part is "".
+func (m Model) Part(part string) string {
+	for _, f := range m.Files {
+		if rest, ok := strings.CutPrefix(f.Name, part+"."); ok && (strings.HasSuffix(rest, "onnx") || rest == "txt") {
+			return f.Name
+		}
+	}
+	return ""
+}
+
 // Sherpa reports whether sherpa-onnx, not OneAsr, runs the model. Such a
 // model needs no forced aligner: it times its own tokens.
 func (m Model) Sherpa() bool { return m.Engine != "" }
@@ -151,6 +164,23 @@ func (m Model) Size() int64 {
 	}
 	return size
 }
+
+// FilesPresent checks that every asset is a complete file of its catalog
+// length. Use it for local model choices without hashing gigabytes on UI
+// frames. Download/import and inference still use Verify for SHA-256.
+func (m Model) FilesPresent(dir string) bool {
+	if len(m.Files) == 0 {
+		return false
+	}
+	for _, file := range m.Files {
+		info, err := os.Stat(filepath.Join(dir, file.Name))
+		if err != nil || !info.Mode().IsRegular() || info.Size() != file.Size {
+			return false
+		}
+	}
+	return true
+}
+
 func Verify(ctx context.Context, m Model, dir string) error {
 	for _, f := range m.Files {
 		if err := verifyFile(ctx, filepath.Join(dir, f.Name), f); err != nil {
