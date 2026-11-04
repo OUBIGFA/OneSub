@@ -21,8 +21,8 @@ class RepositoryCheckTests(unittest.TestCase):
         self.git("init", "-q")
         self.git("config", "core.autocrlf", "false")
         self.write(".gitignore", (ROOT / ".gitignore").read_text(encoding="utf-8"))
-        self.write("README.md", "# Example\n\n[Guide](docs/guide.md)\n")
-        self.write("docs/guide.md", "# Guide\n")
+        self.write("README.md", "# Example\n\n[Guide](references/guide.md)\n")
+        self.write("references/guide.md", "# Guide\n")
         self.git("add", ".")
 
     def git(self, *args, data=None):
@@ -52,19 +52,19 @@ class RepositoryCheckTests(unittest.TestCase):
         self.assertIn(marker, result.stdout + result.stderr)
 
     def test_clean_index_with_unicode_and_space_links_passes(self):
-        self.write("docs/中文 名称.md", "# 字幕\n")
-        self.write("README.md", "[Guide](docs/%E4%B8%AD%E6%96%87%20%E5%90%8D%E7%A7%B0.md)\n")
+        self.write("references/中文 名称.md", "# 字幕\n")
+        self.write("README.md", "[Guide](references/%E4%B8%AD%E6%96%87%20%E5%90%8D%E7%A7%B0.md)\n")
         self.git("add", ".")
         self.assertEqual(self.run_check().returncode, 0)
 
     def test_force_added_nested_scratch_is_rejected(self):
-        self.write("docs/_temp/private.txt", "private\n")
-        self.git("add", "-f", "docs/_temp/private.txt")
+        self.write("references/_temp/private.txt", "private\n")
+        self.git("add", "-f", "references/_temp/private.txt")
         self.assert_rejected("ignored path")
 
     def test_later_unignore_cannot_expose_nested_scratch(self):
         ignore = (self.repo / ".gitignore").read_text(encoding="utf-8")
-        self.write(".gitignore", ignore + "!docs/_temp/\n!docs/_temp/**\n")
+        self.write(".gitignore", ignore + "!references/_temp/\n!references/_temp/**\n")
         self.git("add", ".gitignore")
         self.assert_rejected("ignore boundary")
 
@@ -73,8 +73,8 @@ class RepositoryCheckTests(unittest.TestCase):
         self.assert_rejected(".gitignore differs")
 
     def test_link_to_untracked_file_is_rejected(self):
-        self.write("README.md", "[Missing](docs/local-only.md)\n")
-        self.write("docs/local-only.md", "local\n")
+        self.write("README.md", "[Missing](references/local-only.md)\n")
+        self.write("references/local-only.md", "local\n")
         self.git("add", "README.md")
         self.assert_rejected("missing tracked link")
 

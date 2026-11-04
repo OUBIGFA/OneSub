@@ -18,7 +18,7 @@ import (
 // what an earlier frame measured, then asks for another frame to apply it.
 // That layout is wrong for the first frame of every page and jumps on the
 // next. Layout comes from MyGo's native grid, flex and wrap, or from
-// values known in the frame, such as c.Size(). See docs/ui-design.md.
+// values known in the frame, such as c.Size().
 var layoutFeedback = regexp.MustCompile(`\.(Layout)?Bounds\(\)|c\.After\(0\)`)
 
 // layoutFeedbackAllowed are the matches that do not lay out a view: image

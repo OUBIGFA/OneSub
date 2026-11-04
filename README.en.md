@@ -67,7 +67,6 @@ Download `OneSub-0.0.1-Setup.exe` from [Releases](https://github.com/OUBIGFA/One
 
 - Version 0.0.1, Windows x64 only. The installer is unsigned. Windows may show a security prompt.
 - The installer is about 256 MB. Recognition models download on demand. They range from several hundred MB to several GB. You can change the location.
-- For tested and untested scope, see the [Windows test record](docs/verification/windows-0.0.1.md) (Chinese).
 
 ## System requirements
 

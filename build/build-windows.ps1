@@ -36,25 +36,12 @@ try {
     if ((Get-FileHash 'build/output/oneasr/oneasr-cli.exe' -Algorithm SHA256).Hash.ToLowerInvariant() -ne $runtime.oneasr.sha256) { throw 'OneAsr hash differs from the recorded build' }
     & (Join-Path $PSScriptRoot 'prepare-vad.ps1')
     & (Join-Path $PSScriptRoot 'prepare-sherpa.ps1')
-    $sourceIndex = Join-Path $root '.local/source-tree.index'
-    if (Test-Path $sourceIndex) { Remove-Item $sourceIndex -Force }
-    Copy-Item (Join-Path $root '.git/index') $sourceIndex -Force
-    $previousIndex = $env:GIT_INDEX_FILE
-    $env:GIT_INDEX_FILE = $sourceIndex
-    try {
-        # The verification note records this installer's hash. Exclude it from
-        # provenance so updating that record cannot change the installer again.
-        & git update-index --force-remove -- 'docs/verification/windows-0.0.1.md'
-        if ($LASTEXITCODE -ne 0) { throw 'Could not prepare the source provenance index' }
-        $sourceTree = (& git write-tree).Trim()
-    } finally {
-        if ($null -eq $previousIndex) { Remove-Item Env:GIT_INDEX_FILE -ErrorAction SilentlyContinue } else { $env:GIT_INDEX_FILE = $previousIndex }
-        Remove-Item $sourceIndex -Force -ErrorAction SilentlyContinue
-    }
-    $info = [ordered]@{version='0.0.1';build=$BuildNumber;channel='local-test';signed=$false;p0Accepted=$false;sourceTree=$sourceTree;sourceTreeExcludes=@('docs/verification/windows-0.0.1.md');worktree='staged source snapshot'}
+    $sourceTree = (& git write-tree).Trim()
+    $info = [ordered]@{version='0.0.1';build=$BuildNumber;channel='local-test';signed=$false;p0Accepted=$false;sourceTree=$sourceTree;worktree='staged source snapshot'}
+
     [IO.File]::WriteAllText((Join-Path $root 'build/output/build-info.json'),($info|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
     if (-not $SkipTests) { & (Join-Path $PSScriptRoot 'test.ps1') }
-    $package = Join-Path $root "build/output/packages/$BuildNumber"
+    $package = Join-Path $root "_temp/build-output/packages/$BuildNumber"
     if (Test-Path $package) { throw 'Use a new internal build number; package directories are immutable' }
     Push-Location apps/desktop
     try {

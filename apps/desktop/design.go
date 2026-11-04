@@ -9,7 +9,7 @@ import (
 // Typography and spacing are shared by every native view. Light colors are
 // reused from WinOne; dark controls retain the established MyGo palette.
 const (
-	bodySize    = 15 // the product's body text (docs/ui-design.md)
+	bodySize    = 15 // the product's body text
 	captionSize = 13 // the smallest text: status bar, units, hints
 	headingSize = 18 // section headings, distinct from form labels
 	titleSize   = 24 // dialog titles

@@ -121,7 +121,7 @@ def check():
     if not rules or rules[-1] != "_temp/":
         errors.append("ignore boundary: the last active root rule must be _temp/")
     if ignore_files_match:
-        for probe in ("_temp/probe.txt", "docs/_temp/probe.txt", "a/b/_temp/probe.txt", ".env", ".local/private.txt", "node_modules/package/index.js"):
+        for probe in ("_temp/probe.txt", "references/_temp/probe.txt", "a/b/_temp/probe.txt", ".env", ".local/private.txt", "node_modules/package/index.js"):
             if not ignored(probe):
                 errors.append(f"ignore boundary: {probe} is exposed")
 

@@ -1,4 +1,4 @@
-param([string]$Output = 'build/output/native-preview/OneSub.exe')
+param([string]$Output = '_temp/build-output/native-preview/OneSub.exe')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $env:GOROOT = Join-Path $root '.local/toolchains/go1.27.3/go'

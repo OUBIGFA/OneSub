@@ -47,6 +47,7 @@ dist/
 .vite/
 *.tsbuildinfo
 /build/output/
+output/
 /artifacts/
 /releases/
 /downloads/
@@ -88,6 +89,12 @@ Desktop.ini
 *.swp
 *.swo
 *~
+
+# Local instructions, planning notes and agent state (never publish)
+AGENTS.md
+CLAUDE.md
+/docs/
+.agents/
 
 # Must remain after every negation: ignore scratch directories at ALL depths.
 _temp/

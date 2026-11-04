@@ -27,7 +27,7 @@ FP32 的 `encoder.weights` 是 `encoder.onnx` 的外部数据，不能省略、�
 
 - SenseVoice 的 `2025-09-09` int8 转换版本在 v2.0.1 下把中文识别为粤语、英文输出逐字母大写，弃用；`2024-07-17` int8 版本五种语言结果正确。
 - Paraformer `2024-03-09` 转换版本不输出时间戳；`2023-09-14` 版本输出逐字 CIF 时间。两者均不含标点，需要 CT-Transformer。
-- 语言检测：Whisper tiny 对 7 段自带录音的整段结果中，粤语判为 zh，其余正确；截成 1.5 秒时粤语判为 ja。sherpa-onnx 的检测接口只返回最可能的语言。因此采用 10 秒窗口多数表决，中日韩由 SenseVoiceSmall 复核，见 [架构 4.4](../../../docs/architecture.md)。
+- 语言检测：Whisper tiny 对 7 段自带录音的整段结果中，粤语判为 zh，其余正确；截成 1.5 秒时粤语判为 ja。sherpa-onnx 的检测接口只返回最可能的语言。因此采用 10 秒窗口多数表决，中日韩由 SenseVoiceSmall 复核。
 - CT-Transformer 只需 `model.onnx`（词表已在模型元数据内），不下载 `tokens.json`。
 
 ## 适配边界
@@ -45,4 +45,4 @@ FP32 的 `encoder.weights` 是 `encoder.onnx` 的外部数据，不能省略、�
 
 - `build/prepare-sherpa.ps1` 按清单取得或校验发布包，只解出 5 个文件到 `build/output/sherpa-onnx/`；`build/build-windows.ps1` 自动调用。
 - `build/test.ps1` 设置 `ONESUB_SHERPA_ROOT`。再把 `ONESUB_SHERPA_TEST_MODELS` 指向按模型 ID 分目录的模型根目录（含 16 kHz 的 `test_wavs/zh.wav`、`en.wav`、`paraformer.wav`），即运行真实推理回归：四个识别模型各识别自带录音；SenseVoice、Parakeet INT8 与 FP32 另跑“语音 + 40 秒静音 + 语音”与全静音。自动识别回归对中、粤、日、韩、英、德 6 段录音检测并路由，另测首选模型缺失时的保底与报错、检测模型缺失时的报错。测试不下载模型。
-- 仓库自带录音只验证链路，不代表识别质量。中文、英文、粤语、日语、韩语与欧洲语言的 CER/WER、时间误差与静音幻觉仍需按 [实施与验收](../../../docs/roadmap.md) 建立评测集。
+- 仓库自带录音只验证链路，不代表识别质量。中文、英文、粤语、日语、韩语与欧洲语言的 CER/WER、时间误差与静音幻觉仍需建立独立评测集。
