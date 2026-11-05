@@ -12,11 +12,21 @@ Local-first subtitle workbench: recognize, split, translate, edit, compress, and
 
 </div>
 
+## What OneSub is
+
+OneSub imports media, recognizes speech, translates, edits, previews, and exports subtitles in one workbench. Traditional subtitle translators translate the source lines as they are. Source lines often cut one sentence into several cues. The translation keeps these cuts, and the timeline goes wrong. OneSub regroups the dialogue into sense groups first. It then aligns the text to word-level time evidence. The original track stays separate from the rebuilt track.
+
+Recognition, editing, and export need no cloud account. Translation uses the AI service that you configure.
+
+## Interface and video preview
+
+### OneSub workbench
+
 ![OneSub workbench: original subtitles](assets/readme/workbench-original.webp)
 
 ![OneSub workbench: rebuilt subtitles with translation](assets/readme/workbench-translated.webp)
 
-## Rebuild timing by sense groups: before and after
+### Rebuild timing by sense groups: before and after
 
 Enable "Rebuild timing by sense groups" to merge isolated words and short fragments into complete sense groups. OneSub then adjusts cue boundaries from the source timing. Complete thoughts help the model translate more accurately.
 
@@ -26,34 +36,42 @@ Enable "Rebuild timing by sense groups" to merge isolated words and short fragme
 
 OneSub saves the result in the rebuilt track and keeps the original track separate. With word-level timing, it aligns boundaries to real words. Without word-level timing, it only merges existing cues. We strongly recommend this option with `gpt-6-luna` or a model of equal or greater capability.
 
-## Video demo
+### Video demo
 
 https://github.com/user-attachments/assets/64fed7da-2e36-48a5-8409-68cfbcf6a299
 
 Demo conditions: 42-minute source video; Qwen3-ASR 1.7B recognition model; `gpt-6-luna` AI model; "Rebuild timing by sense groups" enabled. Recognition and translation took 6 minutes in this run. The demo runs at increased speed. Actual time depends on hardware, network, and service.
 
-## What OneSub is
-
-OneSub imports media, recognizes speech, translates, edits, previews, and exports subtitles in one workbench. Traditional subtitle translators translate the source lines as they are. Source lines often cut one sentence into several cues. The translation keeps these cuts, and the timeline goes wrong. OneSub regroups the dialogue into sense groups first. It then aligns the text to word-level time evidence. The original track stays separate from the rebuilt track.
-
-Recognition, editing, and export need no cloud account. Translation uses the AI service that you configure.
-
 ## Key features
 
-- **Smart split**: Split long cues in one click, or use the context menu to split one cue. OneSub selects cut points from the text language. In the rebuilt track, the translation controls the split. OneSub uses real word-level timing when available. Otherwise, it estimates cut points within the original range and marks them for timing review. A compact sentence with no valid cut point stays unchanged. Undo a batch split in one step.
-- **Punctuation handling**: OneSub processes punctuation locally after translation. It adds no request and changes no prompt. You can remove or keep final punctuation. You can convert `.` inside a sentence to `,` and `。` to `，`. Email addresses, URLs, numbers, abbreviations, file names, and ellipses are protected. Recognition output keeps its original punctuation.
-- **Rebuild timing by sense groups**: Merge isolated words and short fragments into complete sense groups before translation. Align boundaries to real words when word-level timing is available. Otherwise, only merge existing cues.
-- **Separate tracks**: Original, rebuilt, and translated tracks are independent. Edit, export, and undo each one (at least 200 steps). AI does not overwrite locked manual edits.
-- **Subtitles alone**: No video needed. Import SRT / VTT / ASS / SSA to edit, translate, and export. ASS keeps its layout. Choose TXT to export plain text without cue numbers, timestamps, or styling.
-- **Video compression alone**: No subtitle needed. OneSub encodes H.264 into MP4 or MKV, keeps audio and chapters, and never overwrites the source video.
-- **Multi-engine local recognition**: SenseVoiceSmall, Paraformer-zh, Parakeet-TDT v3, and Qwen3-ASR. With source language set to "Auto-detect", OneSub detects the language first, then selects the matching model. Models download on demand with resume and SHA-256 checks.
-- **Silence protection**: VAD filters silence first. Long silence makes no false cues.
-- **File queue**: Transcribe many media files in a batch. Retry failed items alone.
-- **Controlled translation**: Full-video context, locked terms, and per-cue checks. A missing translation is never filled with the source text. Negation, numbers, units, and literal strings are protected.
-- **Resumable**: After an interruption, OneSub keeps the finished batches and continues from the missing ones.
-- **What you see is what you get**: Preview and burn-in share one subtitle, style, and font configuration. Both soft subtitles (muxed) and hard subtitles (burned in) are supported.
-- **Auto link**: Drop a video to load its same-name subtitle. Drop a subtitle to link its same-name video. Language suffixes (such as `-zh.srt`) and small name differences are scored. You choose when several candidates match.
-- **Chinese and English interface**, light and dark themes.
+Workflow: **Import → Recognize → Rebuild timing → Translate and review → Preview and deliver**.
+
+### Subtitle structure and timing
+
+- **Rebuild timing by sense groups**: Merge isolated words and short fragments before translation. Align boundaries to real words when timing is available. Merge existing cues when word timing is missing.
+- **Smart split**: Split long cues with one click. Use the context menu for one cue. Use real word timing when available. Mark estimated cuts for timing review. Keep compact sentences unchanged. Undo a batch in one step.
+- **Punctuation handling**: Process translated punctuation locally. Add no request and change no prompt. Remove or keep final punctuation. Convert sentence periods when needed. Protect email addresses, URLs, numbers, abbreviations, file names, and ellipses.
+- **Separate tracks**: Keep original, rebuilt, and translated tracks independent. Edit, export, and undo each track. AI does not overwrite locked manual edits.
+
+### Translation and review
+
+- **Controlled translation**: Use full-video context, locked terms, and per-cue checks. Never fill a missing translation with source text. Protect negation, numbers, units, and literal strings.
+- **Resumable translation**: Keep completed batches after an interruption. Retry only the missing content.
+- **Format protection**: Import SRT, VTT, ASS, and SSA. Keep ASS layout. Export plain TXT without cue numbers, timestamps, or styling.
+
+### Recognition and batch processing
+
+- **Multi-engine local recognition**: Use SenseVoiceSmall, Paraformer-zh, Parakeet-TDT v3, and Qwen3-ASR. Detect the source language, then select a matching model. Models download on demand with resume and SHA-256 checks.
+- **Silence protection**: Filter silence with VAD first. Long silence creates no false cues.
+- **File queue**: Transcribe many audio or video files. Retry failed items alone.
+- **Auto link**: Drop a video to load its same-name subtitle. Drop a subtitle to link its same-name video. Score language suffixes and small name differences.
+
+### Media and delivery
+
+- **Subtitles alone**: No video needed. Import subtitles to edit, translate, and export.
+- **Video compression alone**: No subtitle needed. Encode H.264 into MP4 or MKV. Keep audio and chapters. Never overwrite the source video.
+- **Shared preview and output**: Preview and composition use one subtitle, style, and font configuration. Support soft subtitles (muxed) and hard subtitles (burned in).
+- **Chinese and English interface**: Support light and dark themes.
 
 ## Differences from traditional subtitle translators
 
