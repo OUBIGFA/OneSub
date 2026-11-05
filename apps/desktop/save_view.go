@@ -42,7 +42,7 @@ func trackHash(doc subtitle.Document, track int) string {
 func (a *NativeApp) setSnapshot(state project.Snapshot) {
 	if a.snapshot == nil || a.snapshot.Manifest.ID != state.Manifest.ID {
 		a.subtitleChecked = [2]map[string]bool{}
-		a.retranslation = nil
+		a.retranslation, a.retranslationNext = nil, nil
 	}
 	for track, checked := range a.subtitleChecked {
 		present := map[string]bool{}
@@ -405,7 +405,7 @@ func (a *NativeApp) clearWorkbench() {
 	a.loadDraft()
 	a.pending, a.candidatesOpen = nil, false
 	a.translationCandidate, a.translationReview = nil, false
-	a.retranslation = nil
+	a.retranslation, a.retranslationNext = nil, nil
 	a.subtitleChecked = [2]map[string]bool{}
 	a.translationTask, a.translationLive = nil, nil
 	a.settings.TranslationRecovery = ""

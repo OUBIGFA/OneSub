@@ -42,10 +42,14 @@ func TestRetranslationChecksDoNotSelectOrSeekAndSurviveFiltering(t *testing.T) {
 	a.settings.SingleClickAction = "seek-play"
 	selected, position := a.selected, a.position
 	tt := settled(a.subtitlesView, 850, 650)
-	for _, n := range []int{1, 2} {
-		if err := tt.Click(locales.RetranslateCheckCue(n)); err != nil {
-			t.Fatal(err)
-		}
+	if _, ok := tt.Find(locales.RetranslateCheckCue(1)); ok {
+		t.Fatal("unchecked list shows checkboxes")
+	}
+	if err := tt.Click(locales.RetranslateSelect()); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click(locales.RetranslateCheckCue(2)); err != nil {
+		t.Fatal(err)
 	}
 	if a.selected != selected || a.position != position || !a.paused || a.pendingClick != nil || len(a.checkedRetranslationIDs()) != 2 {
 		t.Fatal("checkbox selected/played a cue", a.selected, a.pendingClick, a.checkedRetranslationIDs())
@@ -67,12 +71,10 @@ func TestRetranslationAcceptSubsetLocksUndoAndStaleProtection(t *testing.T) {
 	a := checkedReviewApp(t)
 	r := a.retranslation
 	before := *a.snapshot
-	r.rows[0].choices = []retranslationChoice{{text: "第一版候选", valid: true}, {text: "第二版候选", valid: true}}
-	r.rows[0].choice = 1
-	r.rows[1].choices = []retranslationChoice{{text: "另一条候选", valid: true}}
-	r.rows[1].checked = false
-	edits := r.replacementEdits()
-	if len(edits) != 1 || edits[0].Text != "第二版候选" {
+	r.rows[0].result = &retranslationResult{text: "新的译文", valid: true}
+	r.rows[1].result = &retranslationResult{text: "另一条译文", valid: true}
+	edits := r.replacementEdits(true)
+	if len(edits) != 1 || edits[0].Text != "新的译文" {
 		t.Fatal(edits)
 	}
 	// This is the same frozen transaction used by the dialog, while the main
@@ -83,7 +85,7 @@ func TestRetranslationAcceptSubsetLocksUndoAndStaleProtection(t *testing.T) {
 		t.Fatal(err)
 	}
 	apply()
-	if a.snapshot.Document.Cues[0].Text != "第二版候选" || !a.snapshot.Document.Cues[0].TextLocked || !a.trackUnsaved(1) || a.savedPath[1] != "translated.srt" {
+	if a.snapshot.Document.Cues[0].Text != "新的译文" || !a.snapshot.Document.Cues[0].TextLocked || !a.trackUnsaved(1) || a.savedPath[1] != "translated.srt" {
 		t.Fatal("replacement lost lock or saved file implicitly", a.snapshot)
 	}
 	if !reflect.DeepEqual(a.snapshot.SourceDocument, before.SourceDocument) || !reflect.DeepEqual(a.snapshot.Document.Cues[1], before.Document.Cues[1]) {
@@ -99,13 +101,9 @@ func TestRetranslationAcceptSubsetLocksUndoAndStaleProtection(t *testing.T) {
 	if !reflect.DeepEqual(a.snapshot.Document, before.Document) || !reflect.DeepEqual(a.snapshot.SourceDocument, before.SourceDocument) || a.trackUnsaved(1) {
 		t.Fatal("one undo failed to restore content and locks")
 	}
-	r.rows[0].choices[1].valid = false
-	if len(r.replacementEdits()) != 0 {
-		t.Fatal("invalid candidate accepted")
-	}
-	r.rows[0].choice = 0
-	if r.replacementEdits()[0].Text != "第一版候选" {
-		t.Fatal("could not revisit earlier candidate")
+	r.rows[0].result.valid = false
+	if len(r.replacementEdits(true)) != 0 {
+		t.Fatal("invalid result accepted")
 	}
 }
 
@@ -179,8 +177,8 @@ func TestRetranslationWorkRetainsCandidatesAcrossRetryFailureAndCancel(t *testin
 		}
 		apply()
 	}
-	if requests != 2 || len(r.rows[0].choices) != 2 || len(r.rows[1].choices) != 0 || !r.rows[0].choices[1].valid {
-		t.Fatal("wrong candidate history", r.rows, requests)
+	if requests != 2 || r.rows[0].result == nil || r.rows[1].result != nil || !r.rows[0].result.valid || r.rows[0].result.text != "候选翻译第 2 版" {
+		t.Fatalf("wrong latest result: %+v, requests=%d", r.rows[0].result, requests)
 	}
 	if _, err := a.retranslationWork(r, []string{"a"}, config)(context.Background()); err == nil {
 		t.Fatal("authentication failure accepted")
@@ -190,8 +188,8 @@ func TestRetranslationWorkRetainsCandidatesAcrossRetryFailureAndCancel(t *testin
 	if _, err := a.retranslationWork(r, []string{"a"}, config)(ctx); err == nil {
 		t.Fatal("cancelled attempt accepted")
 	}
-	if len(r.rows[0].choices) != 2 || r.rows[0].choice != 1 {
-		t.Fatal("failure erased prior candidates")
+	if r.rows[0].result.text != "候选翻译第 2 版" {
+		t.Fatal("failure erased prior result")
 	}
 	state, _ := a.store.Snapshot()
 	if !reflect.DeepEqual(state, before) || a.trackUnsaved(1) {
@@ -209,7 +207,7 @@ func TestRetranslationWaitsForWholeFileRecovery(t *testing.T) {
 	}
 }
 
-func TestRetranslationDialogLayoutAndCandidateSwitch(t *testing.T) {
+func TestRetranslationDialogLayoutAndReopen(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		for _, scale := range []float32{1, 1.5, 2} {
 			for _, dark := range []bool{false, true} {
@@ -224,29 +222,23 @@ func TestRetranslationDialogLayoutAndCandidateSwitch(t *testing.T) {
 						firstFrameSettled(t, tt, "retranslation", func() { r.open = true })
 						insideRedesign(t, tt, locales.RetranslateTitle(), locales.RetranslateList(), locales.RetranslateExisting(), locales.RetranslateCandidate(), locales.RetranslateAgain(), locales.RetranslateApply())
 						before, _ := tt.Find(locales.RetranslateTitle())
-						r.rows[0].choices = []retranslationChoice{{text: "第一次候选", valid: true}, {text: strings.Repeat("第二次候选包含完整的长译文。", 80), valid: true}}
-						firstFrameSettled(t, tt, "candidate", func() { r.rows[0].choice = 1 })
+						firstFrameSettled(t, tt, "result", func() {
+							r.rows[0].result = &retranslationResult{text: strings.Repeat("新译文包含完整的长译文。", 80), valid: true}
+						})
 						after, _ := tt.Find(locales.RetranslateTitle())
 						if before != after {
-							t.Fatal("candidate resized review dialog", before, after)
+							t.Fatal("result resized review dialog", before, after)
 						}
 						captureRedesign(t, tt, fmt.Sprintf("retranslation-%s-%g-%t", language, scale, dark))
-						if err := tt.Click(locales.RetranslateVersionLabel()); err != nil {
+						if err := tt.Click(locales.ActionClose()); err != nil {
 							t.Fatal(err)
 						}
-						tt.Key(0, ui.KeyHome)
-						tt.Key(0, ui.KeyEnter)
-						if r.rows[0].choice != 0 {
-							t.Fatal("native selector failed to restore earlier candidate")
+						if r.open || a.retranslation != r || r.rows[0].result == nil {
+							t.Fatal("closing discarded the results")
 						}
-						if err := tt.Click(locales.RetranslateVersionLabel()); err != nil {
-							t.Fatal(err)
-						}
-						tt.Key(0, ui.KeyEnd)
-						tt.Key(0, ui.KeyEnter)
-						if r.rows[0].choice != 1 {
-							t.Fatal("native selector failed to return to latest candidate")
-						}
+						tt.Move(0, 0) // Do not carry the Close button's hover into the new modal.
+						firstFrameSettled(t, tt, "reopen", a.reopenRetranslation)
+						insideRedesign(t, tt, locales.RetranslateTitle(), locales.RetranslateOne(), locales.RetranslateApplyOne(), locales.RetranslateCandidate())
 						compact := settled(a.retranslationView, int(900*scale), int(640*scale))
 						compact.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
 						compact.SetDark(dark)

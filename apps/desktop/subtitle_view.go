@@ -78,6 +78,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 				a.listPunctuationTools(c)
 				toolIcon(c, locales.FindReplace(), "text-search").Disabled(!hasCues || a.busy || a.showsTranslationProgress()).OnClick(a.openFindReplace)
 			}).Padding(0).Shrink(0)
+			a.subtitleSelectionTools(c)
 			searchCues := a.activeDocument().Cues
 			if a.showsTranslationProgress() {
 				searchCues = a.translationLive.units
@@ -182,9 +183,12 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			maximum = max(maximum, cue.Position+1)
 		}
 		targets := a.retranslationTargets()
+		showChecks := len(a.checkedRetranslationIDs()) > 0
 		numbers := numberColumn(c, maximum)
-		numbers.Width += em(c, 28)
-		numbers.MinWidth = numbers.Width
+		if showChecks {
+			numbers.Width += em(c, 28)
+			numbers.MinWidth = numbers.Width
+		}
 		cols := []ui.TableColumn{numbers, timeColumn(c, locales.ListColumnStart()), timeColumn(c, locales.ListColumnEnd()), {Title: locales.ListColumnText(), Fixed: true}}
 		loads := a.readingLoads()
 		table := subtitleTable(c, &a.list, cols, len(rows), func(row, col int) {
@@ -211,13 +215,15 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			switch col {
 			case 0:
 				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-					checked := a.subtitleChecked[a.subtitleTab][cue.ID]
-					_, eligible := targets[cue.ID]
-					hint := locales.RetranslateCheckCue(cue.Position + 1)
-					if !eligible {
-						hint = locales.RetranslateUseOptimized()
+					if showChecks {
+						checked := a.subtitleChecked[a.subtitleTab][cue.ID]
+						_, eligible := targets[cue.ID]
+						hint := locales.RetranslateCheckCue(cue.Position + 1)
+						if !eligible {
+							hint = locales.RetranslateUseOptimized()
+						}
+						ui.Checkbox(c, &checked, "").Label(locales.RetranslateCheckCue(cue.Position + 1)).Tooltip(hint).Disabled(a.busy || a.translationLive != nil || !eligible).OnChange(func() { a.setSubtitleChecked(cue.ID, checked) })
 					}
-					ui.Checkbox(c, &checked, "").Label(locales.RetranslateCheckCue(cue.Position + 1)).Tooltip(hint).Disabled(a.busy || !eligible).OnChange(func() { a.setSubtitleChecked(cue.ID, checked) })
 					number := cell(fmt.Sprint(cue.Position + 1))
 					// Selected rows retain MyGo's uniform accent and readable text.
 					if index != a.selected && a.draftReading(cue, index, loads[index]).Problem() {

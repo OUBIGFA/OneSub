@@ -81,7 +81,7 @@ type NativeApp struct {
 	selected                                 int
 	query                                    string
 	subtitleChecked                          [2]map[string]bool // batch checks are independent of the editing row
-	retranslation                            *retranslationState
+	retranslation, retranslationNext         *retranslationState
 	readingSnapshot                          *project.Snapshot
 	countSnapshot                            *project.Snapshot
 	originalCount, optimizedCount            int

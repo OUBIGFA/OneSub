@@ -31,17 +31,16 @@ func (a *NativeApp) subtitleStructureMenu(m *ui.Menu, index int) {
 		protected = cues[index].ReadOnly
 	}
 	disabled := a.busy || a.snapshot == nil || a.showsTranslationProgress()
-	if m.Item(locales.RetranslateAgain()).Disabled(disabled || a.translationLive != nil || len(a.checkedRetranslationIDs()) == 0).Chosen() {
+	targets := a.retranslationTargets()
+	_, eligible := targets[id]
+	if m.Item(locales.RetranslatePick()).Disabled(disabled || a.translationLive != nil || !eligible).Chosen() {
+		a.setSubtitleChecked(id, !a.subtitleChecked[a.subtitleTab][id])
+	}
+	if m.Item(locales.RetranslateSelected(len(a.checkedRetranslationIDs()))).Disabled(disabled || a.translationLive != nil || len(a.checkedRetranslationIDs()) == 0).Chosen() {
 		a.openRetranslation()
 	}
-	if m.Item(locales.RetranslateCheckVisible()).Disabled(disabled || len(cues) == 0).Chosen() {
-		targets := a.retranslationTargets()
-		for _, cue := range cues {
-			_, eligible := targets[cue.ID]
-			if eligible && strings.Contains(strings.ToLower(cueDisplayText(cue, a.subtitleTab)+"\n"+cueDisplayText(cue, 0)), strings.ToLower(a.query)) {
-				a.setSubtitleChecked(cue.ID, true)
-			}
-		}
+	if m.Item(locales.RetranslateCheckAll()).Disabled(disabled || a.translationLive != nil || len(targets) == 0).Chosen() {
+		a.checkAllSubtitles()
 	}
 	if m.Item(locales.RetranslateClear()).Disabled(disabled || len(a.checkedRetranslationIDs()) == 0).Chosen() {
 		a.subtitleChecked[a.subtitleTab] = nil

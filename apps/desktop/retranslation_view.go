@@ -15,15 +15,14 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-type retranslationChoice struct {
+type retranslationResult struct {
 	text, problems string
 	valid          bool
 }
 type retranslationRow struct {
 	cue     subtitle.Cue
-	checked bool
-	choices []retranslationChoice
-	choice  int
+	result  *retranslationResult
+	applied bool
 }
 type retranslationState struct {
 	open, running       bool
@@ -45,18 +44,19 @@ func (a *NativeApp) retranslationTargets() map[string]subtitle.Cue {
 	if a.snapshot == nil {
 		return out
 	}
+	working := make(map[string]subtitle.Cue, len(a.snapshot.Document.Cues))
 	for _, cue := range a.snapshot.Document.Cues {
-		if !cue.ReadOnly {
-			out[cue.ID] = cue
-		}
+		working[cue.ID] = cue
 	}
-	if a.subtitleTab == 0 {
-		for _, cue := range a.activeDocument().Cues {
-			working, ok := out[cue.ID]
-			if !ok || cue.ReadOnly || cue.StartMs != working.StartMs || cue.EndMs != working.EndMs || subtitle.SourceText(cue) != subtitle.SourceText(working) {
-				delete(out, cue.ID)
-			}
+	for _, cue := range a.activeDocument().Cues {
+		target, ok := working[cue.ID]
+		if !ok || cue.ReadOnly || target.ReadOnly {
+			continue
 		}
+		if a.subtitleTab == 0 && (cue.StartMs != target.StartMs || cue.EndMs != target.EndMs || subtitle.SourceText(cue) != subtitle.SourceText(target)) {
+			continue
+		}
+		out[cue.ID] = target
 	}
 	return out
 }
@@ -85,13 +85,65 @@ func (a *NativeApp) setSubtitleChecked(id string, checked bool) {
 	a.pendingClick, a.rowClick = nil, nil
 }
 
-func (a *NativeApp) retranslationTools(c *ui.Context) {
+func (a *NativeApp) checkAllSubtitles() {
+	// All means the entire active track, including rows hidden by search.
+	for id := range a.retranslationTargets() {
+		a.setSubtitleChecked(id, true)
+	}
+}
+
+func (a *NativeApp) subtitleSelectionTools(c *ui.Context) {
 	count := len(a.checkedRetranslationIDs())
-	if count == 0 {
-		toolIcon(c, locales.RetranslateSelected(0), "rotate-cw").Disabled(true)
+	disabled := a.busy || a.translationLive != nil
+	if count > 0 {
+		width, _ := c.Size()
+		if width < em(c, 1100) {
+			// Narrow workbenches use the same named actions as icon buttons;
+			// retaining full text here would hide the rows being selected.
+			toolIcon(c, locales.RetranslateSelected(count), "rotate-cw").Disabled(disabled).OnClick(a.openRetranslation)
+			toolIcon(c, locales.RetranslateCheckAll(), "copy-check").Tooltip(locales.RetranslateAllHint()).Disabled(disabled).OnClick(a.checkAllSubtitles)
+			toolIcon(c, locales.RetranslateClear(), "eraser").Disabled(disabled).OnClick(func() { a.subtitleChecked[a.subtitleTab] = nil })
+		}
 		return
 	}
-	iconButton(c, locales.RetranslateSelected(count), "rotate-cw").Disabled(a.busy || a.translationLive != nil).OnClick(a.openRetranslation)
+	cues := a.activeDocument().Cues
+	id := ""
+	if a.selected >= 0 && a.selected < len(cues) {
+		id = cues[a.selected].ID
+	}
+	_, eligible := a.retranslationTargets()[id]
+	// Start by checking the current cue, so there is never an empty checkbox
+	// mode. These compact actions sit before Search, beside the editing tools.
+	toolIcon(c, locales.RetranslateSelect(), "list-checks").Disabled(disabled || !eligible).OnClick(func() { a.setSubtitleChecked(id, true) })
+	toolIcon(c, locales.RetranslateCheckAll(), "copy-check").Tooltip(locales.RetranslateAllHint()).Disabled(disabled || len(a.retranslationTargets()) == 0).OnClick(a.checkAllSubtitles)
+}
+
+func (a *NativeApp) retranslationTools(c *ui.Context) {
+	count := len(a.checkedRetranslationIDs())
+	disabled := a.busy || a.translationLive != nil
+	width, _ := c.Size()
+	compact := width < em(c, 1100)
+	if count > 0 && !compact {
+		iconButton(c, locales.RetranslateSelected(count), "rotate-cw").Disabled(disabled).OnClick(a.openRetranslation)
+		ui.Button(c, locales.RetranslateCheckAll()).Tooltip(locales.RetranslateAllHint()).Disabled(disabled).OnClick(a.checkAllSubtitles)
+		ui.Button(c, locales.RetranslateClear()).Disabled(disabled).OnClick(func() { a.subtitleChecked[a.subtitleTab] = nil })
+	}
+	if a.retranslation != nil {
+		if compact {
+			toolIcon(c, locales.RetranslateReopen(), "eye").OnClick(a.reopenRetranslation)
+		} else {
+			ui.Button(c, locales.RetranslateReopen()).OnClick(a.reopenRetranslation)
+		}
+	}
+}
+
+func (a *NativeApp) reopenRetranslation() {
+	// Viewing is safe during a task and after edits; applying remains guarded
+	// by the frozen revision. Closing the modal never discards its results.
+	if a.retranslation != nil {
+		a.retranslation.open = true
+		a.pendingClick, a.rowClick = nil, nil
+	}
 }
 
 func (a *NativeApp) openRetranslation() {
@@ -100,6 +152,10 @@ func (a *NativeApp) openRetranslation() {
 	}
 	ids := a.checkedRetranslationIDs()
 	if len(ids) == 0 {
+		return
+	}
+	if r := a.retranslation; r != nil && !a.retranslationStale(r) && slices.Equal(ids, r.ids(false)) {
+		a.reopenRetranslation()
 		return
 	}
 	r := &retranslationState{open: true, projectID: a.snapshot.Manifest.ID, revision: a.snapshot.Revision, source: a.snapshot.Document, config: a.translationConfig(), scope: a.settings.CredentialScope()}
@@ -112,29 +168,43 @@ func (a *NativeApp) openRetranslation() {
 	}
 	for _, cue := range r.source.Cues {
 		if selected[cue.ID] {
-			r.rows = append(r.rows, retranslationRow{cue: cue, checked: true})
+			r.rows = append(r.rows, retranslationRow{cue: cue})
 		}
 	}
-	a.retranslation = r
+	if a.retranslation != nil && a.retranslation.hasResults() {
+		// A different batch must not silently erase the last review.
+		a.retranslationNext = r
+	} else {
+		a.retranslation = r
+	}
 	a.pendingClick, a.rowClick = nil, nil
 }
 
-func (r *retranslationState) checkedIDs() []string {
+func (r *retranslationState) ids(current bool) []string {
 	ids := []string{}
-	for _, row := range r.rows {
-		if row.checked {
+	for i, row := range r.rows {
+		if !current || i == r.selected {
 			ids = append(ids, row.cue.ID)
 		}
 	}
 	return ids
 }
 
+func (r *retranslationState) hasResults() bool {
+	for _, row := range r.rows {
+		if row.result != nil {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *NativeApp) retranslationStale(r *retranslationState) bool {
-	return a.snapshot == nil || a.snapshot.Manifest.ID != r.projectID || a.snapshot.Revision != r.revision
+	return a.editPending || a.snapshot == nil || a.snapshot.Manifest.ID != r.projectID || a.snapshot.Revision != r.revision
 }
 
 // Work returns a UI callback only after the full response and scoped checker
-// finish. A failed/cancelled attempt cannot erase previously reviewed choices.
+// finish. A failed/cancelled attempt cannot erase the last complete result.
 func (a *NativeApp) retranslationWork(r *retranslationState, ids []string, config translator.Config) func(context.Context) (func(), error) {
 	selected := make(map[string]bool, len(ids))
 	for _, id := range ids {
@@ -158,6 +228,10 @@ func (a *NativeApp) retranslationWork(r *retranslationState, ids []string, confi
 		problems := append(append(append([]string{}, checks.Errors...), checks.Warnings...), result.Report.Warnings...)
 		details := strings.Join(problems, "\n")
 		answers := make(map[string]string, len(ids))
+		baselines := make(map[string]subtitle.Cue, len(source.Cues))
+		for _, cue := range source.Cues {
+			baselines[cue.ID] = cue
+		}
 		for _, cue := range result.Document.Cues {
 			if selected[cue.ID] {
 				answers[cue.ID] = cue.Text
@@ -169,17 +243,18 @@ func (a *NativeApp) retranslationWork(r *retranslationState, ids []string, confi
 			for i := range r.rows {
 				row := &r.rows[i]
 				if text, ok := answers[row.cue.ID]; ok {
-					row.choices = append(row.choices, retranslationChoice{text, details, len(checks.Errors) == 0})
-					row.choice = len(row.choices) - 1
+					row.cue = baselines[row.cue.ID]
+					row.result = &retranslationResult{text, details, len(checks.Errors) == 0}
+					row.applied = false
 				}
 			}
 		}, nil
 	}
 }
 
-func (a *NativeApp) startRetranslation() {
+func (a *NativeApp) startRetranslation(current bool) {
 	r := a.retranslation
-	if r == nil || a.busy || len(r.checkedIDs()) == 0 {
+	if r == nil || a.busy || len(r.ids(current)) == 0 {
 		return
 	}
 	if a.retranslationStale(r) {
@@ -199,9 +274,9 @@ func (a *NativeApp) startRetranslation() {
 		})
 	}
 	r.running, r.errorText = true, ""
-	r.progress = locales.RetranslateProgress(0, len(r.checkedIDs()))
+	r.progress = locales.RetranslateProgress(0, len(r.ids(current)))
 	a.translationRunning = true
-	work := a.retranslationWork(r, r.checkedIDs(), config)
+	work := a.retranslationWork(r, r.ids(current), config)
 	a.run(locales.RetranslateTitle(), func(ctx context.Context) (func(), error) {
 		apply, err := work(ctx)
 		if err != nil {
@@ -218,22 +293,22 @@ func (a *NativeApp) startRetranslation() {
 	})
 }
 
-func (r *retranslationState) replacementEdits() []project.Edit {
+func (r *retranslationState) replacementEdits(current bool) []project.Edit {
 	edits := []project.Edit{}
-	for _, row := range r.rows {
-		if !row.checked || len(row.choices) == 0 {
+	for i, row := range r.rows {
+		if current && i != r.selected || row.applied || row.result == nil {
 			continue
 		}
-		choice := row.choices[row.choice]
-		if !choice.valid || row.cue.Translated && choice.text == row.cue.Text {
+		result := row.result
+		if !result.valid || row.cue.Translated && result.text == row.cue.Text {
 			continue
 		}
-		edits = append(edits, project.Edit{ID: row.cue.ID, Text: choice.text, StartMs: row.cue.StartMs, EndMs: row.cue.EndMs, Track: "translation"})
+		edits = append(edits, project.Edit{ID: row.cue.ID, Text: result.text, StartMs: row.cue.StartMs, EndMs: row.cue.EndMs, Track: "translation"})
 	}
 	return edits
 }
 
-func (a *NativeApp) acceptRetranslation() {
+func (a *NativeApp) acceptRetranslation(current bool) {
 	r := a.retranslation
 	if r == nil || a.busy {
 		return
@@ -242,63 +317,99 @@ func (a *NativeApp) acceptRetranslation() {
 		r.errorText = locales.RetranslateStale()
 		return
 	}
-	edits := r.replacementEdits()
+	edits := r.replacementEdits(current)
 	if len(edits) == 0 {
 		return
 	}
-	// Reuse strict format preflight and the manual translation transaction.
-	// Explicit acceptance preserves existing locks and adds a lock to the new
-	// human-approved wording; undo restores the complete previous lock state.
-	work := a.listTextEditWorkFor(r.source, r.revision, edits)
+	work := a.retranslationAcceptWork(r, edits)
 	a.run(locales.RetranslateApply(), func(ctx context.Context) (func(), error) {
 		apply, err := work(ctx)
 		if err != nil {
 			a.win.Update(func() { r.errorText = err.Error() })
+		}
+		return apply, err
+	})
+}
+
+func (a *NativeApp) retranslationAcceptWork(r *retranslationState, edits []project.Edit) func(context.Context) (func(), error) {
+	// Reuse strict preflight and the manual translation transaction. Acceptance
+	// adds a human lock; one undo restores the entire batch and previous locks.
+	work := a.listTextEditWorkFor(r.source, r.revision, edits)
+	return func(ctx context.Context) (func(), error) {
+		apply, err := work(ctx)
+		if err != nil {
 			return nil, err
 		}
 		return func() {
 			apply()
 			r.errorText = ""
 			r.source, r.revision = a.snapshot.Document, a.snapshot.Revision
-			current := make(map[string]subtitle.Cue, len(r.source.Cues))
-			for _, cue := range r.source.Cues {
-				current[cue.ID] = cue
+			applied := make(map[string]bool, len(edits))
+			for _, edit := range edits {
+				applied[edit.ID] = true
 			}
 			for i := range r.rows {
-				r.rows[i].cue = current[r.rows[i].cue.ID]
+				if applied[r.rows[i].cue.ID] {
+					// Keep the before/after text visible after acceptance.
+					r.rows[i].applied = true
+				}
 			}
 			a.changeSubtitleTab(1)
 			a.status = locales.TextProcessResult(len(edits))
 			r.progress = a.status
 		}, nil
-	})
+	}
+}
+
+func (row *retranslationRow) status() string {
+	if row.applied {
+		return locales.RetranslateApplied()
+	}
+	if row.result == nil {
+		return locales.RetranslatePending()
+	}
+	if !row.result.valid {
+		return locales.RetranslateInvalid()
+	}
+	if row.cue.Translated && row.result.text == row.cue.Text {
+		return locales.RetranslateUnchanged()
+	}
+	return locales.RetranslateAvailable()
 }
 
 func (a *NativeApp) retranslationView(c *ui.Context) {
+	if a.retranslationNext != nil {
+		open := true
+		switch ui.AlertDialog(c, &open, locales.RetranslateNewTitle(), locales.RetranslateNewBody(), locales.ActionCancel(), locales.RetranslateNewConfirm()) {
+		case 0:
+			a.retranslationNext = nil
+		case 1:
+			a.retranslation, a.retranslationNext = a.retranslationNext, nil
+		default:
+			if !open {
+				a.retranslationNext = nil
+			}
+		}
+		return
+	}
 	r := a.retranslation
 	if r == nil {
 		return
 	}
 	_, height := c.Size()
-	listHeight, sourceHeight, noteHeight := float32(130), float32(66), float32(48)
+	listHeight, sourceHeight, noteHeight := float32(120), float32(60), float32(42)
 	if height < em(c, 760) {
-		listHeight, sourceHeight, noteHeight = 80, 44, 36
+		listHeight, sourceHeight, noteHeight = 76, 40, 34
 	}
+	stale := a.retranslationStale(r)
 	fixedDialog(c, &r.open, locales.RetranslateTitle(), 1000, 720, func() {
 		ui.Column(c).Fill().Gap(em(c, 10)).Children(func() {
 			service := r.provider + " · " + r.config.Model + " · " + r.config.TargetLanguage
 			if r.config.Model == "" || r.config.Endpoint == "" {
 				service = locales.WorkflowNoService()
 			}
-			ui.Text(c, service).SingleLine().Tooltip(service + "\n" + r.config.Endpoint)
-			muted(c, locales.RetranslateScope()).FontSize(em(c, captionSize))
+			ui.Text(c, service).SingleLine().Tooltip(service + "\n" + r.config.Endpoint + "\n" + locales.RetranslateScope())
 			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-				all := len(r.checkedIDs()) == len(r.rows)
-				ui.Checkbox(c, &all, locales.RetranslateCheckAll()).Disabled(a.busy).OnChange(func() {
-					for i := range r.rows {
-						r.rows[i].checked = all
-					}
-				})
 				muted(c, r.progress).Grow(1)
 				if r.running {
 					ui.Button(c, locales.ActionCancel()).OnClick(func() {
@@ -311,7 +422,6 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 			r.list.Selected = &r.selected
 			r.list.Key = func(i int) any { return r.rows[i].cue.ID }
 			ui.Table(c, &r.list, []ui.TableColumn{
-				{Title: locales.RetranslatePick(), Width: em(c, 64), Fixed: true},
 				numberColumn(c, len(r.source.Cues)),
 				{Title: locales.TabSource()},
 				{Title: locales.TranslationModelState(), Width: em(c, 150), Fixed: true},
@@ -319,47 +429,30 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 				row := &r.rows[i]
 				switch col {
 				case 0:
-					ui.Checkbox(c, &row.checked, "").Label(locales.RetranslateCheckCue(row.cue.Position + 1)).Disabled(a.busy)
-				case 1:
 					ui.Text(c, fmt.Sprint(row.cue.Position+1))
-				case 2:
+				case 1:
 					text := subtitle.SourceText(row.cue)
 					ui.Text(c, text).SingleLine().Tooltip(text)
-				case 3:
-					label := locales.RetranslatePending()
-					if len(row.choices) > 0 {
-						label = locales.RetranslateVersion(row.choice + 1)
-						if !row.choices[row.choice].valid {
-							label = locales.RetranslateInvalid()
-						}
-					}
-					ui.Text(c, label).SingleLine()
+				case 2:
+					ui.Text(c, row.status()).SingleLine()
 				}
 			}).Height(em(c, listHeight)).Label(locales.RetranslateList())
 			if r.selected >= 0 && r.selected < len(r.rows) {
 				row := &r.rows[r.selected]
 				ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, locales.TabSource()).Shrink(0)
-					ui.Text(c, fmt.Sprintf("# %d · %s → %s", row.cue.Position+1, stamp(float64(row.cue.StartMs)/1000), stamp(float64(row.cue.EndMs)/1000))).Grow(1)
-					options := []string{locales.RetranslatePending()}
-					if len(row.choices) > 0 {
-						options = nil
-						for i := range row.choices {
-							options = append(options, locales.RetranslateVersion(i+1))
-						}
-					}
-					value := options[row.choice]
-					ui.Select(c, &value, options).Label(locales.RetranslateVersionLabel()).Disabled(a.busy || len(row.choices) == 0).OnChange(func() { row.choice = slices.Index(options, value) })
+					ui.Text(c, fmt.Sprintf("# %d", row.cue.Position+1)).Grow(1)
+					ui.Button(c, locales.RetranslateOne()).Disabled(a.busy || stale).OnClick(func() { a.startRetranslation(true) })
+					ui.Button(c, locales.RetranslateApplyOne()).Disabled(a.busy || stale || len(r.replacementEdits(true)) == 0).OnClick(func() { a.acceptRetranslation(true) })
 				})
 				source := subtitle.SourceText(row.cue)
 				ui.TextArea(c, &source).ReadOnly(true).Height(em(c, sourceHeight)).MinHeight(0).Label(locales.TabSource())
 				ui.Grid(c).Columns(2).Gap(em(c, 16)).Grow(1).MinHeight(0).Label(locales.RetranslateCompare()).Children(func() {
-					text := cueDisplayText(row.cue, 1)
-					candidate := ""
-					if len(row.choices) > 0 {
-						candidate = row.choices[row.choice].text
+					text, result := cueDisplayText(row.cue, 1), ""
+					if row.result != nil {
+						result = row.result.text
 					}
-					for _, field := range []struct{ label, text string }{{locales.RetranslateExisting(), text}, {locales.RetranslateCandidate(), candidate}} {
+					for _, field := range []struct{ label, text string }{{locales.RetranslateExisting(), text}, {locales.RetranslateCandidate(), result}} {
 						ui.Column(c).Fill().MinWidth(0).Gap(em(c, 6)).Children(func() {
 							ui.Text(c, field.label)
 							ui.TextArea(c, &field.text).ReadOnly(true).Grow(1).MinHeight(0).Label(field.label)
@@ -367,28 +460,25 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 					}
 				})
 				note := locales.RetranslateNoWrite()
-				if len(row.choices) > 0 && row.choices[row.choice].problems != "" {
-					note = row.choices[row.choice].problems
-				}
-				if a.retranslationStale(r) {
-					note = locales.RetranslateStale()
+				if row.result != nil && row.result.problems != "" {
+					note = row.result.problems
 				}
 				if r.errorText != "" {
 					note = r.errorText
+				}
+				if stale {
+					note = locales.RetranslateStale()
 				}
 				ui.TextArea(c, &note).ReadOnly(true).Height(em(c, noteHeight)).MinHeight(0).Label(locales.RetranslateChecks())
 			}
 		})
 	}, func() {
-		ui.Button(c, locales.ActionClose()).OnClick(func() { r.open = false })
+		ui.Button(c, locales.ActionClose()).Tooltip(locales.RetranslateCloseHint()).OnClick(func() { r.open = false })
 		label := locales.RetranslateAgain()
-		for _, row := range r.rows {
-			if len(row.choices) > 0 {
-				label = locales.RetranslateRetry()
-				break
-			}
+		if r.hasResults() {
+			label = locales.RetranslateRetry()
 		}
-		ui.Button(c, label).Disabled(a.busy || len(r.checkedIDs()) == 0 || a.retranslationStale(r)).OnClick(a.startRetranslation)
-		ui.PrimaryButton(c, locales.RetranslateApply()).Disabled(a.busy || len(r.replacementEdits()) == 0 || a.retranslationStale(r)).OnClick(a.acceptRetranslation)
+		ui.Button(c, label).Tooltip(locales.RetranslateScope()).Disabled(a.busy || stale).OnClick(func() { a.startRetranslation(false) })
+		ui.PrimaryButton(c, locales.RetranslateApply()).Disabled(a.busy || len(r.replacementEdits(false)) == 0 || stale).OnClick(func() { a.acceptRetranslation(false) })
 	})
 }

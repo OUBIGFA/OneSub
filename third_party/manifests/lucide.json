@@ -9,6 +9,24 @@
   "modifications": "none",
   "files": [
     {
+      "path": "apps/desktop/icons/eye.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/eye.svg",
+      "sha256": "5bf90197dd7629cad64a2e48d1186a71559deb6121207d10e3dc5b19ebaffdcf",
+      "bytes": 360
+    },
+    {
+      "path": "apps/desktop/icons/list-checks.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/list-checks.svg",
+      "sha256": "01516400eab1492cf7abe94a0a58d3809f8d3c59f24116a74658f49bbaf740e4",
+      "bytes": 336
+    },
+    {
+      "path": "apps/desktop/icons/copy-check.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/copy-check.svg",
+      "sha256": "43cbf371628e30e66841ce076ec21531111023672d36e47473589bdfc09789f5",
+      "bytes": 369
+    },
+    {
       "path": "apps/desktop/icons/text-search.svg",
       "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/text-search.svg",
       "sha256": "d061da4c197672050e7bbdec60e3442eebc1f2c9bd306be6ce6c20480c3ef8b6",
