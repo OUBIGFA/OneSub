@@ -80,6 +80,8 @@ type NativeApp struct {
 	list                                     ui.ListState
 	selected                                 int
 	query                                    string
+	subtitleChecked                          [2]map[string]bool // batch checks are independent of the editing row
+	retranslation                            *retranslationState
 	readingSnapshot                          *project.Snapshot
 	countSnapshot                            *project.Snapshot
 	originalCount, optimizedCount            int
@@ -221,6 +223,7 @@ func (a *NativeApp) view(c *ui.Context) {
 	a.composeView(c)
 	a.compressView(c)
 	a.translationView(c)
+	a.retranslationView(c)
 	a.providerDeleteView(c)
 	a.savePromptView(c)
 	a.clearView(c)

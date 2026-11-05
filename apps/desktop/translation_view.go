@@ -291,6 +291,19 @@ func (a *NativeApp) startTranslation() {
 	if a.busy || a.snapshot == nil || !a.commitEdit(true) {
 		return
 	}
+	config := a.translationConfig()
+	prefs := a.settings
+	task := &translationTask{ProjectID: a.snapshot.Manifest.ID, ProjectPath: a.snapshot.Path, Revision: a.snapshot.Revision, Source: a.snapshot.Document, Config: config, CredentialScope: prefs.CredentialScope(), Target: a.translationFile(), Format: a.trackFormats()[0], SavedHash: a.savedHash, SavedPath: a.savedPath}
+	if p := prefs.Provider(); p != nil {
+		task.ProviderName = p.Name
+	}
+	a.executeTranslationTask(task, newTranslationLive())
+}
+
+// translationConfig freezes the same service, language and rules for whole-file
+// translation and selected retranslation. Keys stay outside the stored config.
+func (a *NativeApp) translationConfig() translator.Config {
+	a.commitProviderModelInput()
 	prefs := a.settings
 	root, _ := a.skillTools()
 	config := translator.Config{Endpoint: prefs.ProviderURL, API: prefs.ProviderAPI, Model: prefs.ProviderModel, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(a.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests), CacheDir: filepath.Join(a.dataRoot, "cache", "translation")}
@@ -299,11 +312,7 @@ func (a *NativeApp) startTranslation() {
 	if info := prefs.ModelInfo(); info != nil {
 		config.MaxOutputTokens = info.MaxOutputTokens
 	}
-	task := &translationTask{ProjectID: a.snapshot.Manifest.ID, ProjectPath: a.snapshot.Path, Revision: a.snapshot.Revision, Source: a.snapshot.Document, Config: config, CredentialScope: prefs.CredentialScope(), Target: a.translationFile(), Format: a.trackFormats()[0], SavedHash: a.savedHash, SavedPath: a.savedPath}
-	if p := prefs.Provider(); p != nil {
-		task.ProviderName = p.Name
-	}
-	a.executeTranslationTask(task, newTranslationLive())
+	return config
 }
 
 func (a *NativeApp) executeTranslationTask(task *translationTask, live *translationLive) {

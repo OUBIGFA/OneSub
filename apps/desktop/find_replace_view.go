@@ -176,7 +176,13 @@ func (a *NativeApp) findReplaceView(c *ui.Context) {
 func (a *NativeApp) listTextEditWork(edits []project.Edit) func(context.Context) (func(), error) {
 	// Freeze the target before starting a background task; switching tabs or
 	// editing controls while it runs cannot redirect a batch to another track.
-	doc, revision, store, worker := a.activeDocument(), a.snapshot.Revision, a.store, a.worker
+	return a.listTextEditWorkFor(a.activeDocument(), a.snapshot.Revision, edits)
+}
+
+// Explicit document/revision inputs also serve the review dialog, whose target
+// must not depend on the visible original/optimized tab.
+func (a *NativeApp) listTextEditWorkFor(doc subtitle.Document, revision int64, edits []project.Edit) func(context.Context) (func(), error) {
+	store, worker := a.store, a.worker
 	return func(ctx context.Context) (func(), error) {
 		if len(edits) == 0 {
 			return nil, nil

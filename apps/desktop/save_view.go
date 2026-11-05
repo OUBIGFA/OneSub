@@ -40,6 +40,21 @@ func trackHash(doc subtitle.Document, track int) string {
 // setSnapshot replaces the shown project state and re-evaluates which tracks
 // differ from their files.
 func (a *NativeApp) setSnapshot(state project.Snapshot) {
+	if a.snapshot == nil || a.snapshot.Manifest.ID != state.Manifest.ID {
+		a.subtitleChecked = [2]map[string]bool{}
+		a.retranslation = nil
+	}
+	for track, checked := range a.subtitleChecked {
+		present := map[string]bool{}
+		for _, cue := range state.TrackDocument(track).Cues {
+			present[cue.ID] = true
+		}
+		for id := range checked {
+			if !present[id] {
+				delete(checked, id)
+			}
+		}
+	}
 	a.snapshot = &state
 	a.splitSkipped = nil
 	a.selected = min(a.selected, len(a.activeDocument().Cues)-1)
@@ -390,6 +405,8 @@ func (a *NativeApp) clearWorkbench() {
 	a.loadDraft()
 	a.pending, a.candidatesOpen = nil, false
 	a.translationCandidate, a.translationReview = nil, false
+	a.retranslation = nil
+	a.subtitleChecked = [2]map[string]bool{}
 	a.translationTask, a.translationLive = nil, nil
 	a.settings.TranslationRecovery = ""
 	a.settings.Processing = nil

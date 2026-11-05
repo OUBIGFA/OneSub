@@ -98,6 +98,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 				}
 			}
 			a.readingTools(c)
+			a.retranslationTools(c)
 			// Keep the review slot icon-sized. A long disabled label would
 			// wrap again and leave no subtitle row at the minimum pane size.
 			toolIcon(c, locales.TranslationResults(), "languages").Disabled(a.translationCandidate == nil).OnClick(func() { a.translationReview = true })
@@ -180,7 +181,11 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 		for _, cue := range cues {
 			maximum = max(maximum, cue.Position+1)
 		}
-		cols := []ui.TableColumn{numberColumn(c, maximum), timeColumn(c, locales.ListColumnStart()), timeColumn(c, locales.ListColumnEnd()), {Title: locales.ListColumnText(), Fixed: true}}
+		targets := a.retranslationTargets()
+		numbers := numberColumn(c, maximum)
+		numbers.Width += em(c, 28)
+		numbers.MinWidth = numbers.Width
+		cols := []ui.TableColumn{numbers, timeColumn(c, locales.ListColumnStart()), timeColumn(c, locales.ListColumnEnd()), {Title: locales.ListColumnText(), Fixed: true}}
 		loads := a.readingLoads()
 		table := subtitleTable(c, &a.list, cols, len(rows), func(row, col int) {
 			index := rows[row]
@@ -205,12 +210,20 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			}
 			switch col {
 			case 0:
-				number := cell(fmt.Sprint(cue.Position + 1))
-				// Mark only the number; selected rows keep MyGo's uniform
-				// accent and readable text instead of a second surface.
-				if index != a.selected && a.draftReading(cue, index, loads[index]).Problem() {
-					number.TextColor(c.Theme().Danger)
-				}
+				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+					checked := a.subtitleChecked[a.subtitleTab][cue.ID]
+					_, eligible := targets[cue.ID]
+					hint := locales.RetranslateCheckCue(cue.Position + 1)
+					if !eligible {
+						hint = locales.RetranslateUseOptimized()
+					}
+					ui.Checkbox(c, &checked, "").Label(locales.RetranslateCheckCue(cue.Position + 1)).Tooltip(hint).Disabled(a.busy || !eligible).OnChange(func() { a.setSubtitleChecked(cue.ID, checked) })
+					number := cell(fmt.Sprint(cue.Position + 1))
+					// Selected rows retain MyGo's uniform accent and readable text.
+					if index != a.selected && a.draftReading(cue, index, loads[index]).Problem() {
+						number.TextColor(c.Theme().Danger)
+					}
+				})
 			case 1:
 				cell(stamp(start))
 			case 2:
