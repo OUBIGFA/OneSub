@@ -12,15 +12,25 @@ Local-first subtitle workbench: recognize, split, translate, edit, compress, and
 
 </div>
 
-![OneSub workbench: original subtitles](https://github.com/OUBIGFA/OneSub/releases/download/v0.0.1/workbench-original.png)
+![OneSub workbench: original subtitles](assets/readme/workbench-original.webp)
 
-![OneSub workbench: rebuilt subtitles with translation](https://github.com/OUBIGFA/OneSub/releases/download/v0.0.1/workbench-translated.png)
+![OneSub workbench: rebuilt subtitles with translation](assets/readme/workbench-translated.webp)
+
+## Rebuild timing by sense groups: before and after
+
+Enable "Rebuild timing by sense groups" to merge isolated words and short fragments into complete sense groups. OneSub then adjusts cue boundaries from the source timing. Complete thoughts help the model translate more accurately.
+
+![Sense-group timing comparison: disabled on the left, enabled on the right](assets/readme/sense-group-comparison.webp)
+
+**Left: disabled. Right: enabled.** On the left, `equally.` has its own cue and appears for only 660 milliseconds. On the right, it joins the previous sentence. The complete cue runs from `00:00:27,880` to `00:00:31,820`. OneSub also joins `Next,` to the instruction that follows.
+
+OneSub saves the result in the rebuilt track and keeps the original track separate. With word-level timing, it aligns boundaries to real words. Without word-level timing, it only merges existing cues. We strongly recommend this option with `gpt-6-luna` or a model of equal or greater capability.
 
 ## Video demo
 
-[![OneSub demo: a 42-minute video, recognition and translation in 6 minutes](https://github.com/OUBIGFA/OneSub/releases/download/v0.0.1/demo-poster.png)](https://github.com/OUBIGFA/OneSub/releases/download/v0.0.1/OneSub-demo.mp4)
+https://github.com/user-attachments/assets/64fed7da-2e36-48a5-8409-68cfbcf6a299
 
-Click the image to play `OneSub-demo.mp4`. Demo conditions: 42-minute video; recognition model Qwen3-ASR 1.7B; AI model gpt-6-luna; "Rebuild timeline by sense group" on; recognition and translation took 6 minutes in total. Time changes with hardware, network, and service. Use it as a reference only.
+Demo conditions: 42-minute source video; Qwen3-ASR 1.7B recognition model; `gpt-6-luna` AI model; "Rebuild timing by sense groups" enabled. Recognition and translation took 6 minutes in this run. The demo runs at increased speed. Actual time depends on hardware, network, and service.
 
 ## What OneSub is
 
@@ -30,9 +40,9 @@ Recognition, editing, and export need no cloud account. Translation uses the AI 
 
 ## Key features
 
-- **Smart split**: Split long or fast cues in one click. OneSub uses real pauses between words first. Without word-level time, it estimates cut points inside the original time range and marks them "to be timed". A compact sentence with no valid cut point stays unchanged. You can undo a batch split in one step.
+- **Smart split**: Split long cues in one click, or use the context menu to split one cue. OneSub selects cut points from the text language. In the rebuilt track, the translation controls the split. OneSub uses real word-level timing when available. Otherwise, it estimates cut points within the original range and marks them for timing review. A compact sentence with no valid cut point stays unchanged. Undo a batch split in one step.
 - **Punctuation handling**: OneSub processes punctuation locally after translation. It adds no request and changes no prompt. You can remove or keep final punctuation. You can convert `.` inside a sentence to `,` and `。` to `，`. Email addresses, URLs, numbers, abbreviations, file names, and ellipses are protected. Recognition output keeps its original punctuation.
-- **Rebuild timeline by sense group**: Continuous dialogue is regrouped into full sentences. Text is aligned back to word-level time. A cue without word-level time can only merge. OneSub does not invent time.
+- **Rebuild timing by sense groups**: Merge isolated words and short fragments into complete sense groups before translation. Align boundaries to real words when word-level timing is available. Otherwise, only merge existing cues.
 - **Separate tracks**: Original, rebuilt, and translated tracks are independent. Edit, export, and undo each one (at least 200 steps). AI does not overwrite locked manual edits.
 - **Subtitles alone**: No video needed. Import SRT / VTT / ASS / SSA to edit, translate, and export. ASS keeps its layout. Choose TXT to export plain text without cue numbers, timestamps, or styling.
 - **Video compression alone**: No subtitle needed. OneSub encodes H.264 into MP4 or MKV, keeps audio and chapters, and never overwrites the source video.
@@ -90,7 +100,7 @@ Subtitles only: drop the subtitle file, then edit and translate. Video only: cli
 | Video encoding | CRF 23 | Small file, enough quality for most videos |
 | Translation concurrent batches | 2 to 5 | A higher number may hit service rate limits |
 | Cues per batch | 50 | Balances context and stability |
-| Rebuild timeline by sense group | Strongly recommended with a model at or above gpt-6-luna | More reliable translation and a better timeline |
+| Rebuild timing by sense groups | Strongly recommended with a model at or above gpt-6-luna | More reliable translation and a better timeline |
 
 A weaker model may fail to return stable segmentation. Turn the option off in that case.
 

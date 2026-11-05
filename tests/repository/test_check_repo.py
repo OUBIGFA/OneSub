@@ -100,7 +100,27 @@ class RepositoryCheckTests(unittest.TestCase):
         self.assertEqual(self.run_check().returncode, 0)
         self.write("apps/desktop/branding/logo.png", logo + b"modified")
         self.git("add", ".")
-        self.assert_rejected("branding asset hash mismatch")
+        self.assert_rejected("asset hash mismatch")
+
+    def test_registered_readme_images_pass_and_reject_changes(self):
+        # Real Git blobs exercise both approval and tampering at publication time.
+        for name in ("workbench-original.webp", "workbench-translated.webp", "sense-group-comparison.webp"):
+            with self.subTest(name=name):
+                path = "assets/readme/" + name
+                image = (ROOT / path).read_bytes()
+                self.write(path, image)
+                self.git("add", path)
+                self.assertEqual(self.run_check().returncode, 0)
+                self.write(path, image + b"modified")
+                self.git("add", path)
+                self.assert_rejected("asset hash mismatch")
+                self.write(path, image)
+                self.git("add", path)
+
+    def test_unregistered_readme_binary_is_rejected(self):
+        self.write("assets/readme/unregistered.webp", b"RIFF\x00\x00\x00\x00WEBP\xff")
+        self.git("add", ".")
+        self.assert_rejected("UTF-8 or binary file")
 
     def test_large_staged_file_is_rejected(self):
         self.write("large.txt", b"x" * (1024 * 1024 + 1))

@@ -15,10 +15,13 @@ from urllib.parse import unquote, urlsplit
 
 
 MAX_BYTES = 1024 * 1024
-# Only the maintainer-supplied branding source may be binary. A fixed digest
-# prevents this exception from becoming a general asset/secret bypass.
+# Register maintainer-supplied branding and README images by exact digest.
+# Keep the 1 MiB limit and reject all other binary files.
 APPROVED_BINARY = {
     "apps/desktop/branding/logo.png": "3dc212ad601d33ffd934e1f874b389220ecb8234862172488a4cb705cf79f9b3",
+    "assets/readme/workbench-original.webp": "44f59086e2ef7ee33aeafc22c9aa4b0fd9f1d5d60243ac9438d543139d938626",
+    "assets/readme/workbench-translated.webp": "555deb3ed0950faae898d7f5ddb5f1cffb64daf5ab048dd33b048fed18c1485f",
+    "assets/readme/sense-group-comparison.webp": "888ae9027302ac0714cb24ba07f1f03ce5226646cbac63b16470066cb7135fab",
 }
 CREDENTIAL = re.compile(
     r"(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{50,}"
@@ -90,7 +93,7 @@ def check():
         data = git("cat-file", "blob", blob)
         if path in APPROVED_BINARY:
             if hashlib.sha256(data).hexdigest() != APPROVED_BINARY[path]:
-                errors.append(f"{path}: branding asset hash mismatch")
+                errors.append(f"{path}: approved binary asset hash mismatch")
             continue
         try:
             text = data.decode("utf-8")
