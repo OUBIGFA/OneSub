@@ -1,4 +1,4 @@
-param([string]$Exe,[string]$Work,[string]$ScreenshotTool,[string]$Endpoint,[switch]$Packaged)
+param([string]$Exe,[string]$Work,[string]$ScreenshotTool,[string]$Endpoint,[switch]$Packaged,[switch]$LargeBatch)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -7,6 +7,9 @@ if(Test-Path $workPath){throw 'Use a fresh test directory'}
 New-Item -ItemType Directory $workPath | Out-Null
 $source=Join-Path $workPath 'sample.srt'
 $body="1`n00:00:00,000 --> 00:00:04,000`nFirst source.`n`n2`n00:00:05,000 --> 00:00:09,000`nSecond source.`n`n3`n00:00:10,000 --> 00:00:14,000`nThird source.`n"
+if($LargeBatch) {
+ $body=(1..200 | ForEach-Object {"$_`n00:00:00,000 --> 00:00:04,000`nSource sentence {0:000}.`n" -f $_}) -join "`n"
+}
 [IO.File]::WriteAllText($source,$body,[Text.UTF8Encoding]::new($false))
 $initialHash=(Get-FileHash $source).Hash
 $env:ONESUB_DATA_ROOT=Join-Path $workPath 'data'
@@ -44,6 +47,37 @@ function Capture($name){& $ScreenshotTool $p.Id (Join-Path $workPath $name) | Ou
 function Cue-Texts($path){return @([regex]::Matches([IO.File]::ReadAllText($path),'(?m)^\d+\r?\n[^\r\n]+ --> [^\r\n]+\r?\n([^\r\n]+)')|ForEach-Object{$_.Groups[1].Value})}
 try {
  [void](Wait-UI '选择字幕')
+ if($LargeBatch) {
+  Click-UI '全选';Click-UI '重译 · 200 条'
+  [void](Wait-UI '显示 200/200 条')
+  $list=(Find-UI '重译字幕列表').Current.BoundingRectangle
+  $compare=(Find-UI '译文对比').Current.BoundingRectangle
+  if($list.Height -lt 500 -or $list.Right -gt $compare.Left){throw 'Large batch list did not fill the review height'}
+  Capture 'large-batch.png'
+  $search=(Find-UI '搜索序号、原文或译文').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+  $search.SetValue('150');[void](Wait-UI '显示 1/200 条')
+  $row=Wait-UI 'Source sentence 150.'
+  $selected=$false
+  for($i=0;$i -lt 5 -and $row;$i++) {
+   $pattern=$null
+   if($row.TryGetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern,[ref]$pattern)){$pattern.Select();$selected=$true;break}
+   $row=[System.Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($row)
+  }
+  if(-not $selected){throw 'Filtered row has no native selection pattern'}
+  Wait-Text '原文' 'Source sentence 150.'
+  $search.SetValue('absent');[void](Wait-UI '显示 0/200 条')
+  Wait-Text '原文' 'Source sentence 150.'
+  $search.SetValue('');[void](Wait-UI '显示 200/200 条')
+  Click-UI '返回底部';[void](Wait-UI 'Source sentence 200.')
+  Wait-Text '原文' 'Source sentence 150.'
+  Capture 'large-batch-filtered.png'
+  Click-UI '关闭';Click-UI '查看重译结果'
+  Wait-Text '原文' 'Source sentence 150.'
+  Click-UI '关闭'
+  if((Get-FileHash $source).Hash -ne $initialHash){throw 'Browsing changed the source file'}
+  Write-Output 'PASS: native 200-cue review, full-height list, search, canonical selection, last-row navigation and reopen; no translation requests'
+  return
+ }
  if(Find-UI '勾选字幕 #1'){throw 'Unchecked list shows checkboxes'}
  Click-UI '全选';[void](Wait-UI '重译 · 3 条')
  Click-UI '取消勾选';[void](Wait-UI '选择字幕')

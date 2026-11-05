@@ -31,6 +31,7 @@ type retranslationState struct {
 	source              subtitle.Document
 	rows                []retranslationRow
 	selected            int
+	query               string
 	list                ui.ListState
 	config              translator.Config
 	provider, scope     string
@@ -377,6 +378,23 @@ func (row *retranslationRow) status() string {
 	return locales.RetranslateAvailable()
 }
 
+// Filtering changes only what is visible, never the frozen batch sent by
+// Translate all / Replace all. Selection remains a canonical row index.
+func (r *retranslationState) filteredRows() []int {
+	query := strings.ToLower(strings.TrimSpace(r.query))
+	rows := make([]int, 0, len(r.rows))
+	for i, row := range r.rows {
+		text := fmt.Sprint(row.cue.Position+1) + "\n" + subtitle.SourceText(row.cue) + "\n" + cueDisplayText(row.cue, 1)
+		if row.result != nil {
+			text += "\n" + row.result.text
+		}
+		if strings.Contains(strings.ToLower(text), query) {
+			rows = append(rows, i)
+		}
+	}
+	return rows
+}
+
 func (a *NativeApp) retranslationView(c *ui.Context) {
 	if a.retranslationNext != nil {
 		open := true
@@ -396,81 +414,103 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 	if r == nil {
 		return
 	}
-	_, height := c.Size()
-	listHeight, sourceHeight, noteHeight := float32(120), float32(60), float32(42)
-	if height < em(c, 760) {
-		listHeight, sourceHeight, noteHeight = 76, 40, 34
-	}
 	stale := a.retranslationStale(r)
-	fixedDialog(c, &r.open, locales.RetranslateTitle(), 1000, 720, func() {
-		ui.Column(c).Fill().Gap(em(c, 10)).Children(func() {
+	// The list and comparison share the full working height. A fixed 120-DIP
+	// strip showed only three cues even on a large monitor. The larger shell
+	// is bounded by this frame's window size and never grows with results.
+	fixedDialog(c, &r.open, locales.RetranslateTitle(), 1600, 1000, func() {
+		ui.Column(c).Fill().MinHeight(0).Gap(em(c, 12)).Children(func() {
 			service := r.provider + " · " + r.config.Model + " · " + r.config.TargetLanguage
 			if r.config.Model == "" || r.config.Endpoint == "" {
 				service = locales.WorkflowNoService()
 			}
-			ui.Text(c, service).SingleLine().Tooltip(service + "\n" + r.config.Endpoint + "\n" + locales.RetranslateScope())
-			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-				muted(c, r.progress).Grow(1)
-				if r.running {
-					ui.Button(c, locales.ActionCancel()).OnClick(func() {
-						if a.cancel != nil {
-							a.cancel()
-						}
-					})
+			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Shrink(0).Children(func() {
+				muted(c, service).SingleLine().Grow(1).MinWidth(0).Tooltip(service + "\n" + r.config.Endpoint + "\n" + locales.RetranslateScope())
+				muted(c, r.progress).SingleLine().Shrink(0)
+				// Reserve the same height before, during and after the request.
+				cancel := ui.Button(c, locales.ActionCancel()).OnClick(func() {
+					if a.cancel != nil {
+						a.cancel()
+					}
+				})
+				if !r.running {
+					cancel.Invisible()
 				}
 			})
-			r.list.Selected = &r.selected
-			r.list.Key = func(i int) any { return r.rows[i].cue.ID }
-			ui.Table(c, &r.list, []ui.TableColumn{
-				numberColumn(c, len(r.source.Cues)),
-				{Title: locales.TabSource()},
-				{Title: locales.TranslationModelState(), Width: em(c, 150), Fixed: true},
-			}, len(r.rows), func(i, col int) {
-				row := &r.rows[i]
-				switch col {
-				case 0:
-					ui.Text(c, fmt.Sprint(row.cue.Position+1))
-				case 1:
-					text := subtitle.SourceText(row.cue)
-					ui.Text(c, text).SingleLine().Tooltip(text)
-				case 2:
-					ui.Text(c, row.status()).SingleLine()
-				}
-			}).Height(em(c, listHeight)).Label(locales.RetranslateList())
-			if r.selected >= 0 && r.selected < len(r.rows) {
-				row := &r.rows[r.selected]
-				ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-					ui.Text(c, locales.TabSource()).Shrink(0)
-					ui.Text(c, fmt.Sprintf("# %d", row.cue.Position+1)).Grow(1)
-					ui.Button(c, locales.RetranslateOne()).Disabled(a.busy || stale).OnClick(func() { a.startRetranslation(true) })
-					ui.Button(c, locales.RetranslateApplyOne()).Disabled(a.busy || stale || len(r.replacementEdits(true)) == 0).OnClick(func() { a.acceptRetranslation(true) })
+			ui.Grid(c).Columns(2).RowTracks(ui.Fr(1)).Gap(em(c, 24)).Grow(1).Basis(0).MinHeight(0).Children(func() {
+				ui.Column(c).Fill().MinWidth(0).MinHeight(0).Gap(em(c, 12)).Children(func() {
+					if ui.SearchField(c, &r.query).Label(locales.RetranslateSearch()).Placeholder(locales.RetranslateSearch()).Changed() {
+						r.list.ScrollTo(0, ui.Start)
+					}
+					rows := r.filteredRows()
+					muted(c, locales.RetranslateVisible(len(rows), len(r.rows))).SingleLine().Tooltip(locales.RetranslateFilterScope())
+					selected := slices.Index(rows, r.selected)
+					r.list.Selected = &selected
+					r.list.Key = func(i int) any { return r.rows[rows[i]].cue.ID }
+					statusWidth := float32(0)
+					for _, label := range []string{locales.TranslationModelState(), locales.RetranslatePending(), locales.RetranslateInvalid(), locales.RetranslateAvailable(), locales.RetranslateApplied(), locales.RetranslateUnchanged()} {
+						w, _ := c.MeasureText(0, ui.Span{Text: label})
+						statusWidth = max(statusWidth, w+c.Theme().Space(5))
+					}
+					table := subtitleTable(c, &r.list, []ui.TableColumn{
+						numberColumn(c, len(r.source.Cues)),
+						{Title: locales.TabSource(), Fixed: true},
+						{Title: locales.TranslationModelState(), Width: statusWidth, Fixed: true},
+					}, len(rows), func(i, col int) {
+						row := &r.rows[rows[i]]
+						switch col {
+						case 0:
+							ui.Text(c, fmt.Sprint(row.cue.Position+1)).FontFeatures("tnum")
+						case 1:
+							text := subtitle.SourceText(row.cue)
+							ui.Text(c, text).SingleLine().Tooltip(text)
+						case 2:
+							ui.Text(c, row.status()).SingleLine()
+						}
+					}, func(bool) {}).Label(locales.RetranslateList())
+					if table.Changed() && selected >= 0 && selected < len(rows) {
+						r.selected = rows[selected]
+					}
 				})
-				source := subtitle.SourceText(row.cue)
-				ui.TextArea(c, &source).ReadOnly(true).Height(em(c, sourceHeight)).MinHeight(0).Label(locales.TabSource())
-				ui.Grid(c).Columns(2).Gap(em(c, 16)).Grow(1).MinHeight(0).Label(locales.RetranslateCompare()).Children(func() {
-					text, result := cueDisplayText(row.cue, 1), ""
+				ui.Column(c).Fill().MinWidth(0).MinHeight(0).Gap(em(c, 12)).Label(locales.RetranslateCompare()).Children(func() {
+					if r.selected < 0 || r.selected >= len(r.rows) {
+						return
+					}
+					row := &r.rows[r.selected]
+					ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Wrap().Children(func() {
+						ui.Text(c, fmt.Sprintf("# %d", row.cue.Position+1)).Grow(1).FontFeatures("tnum")
+						ui.Button(c, locales.RetranslateOne()).Disabled(a.busy || stale).OnClick(func() { a.startRetranslation(true) })
+						ui.Button(c, locales.RetranslateApplyOne()).Disabled(a.busy || stale || len(r.replacementEdits(true)) == 0).OnClick(func() { a.acceptRetranslation(true) })
+					})
+					result := ""
 					if row.result != nil {
 						result = row.result.text
 					}
-					for _, field := range []struct{ label, text string }{{locales.RetranslateExisting(), text}, {locales.RetranslateCandidate(), result}} {
-						ui.Column(c).Fill().MinWidth(0).Gap(em(c, 6)).Children(func() {
-							ui.Text(c, field.label)
+					for _, field := range []struct{ label, text string }{
+						{locales.TabSource(), subtitle.SourceText(row.cue)},
+						{locales.RetranslateExisting(), cueDisplayText(row.cue, 1)},
+						{locales.RetranslateCandidate(), result},
+					} {
+						ui.Column(c).Grow(1).Basis(0).MinHeight(0).Gap(em(c, 6)).Children(func() {
+							ui.Text(c, field.label).Shrink(0)
 							ui.TextArea(c, &field.text).ReadOnly(true).Grow(1).MinHeight(0).Label(field.label)
 						})
 					}
 				})
-				note := locales.RetranslateNoWrite()
-				if row.result != nil && row.result.problems != "" {
-					note = row.result.problems
+			})
+			note := locales.RetranslateNoWrite()
+			if r.selected >= 0 && r.selected < len(r.rows) {
+				if result := r.rows[r.selected].result; result != nil && result.problems != "" {
+					note = result.problems
 				}
-				if r.errorText != "" {
-					note = r.errorText
-				}
-				if stale {
-					note = locales.RetranslateStale()
-				}
-				ui.TextArea(c, &note).ReadOnly(true).Height(em(c, noteHeight)).MinHeight(0).Label(locales.RetranslateChecks())
 			}
+			if r.errorText != "" {
+				note = r.errorText
+			}
+			if stale {
+				note = locales.RetranslateStale()
+			}
+			ui.TextArea(c, &note).ReadOnly(true).Height(em(c, 42)).MinHeight(0).Shrink(0).Label(locales.RetranslateChecks())
 		})
 	}, func() {
 		ui.Button(c, locales.ActionClose()).Tooltip(locales.RetranslateCloseHint()).OnClick(func() { r.open = false })

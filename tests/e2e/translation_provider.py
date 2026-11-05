@@ -63,6 +63,7 @@ if __name__ == "__main__":
     parser.add_argument("--packaged", action="store_true")
     parser.add_argument("--interrupt", action="store_true")
     parser.add_argument("--pipeline-models-root")
+    parser.add_argument("--pipeline-model", default="Qwen3-ASR-1.7B-hf")
     parser.add_argument("--uia-playback", action="store_true", help="Use UI Automation on a locked desktop; does not test Space")
     args = parser.parse_args()
     Provider.interrupt = args.interrupt
@@ -80,7 +81,7 @@ if __name__ == "__main__":
                       f"-ScreenshotTool {literal(args.screenshot_tool)} "
                       f"-TranslationEndpoint 'http://127.0.0.1:{server.server_port}/v1'")
         if args.pipeline_models_root:
-            invocation += f" -ModelsRoot {literal(args.pipeline_models_root)}"
+            invocation += f" -ModelsRoot {literal(args.pipeline_models_root)} -AsrModel {literal(args.pipeline_model)}"
         else:
             invocation += " -OpenArgument"
         if args.packaged:

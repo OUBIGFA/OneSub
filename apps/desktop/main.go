@@ -12,8 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
-	"slices"
 	"strings"
 	"time"
 
@@ -868,20 +866,9 @@ func main() {
 		}
 		return
 	}
-	// WebView2's DirectComposition video path can keep a stale first-frame
-	// clip even after DOM/native bounds agree. Use Chromium's composited
-	// presentation path without disabling hardware video decoding or MyGo's renderer.
-	// This environment change belongs only to this process and its WebView2
-	// children, never the user's system settings. See the verification note.
-	if runtime.GOOS == "windows" {
-		const flag = "--disable-direct-composition"
-		arguments := os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS")
-		if !slices.Contains(strings.Fields(arguments), flag) {
-			if err := os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", strings.TrimSpace(arguments+" "+flag)); err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
+	// Keep WebView2's supported composition path. Disabling DirectComposition
+	// leaves composition-hosted media invisible on newer WebView2 runtimes,
+	// even while the page decodes video and reports no playback error.
 	// Claim the application before any worker, data store or tray is created.
 	if !mygo.App.RequestSingleInstanceLock() {
 		return
