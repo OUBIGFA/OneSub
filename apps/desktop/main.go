@@ -168,12 +168,9 @@ type NativeApp struct {
 	fontCatalogLoading                       bool
 	translationReview                        bool // the check results of the last translation are shown
 	translationCandidate                     *translationCandidate
-	translationList                          ui.ListState
 	translationProfiles                      []translator.Profile
 	profilesError                            string
-	translationSelected, translationCheckTab int
-	translationQuery                         string
-	translationReviewPage                    int
+	translationCheckTab                      int
 	translationIssueList                     ui.ListState
 	translationIssueSelected                 int
 	translationIssueQuery                    string
@@ -880,6 +877,10 @@ func main() {
 	// Keep WebView2's supported composition path. Disabling DirectComposition
 	// leaves composition-hosted media invisible on newer WebView2 runtimes,
 	// even while the page decodes video and reports no playback error.
+	// Configure the video presentation path before MyGo initializes WebView2.
+	if err := configurePlayerRuntime(); err != nil {
+		log.Fatal(err)
+	}
 	// Claim the application before any worker, data store or tray is created.
 	if !mygo.App.RequestSingleInstanceLock() {
 		return

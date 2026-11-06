@@ -108,10 +108,9 @@ func TestFinishedTranslationIsAppliedAndSavedBesideItsSource(t *testing.T) {
 func TestTranslationWithCheckErrorsStaysUnsaved(t *testing.T) {
 	a, dir, candidate := translationApp(t)
 	candidate.Checks.Errors = []string{"#1: protected subtitle markup changed"}
-	a.translationQuery, a.translationSelected, a.translationCheckTab = "old search", 99, reviewWarningFindings
-	a.translationReviewPage, a.translationIssueSelected, a.translationIssueQuery = 1, 99, "old error"
+	a.translationCheckTab, a.translationIssueSelected, a.translationIssueQuery = reviewWarningFindings, 99, "old error"
 	a.applyTranslation(candidate, a.translationFile(), nil)
-	if a.translationQuery != "" || a.translationSelected != 0 || a.translationCheckTab != reviewAllFindings || a.translationReviewPage != 0 || a.translationIssueSelected != 0 || a.translationIssueQuery != "" {
+	if a.translationCheckTab != reviewAllFindings || a.translationIssueSelected != 0 || a.translationIssueQuery != "" {
 		t.Fatal("new check report kept the old search, row or warning tab")
 	}
 	if a.snapshot.Document.Cues[0].Text != "你好" || !a.unsaved[1] || !a.translationReview || !strings.Contains(a.status, "1 项错误") {
