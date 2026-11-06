@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"reflect"
 	"slices"
 	"strings"
@@ -34,11 +35,11 @@ func TestReadingToolsBothTracksLocateOutsideSearchAndUpdateDraft(t *testing.T) {
 					if !tt.HasText(locales.ReadingSplitCount(2)) {
 						t.Fatal("split target count missing")
 					}
+					if !tt.HasText(locales.ReadingLongCues()) {
+						t.Fatal("default issue type is not shown on the picker")
+					}
 					nextLong := func() {
-						if err := tt.Click(locales.ReadingInspect()); err != nil {
-							t.Fatal(err)
-						}
-						if err := tt.ChooseMenuItem(locales.ReadingViewLong(2)); err != nil {
+						if err := tt.Click(locales.ReadingNext()); err != nil {
 							t.Fatal(err)
 						}
 					}
@@ -46,7 +47,7 @@ func TestReadingToolsBothTracksLocateOutsideSearchAndUpdateDraft(t *testing.T) {
 					if a.selected != 1 || a.query != "" || a.position != 1.5 || !a.followHeld {
 						t.Fatal("locate changed playback or ignored search", a.selected, a.query)
 					}
-					if tt.HasText(locales.ReadingLong()) {
+					if slices.Contains(tt.Texts(), locales.ReadingLong()) {
 						t.Fatal("reading hint is still inside the subtitle list")
 					}
 					a.status = "Previous operation"
@@ -259,6 +260,121 @@ func TestSmartSplitAutomaticallyCleansBothTextLayersWithOneUndo(t *testing.T) {
 	}
 }
 
+// An unselected list starts at the relevant end. A single match wraps to
+// itself; unrelated categories leave selection, search and playback alone.
+func TestReadingNavigationUnselectedSingleAndNoMatches(t *testing.T) {
+	a := storeApp(t,
+		subtitle.Cue{ID: "first", Text: strings.Repeat("长", 30), EndMs: 10000},
+		subtitle.Cue{ID: "normal", Text: "Short", StartMs: 11000, EndMs: 15000},
+		subtitle.Cue{ID: "last", Text: strings.Repeat("长", 30), StartMs: 16000, EndMs: 26000})
+	for _, target := range []struct{ direction, index int }{{1, 0}, {-1, 2}} {
+		a.selected, a.query, a.position = -1, "Short", 7.5
+		a.locateReadingIssue("long", target.direction)
+		if a.selected != target.index || a.query != "" || a.position != 7.5 {
+			t.Fatal("unselected navigation did not start at the expected end", a.selected)
+		}
+	}
+	for _, direction := range []int{-1, 1} {
+		a.query = "Short"
+		a.locateReadingIssue("brief", direction)
+		if a.selected != 2 || a.query != "Short" || a.position != 7.5 {
+			t.Fatal("missing category changed list state")
+		}
+	}
+	single := storeApp(t, subtitle.Cue{ID: "only", Text: strings.Repeat("长", 30), EndMs: 10000})
+	for _, direction := range []int{-1, 1} {
+		single.locateReadingIssue("long", direction)
+		if single.selected != 0 || single.locateCue != 0 {
+			t.Fatal("single issue did not wrap to itself")
+		}
+	}
+}
+
+func TestReadingNavigationRetainsCategoryAcrossTracksAndDisablesLiveProgress(t *testing.T) {
+	a := storeApp(t, subtitle.Cue{ID: "brief", Text: "字", EndMs: 500})
+	if _, err := a.store.ApplyTranslation("translate", a.snapshot.Revision, []project.Edit{{ID: "brief", Text: "词", StartMs: 0, EndMs: 500}}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := a.store.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.setSnapshot(state)
+	tt := settled(a.readingTools, 500, 200)
+	if err := tt.Click(locales.ReadingIssueType()); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.ChooseMenuItem(locales.ReadingViewBrief(1)); err != nil {
+		t.Fatal(err)
+	}
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			for _, tab := range []int{1, 0, 1} {
+				a.changeSubtitleTab(tab)
+				tt.Frame()
+				if !tt.HasText(locales.ReadingBriefCues()) {
+					t.Fatal("track or language change reset the category", language, tab)
+				}
+			}
+		})
+	}
+	a.translationLive, a.translationRunning = &translationLive{}, true
+	a.query = "hidden"
+	tt.Frame()
+	for _, label := range []string{locales.ReadingIssueType(), locales.ReadingPrevious(), locales.ReadingNext()} {
+		if err := tt.Click(label); err != nil || tt.Menu() != nil || tt.Focused(label) || a.query != "hidden" {
+			t.Fatal("reading navigation activated during live translation", label, err)
+		}
+	}
+}
+
+// The picker reserves its longest label. All three controls stay on one row
+// at the minimum pane width, in both themes and all supported text scales.
+func TestReadingCategoryControlsKeepLayout(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			for _, dark := range []bool{false, true} {
+				for _, scale := range []float32{1, 1.5, 2} {
+					a := storeApp(t, subtitle.Cue{ID: "all", Text: strings.Repeat("长", 30), EndMs: 500})
+					tt := settled(a.subtitlesView, int(320*scale), int(800*scale))
+					tt.SetDark(dark)
+					tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
+					picker, _ := tt.Find(locales.ReadingIssueType())
+					previous, _ := tt.Find(locales.ReadingPrevious())
+					next, _ := tt.Find(locales.ReadingNext())
+					if picker.X < 0 || previous.X < picker.X+picker.W || next.X < previous.X+previous.W || next.X+next.W > 320*scale || math.Abs(float64(picker.Y+picker.H/2-previous.Y-previous.H/2)) > 0.5 || math.Abs(float64(previous.Y+previous.H/2-next.Y-next.H/2)) > 0.5 {
+						t.Fatal("issue picker and navigation clipped or separated", language, scale, picker, previous, next)
+					}
+					for _, label := range []string{locales.ReadingPrevious(), locales.ReadingNext()} {
+						button, ok := tt.Find(label)
+						if !ok || math.Abs(float64(button.W-button.H)) > 0.5 {
+							t.Fatal("navigation button is not icon-sized", label, button)
+						}
+						if bounds, ok := tt.Find(locales.A11yIconOf(label)); !ok || bounds.W <= 0 || bounds.H <= 0 {
+							t.Fatal("navigation button has no Lucide icon", label)
+						}
+					}
+					for _, category := range []string{locales.ReadingViewFast(1), locales.ReadingViewBrief(1), locales.ReadingViewLong(1)} {
+						if err := tt.Click(locales.ReadingIssueType()); err != nil {
+							t.Fatal(err)
+						}
+						if err := tt.ChooseMenuItem(category); err != nil {
+							t.Fatal(err)
+						}
+						p, _ := tt.Find(locales.ReadingIssueType())
+						prev, _ := tt.Find(locales.ReadingPrevious())
+						n, _ := tt.Find(locales.ReadingNext())
+						if p != picker || prev != previous || n != next {
+							t.Fatal("category change moved the controls", picker, p, previous, prev, next, n)
+						}
+					}
+					captureRedesign(t, tt, fmt.Sprintf("reading-picker-%s-dark%t-%g", language, dark, scale))
+				}
+			}
+		})
+	}
+}
+
 func BenchmarkReadingToolbar20000(b *testing.B) {
 	cues := make([]subtitle.Cue, 20000)
 	for i := range cues {
@@ -274,8 +390,8 @@ func BenchmarkReadingToolbar20000(b *testing.B) {
 	}
 }
 
-// The split action counts only long cues. Its neutral face and the separate
-// category menu keep automatic splitting distinct from timing review.
+// The split action counts only long cues. The picker exposes the current
+// category; Previous and Next navigate that category without seeking media.
 func TestReadingToolbarCountMatchesSplitAndCategoryNavigation(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
@@ -314,7 +430,7 @@ func TestReadingToolbarCountMatchesSplitAndCategoryNavigation(t *testing.T) {
 							}
 						}
 					}
-					if err := tt.Click(locales.ReadingInspect()); err != nil {
+					if err := tt.Click(locales.ReadingIssueType()); err != nil {
 						t.Fatal(err)
 					}
 					if want := []string{locales.ReadingViewLong(1), locales.ReadingViewFast(2), locales.ReadingViewBrief(2)}; !slices.Equal(tt.Menu(), want) {
@@ -323,17 +439,34 @@ func TestReadingToolbarCountMatchesSplitAndCategoryNavigation(t *testing.T) {
 					if err := tt.ChooseMenuItem(locales.ReadingViewFast(2)); err != nil {
 						t.Fatal(err)
 					}
-					if a.selected != 1 || a.query != "" || a.position != 9.4 || !a.followHeld {
-						t.Fatal("category navigation ignored search or changed the video")
+					if !tt.HasText(locales.ReadingFastCues()) || a.selected != 0 || a.query != "Short" || a.position != 9.4 {
+						t.Fatal("category choice did not update the picker or unexpectedly navigated")
 					}
 					for _, target := range []struct {
-						label string
-						index int
-					}{{locales.ReadingViewFast(2), 2}, {locales.ReadingViewBrief(2), 3}, {locales.ReadingViewBrief(2), 1}} {
-						if err := tt.Click(locales.ReadingInspect()); err != nil {
+						button string
+						index  int
+					}{{locales.ReadingNext(), 1}, {locales.ReadingNext(), 2}, {locales.ReadingPrevious(), 1}, {locales.ReadingPrevious(), 2}} {
+						if err := tt.Click(target.button); err != nil {
 							t.Fatal(err)
 						}
-						if err := tt.ChooseMenuItem(target.label); err != nil {
+						if a.selected != target.index || a.query != "" || a.position != 9.4 || !a.followHeld {
+							t.Fatal("category navigation ignored direction, search or video position", a.selected)
+						}
+					}
+					if err := tt.Click(locales.ReadingIssueType()); err != nil {
+						t.Fatal(err)
+					}
+					if err := tt.ChooseMenuItem(locales.ReadingViewBrief(2)); err != nil {
+						t.Fatal(err)
+					}
+					if !tt.HasText(locales.ReadingBriefCues()) {
+						t.Fatal("picker did not retain the brief category")
+					}
+					for _, target := range []struct {
+						button string
+						index  int
+					}{{locales.ReadingNext(), 3}, {locales.ReadingNext(), 1}, {locales.ReadingPrevious(), 3}} {
+						if err := tt.Click(target.button); err != nil {
 							t.Fatal(err)
 						}
 						if a.selected != target.index || a.position != 9.4 {
@@ -370,7 +503,12 @@ func TestReadingToolbarDraftCountAndTimingOnlyIssues(t *testing.T) {
 			if err := tt.Click(locales.ReadingSplitCount(0)); err != nil || a.busy {
 				t.Fatal("zero long cues still started a split task", err)
 			}
-			if err := tt.Click(locales.ReadingInspect()); err != nil {
+			for _, label := range []string{locales.ReadingPrevious(), locales.ReadingNext()} {
+				if err := tt.Click(label); err != nil || a.selected != 0 || tt.Focused(label) {
+					t.Fatal("zero-count category still navigates", label, err)
+				}
+			}
+			if err := tt.Click(locales.ReadingIssueType()); err != nil {
 				t.Fatal(err)
 			}
 			if err := tt.ChooseMenuItem(locales.ReadingViewLong(0)); err == nil {
@@ -379,6 +517,9 @@ func TestReadingToolbarDraftCountAndTimingOnlyIssues(t *testing.T) {
 			if err := tt.ChooseMenuItem(locales.ReadingViewFast(1)); err != nil {
 				t.Fatal("speed-only issue cannot be reviewed", err)
 			}
+			if err := tt.Click(locales.ReadingNext()); err != nil || !a.followHeld || a.editPending {
+				t.Fatal("navigation did not commit the draft and locate its issue", err)
+			}
 			a.draft, a.end = "Short", 4
 			a.changed(tt.Now())
 			tt.Frame()
@@ -386,8 +527,16 @@ func TestReadingToolbarDraftCountAndTimingOnlyIssues(t *testing.T) {
 			if !tt.HasText(locales.ReadingSplitCount(0)) || tt.HasText(locales.A11yWarningIcon()) {
 				t.Fatal("cleared draft left a misleading warning")
 			}
-			if err := tt.Click(locales.ReadingInspect()); err != nil || len(tt.Menu()) != 0 {
+			if err := tt.Click(locales.ReadingIssueType()); err != nil || len(tt.Menu()) != 0 {
 				t.Fatal("empty reading categories still open a menu", err)
+			}
+			if !tt.HasText(locales.ReadingFastCues()) {
+				t.Fatal("clearing the last issue reset the chosen category")
+			}
+			for _, label := range []string{locales.ReadingPrevious(), locales.ReadingNext()} {
+				if err := tt.Click(label); err != nil || tt.Focused(label) {
+					t.Fatal("cleared category navigation stayed active", label, err)
+				}
 			}
 		})
 	}
@@ -404,7 +553,7 @@ func TestReadingToolbarLargeCountsFitMinimumPane(t *testing.T) {
 			}
 			a := storeApp(t, cues...)
 			tt := settled(a.subtitlesView, 320, 600)
-			for _, label := range []string{locales.ReadingSplitCount(len(cues)), locales.ReadingInspect()} {
+			for _, label := range []string{locales.ReadingSplitCount(len(cues)), locales.ReadingIssueType(), locales.ReadingPrevious(), locales.ReadingNext()} {
 				bounds, found := tt.Find(label)
 				if !found || bounds.X < 0 || bounds.X+bounds.W > 320 {
 					t.Fatal("large reading count clipped in the minimum pane", language, label, bounds)
@@ -420,7 +569,7 @@ func TestReadingToolbarNarrowPane(t *testing.T) {
 			a := storeApp(t, subtitle.Cue{ID: "a", Text: strings.Repeat("word ", 20), StartMs: 0, EndMs: 15000})
 			for _, width := range []int{360, 520, 900} {
 				tt := settled(a.subtitlesView, width, 600)
-				for _, label := range []string{locales.ReadingSplitCount(1), locales.ReadingInspect(), locales.FindReplace(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.ListSaveAs()} {
+				for _, label := range []string{locales.ReadingSplitCount(1), locales.ReadingIssueType(), locales.ReadingPrevious(), locales.ReadingNext(), locales.FindReplace(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.ListSaveAs()} {
 					bounds, ok := tt.Find(label)
 					if !ok || bounds.X < 0 || bounds.X+bounds.W > float32(width)+1 {
 						t.Fatalf("clipped %q at width %v: %+v", label, width, bounds)

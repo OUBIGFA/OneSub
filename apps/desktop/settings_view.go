@@ -155,8 +155,8 @@ func (a *NativeApp) mcpSettingsView(c *ui.Context) {
 	})
 }
 
-// routeField chooses the model that automatic recognition uses for a
-// language group, among the models that recognize it.
+// routeField chooses among downloaded models that recognize the language
+// group. Missing saved choices stay in preferences, not in the usable menu.
 func (a *NativeApp) routeField(c *ui.Context, group string) {
 	title := locales.RouteGroupEu()
 	for _, o := range sourceLanguages() {
@@ -167,12 +167,16 @@ func (a *NativeApp) routeField(c *ui.Context, group string) {
 	ui.Field(c, title, func() {
 		options := []option{}
 		for _, m := range models.Catalog() {
-			if m.GroupSupported(group) {
+			if m.GroupSupported(group) && a.asrDownloaded(m.ID) {
 				options = append(options, option{m.ID, m.Label})
 			}
 		}
 		chosen := routeModel(a.settings, group)
-		idSelect(c, &chosen, options).Label(title).OnChange(func() {
+		placeholder := locales.RecognitionChooseDownloadedModel()
+		if len(options) == 0 {
+			placeholder = locales.RecognitionNoDownloadedModel()
+		}
+		idSelect(c, &chosen, options, placeholder).Label(title).Disabled(a.busy || len(options) == 0).OnChange(func() {
 			if a.settings.LanguageModels == nil {
 				a.settings.LanguageModels = map[string]string{}
 			}
@@ -224,7 +228,7 @@ func (a *NativeApp) recognitionModelField(c *ui.Context, title, kind string, id 
 		ui.Row(c).Gap(em(c, 12)).Children(func() {
 			options := []option{}
 			for _, m := range models.Catalog() {
-				if m.Kind == kind {
+				if m.Kind == kind && (kind != "lid" || m.FilesPresent(a.modelPath(m.ID))) {
 					options = append(options, option{m.ID, m.Label})
 				}
 			}
@@ -235,7 +239,9 @@ func (a *NativeApp) recognitionModelField(c *ui.Context, title, kind string, id 
 			if kind == "asr" {
 				a.settingsAsrSelect(c).Label(locales.A11yModelOf(title)).Grow(1)
 			} else {
-				idSelect(c, id, options).Label(locales.A11yModelOf(title)).Grow(1).OnChange(changed)
+				// The language detector shares the downloaded-only rule. Its
+				// management action still opens the complete download catalog.
+				idSelect(c, id, options, locales.ModelNotDownloaded()).Label(locales.A11yModelOf(title)).Grow(1).Disabled(a.busy || len(options) == 0).OnChange(changed)
 			}
 			ui.Button(c, locales.ModelManage()).Label(locales.A11yManageModel(title)).OnClick(func() { a.modelSelection = *id; a.modelOpen = true })
 		})

@@ -9,6 +9,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/models"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
+	"github.com/egoist/mygo/ui"
 )
 
 // An empty or partial model directory must not expose an unusable model name
@@ -90,6 +91,88 @@ func TestDownloadedModelSelectionDefaultsAutoAndKeepsOverride(t *testing.T) {
 	prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
 	if err != nil || prefs.Language != "ja" || prefs.ManualLanguages[models.FallbackModel] != "ja" {
 		t.Fatal("source-language override was lost on save/restart", prefs.Language, prefs.ManualLanguages, err)
+	}
+}
+
+// Each route filters the same availability snapshot used by the workbench,
+// then keeps only compatible languages. A stale saved ID must not be exposed.
+func TestLanguageRouteMenusOnlyOfferDownloadedCompatibleModels(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			for _, route := range []struct{ group, title, id string }{
+				{"zh", locales.LanguageChina() + "-ZH", "sherpa-paraformer-zh-int8"},
+				{"en", locales.LanguageBritain() + "-EN", "sherpa-parakeet-tdt-0.6b-v3-fp32"},
+				{"eu", locales.RouteGroupEu(), "sherpa-parakeet-tdt-0.6b-v3-fp32"},
+			} {
+				a := nativeForTest(t)
+				a.downloadedAsr = []option{}
+				for _, id := range []string{"sherpa-paraformer-zh-int8", "sherpa-parakeet-tdt-0.6b-v3-fp32"} {
+					model, err := models.ByID(id)
+					if err != nil {
+						t.Fatal(err)
+					}
+					a.downloadedAsr = append(a.downloadedAsr, option{id, model.Label})
+				}
+				tt := settled(func(c *ui.Context) { a.routeField(c, route.group) }, 480, 200)
+				if !tt.HasText(locales.RecognitionChooseDownloadedModel()) {
+					t.Fatal("missing default route model is shown as usable", tt.Texts())
+				}
+				if err := tt.Click(route.title); err != nil {
+					t.Fatal(err)
+				}
+				for _, model := range models.Catalog() {
+					if model.Kind == "asr" && tt.HasText(model.Label) != (model.ID == route.id) {
+						t.Fatal("route menu includes a missing/incompatible model or omits the usable one", route.group, model.ID)
+					}
+				}
+				model, _ := models.ByID(route.id)
+				if err := tt.Click(model.Label); err != nil {
+					t.Fatal(err)
+				}
+				prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
+				if err != nil || prefs.LanguageModels[route.group] != route.id {
+					t.Fatal("downloaded route choice did not persist", err, prefs.LanguageModels)
+				}
+				// Refresh after a removal must hide the old choice without
+				// discarding the preference if the user restores its files.
+				a.refreshDownloadedAsrModels()
+				tt.Frame()
+				if !tt.HasText(locales.RecognitionNoDownloadedModel()) || tt.HasText(model.Label) || a.settings.LanguageModels[route.group] != route.id {
+					t.Fatal("removal left a missing model visible or discarded the route choice")
+				}
+				if err := tt.Click(route.title); err != nil || tt.Focused(route.title) {
+					t.Fatal("empty route model menu remained active", err)
+				}
+			}
+		})
+	}
+}
+
+func TestLanguageRoutesWithoutDownloadsKeepManagementAvailable(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			a := nativeForTest(t)
+			a.refreshDownloadedAsrModels()
+			a.settingsOpen, a.settingsTab = true, 5
+			tt := settled(a.view, 1400, 800)
+			if !tt.HasText(locales.RecognitionNoDownloadedModel()) {
+				t.Fatal("missing language models have no download hint")
+			}
+			for _, group := range []string{locales.LanguageChina() + "-ZH", locales.LanguageCantonese() + "-YUE", locales.LanguageJapan() + "-JA", locales.LanguageKorea() + "-KO", locales.LanguageBritain() + "-EN", locales.RouteGroupEu(), locales.A11yModelOf(locales.ModelKindLid())} {
+				if err := tt.Click(group); err != nil || tt.Focused(group) {
+					t.Fatal("undownloaded language model selector is active", group, err)
+				}
+			}
+			if err := tt.Click(locales.A11yManageModel(locales.ModelKindLid())); err != nil || !a.modelOpen {
+				t.Fatal("download management is unavailable", err)
+			}
+			if err := tt.Click(locales.ModelCatalog()); err != nil {
+				t.Fatal(err)
+			}
+			if len(tt.Menu()) != len(models.Catalog()) {
+				t.Fatal("download manager lost the complete model catalog", tt.Menu())
+			}
+		})
 	}
 }
 

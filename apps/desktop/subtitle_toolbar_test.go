@@ -26,7 +26,7 @@ func TestSubtitleToolbarKeepsEmptyTrackToolsVisibleAndDisabled(t *testing.T) {
 							a.changeSubtitleTab(1)
 						}
 						tt := settled(a.subtitlesView, width, 800)
-						tools := []string{locales.SubtitleActionsMenu(), locales.ListLocate(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.FindReplace(), locales.ListSearch(), locales.ReadingSplitCount(0), locales.ReadingInspect(), locales.TranslationResults(), locales.ListSave(), locales.ListSaveAs()}
+						tools := []string{locales.SubtitleActionsMenu(), locales.ListLocate(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.FindReplace(), locales.ListSearch(), locales.ReadingSplitCount(0), locales.ReadingIssueType(), locales.ReadingPrevious(), locales.ReadingNext(), locales.TranslationResults(), locales.ListSave(), locales.ListSaveAs()}
 						insideRedesign(t, tt, locales.A11ySubtitleActions(), append([]string{locales.ListImport()}, tools...)...)
 						followPending := a.followPending
 						for _, label := range tools {

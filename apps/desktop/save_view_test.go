@@ -201,9 +201,9 @@ func TestSubtitleSaveAsIconAndFileSeparator(t *testing.T) {
 			group, found := tt.Find(locales.A11ySubtitleFileActions())
 			save, _ := tt.Find(locales.ListSave())
 			saveAs, _ := tt.Find(locales.ListSaveAs())
-			inspect, _ := tt.Find(locales.ReadingInspect())
+			next, _ := tt.Find(locales.ReadingNext())
 			fileIcon, hasIcon := tt.Find(locales.A11yIconOf(locales.ListSaveAs()))
-			if !found || group.X <= inspect.X+inspect.W || save.X <= group.X || !hasIcon || fileIcon.W <= 0 || fileIcon.X < saveAs.X || fileIcon.X+fileIcon.W > saveAs.X+saveAs.W {
+			if !found || group.X <= next.X+next.W || save.X <= group.X || !hasIcon || fileIcon.W <= 0 || fileIcon.X < saveAs.X || fileIcon.X+fileIcon.W > saveAs.X+saveAs.W {
 				t.Fatal("save group separator or Save As icon missing", group, saveAs, fileIcon)
 			}
 			// A native Divider is a real vertical line, not blank padding.

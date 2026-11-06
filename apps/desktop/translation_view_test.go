@@ -9,6 +9,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/translator"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 func TestNativeTranslationSettings(t *testing.T) {
@@ -107,7 +108,11 @@ func TestFinishedTranslationIsAppliedAndSavedBesideItsSource(t *testing.T) {
 func TestTranslationWithCheckErrorsStaysUnsaved(t *testing.T) {
 	a, dir, candidate := translationApp(t)
 	candidate.Checks.Errors = []string{"#1: protected subtitle markup changed"}
+	a.translationQuery, a.translationSelected, a.translationCheckTab = "old search", 99, 1
 	a.applyTranslation(candidate, a.translationFile(), nil)
+	if a.translationQuery != "" || a.translationSelected != 0 || a.translationCheckTab != 0 {
+		t.Fatal("new check report kept the old search, row or warning tab")
+	}
 	if a.snapshot.Document.Cues[0].Text != "你好" || !a.unsaved[1] || !a.translationReview || !strings.Contains(a.status, "1 项错误") {
 		t.Fatal(a.status, a.unsaved)
 	}
@@ -115,7 +120,7 @@ func TestTranslationWithCheckErrorsStaysUnsaved(t *testing.T) {
 		t.Fatal("a translation with errors was saved")
 	}
 	tt := settled(a.view, 1400, 900)
-	if !tt.HasText("检查结果") || !tt.HasText("#1: protected subtitle markup changed") {
+	if !tt.HasText(locales.TranslationResults()) || !strings.Contains(reviewFieldText(t, tt, locales.ReviewChecks()), "#1: protected subtitle markup changed") {
 		t.Fatal(tt.Texts())
 	}
 }

@@ -79,30 +79,60 @@ func (a *NativeApp) readingTools(c *ui.Context) {
 			brief++
 		}
 	}
-	// The action itself names its target and count. Native wrapping keeps
-	// that complete label visible even with 20,000 cues in a narrow pane.
+	issues := []struct {
+		kind, label, summary string
+		count                int
+	}{
+		{"long", locales.ReadingLongCues(), locales.ReadingViewLong(long), long},
+		{"fast", locales.ReadingFastCues(), locales.ReadingViewFast(fast), fast},
+		{"brief", locales.ReadingBriefCues(), locales.ReadingViewBrief(brief), brief},
+	}
+	selected := issues[a.readingIssue]
+	// Reserve the longest category name, not its changing count. The picker
+	// and both navigation buttons stay together without moving when it changes.
+	var labelWidth float32
+	for _, issue := range issues {
+		width, _ := c.MeasureText(0, ui.Span{Text: issue.label})
+		labelWidth = max(labelWidth, width)
+	}
 	ui.Row(c).Gap(em(c, 8)).Wrap().Shrink(1).AlignItems(ui.Center).Children(func() {
 		ui.Button(c, locales.ReadingSplitCount(long)).Disabled(a.busy || a.showsTranslationProgress() || long == 0).Tooltip(locales.ReadingSplitHint()).OnClick(a.smartSplitSubtitles)
-		ui.MenuButton(c, locales.ReadingInspect(), func(m *ui.Menu) {
-			for _, entry := range []struct {
-				kind, label string
-				count       int
-			}{{"long", locales.ReadingViewLong(long), long}, {"fast", locales.ReadingViewFast(fast), fast}, {"brief", locales.ReadingViewBrief(brief), brief}} {
-				if m.Item(entry.label).Disabled(entry.count == 0).Chosen() {
-					a.locateReadingIssue(entry.kind)
+		ui.Row(c).Gap(em(c, 4)).Shrink(0).AlignItems(ui.Center).Children(func() {
+			ui.MenuButton(c, selected.label, func(m *ui.Menu) {
+				for i, issue := range issues {
+					if m.Item(issue.summary).Checked(i == a.readingIssue).Disabled(issue.count == 0).Chosen() {
+						// Choosing a category changes only the navigation target.
+						// The adjacent buttons perform explicit list selection.
+						a.readingIssue = i
+					}
 				}
-			}
-		}).Disabled(a.showsTranslationProgress() || long+fast+brief == 0).Tooltip(locales.ReadingInspectHint())
+			}).Label(locales.ReadingIssueType()).Width(labelWidth + c.Theme().Space(11) + 2).Shrink(0).
+				Disabled(a.showsTranslationProgress() || long+fast+brief == 0).Tooltip(selected.summary + "\n" + locales.ReadingInspectHint())
+			disabled := a.showsTranslationProgress() || selected.count == 0
+			toolIcon(c, locales.ReadingPrevious(), "chevron-left").Shrink(0).
+				Disabled(disabled).Tooltip(locales.ReadingPreviousHint()).OnClick(func() { a.locateReadingIssue(selected.kind, -1) })
+			toolIcon(c, locales.ReadingNext(), "chevron-right").Shrink(0).
+				Disabled(disabled).Tooltip(locales.ReadingNextHint()).OnClick(func() { a.locateReadingIssue(selected.kind, 1) })
+		})
 	})
 }
 
-func (a *NativeApp) locateReadingIssue(kind string) {
+// Navigate in document order and wrap at either end, including cues hidden by
+// search. With no selection, forward starts at the first and backward at the last.
+func (a *NativeApp) locateReadingIssue(kind string, direction int) {
 	if a.snapshot == nil || a.showsTranslationProgress() || !a.commitEdit(true) {
 		return
 	}
 	loads := a.readingLoads()
+	start := a.selected
+	if start < 0 || start >= len(loads) {
+		start = -1
+		if direction < 0 {
+			start = 0
+		}
+	}
 	for offset := 1; offset <= len(loads); offset++ {
-		index := (max(a.selected, -1) + offset) % len(loads)
+		index := (start + direction*offset + len(loads)) % len(loads)
 		if !matchesReadingIssue(loads[index], kind) {
 			continue
 		}

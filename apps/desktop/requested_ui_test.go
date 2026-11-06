@@ -22,7 +22,9 @@ func TestSubtitleCommandsShareSearchRow(t *testing.T) {
 			a := draftApp(t)
 			a.unsaved[0] = true
 			a.translationCandidate = &translationCandidate{}
-			tt := settled(a.subtitlesView, 1100, 600)
+			// The category picker and two navigation buttons share the row
+			// when it fits; smaller panes wrap complete toolbar groups.
+			tt := settled(a.subtitlesView, 1600, 600)
 			search, _ := tt.Find(locales.ListSearch())
 			for _, label := range []string{locales.ListImport(), locales.SubtitleActionsMenu(), locales.ListLocate(), locales.TranslationResults(), locales.ListUnsaved(), locales.ListSave(), locales.ListSaveAs()} {
 				r, ok := tt.Find(label)

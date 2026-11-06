@@ -195,60 +195,6 @@ func (a *NativeApp) styleSelect(c *ui.Context) ui.Element {
 	})
 }
 
-// translationView is the check results of the last translation: what the
-// subtitle skill's checker found, and every subtitle beside its source.
-func (a *NativeApp) translationView(c *ui.Context) {
-	fixedDialog(c, &a.translationReview, locales.TranslationResults(), 900, 640, func() {
-		ui.Scroll(c).Grow(1).Children(a.translationReviewContent(c))
-	}, func() {
-		ui.PrimaryButton(c, locales.ActionClose()).OnClick(func() { a.translationReview = false })
-	})
-}
-
-func (a *NativeApp) translationReviewContent(c *ui.Context) func() {
-	return func() {
-		candidate := a.translationCandidate
-		if candidate == nil {
-			return
-		}
-		report := candidate.Result.Report
-		ui.Text(c, locales.ReviewSummary(report.Translated, report.TimelineChanges, len(candidate.Checks.Errors), len(candidate.Checks.Warnings)+len(report.Warnings)))
-		ui.Scroll(c).Height(em(c, 130)).Children(func() {
-			for _, item := range candidate.Checks.Errors {
-				ui.Text(c, item).TextColor(c.Theme().Danger)
-			}
-			for _, item := range report.Warnings {
-				ui.Text(c, item).TextColor(c.Theme().Warning)
-			}
-			for _, item := range candidate.Checks.Warnings {
-				ui.Text(c, item).TextColor(c.Theme().Warning)
-			}
-			ui.Text(c, locales.ReviewTimelineNote()).TextColor(c.Theme().TextMuted)
-		})
-		a.translationList.Selected = &a.translationSelected
-		cues := candidate.Result.Document.Cues
-		ui.Table(c, &a.translationList, []ui.TableColumn{numberColumn(c, len(cues)), {Title: locales.TabSource()}, {Title: locales.TabTranslation()}}, len(cues), func(row, col int) {
-			cue := cues[row]
-			text := cue.Text
-			if col == 0 {
-				text = fmt.Sprint(row + 1)
-			} else if col == 1 {
-				text = subtitle.SourceText(cue)
-			}
-			ui.Text(c, text).SingleLine()
-		}).Height(em(c, 200)).Label(locales.A11yReviewList())
-		if a.translationSelected >= 0 && a.translationSelected < len(cues) {
-			cue := cues[a.translationSelected]
-			ui.Text(c, stamp(float64(cue.StartMs)/1000)+" → "+stamp(float64(cue.EndMs)/1000))
-			ui.Text(c, subtitle.SourceText(cue))
-			ui.Text(c, cue.Text)
-			if cue.SourceRange != nil && cue.SourceRange.Reason != "" {
-				ui.Text(c, cue.SourceRange.Reason).TextColor(c.Theme().Warning)
-			}
-		}
-	}
-}
-
 // skillTools are the subtitle skill's files and its checker worker.
 func (a *NativeApp) skillTools() (root, worker string) {
 	root = filepath.Join(a.resources, "srt-subtitle-translator")
@@ -456,8 +402,12 @@ func (a *NativeApp) applyTranslation(candidate *translationCandidate, target str
 	a.saveSettings()
 	a.loadDraft()
 	a.translationCandidate = candidate
-	a.translationSelected = 0
+	a.translationSelected, a.translationCheckTab, a.translationQuery = 0, 0, ""
+	a.translationList = ui.ListState{}
 	report, checks := candidate.Result.Report, candidate.Checks
+	if len(checks.Errors) == 0 {
+		a.translationCheckTab = 1
+	}
 	if len(checks.Errors) > 0 {
 		a.completeTranslationRecovery()
 		a.status = locales.TranslationDoneUnsaved(report.Translated, len(checks.Errors))

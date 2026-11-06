@@ -83,7 +83,7 @@ type NativeApp struct {
 	readingSnapshot                          *project.Snapshot
 	countSnapshot                            *project.Snapshot
 	originalCount, optimizedCount            int
-	readingTab                               int
+	readingTab, readingIssue                 int // issue defaults to long; independent of the active track
 	reading                                  []subtitle.CueReadingLoad
 	splitSkipped                             map[string]string
 	findReplace                              findReplaceState
@@ -170,7 +170,8 @@ type NativeApp struct {
 	translationList                          ui.ListState
 	translationProfiles                      []translator.Profile
 	profilesError                            string
-	translationSelected                      int
+	translationSelected, translationCheckTab int
+	translationQuery                         string
 }
 
 func stamp(seconds float64) string {
