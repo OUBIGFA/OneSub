@@ -21,10 +21,10 @@ func TestSettingsSidebarKeepsAccentAcrossBlankClicks(t *testing.T) {
 						a.settingsOpen = true
 						tt := settled(a.view, int(float32(width)*scale), int(640*scale))
 						tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
-						labels := []string{locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsTranslation(), locales.SettingsTranslationRules(), locales.SettingsMcp(), locales.SettingsLanguageRoutes()}
+						labels := []string{locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsTranslation(), locales.SettingsTranslationRules(), locales.SettingsMcp(), locales.SettingsLanguageRoutes(), locales.SettingsAbout()}
 						for _, dark := range []bool{false, true} {
 							tt.SetDark(dark)
-							for _, tab := range []int{0, 1, 5, 2, 3, 4} {
+							for _, tab := range []int{0, 1, 5, 2, 3, 4, 6} {
 								if err := tt.Click(labels[tab]); err != nil {
 									t.Fatal(err)
 								}

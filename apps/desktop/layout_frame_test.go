@@ -119,7 +119,7 @@ func TestPagesAreSettledInTheirFirstFrame(t *testing.T) {
 						for _, dark := range []bool{false, true} {
 							tt.SetDark(dark)
 							a.settingsOpen = true
-							for _, tab := range []int{0, 1, 5, 2, 3, 4} {
+							for _, tab := range []int{0, 1, 5, 2, 3, 4, 6} {
 								firstFrameSettled(t, tt, fmt.Sprintf("settings-%d-dark%t", tab, dark), func() { a.settingsTab = tab })
 							}
 							a.settingsOpen = false

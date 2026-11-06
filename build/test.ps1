@@ -47,6 +47,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Go tests failed' }
     } finally { Pop-Location }
     if ($GoOnly) { return }
+    & (Join-Path $PSScriptRoot 'test-updates.ps1')
     Push-Location workers/style-core
     try {
         & bun test

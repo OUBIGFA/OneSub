@@ -121,8 +121,8 @@ func TestNativeRedesignSettingsNavigation(t *testing.T) {
 							t.Fatal("Home did not select General")
 						}
 						tt.Key(0, ui.KeyEnd)
-						if a.settingsTab != 4 || !tt.HasText(locales.SettingsMcpCopy()) {
-							t.Fatal("End did not open the standalone MCP page")
+						if a.settingsTab != 6 || !tt.HasText(locales.AboutCheckUpdates()) {
+							t.Fatal("End did not open About")
 						}
 					})
 				})

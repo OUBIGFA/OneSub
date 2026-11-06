@@ -21,9 +21,9 @@ func settingsGroup(c *ui.Context, title string, content func()) {
 func (a *NativeApp) settingsView(c *ui.Context) {
 	wasOpen := a.settingsOpen
 	// Pages keep their numbers; models by language (5) follows recognition.
-	labels := []string{locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsTranslation(), locales.SettingsTranslationRules(), locales.SettingsMcp(), locales.SettingsLanguageRoutes()}
-	pageIcons := []string{"settings", "audio-lines", "languages", "file-down", "settings", "text-search"}
-	order := []int{0, 1, 5, 2, 3, 4}
+	labels := []string{locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsTranslation(), locales.SettingsTranslationRules(), locales.SettingsMcp(), locales.SettingsLanguageRoutes(), locales.SettingsAbout()}
+	pageIcons := []string{"settings", "audio-lines", "languages", "file-down", "settings", "text-search", "info"}
+	order := []int{0, 1, 5, 2, 3, 4, 6}
 	fixedDialog(c, &a.settingsOpen, locales.SettingsTitle(), 1280, 800, func() {
 		content := func() {
 			ui.Column(c.Key(a.settingsTab)).Fill().Gap(em(c, 20)).Label(locales.A11ySettingsContent()).Children(func() {
@@ -125,6 +125,8 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 		a.translationRulesView(c)
 	case 4:
 		a.mcpSettingsView(c)
+	case 6:
+		a.aboutSettingsView(c)
 	case 5:
 		// The detector and the model of each language group used by smart
 		// routing. One full-width group keeps model names usable at the

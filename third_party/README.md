@@ -16,6 +16,8 @@ TXT 文稿导出直接调用固定 libse 的 `HtmlUtil.RemoveHtmlTags`、`HtmlUt
 
 MyGo 原生 UI 当前锁定为 `v0.7.4`；依赖、源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。已移除上游具备的复合输入占位转发与菜单附加宽度算法，直接复用对应原生能力。按项目工作约定持续关注并及时同步上游最新版本；升级时重新核对 API、补丁必要性、许可与相关原生验收，当前锁定修订只用于可复现构建。
 
+MyGo 的应用更新直接复用 `mygo.Updater.Check`／`Update.Install`，包括 HTTPS／系统代理、Ed25519 校验、解包与替换／回滚；没有引入另一套下载器或安装器。设置“关于”与任务协调由应用原生 UI 承担，产品版本保持 `0.0.1`，用数值第四段区分测试构建。归档与签名由 MyGo 构建器生成，只调整清单中的内部构建号与不可变 Release URL，见 [构建与更新说明](../build/README.md)。新增 GitHub 和“关于”图标继续直接复用同一固定 Lucide 修订，原字节、大小和哈希见 [图标清单](manifests/lucide.json)。
+
 实际引入组件时，先建立 `manifests/`，逐项记录：名称、用途、项目 URL、精确 SHA、下载 URL、文件 SHA-256/字节数、许可证文件、SPDX、版权、全部传递依赖、构建选项及修改范围。未解决项阻止该组件分发，不用空清单冒充已冻结。
 
 - 大型上游源码下载到忽略的 `sources/`，按清单校验；不嵌套完整上游 Git 历史。

@@ -7,6 +7,30 @@ import (
 	"testing"
 )
 
+func TestAutomaticUpdatesDefaultAndExplicitOptOutSurviveRestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	for _, raw := range []string{`{"version":1}`, `{"version":5}`, `{"version":5,"autoUpdate":true}`, `{"version":5,"autoUpdate":false}`} {
+		if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
+			t.Fatal(err)
+		}
+		s, err := Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := raw != `{"version":5,"autoUpdate":false}`
+		if s.AutoUpdate != want {
+			t.Fatal("incorrect default or ignored opt-out", raw, s.AutoUpdate)
+		}
+		if err := Save(path, s); err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := Load(path)
+		if err != nil || loaded.AutoUpdate != want {
+			t.Fatal("automatic update choice lost on restart", raw, err)
+		}
+	}
+}
+
 func TestTranslationSchedulingDefaultsAndPersistence(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	for _, raw := range []string{`{"version":3}`, `{"version":3,"translationConcurrency":5,"translationBatchSize":7}`} {

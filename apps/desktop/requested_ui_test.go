@@ -101,7 +101,7 @@ func TestSettingsUseOneLargerFixedSidebar(t *testing.T) {
 	if shell.W <= 1120 || shell.H <= 640 || navigation.X+navigation.W >= content.X || navigation.H < content.H-1 {
 		t.Fatal("settings did not use the enlarged sidebar layout", shell, navigation, content)
 	}
-	for tab := 0; tab < 5; tab++ {
+	for tab := 0; tab < 7; tab++ {
 		a.settingsTab = tab
 		tt.Frame()
 		before, _ := tt.Find(locales.A11ySettingsContent())

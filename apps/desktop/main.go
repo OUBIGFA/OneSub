@@ -55,6 +55,7 @@ type NativeApp struct {
 	settingsOpen                             bool
 	settingsTab                              int
 	settingsError                            bool
+	updates                                  appUpdates
 	errorText, status                        string
 	errorScope                               string    // the operation whose error is currently displayed
 	mediaGeneration                          uint64    // rejects out-of-order media load commands
@@ -490,6 +491,8 @@ func (a *NativeApp) run(label string, work func(context.Context) (func(), error)
 			if a.quitAfterTask {
 				a.quitAfterTask = false
 				a.requestExit()
+			} else {
+				a.installAutomaticUpdate()
 			}
 		})
 	}()
@@ -807,6 +810,9 @@ func (a *NativeApp) requestExit() {
 		a.store = nil
 	}
 	a.saveSettings()
+	if a.updates.stop != nil {
+		a.updates.stop()
+	}
 	if a.previewCancel != nil {
 		a.previewCancel()
 	}
@@ -1004,6 +1010,7 @@ func main() {
 		} else if a.settings.Processing != nil {
 			a.restoreProcessing()
 		}
+		a.startUpdates()
 		go a.syncPlayer()
 	})
 	if err = mygo.App.Run(); err != nil {

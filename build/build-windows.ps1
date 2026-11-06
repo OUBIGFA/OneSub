@@ -1,6 +1,9 @@
 param([string]$BuildNumber = (Get-Date -Format 'yyyyMMddHHmmss'), [switch]$SkipTests)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
+if ($BuildNumber -notmatch '^[0-9]{14}$') { throw 'Build number must use yyyyMMddHHmmss' }
+$updateKey = Join-Path $root '.local/update-keys/mygo-update.key'
+if (-not $env:MYGO_UPDATER_PRIVATE_KEY -and -not (Test-Path $updateKey)) { throw 'The matching update signing key is required: MYGO_UPDATER_PRIVATE_KEY or .local/update-keys/mygo-update.key' }
 $env:GOROOT = Join-Path $root '.local/toolchains/go1.27.3/go'
 $env:PATH = "$env:GOROOT/bin;$env:PATH"
 $env:GOMODCACHE = Join-Path $root '.local/gomodcache'
@@ -37,19 +40,28 @@ try {
     & (Join-Path $PSScriptRoot 'prepare-vad.ps1')
     & (Join-Path $PSScriptRoot 'prepare-sherpa.ps1')
     $sourceTree = (& git write-tree).Trim()
-    $info = [ordered]@{version='0.0.1';build=$BuildNumber;channel='local-test';signed=$false;p0Accepted=$false;sourceTree=$sourceTree;worktree='staged source snapshot'}
+    $info = [ordered]@{version='0.0.1';build=$BuildNumber;updateVersion="0.0.1.$BuildNumber";updatesSigned=$true;channel='local-test';signed=$false;p0Accepted=$false;sourceTree=$sourceTree;worktree='staged source snapshot'}
 
     [IO.File]::WriteAllText((Join-Path $root 'build/output/build-info.json'),($info|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
     if (-not $SkipTests) { & (Join-Path $PSScriptRoot 'test.ps1') }
     $package = Join-Path $root "_temp/build-output/packages/$BuildNumber"
     if (Test-Path $package) { throw 'Use a new internal build number; package directories are immutable' }
+    $previousUpdateKey = $env:MYGO_UPDATER_PRIVATE_KEY
     Push-Location apps/desktop
     try {
+        # Read the ignored secret only for MyGo's signing process, never for
+        # dependency installers, generated resources, logs or the application.
+        if (-not $previousUpdateKey) { $env:MYGO_UPDATER_PRIVATE_KEY = [IO.File]::ReadAllText($updateKey).Trim() }
         & go run github.com/egoist/mygo/cmd/mygo build -platform windows/amd64 -o $package
         if ($LASTEXITCODE -ne 0) { throw 'MyGo Windows build failed' }
-    } finally { Pop-Location }
+    } finally {
+        $env:MYGO_UPDATER_PRIVATE_KEY = $previousUpdateKey
+        Pop-Location
+    }
     $out=Join-Path $root 'build/output/release'
     New-Item -ItemType Directory $out -Force | Out-Null
+    & python (Join-Path $root 'tools/finalize_update.py') --config (Join-Path $root 'apps/desktop/mygo.json') --package (Join-Path $package 'windows-amd64') --build $BuildNumber --output $out
+    if ($LASTEXITCODE -ne 0) { throw 'Signed update artifact validation failed' }
     $setup=Join-Path $out 'OneSub-0.0.1-Setup.exe'
     # MyGo names the installer <slug>-setup-<version>-<arch>.exe.
     Copy-Item (Join-Path $package 'windows-amd64/onesub-setup-0.0.1-amd64.exe') $setup -Force

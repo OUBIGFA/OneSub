@@ -32,14 +32,17 @@ type PendingProcessing struct {
 }
 
 type Settings struct {
-	Version     int               `json:"version"`
-	UILanguage  string            `json:"uiLanguage"` // "" follows the system
-	Appearance  string            `json:"appearance"` // "dark", "light" or "system"
-	CloseToTray bool              `json:"closeToTray"`
-	ModelPaths  map[string]string `json:"modelPaths"`
-	AsrModel    string            `json:"asrModel"`
-	Aligner     string            `json:"aligner"`
-	Backend     string            `json:"backend"`
+	Version     int    `json:"version"`
+	UILanguage  string `json:"uiLanguage"` // "" follows the system
+	Appearance  string `json:"appearance"` // "dark", "light" or "system"
+	CloseToTray bool   `json:"closeToTray"`
+	// AutoUpdate defaults on for new and older settings. An explicit false
+	// survives loading; updates never replace the user's data directory.
+	AutoUpdate bool              `json:"autoUpdate"`
+	ModelPaths map[string]string `json:"modelPaths"`
+	AsrModel   string            `json:"asrModel"`
+	Aligner    string            `json:"aligner"`
+	Backend    string            `json:"backend"`
 	// RecognitionMode is "route": detect the language and use the model
 	// LanguageModels names for its group (or the group's default model); or
 	// "manual": AsrModel with Language, which is "auto" only for a model
@@ -113,7 +116,7 @@ type Settings struct {
 const version = 5
 
 func Default() Settings {
-	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", RecognitionMode: "route", Language: "zh", LanguageModels: map[string]string{}, ManualLanguages: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", CompressionFormat: "mp4", CompressionQuality: "crf23", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 400.0 / 7, StyleWidth: 30, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
+	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, AutoUpdate: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", RecognitionMode: "route", Language: "zh", LanguageModels: map[string]string{}, ManualLanguages: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", CompressionFormat: "mp4", CompressionQuality: "crf23", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 400.0 / 7, StyleWidth: 30, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
 }
 
 // TranslationPunctuation freezes the local output options for a task.

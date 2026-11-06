@@ -2,6 +2,11 @@
   "name": "OneSub",
   "identifier": "io.github.oubigfa.onesub",
   "version": "0.0.1",
+  "updates": {
+    "publicKey": "BWKKB1KU0LCFuh604rJzaOzykDetwKvd5D9fGPgLp0U=",
+    "github": "OUBIGFA/OneSub",
+    "deltas": 0
+  },
   "webview": true,
   "icon": "branding/logo.png",
   "i18n": {"dir": "locales", "source": "en"},
