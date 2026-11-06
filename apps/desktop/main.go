@@ -173,6 +173,10 @@ type NativeApp struct {
 	profilesError                            string
 	translationSelected, translationCheckTab int
 	translationQuery                         string
+	translationReviewPage                    int
+	translationIssueList                     ui.ListState
+	translationIssueSelected                 int
+	translationIssueQuery                    string
 }
 
 func stamp(seconds float64) string {

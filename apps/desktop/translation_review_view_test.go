@@ -13,8 +13,8 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Copy through the actual read-only text input. Tester.Texts reports labels,
-// not editable values, and cannot prove long report text remains accessible.
+// Copy through the actual read-only input: labels alone cannot prove long
+// report text is accessible or that keyboard input cannot edit the report.
 func reviewFieldText(t *testing.T, tt *ui.Tester, label string) string {
 	t.Helper()
 	if err := tt.Click(label); err != nil {
@@ -40,56 +40,66 @@ func bulkTranslationReviewApp(t *testing.T) *NativeApp {
 	return a
 }
 
-// The full-height list and three reading panes use the same fixed shell as
-// retranslation. Long text, check categories and search cannot resize it.
-func TestTranslationReviewUsesWorkingHeightAndStableLayout(t *testing.T) {
+// Checks, not subtitle editing, own the default page and its working height.
+// Pages, themes, text scales and long diagnostics must not resize the shell.
+func TestTranslationReviewPrioritizesFindingsAndStableLayout(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		for _, scale := range []float32{1, 1.5, 2} {
 			for _, size := range [][2]int{{900, 640}, {1800, 1200}} {
 				t.Run(fmt.Sprintf("%s/%g/%d", language, scale, size[0]), func(t *testing.T) {
 					inLocale(t, language, func() {
 						a := bulkTranslationReviewApp(t)
+						for i := range 196 {
+							a.translationCandidate.Checks.Warnings = append(a.translationCandidate.Checks.Warnings, fmt.Sprintf("Subtitle %d exceeds the reading speed limit. Check its timing.", i+1))
+						}
 						a.translationReview = false
-						tt := settled(a.translationView, int(float32(size[0])*scale), int(float32(size[1])*scale))
+						tt := settled(func(c *ui.Context) {
+							theme, _ := studioTheme(c.Theme(), false)
+							c.SetTheme(&theme)
+							a.translationView(c)
+						}, int(float32(size[0])*scale), int(float32(size[1])*scale))
 						tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
 						for _, dark := range []bool{false, true} {
 							tt.SetDark(dark)
 							firstFrameSettled(t, tt, "open", func() { a.translationReview = true })
-							insideRedesign(t, tt, locales.TranslationResults(), locales.A11yReviewList(), locales.ReviewSearch(), locales.ReviewCompare(), locales.ReviewChecks(), locales.ActionClose())
-							insideRedesign(t, tt, locales.ReviewCompare(), locales.ReviewSource(), locales.ReviewTranslation(), locales.ReviewChecks())
-							list, _ := tt.Find(locales.A11yReviewList())
-							compare, _ := tt.Find(locales.ReviewCompare())
-							if list.X+list.W > compare.X || list.H < compare.H*.7 {
-								t.Fatal("review list is not full-height beside comparison", list, compare)
+							insideRedesign(t, tt, locales.TranslationResults(), locales.ReviewFindingsList(), locales.ReviewSearchFindings(), locales.ReviewFindingDetail(), locales.ReviewChecks(), locales.ActionClose())
+							if _, found := tt.Find(locales.ReviewSource()); found {
+								t.Fatal("default check page still shows subtitle comparison")
 							}
-							first, last := a.translationList.Visible()
-							minimum := 6
-							if size[0] > 1000 {
-								minimum = 20
+							list, _ := tt.Find(locales.ReviewFindingsList())
+							detail, _ := tt.Find(locales.ReviewFindingDetail())
+							if list.X+list.W > detail.X || list.H < detail.H*.7 {
+								t.Fatal("findings do not fill the work area beside their details", list, detail)
 							}
-							if last-first+1 < minimum {
-								t.Fatal("review list still shows too few cues", last-first+1, minimum)
+							first, last := a.translationIssueList.Visible()
+							if last-first+1 < 6 {
+								t.Fatal("too little working height for findings", first, last)
 							}
+							captureRedesign(t, tt, fmt.Sprintf("check-results-%s-%g-%d-dark%t", language, scale, size[0], dark))
 							before, _ := tt.Find(locales.TranslationResults())
-							firstFrameSettled(t, tt, "long-content", func() {
-								a.translationCandidate.Result.Document.Cues[0].Text = strings.Repeat("Long translation.\n", 200)
-								a.translationCandidate.Result.Document.Cues[0].TranslationSource = strings.Repeat("Long source.\n", 200)
-								a.translationCandidate.Checks.Warnings = []string{strings.Repeat("Detailed warning.\n", 200)}
-								a.translationCheckTab = 1
-							})
-							after, _ := tt.Find(locales.TranslationResults())
-							if before != after {
-								t.Fatal("long content resized the review dialog", before, after)
-							}
-							captureRedesign(t, tt, fmt.Sprintf("translation-review-%s-%g-%d-dark%t", language, scale, size[0], dark))
+							closeButton, _ := tt.Find(locales.ActionClose())
+							firstFrameSettled(t, tt, "reference", func() { a.translationReviewPage = 1 })
+							insideRedesign(t, tt, locales.TranslationResults(), locales.A11yReviewList(), locales.ReviewSearch(), locales.ReviewCompare(), locales.ActionClose())
+							insideRedesign(t, tt, locales.ReviewCompare(), locales.ReviewSource(), locales.ReviewTranslation())
 							if err := tt.Click(locales.ListBottom()); err != nil {
 								t.Fatal(err)
 							}
 							_, last = a.translationList.Visible()
 							if last != 199 || a.translationSelected != 0 {
-								t.Fatal("review bottom navigation changed selection or missed the last cue", last, a.translationSelected)
+								t.Fatal("reference navigation missed bottom or changed selection", last, a.translationSelected)
 							}
-							a.translationList.ScrollTo(0, ui.Start)
+							tt.Move(0, 0) // Do not carry the reference navigation hover across pages.
+							firstFrameSettled(t, tt, "long-finding", func() {
+								a.translationReviewPage = 0
+								a.translationCandidate.Checks.Errors[0] = strings.Repeat("Detailed check error.\n", 200)
+							})
+							after, _ := tt.Find(locales.TranslationResults())
+							button, _ := tt.Find(locales.ActionClose())
+							if before != after || closeButton != button {
+								t.Fatal("page or long diagnostics resized the dialog", before, after)
+							}
+							a.translationCandidate.Checks.Errors[0] = "#1: protected markup changed"
+							a.translationIssueList.ScrollTo(0, ui.Start)
 							tt.Frame()
 						}
 					})
@@ -99,7 +109,67 @@ func TestTranslationReviewUsesWorkingHeightAndStableLayout(t *testing.T) {
 	}
 }
 
-func TestTranslationReviewSearchKeepsSelectionAndWholeReport(t *testing.T) {
+func TestTranslationReviewFindingsFilterAndReadOnlyDetails(t *testing.T) {
+	a := bulkTranslationReviewApp(t)
+	candidate := a.translationCandidate
+	before := *candidate
+	before.Checks.Errors = slices.Clone(candidate.Checks.Errors)
+	a.position = 7.5
+	tt := settled(a.translationView, 1800, 1200)
+	if got := reviewFieldText(t, tt, locales.ReviewChecks()); got != candidate.Checks.Errors[0] {
+		t.Fatal("errors were not prioritized on opening", got)
+	}
+	if err := tt.Click("#150: missing source text"); err != nil {
+		t.Fatal(err)
+	}
+	if a.translationIssueSelected != 1 || a.translationSelected != 0 || a.position != 7.5 {
+		t.Fatal("finding text was guessed to be a cue link")
+	}
+	if got := reviewFieldText(t, tt, locales.ReviewChecks()); got != candidate.Checks.Errors[1] {
+		t.Fatal("detail does not match the selected issue", got)
+	}
+	tt.Type("do not edit diagnostics")
+	if got := reviewFieldText(t, tt, locales.ReviewChecks()); got != candidate.Checks.Errors[1] || !reflect.DeepEqual(before, *candidate) {
+		t.Fatal("read-only diagnostic was changed", got)
+	}
+	if err := tt.Click(locales.ReviewWarnings(2)); err != nil {
+		t.Fatal(err)
+	}
+	if got := reviewFieldText(t, tt, locales.ReviewChecks()); got != "Timeline warning" {
+		t.Fatal("warning filter left stale error details", got)
+	}
+	if err := tt.Click(locales.ReviewSearchFindings()); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type(" READING SPEED ")
+	if !tt.HasText(locales.ReviewFindingsVisible(1, 4)) || reviewFieldText(t, tt, locales.ReviewChecks()) != "Reading speed warning" {
+		t.Fatal("search did not include checker warnings")
+	}
+	a.translationIssueQuery = "absent"
+	tt.Frame()
+	if reviewFieldText(t, tt, locales.ReviewChecks()) != locales.ReviewNoMatches() {
+		t.Fatal("empty filter left unrelated details visible")
+	}
+	if err := tt.Click(locales.ActionClose()); err != nil || a.translationReview {
+		t.Fatal("close did not hide the results", err)
+	}
+	a.translationReview = true
+	tt.Frame()
+	if a.translationCandidate != candidate || a.translationIssueQuery != "absent" || a.translationCheckTab != reviewWarningFindings || a.translationIssueSelected != 3 {
+		t.Fatal("reopening discarded check state")
+	}
+	// Warning-only reports must show a warning immediately; duplicate raw
+	// messages remain separate findings with stable positions.
+	candidate.Checks.Errors = nil
+	candidate.Checks.Warnings = []string{"Timeline warning"}
+	a.translationIssueQuery, a.translationCheckTab = "", reviewAllFindings
+	tt.Frame()
+	if got := candidate.reviewFindings(reviewAllFindings, "timeline"); len(got) != 2 || got[0].index == got[1].index || reviewFieldText(t, tt, locales.ReviewChecks()) != "Timeline warning" {
+		t.Fatal("warning-only or duplicate findings lost", got)
+	}
+}
+
+func TestTranslationReviewReferenceIsSecondaryAndIndependent(t *testing.T) {
 	a := bulkTranslationReviewApp(t)
 	candidate := a.translationCandidate
 	candidate.Result.Document.Cues[149].Text = "查找译文"
@@ -108,13 +178,11 @@ func TestTranslationReviewSearchKeepsSelectionAndWholeReport(t *testing.T) {
 			t.Fatal(query, rows, want)
 		}
 	}
-	before := *candidate
-	before.Result.Document.Cues = append([]subtitle.Cue{}, candidate.Result.Document.Cues...)
-	before.Result.Report.Warnings = append([]string{}, candidate.Result.Report.Warnings...)
-	before.Checks.Errors = append([]string{}, candidate.Checks.Errors...)
-	before.Checks.Warnings = append([]string{}, candidate.Checks.Warnings...)
-	a.position = 7.5
+	a.translationIssueQuery = "protected"
 	tt := settled(a.translationView, 1800, 1200)
+	if err := tt.Click(locales.ReviewReference()); err != nil {
+		t.Fatal(err)
+	}
 	if err := tt.Click(locales.ReviewSearch()); err != nil {
 		t.Fatal(err)
 	}
@@ -122,44 +190,55 @@ func TestTranslationReviewSearchKeepsSelectionAndWholeReport(t *testing.T) {
 	if err := tt.Click("查找译文"); err != nil {
 		t.Fatal(err)
 	}
-	checks := reviewFieldText(t, tt, locales.ReviewChecks())
-	if a.translationSelected != 149 || a.position != 7.5 || !strings.Contains(checks, "#150: missing source text") || !strings.Contains(checks, "#1: protected markup changed") {
-		t.Fatal("search changed report scope or selected the wrong cue", a.translationSelected)
-	}
-	if err := tt.Click(locales.ReviewWarnings(2)); err != nil {
-		t.Fatal(err)
-	}
-	warnings := reviewFieldText(t, tt, locales.ReviewChecks())
-	for _, message := range []string{"Timeline warning", "Reading speed warning"} {
-		if !strings.Contains(warnings, message) {
-			t.Fatal("warning category discarded a report source", message)
-		}
-	}
 	a.translationQuery = "absent"
 	tt.Frame()
 	if a.translationSelected != 149 || reviewFieldText(t, tt, locales.ReviewTranslation()) != "查找译文" || !tt.HasText(locales.ReviewVisible(0, 200)) {
-		t.Fatal("empty search discarded the current comparison")
+		t.Fatal("empty reference search discarded the comparison")
 	}
-	// Both reading panes use real read-only text inputs, not editable copies.
-	if err := tt.Click(locales.ReviewSource()); err != nil {
+	for _, field := range []struct{ label, text string }{{locales.ReviewSource(), "Source sentence 150"}, {locales.ReviewTranslation(), "查找译文"}} {
+		if reviewFieldText(t, tt, field.label) != field.text {
+			t.Fatal("wrong reference text", field.label)
+		}
+		tt.Type("do not edit subtitles")
+		if reviewFieldText(t, tt, field.label) != field.text {
+			t.Fatal("reference was editable", field.label)
+		}
+	}
+	if err := tt.Click(locales.ReviewFindings()); err != nil {
 		t.Fatal(err)
 	}
-	tt.Key(ui.Cmd, ui.KeyA)
-	tt.Type("must not modify the source")
-	if !reflect.DeepEqual(before, *candidate) || reviewFieldText(t, tt, locales.ReviewSource()) != "Source sentence 150" {
-		t.Fatal("review changed the frozen translation")
-	}
-	if err := tt.Click(locales.ActionClose()); err != nil || a.translationReview {
-		t.Fatal("close did not hide the review", err)
-	}
-	a.translationReview = true
-	tt.Frame()
-	if a.translationCandidate != candidate || a.translationSelected != 149 || a.translationQuery != "absent" || a.translationCheckTab != 1 {
-		t.Fatal("reopening discarded the review state")
+	if a.translationIssueQuery != "protected" || reviewFieldText(t, tt, locales.ReviewChecks()) != candidate.Checks.Errors[0] || !tt.HasText(locales.ReviewFindingsVisible(1, 4)) {
+		t.Fatal("reference browsing changed the independent report filter")
 	}
 }
 
-func TestTranslationReviewShowsEmptyStatesAndErrorsWithoutCues(t *testing.T) {
+func TestTranslationReviewLongTextStartsAtBeginningAndStaysCopyable(t *testing.T) {
+	text := "First line\n" + strings.Repeat("Detailed diagnostic.\n", 200) + "Last line"
+	start, end := -1, -1
+	tt := settled(func(c *ui.Context) {
+		ui.Column(c).Fill().Children(func() {
+			area := reviewReadOnlyText(c, "Long diagnostic", text)
+			start, end = area.TextSelection()
+		})
+	}, 600, 300)
+	if start != 0 || end != 0 {
+		t.Fatal("new diagnostic opened at the end", start, end)
+	}
+	if got := reviewFieldText(t, tt, "Long diagnostic"); got != text {
+		t.Fatal("long diagnostic could not be copied in full")
+	}
+	tt.Frame()
+	if start == end {
+		t.Fatal("reader reset the user's selection every frame")
+	}
+	text = "Next issue\n" + strings.Repeat("Next detail.\n", 200)
+	tt.Frame()
+	if start != 0 || end != 0 || reviewFieldText(t, tt, "Long diagnostic") != text {
+		t.Fatal("changing issue did not reset to the beginning or retained old text")
+	}
+}
+
+func TestTranslationReviewEmptyAndErrorOnlyStates(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := nativeForTest(t)
@@ -170,17 +249,22 @@ func TestTranslationReviewShowsEmptyStatesAndErrorsWithoutCues(t *testing.T) {
 			}
 			a.translationCandidate = &translationCandidate{Checks: translator.Findings{Errors: []string{"No valid subtitle output"}}}
 			tt.Frame()
-			if reviewFieldText(t, tt, locales.ReviewChecks()) != "No valid subtitle output" || !tt.HasText(locales.ReviewNoSubtitle()) {
+			if reviewFieldText(t, tt, locales.ReviewChecks()) != "No valid subtitle output" {
 				t.Fatal("error-only report lost its findings")
 			}
 			if err := tt.Click(locales.ReviewWarnings(0)); err != nil || reviewFieldText(t, tt, locales.ReviewChecks()) != locales.ReviewNoWarnings() {
-				t.Fatal("empty warnings have no clear state", err)
+				t.Fatal("empty warning category has no state", err)
 			}
 			a.translationCandidate.Checks.Errors = nil
-			a.translationCheckTab = 0
-			tt.Frame()
-			if reviewFieldText(t, tt, locales.ReviewChecks()) != locales.ReviewNoErrors() {
-				t.Fatal("cleared findings left stale error text")
+			for filter, want := range map[int]string{reviewAllFindings: locales.ReviewNoIssues(), reviewErrorFindings: locales.ReviewNoErrors(), reviewWarningFindings: locales.ReviewNoWarnings()} {
+				a.translationCheckTab = filter
+				tt.Frame()
+				if reviewFieldText(t, tt, locales.ReviewChecks()) != want {
+					t.Fatal("empty findings left stale details", filter)
+				}
+			}
+			if err := tt.Click(locales.ReviewReference()); err != nil || !tt.HasText(locales.ReviewNoSubtitle()) {
+				t.Fatal("missing subtitles have no reference state", err)
 			}
 		})
 	}

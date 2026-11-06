@@ -402,12 +402,10 @@ func (a *NativeApp) applyTranslation(candidate *translationCandidate, target str
 	a.saveSettings()
 	a.loadDraft()
 	a.translationCandidate = candidate
-	a.translationSelected, a.translationCheckTab, a.translationQuery = 0, 0, ""
-	a.translationList = ui.ListState{}
+	a.translationSelected, a.translationCheckTab, a.translationQuery = 0, reviewAllFindings, ""
+	a.translationReviewPage, a.translationIssueSelected, a.translationIssueQuery = 0, 0, ""
+	a.translationList, a.translationIssueList = ui.ListState{}, ui.ListState{}
 	report, checks := candidate.Result.Report, candidate.Checks
-	if len(checks.Errors) == 0 {
-		a.translationCheckTab = 1
-	}
 	if len(checks.Errors) > 0 {
 		a.completeTranslationRecovery()
 		a.status = locales.TranslationDoneUnsaved(report.Translated, len(checks.Errors))

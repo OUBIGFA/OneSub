@@ -578,23 +578,24 @@
   "@translationDoneUnsaved": {"placeholders":{"count":{"type":"int"},"errors":{"type":"int"}}},
   "translationDoneNoFile": "Translated {count} subtitles. Save the translation with Save As.",
   "@translationDoneNoFile": {"placeholders":{"count":{"type":"int"}}},
-  "reviewSummary": "{translated} translated · {changes} segmentation changes · {errors} errors · {warnings} warnings",
-  "@reviewSummary": {
-    "placeholders": {
-      "translated": {
-        "type": "int"
-      },
-      "changes": {
-        "type": "int"
-      },
-      "errors": {
-        "type": "int"
-      },
-      "warnings": {
-        "type": "int"
-      }
-    }
-  },
+  "reviewSummary": "{translated} translated · {changes} segmentation changes",
+  "@reviewSummary": {"placeholders":{"translated":{"type":"int"},"changes":{"type":"int"}}},
+  "reviewFindings": "Check information",
+  "reviewReference": "Subtitle reference",
+  "reviewAll": "All · {count}",
+  "@reviewAll": {"placeholders":{"count":{"type":"int"}}},
+  "reviewSearchFindings": "Search errors or warnings",
+  "reviewFindingsVisible": "Showing {visible} / {total} issues",
+  "@reviewFindingsVisible": {"placeholders":{"visible":{"type":"int"},"total":{"type":"int"}}},
+  "reviewFindingsList": "Errors and warnings list",
+  "reviewSeverity": "Severity",
+  "reviewMessage": "Issue summary",
+  "reviewError": "Error",
+  "reviewWarning": "Warning",
+  "reviewFindingDetail": "Issue details",
+  "reviewBatchScope": "Check scope: full translation",
+  "reviewNoIssues": "No errors or warnings found",
+  "reviewNoMatches": "No matching issues",
   "reviewSearch": "Search cue number, source or translation",
   "reviewVisible": "Showing {visible} / {total} cues",
   "@reviewVisible": {"placeholders":{"visible":{"type":"int"},"total":{"type":"int"}}},
@@ -602,7 +603,7 @@
   "reviewSource": "Source text",
   "reviewTranslation": "Translated text",
   "reviewChecks": "Check details",
-  "reviewChecksScope": "Checks cover the full translation. Selecting or searching cues does not filter these results.",
+  "reviewChecksScope": "Messages cover the full translation. They are not automatically linked to reference cues.",
   "reviewErrors": "Errors · {count}",
   "@reviewErrors": {"placeholders":{"count":{"type":"int"}}},
   "reviewWarnings": "Warnings · {count}",

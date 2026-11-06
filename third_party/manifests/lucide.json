@@ -9,6 +9,12 @@
   "modifications": "none",
   "files": [
     {
+      "path": "apps/desktop/icons/file-warning.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/file-warning.svg",
+      "sha256": "d271e568e0f6fe92c9d63234175aad9ed3cd67e8a99c75bcc97233b3932100cc",
+      "bytes": 331
+    },
+    {
       "path": "apps/desktop/icons/github.svg",
       "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/github.svg",
       "sha256": "793554449a3078923edeeff585ecc04c44b0d8de17f7e6b5b0e74399f0fd744b",

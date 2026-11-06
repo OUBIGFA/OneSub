@@ -102,7 +102,7 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 			a.retranslationTools(c)
 			// Keep the review slot icon-sized. A long disabled label would
 			// wrap again and leave no subtitle row at the minimum pane size.
-			toolIcon(c, locales.TranslationResults(), "languages").Disabled(a.translationCandidate == nil).OnClick(func() { a.translationReview = true })
+			toolIcon(c, locales.TranslationResults(), "file-warning").Disabled(a.translationCandidate == nil).OnClick(func() { a.translationReview = true })
 			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Label(locales.A11ySubtitleFileActions()).Children(func() {
 				// The divider travels with the file actions when groups wrap.
 				ui.Divider(c).Height(em(c, 20)).AlignSelf(ui.Center).Margin(0, em(c, 4))
