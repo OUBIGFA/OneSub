@@ -232,7 +232,8 @@ func (a *NativeApp) translationFile() string {
 // The list shows each subtitle's translation as the model writes it. The
 // finished, checked translation becomes the translation track in one
 // undoable step and is saved beside its source; one the checker finds
-// errors in is kept in the project, unsaved, with the errors shown.
+// errors in is kept in the project, unsaved. Checks remain available from
+// the subtitle toolbar without interrupting the workbench.
 func (a *NativeApp) startTranslation() {
 	if a.busy || a.snapshot == nil || !a.commitEdit(true) {
 		return
@@ -408,7 +409,6 @@ func (a *NativeApp) applyTranslation(candidate *translationCandidate, target str
 	if len(checks.Errors) > 0 {
 		a.completeTranslationRecovery()
 		a.status = locales.TranslationDoneUnsaved(report.Translated, len(checks.Errors))
-		a.translationReview = true
 		return
 	}
 	if file == nil {

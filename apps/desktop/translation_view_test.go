@@ -78,13 +78,18 @@ func TestFinishedTranslationIsAppliedAndSavedBesideItsSource(t *testing.T) {
 		t.Fatal(target)
 	}
 	a.applyTranslation(candidate, target, []byte("first"))
-	if a.snapshot.Document.Cues[0].Text != "你好" || a.subtitleTab != 1 || a.unsaved[1] || a.savedPath[1] != target || !strings.Contains(a.status, "lesson-zh.srt") {
+	if a.snapshot.Document.Cues[0].Text != "你好" || a.subtitleTab != 1 || a.unsaved[1] || a.savedPath[1] != target || a.translationReview || !strings.Contains(a.status, "lesson-zh.srt") {
 		t.Fatal(a.snapshot.Document.Cues, a.status, a.errorText)
 	}
 	if data, err := os.ReadFile(target); err != nil || string(data) != "first" {
 		t.Fatal(err, string(data))
 	}
-	a.applyTranslation(candidateFor(t, *a.snapshot, "您好"), target, []byte("second"))
+	second := candidateFor(t, *a.snapshot, "您好")
+	second.Checks.Warnings = []string{"Reading speed warning"}
+	a.applyTranslation(second, target, []byte("second"))
+	if a.translationReview || a.translationCandidate != second {
+		t.Fatal("translation warnings opened the check results or were discarded")
+	}
 	if data, err := os.ReadFile(target); err != nil || string(data) != "first" {
 		t.Fatal("the first translation was overwritten", err)
 	}
@@ -104,7 +109,7 @@ func TestFinishedTranslationIsAppliedAndSavedBesideItsSource(t *testing.T) {
 }
 
 // A translation the checker finds errors in is kept in the project, but
-// not saved, and its check results are shown.
+// not saved. Check results open only when requested from the toolbar.
 func TestTranslationWithCheckErrorsStaysUnsaved(t *testing.T) {
 	a, dir, candidate := translationApp(t)
 	candidate.Checks.Errors = []string{"#1: protected subtitle markup changed"}
@@ -113,13 +118,19 @@ func TestTranslationWithCheckErrorsStaysUnsaved(t *testing.T) {
 	if a.translationCheckTab != reviewAllFindings || a.translationIssueSelected != 0 || a.translationIssueQuery != "" {
 		t.Fatal("new check report kept the old search, row or warning tab")
 	}
-	if a.snapshot.Document.Cues[0].Text != "你好" || !a.unsaved[1] || !a.translationReview || !strings.Contains(a.status, "1 项错误") {
+	if a.snapshot.Document.Cues[0].Text != "你好" || !a.unsaved[1] || a.translationReview || a.translationCandidate != candidate || !strings.Contains(a.status, "1 项错误") {
 		t.Fatal(a.status, a.unsaved)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "lesson-zh.srt")); err == nil {
 		t.Fatal("a translation with errors was saved")
 	}
 	tt := settled(a.view, 1400, 900)
+	if tt.HasText(locales.ReviewBatchScope()) {
+		t.Fatal("translation check results opened automatically")
+	}
+	if err := tt.Click(locales.TranslationResults()); err != nil || !a.translationReview {
+		t.Fatal("check results did not open from the toolbar", err)
+	}
 	if !tt.HasText(locales.TranslationResults()) || !strings.Contains(reviewFieldText(t, tt, locales.ReviewChecks()), "#1: protected subtitle markup changed") {
 		t.Fatal(tt.Texts())
 	}
