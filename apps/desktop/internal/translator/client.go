@@ -71,10 +71,9 @@ const (
 
 // service talks to the one OpenAI-compatible endpoint the user chose, for
 // one run. Requests stream, so a reader sees the translation as it is
-// written. Transient failures (rate limits, overloaded or unreachable
-// services, cut streams) are retried a bounded number of times with
-// backoff, as VideoCaptioner's and SmartSub's clients do; every attempt
-// counts toward the run's request limit, which caps the cost.
+// written. Explicit transient HTTP failures use bounded backoff; transport
+// failures and cut streams have an unknown billing outcome and require a user
+// retry. Every attempt counts toward the run's request limit.
 type service struct {
 	url, api, model, key string
 	client               *http.Client
@@ -214,8 +213,8 @@ func mentionsFormat(detail string) bool {
 	return false
 }
 
-// retryable: what may succeed when sent again. Credentials, a missing model,
-// a request the service cannot take and a refusal do not.
+// Retry only explicit transient HTTP failures. A transport or stream error
+// cannot prove the provider did not process the POST, even with no complete cue.
 func retryable(err error) bool {
 	var status *httpError
 	if errors.As(err, &status) {
@@ -226,8 +225,7 @@ func retryable(err error) bool {
 		}
 		return status.status >= 520 && status.status <= 529
 	}
-	var refused refusal
-	return !errors.As(err, &refused)
+	return false
 }
 
 // backoff waits as long as the service asks, else 2, 5 and 10 seconds,

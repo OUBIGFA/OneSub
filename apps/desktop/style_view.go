@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
@@ -11,13 +12,31 @@ import (
 	"github.com/google/uuid"
 )
 
-// stylePanel separates output content from the style being edited. The layer
-// selector precedes presets, so a preset visibly belongs to the selected layer.
+// stylePanel keeps one shared heading above independently scrolling panes.
+// The left pane chooses content and presets; the right edits that layer's style.
 func (a *NativeApp) stylePanel(c *ui.Context) {
+	width, _ := c.Size()
+	a.stylePanelAtWidth(c, width)
+}
+
+func (a *NativeApp) stylePanelAtWidth(c *ui.Context, width float32) {
 	hasCues := a.snapshot != nil && len(a.snapshot.Document.Cues) > 0
 	ready := hasCues && len(a.styleCatalog.Presets) > 0
 	ass := a.snapshot != nil && (a.snapshot.Document.Format == "ass" || a.snapshot.Document.Format == "ssa")
-	ui.Column(c).Fill().Label(locales.A11yStylePanel()).Children(func() {
+	panel := ui.Column(c).Fill().Label(locales.A11yStylePanel())
+	split := ui.Local(panel, "content-width", func() float32 { return float32(a.settings.StyleContentWidth) })
+	contentScroll := ui.Local(panel, "content-scroll", func() ui.ScrollState { return ui.ScrollState{} })
+	// Use this frame's allocated width. Temporary viewport clamps must not
+	// overwrite the saved ratio or wait for a measured second frame.
+	fit := func(value float32) float32 {
+		room, left, right := width-1, em(c, 220), em(c, 360)
+		if room >= left+right {
+			return min(100-right/room*100, max(left/room*100, value))
+		}
+		return value
+	}
+	shown := fit(*split)
+	panel.Children(func() {
 		panelHeader(c, nil, func() { panelTitle(c, locales.StyleTitle()) }, nil)
 		separator(c)
 		switch {
@@ -26,33 +45,47 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 		case !ready:
 			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.StyleLoading()) })
 		default:
-			ui.Scroll(c).Grow(1).TrackScroll(&a.styleScroll).Children(func() {
-				content := ui.Column(c).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 24))
-				content.Children(func() {
-					if !ass && a.settings.SubtitleOutput.Normalized().Mode == "bilingual" {
-						segmentedFill(c, &a.styleLayer, locales.StylePrimaryLayer(), locales.StyleSecondaryLayer()).Label(locales.A11yStyleLayers())
-					}
-					layer := a.editedLayer()
-					cells := a.outputFields(c, false)
-					if !ass {
-						cells = append(cells, func() {
-							ui.Field(c, locales.StylePreset(), func() {
-								ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() { a.presetControls(c, layer) })
+			ui.SplitPercent(c, &shown, func() {
+				ui.Scroll(c).Fill().TrackScroll(contentScroll).Children(func() {
+					ui.Column(c).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 16)).Children(func() {
+						if !ass && a.settings.SubtitleOutput.Normalized().Mode == "bilingual" {
+							// Stack the two full layer names in the narrow content pane.
+							segmentedFill(c, &a.styleLayer, locales.StylePrimaryLayer(), locales.StyleSecondaryLayer()).Column().Label(locales.A11yStyleLayers())
+						}
+						layer := a.editedLayer()
+						cells := a.outputFields(c, false)
+						if !ass {
+							cells = append(cells, func() {
+								ui.Field(c, locales.StylePreset(), func() {
+									ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() { a.presetControls(c, layer) })
+								})
 							})
-						})
-					}
-					parameterGrid(c, 180, 2, cells...)
-					if ass {
-						muted(c, locales.StyleKeepAss())
-						return
-					}
-					// Panel navigation uses tabs; this segmented choice switches
-					// properties of the same subtitle style without another tab bar.
-					segmentedFill(c, &a.styleTab, locales.StyleText(), locales.StyleAppearance(), locales.StyleLayout()).Label(locales.StyleProperties()).OnChange(func() { a.styleScroll.Y = 0 })
-					// The selected native tab already groups these properties;
-					// use the same flat field alignment as the other inspectors.
-					ui.Column(c).Gap(em(c, 16)).Children(func() { a.styleControls(c, layer) })
+						}
+						for _, cell := range cells {
+							cell()
+						}
+					})
 				})
+			}, func() {
+				ui.Scroll(c).Fill().TrackScroll(&a.styleScroll).Children(func() {
+					ui.Column(c).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 16)).Children(func() {
+						if ass {
+							muted(c, locales.StyleKeepAss())
+							return
+						}
+						// Panel navigation uses tabs; this segmented choice switches
+						// properties of the same subtitle style without another tab bar.
+						segmentedFill(c, &a.styleTab, locales.StyleText(), locales.StyleAppearance(), locales.StyleLayout()).Label(locales.StyleProperties()).OnChange(func() { a.styleScroll.Y = 0 })
+						// The selected native tab already groups these properties;
+						// use the same flat field alignment as the other inspectors.
+						ui.Column(c).Gap(em(c, 16)).Children(func() { a.styleControls(c, a.editedLayer()) })
+					})
+				})
+			}).Grow(1).OnChange(func() {
+				// Match saved pane bounds so a narrow drag survives a restart.
+				*split = fit(min(90, max(10, shown)))
+				a.settings.StyleContentWidth = float64(*split)
+				a.prefsSaveDue = c.Now().Add(400 * time.Millisecond)
 			})
 		}
 	})

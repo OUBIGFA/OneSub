@@ -159,11 +159,17 @@ func (a *NativeApp) saveTracks(tracks []int, saveAs bool, next func()) {
 	if a.busy || a.snapshot == nil || !a.commitEdit(true) {
 		return
 	}
+	a.run(locales.TaskSaveSubtitles(), a.saveTracksWork(tracks, saveAs, next))
+}
+
+// Freeze the save inputs before the task starts; completion only acknowledges
+// tracks whose files were actually replaced.
+func (a *NativeApp) saveTracksWork(tracks []int, saveAs bool, next func()) func(context.Context) (func(), error) {
 	state := *a.snapshot
 	formats := a.trackFormats()
 	paths := [2]string{a.defaultTrackPath(0), a.defaultTrackPath(1)}
 	known := a.savedPath
-	a.run(locales.TaskSaveSubtitles(), func(ctx context.Context) (func(), error) {
+	return func(ctx context.Context) (func(), error) {
 		written := map[int]string{}
 		finish := func(proceed bool) func() {
 			return func() {
@@ -227,7 +233,7 @@ func (a *NativeApp) saveTracks(tracks []int, saveAs bool, next func()) {
 			written[track] = path
 		}
 		return finish(true), nil
-	})
+	}
 }
 
 // encodeTrack writes one track in a subtitle format through libse. A
@@ -248,7 +254,9 @@ func (a *NativeApp) encodeTrack(ctx context.Context, doc subtitle.Document, trac
 // guardUnsaved asks before an action that replaces or closes the workbench
 // while a subtitle track differs from its file. next repeats the action.
 func (a *NativeApp) guardUnsaved(next func()) bool {
-	a.commitEdit(true)
+	if !a.commitEdit(true) {
+		return true
+	}
 	if a.skipGuard {
 		a.skipGuard = false
 		return false
@@ -328,7 +336,9 @@ func (a *NativeApp) saveChoiceDialog(c *ui.Context, open *bool, title, message, 
 }
 
 func (a *NativeApp) requestExport() {
-	a.commitEdit(true)
+	if !a.commitEdit(true) {
+		return
+	}
 	if a.subtitleTab == 0 {
 		a.settings.SubtitleOutput.Mode, a.settings.SubtitleOutput.SourceTrack = "source", "original"
 	} else if a.trackHasContent(1) {
@@ -342,12 +352,16 @@ func (a *NativeApp) requestExport() {
 
 // Hiding to the tray keeps the project and its edits; nothing is lost.
 func (a *NativeApp) hideToTray() {
-	a.commitEdit(true)
+	if !a.commitEdit(true) {
+		return
+	}
 	a.win.Hide()
 }
 
 func (a *NativeApp) requestClear() {
-	a.commitEdit(true)
+	if !a.commitEdit(true) {
+		return
+	}
 	a.clearOpen = true
 }
 

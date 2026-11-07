@@ -198,7 +198,7 @@ func (a *NativeApp) view(c *ui.Context) {
 		// Three independent columns: preview/style, subtitles/editor, workflow.
 		// Native splitters retain pointer, keyboard and same-frame layout.
 		ui.SplitPercent(c, &x, func() {
-			ui.SplitVerticalPercent(c, &y, func() { a.playerView(c) }, func() { a.stylePanel(c) }).Fill().OnChange(func() {
+			ui.SplitVerticalPercent(c, &y, func() { a.playerView(c) }, func() { a.stylePanelAtWidth(c, (width-1)*x/100) }).Fill().OnChange(func() {
 				a.splitY = y
 				_, a.splitY, _, _ = a.paneSizes(c)
 			})
@@ -312,7 +312,13 @@ func (a *NativeApp) paneSizes(c *ui.Context) (player, top, subtitles, editor flo
 		w, _ := c.MeasureText(0, ui.Span{Text: label, Weight: 500})
 		workflowMinimum = max(workflowMinimum, float32(math.Ceil(float64(w+em(c, 2*panelPad+32+iconSize+8)+2))))
 	}
-	keep(&player, width-1, em(c, 260), em(c, 356)+workflowMinimum+1)
+	// Reserve the style split's labels at the supported minimum. If the OS work
+	// area is smaller, retain the compact bounds for the other two columns.
+	playerMinimum, otherMinimum := em(c, 660), em(c, 356)+workflowMinimum+1
+	if width-1 < playerMinimum+otherMinimum {
+		playerMinimum = em(c, 260)
+	}
+	keep(&player, width-1, playerMinimum, otherMinimum)
 	// Content must scroll inside a deliberately shortened pane, never
 	// override a user's drag with its measured natural height.
 	keep(&top, height, em(c, 240), em(c, 180))
@@ -471,7 +477,9 @@ func (a *NativeApp) run(label string, work func(context.Context) (func(), error)
 	if a.busy {
 		return
 	}
-	a.commitEdit(true)
+	if !a.commitEdit(true) {
+		return
+	}
 	a.busy = true
 	a.clearError(label)
 	a.status = label
@@ -480,42 +488,49 @@ func (a *NativeApp) run(label string, work func(context.Context) (func(), error)
 	go func() {
 		apply, err := work(ctx)
 		cancel()
-		a.win.Update(func() {
-			a.busy = false
-			a.composeRunning, a.compressRunning = false, false
-			a.recognitionRunning = false
-			if a.translationRunning && err != nil && a.translationLive != nil {
-				a.translationLive.stopped = err.Error()
-				if errors.Is(err, context.Canceled) {
-					a.translationLive.stopped = locales.StatusCancelled()
-				}
-			}
-			a.translationRunning = false
-			a.cancel = nil
-			switch {
-			case errors.Is(err, context.Canceled):
-				// Cancelling is the user's choice, not a failure.
-				a.status = locales.StatusCancelled()
-			case err != nil:
-				a.showError(label, err.Error())
-				a.status = locales.StatusFailed()
-			case apply != nil:
-				a.clearError(label)
-				a.status = locales.StatusDone()
-				apply()
-			default:
-				a.clearError(label)
-				a.status = ""
-			}
-			if a.quitAfterTask {
-				a.quitAfterTask = false
-				a.requestExit()
-			} else {
-				a.installAutomaticUpdate()
-			}
-		})
+		a.win.Update(func() { a.finishTask(label, apply, err) })
 	}()
 }
+
+// finishTask reconciles worker results on the UI thread before exit or update.
+func (a *NativeApp) finishTask(label string, apply func(), err error) {
+	a.busy = false
+	a.composeRunning, a.compressRunning = false, false
+	a.recognitionRunning = false
+	if a.translationRunning && err != nil && a.translationLive != nil {
+		a.translationLive.stopped = err.Error()
+		if errors.Is(err, context.Canceled) {
+			a.translationLive.stopped = locales.StatusCancelled()
+		}
+	}
+	a.translationRunning = false
+	a.cancel = nil
+	if err == nil {
+		a.clearError(label)
+		a.status = ""
+		if apply != nil {
+			a.status = locales.StatusDone()
+		}
+	}
+	// A worker may have committed part of its result before a later error or
+	// cancellation. Reconcile it, then keep the failure as the final status.
+	if apply != nil {
+		apply()
+	}
+	if errors.Is(err, context.Canceled) {
+		a.status = locales.StatusCancelled()
+	} else if err != nil {
+		a.showError(label, err.Error())
+		a.status = locales.StatusFailed()
+	}
+	if a.quitAfterTask {
+		a.quitAfterTask = false
+		a.requestExit()
+	} else {
+		a.installAutomaticUpdate()
+	}
+}
+
 func (a *NativeApp) pickFiles() {
 	a.run(locales.TaskOpenFiles(), func(ctx context.Context) (func(), error) {
 		paths, err := a.openDialog(mygo.OpenDialogOptions{Parent: a.win, Title: locales.ActionAddFiles(), Multiple: true, Filters: []mygo.FileFilter{{Name: locales.FilterMediaAndSubtitles(), Extensions: importing.Extensions}}})
@@ -765,7 +780,7 @@ func (a *NativeApp) verifyModel(m models.Model) {
 	dir := a.modelPath(m.ID)
 	a.run(locales.TaskVerifyModel(), func(ctx context.Context) (func(), error) {
 		err := models.Verify(ctx, m, dir)
-		return func() { a.modelStates[m.ID] = locales.ModelStateVerified(); a.refreshDownloadedAsrModels() }, err
+		return a.modelVerificationResult(m, err)
 	})
 }
 func (a *NativeApp) downloadModel(m models.Model) {
@@ -776,8 +791,21 @@ func (a *NativeApp) downloadModel(m models.Model) {
 				a.modelStates[m.ID] = locales.ModelProgress(modelStageLabel(p.Stage), float64(p.Done)*100/float64(p.Total))
 			})
 		})
-		return func() { a.modelStates[m.ID] = locales.ModelStateVerified(); a.refreshDownloadedAsrModels() }, err
+		return a.modelVerificationResult(m, err)
 	})
+}
+
+// Verification and download share the same model availability result.
+func (a *NativeApp) modelVerificationResult(m models.Model, err error) (func(), error) {
+	return func() {
+		// A failed recheck also invalidates an earlier successful check or a
+		// download's last progress message. Neither proves current integrity.
+		a.modelStates[m.ID] = locales.ModelStateUnverified()
+		if err == nil {
+			a.modelStates[m.ID] = locales.ModelStateVerified()
+		}
+		a.refreshDownloadedAsrModels()
+	}, err
 }
 
 func (a *NativeApp) evalPlayer(script string) {
@@ -1000,7 +1028,7 @@ func main() {
 		bounds := initialWindowBounds(display.WorkArea)
 		// Under the native view and the player's page is black: where the page
 		// lags behind a fast resize of its pane, black shows, as the page is.
-		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "OneSub", X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: bounds.Height, MinWidth: min(900, bounds.Width), MinHeight: min(640, bounds.Height), StateKey: "main", BackgroundColor: "#000000", Content: ui.View(a.view)})
+		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "OneSub", X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: bounds.Height, MinWidth: min(minimumWindowWidth, bounds.Width), MinHeight: min(640, bounds.Height), StateKey: "main", BackgroundColor: "#000000", Content: ui.View(a.view)})
 		// Black fills the player until its page paints, as the page itself is.
 		a.player, err = a.win.NewWebView(mygo.WebViewOptions{URL: "/", BackgroundColor: "#000000"})
 		if err != nil {

@@ -384,15 +384,15 @@ func TestTranslateIncompleteRunResumesFromCache(t *testing.T) {
 	}
 }
 
-// Overloaded services and cut streams are sent again after a wait, and the
-// live view says why.
+// Explicit transient HTTP failures are retried after a wait, and the live view
+// says why. An accepted request with an unknown outcome is a separate case.
 func TestTranslateRetriesTransientFailures(t *testing.T) {
 	f, config := serve(t, func(s seen, n int) (string, string, int) {
 		switch n {
 		case 1:
 			return `{"error":{"message":"overloaded"}}`, "", http.StatusServiceUnavailable
 		case 2:
-			return `{"1": "译文`, "", 0 // the stream ends without a finish
+			return `{"error":{"message":"rate limited"}}`, "", http.StatusTooManyRequests
 		}
 		return translated(s), "stop", 0
 	})
@@ -405,6 +405,25 @@ func TestTranslateRetriesTransientFailures(t *testing.T) {
 	result, err := Translate(context.Background(), config, testDocument(1))
 	if err != nil || len(f.seen()) != 3 || result.Report.Requests != 3 || len(notes) != 2 || !strings.Contains(notes[0], "overloaded") {
 		t.Fatal(err, len(f.seen()), notes)
+	}
+}
+
+// Losing the response before any complete cue does not prove the provider
+// stopped processing or billing. Only an explicit user retry can send it again.
+func TestTranslateDoesNotReplayUnknownOutcome(t *testing.T) {
+	for _, content := range []string{"", `{"1":"未完成`} {
+		t.Run(content, func(t *testing.T) {
+			f, config := serve(t, func(s seen, n int) (string, string, int) {
+				if n == 1 {
+					return content, "", 0
+				}
+				return translated(s), "stop", 0
+			})
+			result, err := Translate(context.Background(), config, testDocument(1))
+			if err == nil || len(f.seen()) != 1 || result.Report.Translated != 0 {
+				t.Fatalf("unknown outcome was replayed: err=%v requests=%d translated=%d", err, len(f.seen()), result.Report.Translated)
+			}
+		})
 	}
 }
 

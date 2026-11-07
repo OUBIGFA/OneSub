@@ -145,6 +145,9 @@ func (a *NativeApp) installUpdate(automatic bool) {
 	if a.busy || a.updates.release == nil || a.updates.phase == updateInstalling || a.updates.phase == updateInstalled || a.settingsError {
 		return
 	}
+	if !a.commitEdit(true) {
+		return
+	}
 	release := a.updates.release
 	a.updates.phase, a.updates.automatic = updateInstalling, automatic
 	a.updates.downloaded, a.updates.total, a.updates.failure = 0, 0, ""

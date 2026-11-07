@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -137,5 +138,42 @@ func TestDownloadResumeAndHashValidation(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "weights"), []byte(strings.Repeat("x", len(data))), 0600)
 	if err := Verify(context.Background(), m, dir); err == nil {
 		t.Fatal("same-size corruption accepted")
+	}
+}
+
+// A corrupt completed partial used to fail every later retry without making
+// another request. Keep reporting corruption, but let the next download repair
+// this invocation's cache while preserving an existing final model file.
+func TestDownloadCanRetryCorruptPartial(t *testing.T) {
+	data := "verified model bytes"
+	hash := sha256.Sum256([]byte(data))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(w, r, "weights", time.Time{}, strings.NewReader(data))
+	}))
+	defer server.Close()
+	m := Model{ID: "test", Files: []File{{Name: "weights", Size: int64(len(data)), SHA256: hex.EncodeToString(hash[:]), URL: server.URL}}}
+	for _, partial := range []string{strings.Repeat("x", len(data)), "bad", data + "extra"} {
+		t.Run(fmt.Sprint(len(partial)), func(t *testing.T) {
+			dir := t.TempDir()
+			final := filepath.Join(dir, "weights")
+			if err := os.WriteFile(final, []byte("previous model"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(final+".partial", []byte(partial), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := Download(context.Background(), server.Client(), m, dir, func(Progress) {}); err == nil {
+				t.Fatal("corruption was not reported")
+			}
+			if got, err := os.ReadFile(final); err != nil || string(got) != "previous model" {
+				t.Fatal("failed download changed the final file", err)
+			}
+			if err := Download(context.Background(), server.Client(), m, dir, func(Progress) {}); err != nil {
+				t.Fatal("retry is stuck on the corrupt partial", err)
+			}
+			if err := Verify(context.Background(), m, dir); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

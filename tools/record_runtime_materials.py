@@ -6,6 +6,7 @@ hashes rather than trusting whatever binary happens to be on PATH next time.
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -26,6 +27,13 @@ def notice(source, name):
 
 
 def main():
+    manifest_path = ROOT / "third_party/manifests/runtimes.json"
+    registered = json.loads(manifest_path.read_text(encoding="utf-8"))
+    locked = re.search(r"(?m)^\s*(?:require\s+)?github\.com/egoist/mygo\s+(\S+)",
+                       (ROOT / "apps/desktop/go.mod").read_text(encoding="utf-8"))
+    if not locked or locked[1] != registered["mygo"]["version"]:
+        raise ValueError("Review and register the locked MyGo version before refreshing runtimes")
+    mygo_version = locked[1]
     LICENSES.mkdir(exist_ok=True)
     media = []
     for name in ("ffmpeg", "ffprobe"):
@@ -36,7 +44,7 @@ def main():
         media.append({**artifact(path), "version": version.splitlines()[0],
                       "configuration": version.splitlines()[2]})
     ffmpeg_license = notice(Path(shutil.which("ffmpeg")).parents[1] / "LICENSE", "ffmpeg.txt")
-    mygo_license = notice(ROOT / ".local/gomodcache/github.com/egoist/mygo@v0.6.4/LICENSE", "mygo.txt")
+    mygo_license = notice(ROOT / f".local/gomodcache/github.com/egoist/mygo@{mygo_version}/LICENSE", "mygo.txt")
     libse_license = notice(ROOT / "third_party/sources/subtitleedit-e316223ca1cfe8861acb4da4cd0e4ef5cce634f9/src/libse/LICENSE.txt", "libse.txt")
     node = ROOT / "apps/desktop/player/node_modules"
     player = []
@@ -47,21 +55,23 @@ def main():
         player.append({"name": name, "version": meta["version"], "spdx": meta.get("license"),
                        "notice": notice(license_path, name + ".txt") if license_path else None})
     manifest = {
+        # This tool refreshes measured artifacts, not reviewed provenance or
+        # registrations maintained by other dependency-specific build entries.
+        **registered,
         "channel": "local-test",
         "publicReleaseApproved": False,
-        "remainingMaterials": ["complete transitive binary notices and corresponding source/build materials", "signing and clean-machine install/upgrade/uninstall acceptance"],
-        "mygo": {"version": "v0.6.4", "license": mygo_license},
-        "libse": {"revision": "e316223ca1cfe8861acb4da4cd0e4ef5cce634f9", "license": libse_license},
+        "mygo": {**registered["mygo"], "license": mygo_license},
+        "libse": {**registered.get("libse", {}), "revision": "e316223ca1cfe8861acb4da4cd0e4ef5cce634f9", "license": libse_license},
         "media": media,
         "mediaSource": "https://www.gyan.dev/ffmpeg/builds/",
         "mediaLicense": ffmpeg_license,
-        "oneasr": {**artifact(ROOT / "build/output/oneasr/oneasr-cli.exe"), "version": "v1.3.0",
+        "oneasr": {**registered.get("oneasr", {}), **artifact(ROOT / "build/output/oneasr/oneasr-cli.exe"), "version": "v1.3.0",
                    "archiveSha256": "e9e169e108ee43d88b5b047f4ec556819cd7fa5e2424d3f5ed957634f85d4936"},
         "player": player,
         "wasm": [artifact(path) for path in sorted((node / "jassub/dist/wasm").glob("*.wasm"))],
         "fontRedistribution": "No system font files are copied into the installer. Runtime preview uses the user's installed fonts through local capability URLs."
     }
-    (ROOT / "third_party/manifests/runtimes.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

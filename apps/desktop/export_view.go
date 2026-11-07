@@ -168,7 +168,9 @@ func (a *NativeApp) exportSubtitle() {
 	if a.snapshot == nil {
 		return
 	}
-	a.commitEdit(true)
+	if !a.commitEdit(true) {
+		return
+	}
 	state, format, line := *a.snapshot, a.exportFormat, a.exportLines
 	options, style, secondary, aspect := a.settings.SubtitleOutput, a.currentStyle, a.secondaryStyle, a.frameAspect
 	a.run(locales.MenuExportSubtitles(), func(ctx context.Context) (func(), error) {

@@ -144,7 +144,9 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 	if a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" {
 		return
 	}
-	a.commitEdit(true)
+	if !a.commitEdit(true) {
+		return
+	}
 	state, style, mode, aspect := *a.snapshot, a.currentStyle, a.settings.ComposeMode, a.frameAspect
 	secondary, outputOptions := a.secondaryStyle, a.settings.SubtitleOutput
 	language := a.settings.TargetLanguage

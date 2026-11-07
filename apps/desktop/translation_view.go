@@ -316,7 +316,9 @@ func (a *NativeApp) executeTranslationTask(task *translationTask, live *translat
 	if a.busy || a.snapshot == nil {
 		return
 	}
-	a.commitEdit(true)
+	if !a.commitEdit(true) {
+		return
+	}
 	state := *a.snapshot
 	key, err := security.ReadKey(task.CredentialScope)
 	if err != nil {

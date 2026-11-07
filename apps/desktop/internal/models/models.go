@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
@@ -189,6 +190,9 @@ func Verify(ctx context.Context, m Model, dir string) error {
 	}
 	return nil
 }
+
+var errModelHash = errors.New("model checksum mismatch")
+
 func verifyFile(ctx context.Context, path string, expected File) error {
 	file, err := os.Open(path)
 	if err != nil {
@@ -220,7 +224,7 @@ func verifyFile(ctx context.Context, path string, expected File) error {
 		}
 	}
 	if hex.EncodeToString(hash.Sum(nil)) != expected.SHA256 {
-		return errors.New(locales.ErrModelHash(expected.Name))
+		return apperr.Wrap(locales.ErrModelHash(expected.Name), errModelHash)
 	}
 	return nil
 }
@@ -260,7 +264,7 @@ func Download(ctx context.Context, client *http.Client, m Model, dir string, pro
 			offset = info.Size()
 		}
 		if offset > spec.Size {
-			return errors.New(locales.ErrModelPartial(spec.Name))
+			return errors.Join(errors.New(locales.ErrModelPartial(spec.Name)), os.Truncate(partial, 0))
 		}
 		if offset < spec.Size {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, spec.URL, nil)
@@ -337,6 +341,12 @@ func Download(ctx context.Context, client *http.Client, m Model, dir string, pro
 		}
 		progress(Progress{completed + offset, m.Size(), StageVerify})
 		if err := verifyFile(ctx, partial, spec); err != nil {
+			// A complete but corrupt cache cannot be resumed. Report the failed
+			// verification and reset only this model's partial for the next retry;
+			// short downloads and cancellation keep their resumable bytes.
+			if errors.Is(err, errModelHash) {
+				return errors.Join(err, os.Truncate(partial, 0))
+			}
 			return err
 		}
 		if err := os.Rename(partial, final); err != nil {

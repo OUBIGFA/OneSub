@@ -71,7 +71,9 @@ func (a *NativeApp) translate() {
 	if a.busy || a.snapshot == nil {
 		return
 	}
-	a.commitEdit(true)
+	if !a.commitEdit(true) {
+		return
+	}
 	a.commitProviderModelInput()
 	a.reloadTranslationProfiles()
 	if a.settings.ProviderURL == "" || a.settings.ProviderModel == "" {
@@ -85,6 +87,8 @@ func (a *NativeApp) compose() {
 	if a.snapshot == nil {
 		return
 	}
-	a.commitEdit(true)
+	if !a.commitEdit(true) {
+		return
+	}
 	a.composeOpen = true
 }

@@ -22,6 +22,10 @@ import (
 const schemaVersion = 2
 const maxSafeTime = int64(9007199254740991)
 
+// ErrInvalidEdit distinguishes rejected input from persistence failures. The
+// editor may restore invalid input on blur, but must retain an unwritten draft.
+var ErrInvalidEdit = errors.New("invalid subtitle edit")
+
 type Manifest struct {
 	Schema       int    `json:"schema"`
 	ID           string `json:"id"`
@@ -351,10 +355,10 @@ func (s *Store) apply(commandID string, expected int64, edits []Edit, manual boo
 			}
 			seen[e.ID] = true
 			if e.StartMs < 0 || e.EndMs <= e.StartMs || e.EndMs > maxSafeTime {
-				return cursor, errors.New(locales.ErrEditTiming())
+				return cursor, apperr.Wrap(locales.ErrEditTiming(), ErrInvalidEdit)
 			}
 			if strings.TrimSpace(e.Text) == "" || len(e.Text) > 1024*1024 {
-				return cursor, errors.New(locales.ErrEditText())
+				return cursor, apperr.Wrap(locales.ErrEditText(), ErrInvalidEdit)
 			}
 			var raw string
 			if err := tx.QueryRow("SELECT body FROM "+table+" WHERE id=?", e.ID).Scan(&raw); err != nil {

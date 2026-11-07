@@ -624,8 +624,8 @@
   "outputOptimized": "optimized",
   "outputBilingual": "Bilingual subtitles",
   "outputOrder": "Line order",
-  "outputTranslationFirst": "Translation above · original below",
-  "outputSourceFirst": "Original above · translation below",
+  "outputTranslationFirst": "Translation above",
+  "outputSourceFirst": "Original above",
   "outputPrimary": "Main subtitle",
   "exportFormat": "File format",
   "exportLines": "Keep subtitle lines",
@@ -866,7 +866,7 @@
   "errModelMissing": "Model file not ready: {name}",
   "errModelSize": "Model file size differs: {name}",
   "errModelHash": "Model verification failed: {name}",
-  "errModelPartial": "Unexpected partial download size: {name}; choose an empty folder",
+  "errModelPartial": "Unexpected partial download size: {name}; retry the download",
   "errModelHttp": "Model download failed: HTTP {status, number, ::group-off}",
   "@errModelHttp": {
     "placeholders": {

@@ -718,7 +718,7 @@
   "errModelMissing": "模型文件未就绪：{name}",
   "errModelSize": "模型文件大小不符：{name}",
   "errModelHash": "模型校验失败：{name}",
-  "errModelPartial": "下载片段大小异常：{name}；请重新选择空目录",
+  "errModelPartial": "下载片段大小异常：{name}；请重试下载",
   "errModelHttp": "模型下载失败 HTTP {status, number, ::group-off}",
   "errModelRange": "续传响应范围不符，未追加数据",
   "errModelOversize": "模型响应超过登记大小",

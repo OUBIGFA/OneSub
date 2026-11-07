@@ -134,7 +134,9 @@ func (a *NativeApp) retryTranslation() {
 	if a.busy || a.translationTask == nil || a.translationLive == nil || a.snapshot == nil {
 		return
 	}
-	a.commitEdit(true)
+	if !a.commitEdit(true) {
+		return
+	}
 	task := *a.translationTask
 	if task.ProjectID != a.snapshot.Manifest.ID || task.Revision != a.snapshot.Revision {
 		a.showError(locales.ActionTranslate(), locales.TranslationResumeStale())

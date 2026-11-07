@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -285,8 +286,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			if active >= 0 && (active != a.activeCue || a.followPending) {
 				if active != a.activeCue {
 					a.activeCue = active
-					if !a.editing && !a.composing {
-						a.commitEdit(true)
+					if !a.editing && !a.composing && a.commitEdit(true) {
 						a.selected = active
 						a.loadDraft()
 					}
@@ -334,7 +334,9 @@ func (a *NativeApp) locateCurrent() {
 	a.resumeFollow()
 	a.activeCue = index
 	if !a.editing && !a.composing && index != a.selected {
-		a.commitEdit(true)
+		if !a.commitEdit(true) {
+			return
+		}
 		a.selected = index
 		a.loadDraft()
 	}
@@ -406,8 +408,7 @@ func (a *NativeApp) editorView(c *ui.Context) {
 			// The text speaks for itself; the name is for assistive technology.
 			if a.subtitleTab == 1 {
 				textTrack := a.editorTextTrack()
-				if segmentedFill(c, &textTrack, locales.TabSource(), locales.TabTranslation()).Shrink(0).Changed() {
-					a.commitEdit(true)
+				if segmentedFill(c, &textTrack, locales.TabSource(), locales.TabTranslation()).Shrink(0).Changed() && a.commitEdit(true) {
 					a.editRebuiltSource = textTrack == 0
 					a.loadDraft()
 				}
@@ -449,7 +450,8 @@ func (a *NativeApp) loadDraft() {
 
 // commitEdit writes the draft as one undo step. While typing, an invalid
 // draft (empty text, end before start) waits for the next change. Leaving
-// the cue restores the stored values instead and says why.
+// the cue restores invalid input and says why. Storage and revision failures
+// retain the draft and block actions that would replace it.
 func (a *NativeApp) commitEdit(leaving bool) bool {
 	if !a.editPending {
 		return true
@@ -468,8 +470,12 @@ func (a *NativeApp) commitEdit(leaving bool) bool {
 	}
 	_, err := a.store.Apply(uuid.NewString(), a.snapshot.Revision, []project.Edit{{ID: cue.ID, Text: a.draft, Track: track, StartMs: int64(math.Round(a.start * 1000)), EndMs: int64(math.Round(a.end * 1000))}})
 	if err != nil {
+		a.editDue = time.Time{}
+		if !errors.Is(err, project.ErrInvalidEdit) {
+			a.showError("edit", err.Error())
+			return false
+		}
 		if !leaving {
-			a.editDue = time.Time{}
 			return false
 		}
 		a.showError("edit", locales.ErrEditRestored(err.Error()))
@@ -478,6 +484,7 @@ func (a *NativeApp) commitEdit(leaving bool) bool {
 	}
 	state, err := a.store.Snapshot()
 	if err != nil {
+		a.editDue = time.Time{}
 		a.showError("edit", err.Error())
 		return false
 	}
@@ -527,7 +534,9 @@ func (a *NativeApp) undo(redo bool) {
 }
 func (a *NativeApp) changeSubtitleTab(tab int) {
 	a.pendingClick = nil
-	a.commitEdit(true)
+	if !a.commitEdit(true) {
+		return
+	}
 	a.subtitleTab = tab
 	a.selected = min(a.selected, len(a.activeDocument().Cues)-1)
 	if a.selected < 0 && len(a.activeDocument().Cues) > 0 {

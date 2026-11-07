@@ -748,6 +748,18 @@ try {
             $p=Start-Process @restart
             for($i=0;$i -lt 150;$i++){if(Find-UI '继续处理'){break};Start-Sleep -Milliseconds 100}
             if(-not (Find-UI '继续处理') -or -not (Find-UI '你好，世界') -or -not (Find-UI '尚未完成')){throw 'Restart did not restore the translation'}
+            # Recovery must restore playable media as well as subtitle text.
+            for($i=0;$i -lt 100;$i++){
+                $slider=Find-UI '播放位置'
+                if($slider -and $slider.GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern).Current.Maximum -gt 2.9){break}
+                Start-Sleep -Milliseconds 100
+            }
+            if(-not $slider -or $slider.GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern).Current.Maximum -lt 2.9){throw 'Restart did not restore media duration'}
+            Click-UI '播放'
+            Wait-PlaybackStarted
+            Start-Sleep -Milliseconds 500
+            if((Read-PlaybackPosition) -le 0){throw 'Recovered video did not advance'}
+            Click-UI '暂停'
             & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-restored.png')
             Click-UI '继续处理'
         }

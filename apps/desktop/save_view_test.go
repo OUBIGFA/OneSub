@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,10 +10,143 @@ import (
 	"testing"
 	"time"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/models"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
+
+// A failed second track must not leave the first successful save dirty, or
+// continue the closing action. Exercise the real serializer and file write.
+func TestSaveTracksKeepsCompletedSaveWhenLaterTrackFails(t *testing.T) {
+	a := draftApp(t)
+	a.worker = subtitle.Client{Executable: os.Getenv("ONESUB_SUBTITLE_WORKER"), Scratch: t.TempDir()}
+	a.savedPath = [2]string{filepath.Join(t.TempDir(), "original.srt"), filepath.Join(t.TempDir(), "translation.srt")}
+	a.draft = "已修改原文"
+	a.changed(time.Now())
+	if !a.commitEdit(true) || !a.unsaved[0] {
+		t.Fatal("source edit was not pending save")
+	}
+	continued := false
+	a.busy = true
+	apply, err := a.saveTracksWork([]int{0, 1}, false, func() { continued = true })(context.Background())
+	if err == nil {
+		t.Fatal("incomplete translation was saved")
+	}
+	a.finishTask(locales.TaskSaveSubtitles(), apply, err)
+	doc, readErr := a.worker.Read(context.Background(), a.savedPath[0])
+	if readErr != nil || doc.Cues[0].Text != "已修改原文" {
+		t.Fatal("first track was not written", readErr)
+	}
+	if a.unsaved[0] || a.busy || continued || a.errorText == "" || a.status != locales.StatusFailed() {
+		t.Fatalf("partial save state lost: dirty=%v busy=%v continued=%v status=%q error=%q", a.unsaved, a.busy, continued, a.status, a.errorText)
+	}
+	if _, err := os.Stat(a.savedPath[1]); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("failed track created a file", err)
+	}
+}
+
+func TestCancelledTaskKeepsCompletedState(t *testing.T) {
+	a := nativeForTest(t)
+	a.busy, a.translationRunning = true, true
+	a.cancel = func() {}
+	a.finishTask("save", func() { a.lastOutput = "completed.srt"; a.status = "saved" }, context.Canceled)
+	if a.lastOutput != "completed.srt" || a.busy || a.translationRunning || a.cancel != nil || a.status != locales.StatusCancelled() || a.errorText != "" {
+		t.Fatal("cancellation discarded completed state or reported success", a.lastOutput, a.status, a.errorText)
+	}
+}
+
+// Task reconciliation also runs after failure; a model verification failure
+// must never supply the success callback used by verification and download.
+func TestFailedModelTaskDoesNotMarkVerified(t *testing.T) {
+	for _, cancel := range []bool{false, true} {
+		a := nativeForTest(t)
+		m := models.Model{ID: "missing", Files: []models.File{{Name: "model.bin", Size: 10}}}
+		ctx, stop := context.WithCancel(context.Background())
+		if cancel {
+			stop()
+		}
+		a.modelStates[m.ID] = locales.ModelStateVerified()
+		err := models.Verify(ctx, m, t.TempDir())
+		stop()
+		if err == nil {
+			t.Fatal("missing model verified")
+		}
+		apply, err := a.modelVerificationResult(m, err)
+		a.finishTask("verify", apply, err)
+		if a.modelStates[m.ID] == locales.ModelStateVerified() {
+			t.Fatal("failed verification marked model verified")
+		}
+	}
+}
+
+// A storage failure is not an invalid draft. Every action that can replace
+// the editor must keep its text and stop until the draft can be committed.
+func TestStorageFailureKeepsDraftAndBlocksLeaving(t *testing.T) {
+	for _, action := range []string{"commit", "select", "tab", "clear", "export", "guard", "follow", "playback"} {
+		t.Run(action, func(t *testing.T) {
+			a := draftApp(t)
+			a.draft = "仍未写入的修改"
+			a.changed(time.Now())
+			if err := a.store.Close(); err != nil {
+				t.Fatal(err)
+			}
+			switch action {
+			case "commit":
+				if a.commitEdit(true) {
+					t.Error("failed database write reported success")
+				}
+			case "select":
+				a.selectSubtitle(1, "none")
+			case "tab":
+				a.changeSubtitleTab(1)
+			case "clear":
+				a.requestClear()
+			case "export":
+				a.requestExport()
+			case "guard":
+				if !a.guardUnsaved(func() { t.Error("continued after a failed edit") }) {
+					t.Error("closing action was allowed")
+				}
+			case "follow":
+				a.position = 2.5
+				a.locateCurrent()
+			case "playback":
+				a.position, a.paused = 2.5, false
+				settled(a.view, 1400, 900)
+			}
+			if a.draft != "仍未写入的修改" || !a.editPending || a.selected != 0 || a.subtitleTab != 0 || a.clearOpen || a.exportOpen || a.errorText == "" {
+				t.Fatalf("failed write lost the draft: text=%q pending=%v selected=%d tab=%d clear=%v export=%v error=%q", a.draft, a.editPending, a.selected, a.subtitleTab, a.clearOpen, a.exportOpen, a.errorText)
+			}
+		})
+	}
+}
+
+func TestDraftCanBeRetriedAfterStorageRecovers(t *testing.T) {
+	a := draftApp(t)
+	a.draft = "恢复后写入的修改"
+	a.changed(time.Now())
+	if err := a.store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if a.commitEdit(false) || a.errorText == "" || !a.editDue.IsZero() {
+		t.Fatal("background save hid the failure or kept retrying every frame")
+	}
+	s, err := project.Open(a.snapshot.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	a.store = s
+	if !a.commitEdit(true) || a.editPending || a.errorText != "" {
+		t.Fatal("draft could not be retried after recovery", a.errorText)
+	}
+	state, err := s.Snapshot()
+	if err != nil || state.TrackDocument(0).Cues[0].Text != "恢复后写入的修改" || !a.unsaved[0] {
+		t.Fatal("recovered edit was not persisted", err)
+	}
+}
 
 func draftApp(t *testing.T) *NativeApp {
 	t.Helper()
