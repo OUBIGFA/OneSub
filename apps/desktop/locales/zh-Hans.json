@@ -1,5 +1,6 @@
 {
   "@@locale": "zh-Hans",
+  "readingInspect": "检查字幕",
   "retranslateTitle": "重新翻译",
   "retranslateSelected": "重译 · {count} 条",
   "@retranslateSelected": {"placeholders":{"count":{"type":"int"}}},
@@ -21,6 +22,7 @@
   "retranslateCompare": "译文对比",
   "retranslateCandidate": "新译文",
   "retranslateExisting": "原译文",
+  "retranslateNoExisting": "暂无原译文",
   "retranslatePending": "待翻译",
   "retranslateInvalid": "检查未通过",
   "retranslateAvailable": "待替换",

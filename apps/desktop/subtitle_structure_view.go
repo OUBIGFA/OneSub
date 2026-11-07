@@ -17,6 +17,18 @@ func (a *NativeApp) subtitleActionsMenu(c *ui.Context) {
 	toolIcon(c, locales.SubtitleActionsMenu(), "ellipsis").Disabled(a.busy || len(a.activeDocument().Cues) == 0 || a.showsTranslationProgress()).Menu(func(m *ui.Menu) {
 		a.pendingClick = nil
 		a.subtitleStructureMenu(m, a.selected)
+		// The same commands remain available when a narrow list moves its
+		// secondary toolbar actions into this native overflow menu.
+		m.Separator()
+		if m.Item(locales.FindReplace()).Shortcut(ui.Cmd, ui.KeyH).Chosen() {
+			a.openFindReplace()
+		}
+		if m.Item(locales.TextReplacePeriods()).Chosen() {
+			a.cleanListPunctuation(false)
+		}
+		if m.Item(locales.TextStripTrailing()).Chosen() {
+			a.cleanListPunctuation(true)
+		}
 	})
 }
 

@@ -37,7 +37,7 @@ func TestSettingsSidebarKeepsAccentAcrossBlankClicks(t *testing.T) {
 									chosen, _ := tt.Find(labels[tab])
 									// Sample the selected row away from glyphs and the
 									// focus ring, using the sidebar's actual geometry.
-									pixel := tt.Image().RGBAAt(int(nav.X+nav.W-22*scale), int(chosen.Y+chosen.H/2))
+									pixel := tt.Image().RGBAAt(int(nav.X+14*scale), int(chosen.Y+chosen.H/2))
 									accent := ui.Hex("#2563eb")
 									if pixel.R != accent.R || pixel.G != accent.G || pixel.B != accent.B {
 										t.Fatal("selected settings item lost its accent", tab, dark, pixel, nav, chosen)

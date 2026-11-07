@@ -336,13 +336,13 @@ func TestReadingCategoryControlsKeepLayout(t *testing.T) {
 			for _, dark := range []bool{false, true} {
 				for _, scale := range []float32{1, 1.5, 2} {
 					a := storeApp(t, subtitle.Cue{ID: "all", Text: strings.Repeat("长", 30), EndMs: 500})
-					tt := settled(a.subtitlesView, int(320*scale), int(800*scale))
+					tt := settled(a.subtitlesView, int(800*scale), int(800*scale))
 					tt.SetDark(dark)
 					tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
 					picker, _ := tt.Find(locales.ReadingIssueType())
 					previous, _ := tt.Find(locales.ReadingPrevious())
 					next, _ := tt.Find(locales.ReadingNext())
-					if picker.X < 0 || previous.X < picker.X+picker.W || next.X < previous.X+previous.W || next.X+next.W > 320*scale || math.Abs(float64(picker.Y+picker.H/2-previous.Y-previous.H/2)) > 0.5 || math.Abs(float64(previous.Y+previous.H/2-next.Y-next.H/2)) > 0.5 {
+					if picker.X < 0 || previous.X < picker.X+picker.W || next.X < previous.X+previous.W || next.X+next.W > 800*scale || math.Abs(float64(picker.Y+picker.H/2-previous.Y-previous.H/2)) > 0.5 || math.Abs(float64(previous.Y+previous.H/2-next.Y-next.H/2)) > 0.5 {
 						t.Fatal("issue picker and navigation clipped or separated", language, scale, picker, previous, next)
 					}
 					for _, label := range []string{locales.ReadingPrevious(), locales.ReadingNext()} {
@@ -553,10 +553,16 @@ func TestReadingToolbarLargeCountsFitMinimumPane(t *testing.T) {
 			}
 			a := storeApp(t, cues...)
 			tt := settled(a.subtitlesView, 320, 600)
-			for _, label := range []string{locales.ReadingSplitCount(len(cues)), locales.ReadingIssueType(), locales.ReadingPrevious(), locales.ReadingNext()} {
-				bounds, found := tt.Find(label)
-				if !found || bounds.X < 0 || bounds.X+bounds.W > 320 {
-					t.Fatal("large reading count clipped in the minimum pane", language, label, bounds)
+			button, found := tt.Find(locales.ReadingInspect())
+			if !found || button.X < 0 || button.X+button.W > 320 {
+				t.Fatal("review menu clipped in the minimum pane", language, button)
+			}
+			if err := tt.Click(locales.ReadingInspect()); err != nil {
+				t.Fatal(err)
+			}
+			for _, label := range []string{locales.ReadingSplitCount(len(cues)), locales.ReadingViewLong(len(cues)), locales.ReadingPrevious(), locales.ReadingNext()} {
+				if !slices.Contains(tt.Menu(), label) {
+					t.Fatal("large reading count missing from compact menu", label, tt.Menu())
 				}
 			}
 		})
@@ -569,6 +575,32 @@ func TestReadingToolbarNarrowPane(t *testing.T) {
 			a := storeApp(t, subtitle.Cue{ID: "a", Text: strings.Repeat("word ", 20), StartMs: 0, EndMs: 15000})
 			for _, width := range []int{360, 520, 900} {
 				tt := settled(a.subtitlesView, width, 600)
+				if width < 680 {
+					for _, label := range []string{locales.ReadingInspect(), locales.SubtitleActionsMenu(), locales.ListSaveAs(), locales.ListSearch()} {
+						bounds, ok := tt.Find(label)
+						if !ok || bounds.X < 0 || bounds.X+bounds.W > float32(width)+1 {
+							t.Fatalf("clipped %q at width %v: %+v", label, width, bounds)
+						}
+					}
+					if err := tt.Click(locales.ReadingInspect()); err != nil {
+						t.Fatal(err)
+					}
+					for _, label := range []string{locales.ReadingSplitCount(1), locales.ReadingPrevious(), locales.ReadingNext()} {
+						if !slices.Contains(tt.Menu(), label) {
+							t.Fatal("compact reading command missing", label)
+						}
+					}
+					tt.CloseMenu()
+					if err := tt.Click(locales.SubtitleActionsMenu()); err != nil {
+						t.Fatal(err)
+					}
+					for _, label := range []string{locales.FindReplace(), locales.TextReplacePeriods(), locales.TextStripTrailing()} {
+						if !slices.Contains(tt.Menu(), label) {
+							t.Fatal("compact edit command missing", label)
+						}
+					}
+					continue
+				}
 				for _, label := range []string{locales.ReadingSplitCount(1), locales.ReadingIssueType(), locales.ReadingPrevious(), locales.ReadingNext(), locales.FindReplace(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.ListSaveAs()} {
 					bounds, ok := tt.Find(label)
 					if !ok || bounds.X < 0 || bounds.X+bounds.W > float32(width)+1 {

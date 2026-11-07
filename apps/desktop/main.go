@@ -187,12 +187,16 @@ func (a *NativeApp) view(c *ui.Context) {
 	theme, look := studioTheme(c.Theme(), c.Preferences().HighContrast)
 	c.SetTheme(&theme)
 	x, y, style, editor := a.paneSizes(c)
+	width, _ := c.Size()
+	// The split percentage and viewport are known in this frame; the list
+	// can choose its compact controls without measuring an earlier layout.
+	subtitleWidth := (width - 1) * (100 - x) / 100
 	surface := ui.Column(c).Fill()
 	surface.Children(func() {
 		a.topBar(c, look)
-		ui.Divider(c)
+		separator(c)
 		ui.SplitVerticalPercent(c, &y, func() {
-			ui.SplitPercent(c, &x, func() { a.playerView(c) }, func() { a.subtitlesView(c) }).Fill().OnChange(func() {
+			ui.SplitPercent(c, &x, func() { a.playerView(c) }, func() { a.subtitlesViewAtWidth(c, subtitleWidth) }).Fill().OnChange(func() {
 				a.splitX = x
 				a.splitX, _, _, _ = a.paneSizes(c)
 			})
@@ -210,7 +214,7 @@ func (a *NativeApp) view(c *ui.Context) {
 			a.splitY = y
 			_, a.splitY, _, _ = a.paneSizes(c)
 		})
-		ui.Divider(c)
+		separator(c)
 		a.statusBar(c, look)
 	})
 	if paths := surface.DroppedFiles(); len(paths) > 0 {
@@ -317,12 +321,12 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 	ui.Row(c).Children(func() {
 		ui.Grid(c).ColumnTracks(ui.Fr(1), ui.FitContent(), ui.Fr(1)).Grow(1).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-				iconButton(c, locales.ActionAddFiles(), "folder-open").MinHeight(em(c, 38)).Disabled(a.busy).OnClick(a.pickFiles)
+				iconButton(c, locales.ActionAddFiles(), "folder-open").MinHeight(em(c, 40)).Disabled(a.busy).OnClick(a.pickFiles)
 				ui.Toolbar(c, func() {
 					command(locales.ActionClearWorkbench(), "eraser").Disabled(a.busy || a.snapshot == nil).OnClick(a.requestClear)
 				}).Padding(0)
 			})
-			primaryIconButton(c, a.processingLabel(), "languages").MinHeight(em(c, 42)).Padding(em(c, 10), em(c, 20)).Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(a.processMedia)
+			primaryIconButton(c, a.processingLabel(), "languages").MinHeight(em(c, 40)).Padding(em(c, 8), em(c, 20)).Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(a.processMedia)
 			ui.Row(c).Gap(em(c, 12)).Justify(ui.End).AlignItems(ui.Center).Children(func() {
 				ui.Toolbar(c, func() {
 					toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
@@ -335,9 +339,9 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 	}).Height(em(c, toolbarSize)).Shrink(0).AlignItems(ui.Center).Gap(em(c, 16)).Padding(em(c, 12), em(c, 20)).Background(look.chrome).Label(locales.A11yToolbar())
 }
 
-// toolbarSize is the top bar's height: the 42 of the primary action and
+// toolbarSize is the top bar's height: the 40 of the primary action and
 // 12 above and below. Pane sizes use it in the same frame, unmeasured.
-const toolbarSize = 66
+const toolbarSize = 64
 
 // errorDuration is how long the status bar shows an error before it goes
 // back to the last status.
@@ -386,7 +390,7 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 		hasStatus := a.errorText != "" || a.status != ""
 		if hasStatus {
 			if readingHint {
-				ui.Divider(c).Height(em(c, 16)).AlignSelf(ui.Center)
+				separator(c).Height(em(c, 16)).AlignSelf(ui.Center)
 			}
 			if a.errorText != "" {
 				ui.Row(c).Grow(1).MinWidth(0).Gap(em(c, 4)).AlignItems(ui.Center).Children(func() {
@@ -403,13 +407,13 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 		canCancel := a.busy && a.cancel != nil && !a.choosingFile && !a.composeRunning && !a.recognitionRunning && !a.translationRunning
 		canOpenOutput := a.lastOutput != "" && !a.busy
 		if (readingHint || hasStatus) && (canCancel || canOpenOutput || len(counts) > 0) {
-			ui.Divider(c).Height(em(c, 16)).AlignSelf(ui.Center)
+			separator(c).Height(em(c, 16)).AlignSelf(ui.Center)
 		}
 		if canCancel {
 			ui.Button(c, locales.StatusOwnerTask()+locales.ActionCancelTask()).Padding(em(c, 2), em(c, 10)).Shrink(0).OnClick(func() { a.cancel() })
 		}
 		if canCancel && len(counts) > 0 {
-			ui.Divider(c).Height(em(c, 16)).AlignSelf(ui.Center)
+			separator(c).Height(em(c, 16)).AlignSelf(ui.Center)
 		}
 		if len(counts) > 0 {
 			// Two compact lines retain both complete labels in a narrow footer,
@@ -427,7 +431,7 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 			})
 		}
 		if len(counts) > 0 && canOpenOutput {
-			ui.Divider(c).Height(em(c, 16)).AlignSelf(ui.Center)
+			separator(c).Height(em(c, 16)).AlignSelf(ui.Center)
 		}
 		if canOpenOutput {
 			label := locales.StatusOwnerOutput() + locales.ResultOpenFolder()

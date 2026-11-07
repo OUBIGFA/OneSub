@@ -60,7 +60,12 @@ func matchesReadingIssue(load subtitle.CueReadingLoad, kind string) bool {
 	return false
 }
 
-func (a *NativeApp) readingTools(c *ui.Context) {
+type subtitleReadingIssue struct {
+	kind, label, summary string
+	count                int
+}
+
+func (a *NativeApp) readingIssues() []subtitleReadingIssue {
 	long, fast, brief := 0, 0, 0
 	for i, load := range a.readingLoads() {
 		// Only the selected draft can differ from the cached snapshot. Do
@@ -79,14 +84,16 @@ func (a *NativeApp) readingTools(c *ui.Context) {
 			brief++
 		}
 	}
-	issues := []struct {
-		kind, label, summary string
-		count                int
-	}{
+	return []subtitleReadingIssue{
 		{"long", locales.ReadingLongCues(), locales.ReadingViewLong(long), long},
 		{"fast", locales.ReadingFastCues(), locales.ReadingViewFast(fast), fast},
 		{"brief", locales.ReadingBriefCues(), locales.ReadingViewBrief(brief), brief},
 	}
+}
+
+func (a *NativeApp) readingTools(c *ui.Context) {
+	issues := a.readingIssues()
+	long, fast, brief := issues[0].count, issues[1].count, issues[2].count
 	selected := issues[a.readingIssue]
 	// Reserve the longest category name, not its changing count. The picker
 	// and both navigation buttons stay together without moving when it changes.
@@ -114,6 +121,31 @@ func (a *NativeApp) readingTools(c *ui.Context) {
 			toolIcon(c, locales.ReadingNext(), "chevron-right").Shrink(0).
 				Disabled(disabled).Tooltip(locales.ReadingNextHint()).OnClick(func() { a.locateReadingIssue(selected.kind, 1) })
 		})
+	})
+}
+
+// Keep review and splitting reachable without sacrificing the subtitle rows
+// to three extra toolbar lines. Both presentations use the same issue counts.
+func (a *NativeApp) readingMenu(c *ui.Context) {
+	issues := a.readingIssues()
+	selected := issues[a.readingIssue]
+	toolIcon(c, locales.ReadingInspect(), "triangle-alert").Disabled(a.showsTranslationProgress()).Tooltip(locales.ReadingInspect() + "\n" + selected.summary).Menu(func(m *ui.Menu) {
+		for i, issue := range issues {
+			if m.Item(issue.summary).Checked(i == a.readingIssue).Disabled(issue.count == 0).Chosen() {
+				a.readingIssue = i
+			}
+		}
+		m.Separator()
+		if m.Item(locales.ReadingPrevious()).Disabled(selected.count == 0).Chosen() {
+			a.locateReadingIssue(selected.kind, -1)
+		}
+		if m.Item(locales.ReadingNext()).Disabled(selected.count == 0).Chosen() {
+			a.locateReadingIssue(selected.kind, 1)
+		}
+		m.Separator()
+		if m.Item(locales.ReadingSplitCount(issues[0].count)).Disabled(a.busy || issues[0].count == 0).Chosen() {
+			a.smartSplitSubtitles()
+		}
 	})
 }
 

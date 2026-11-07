@@ -60,7 +60,7 @@ func TestWholeStudioPresentation(t *testing.T) {
 					a.batchItems = []batchItem{{Source: "lesson-01.mp4", Status: batchDone, Output: "lesson-01.srt"}, {Source: "lesson-02.mp4", Status: batchWaiting}, {Source: "lesson-03.wav", Status: batchWaiting}}
 					capture("recognition-queue")
 					a.settingsOpen = true
-					for tab := 0; tab < 5; tab++ {
+					for tab := 0; tab < 7; tab++ {
 						a.settingsTab = tab
 						a.providerSettingsTab = 0
 						capture(fmt.Sprintf("settings-%d", tab))

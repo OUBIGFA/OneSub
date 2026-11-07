@@ -64,11 +64,11 @@ func (a *NativeApp) translationView(c *ui.Context) {
 func (a *NativeApp) translationFindingsView(c *ui.Context, candidate *translationCandidate) {
 	errors := len(candidate.Checks.Errors)
 	warnings := len(candidate.Checks.Warnings) + len(candidate.Result.Report.Warnings)
-	ui.Row(c).Wrap().Gap(em(c, 12)).AlignItems(ui.Center).Shrink(0).Children(func() {
-		if ui.Tabs(c, &a.translationCheckTab, locales.ReviewAll(errors+warnings), locales.ReviewErrors(errors), locales.ReviewWarnings(warnings)).Changed() {
+	ui.Row(c).Wrap().Gap(em(c, 16)).AlignItems(ui.Center).Shrink(0).Children(func() {
+		if segmentedFill(c, &a.translationCheckTab, locales.ReviewAll(errors+warnings), locales.ReviewErrors(errors), locales.ReviewWarnings(warnings)).MinWidth(em(c, 320)).Grow(1).Changed() {
 			a.translationIssueList.ScrollTo(0, ui.Start)
 		}
-		ui.SearchField(c, &a.translationIssueQuery).Grow(1).MinWidth(em(c, 220)).Label(locales.ReviewSearchFindings()).Placeholder(locales.ReviewSearchFindings()).OnChange(func() {
+		ui.SearchField(c, &a.translationIssueQuery).Grow(1).Basis(0).MinWidth(em(c, 220)).Label(locales.ReviewSearchFindings()).Placeholder(locales.ReviewSearchFindings()).OnChange(func() {
 			a.translationIssueList.ScrollTo(0, ui.Start)
 		})
 	})
@@ -87,7 +87,7 @@ func (a *NativeApp) translationFindingsView(c *ui.Context, candidate *translatio
 	case a.translationCheckTab == reviewWarningFindings:
 		empty = locales.ReviewNoWarnings()
 	}
-	ui.Grid(c).Columns(2).RowTracks(ui.Fr(1)).Gap(em(c, 24)).Grow(1).Basis(0).MinHeight(0).Children(func() {
+	ui.Grid(c).ColumnTracks(ui.Fr(1), ui.Fr(1.2)).RowTracks(ui.Fr(1)).Gap(em(c, 24)).Grow(1).Basis(0).MinHeight(0).Children(func() {
 		ui.Column(c).Fill().MinWidth(0).MinHeight(0).Gap(em(c, 12)).Children(func() {
 			muted(c, locales.ReviewFindingsVisible(len(findings), errors+warnings)).Shrink(0)
 			a.translationIssueList.Selected = &selected
@@ -110,13 +110,13 @@ func (a *NativeApp) translationFindingsView(c *ui.Context, candidate *translatio
 				}
 				// Keep the list scannable; the selected message remains
 				// complete in the adjacent reader, not in a screen-tall row.
-				ui.Text(c, finding.message).MaxLines(3).AlignSelf(ui.Start)
+				ui.Text(c, finding.message).MaxLines(3).LineHeight(1.4).AlignSelf(ui.Start)
 			}, func(bool) {}).Label(locales.ReviewFindingsList())
 			if table.Changed() && selected >= 0 && selected < len(findings) {
 				a.translationIssueSelected = findings[selected].index
 			}
 		})
-		ui.Column(c).Fill().MinWidth(0).MinHeight(0).Gap(em(c, 12)).Label(locales.ReviewFindingDetail()).Children(func() {
+		ui.Column(c).Fill().MinWidth(0).MinHeight(0).Gap(em(c, 12)).Padding(em(c, 16)).Background(studioColors(c).panel).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Label(locales.ReviewFindingDetail()).Children(func() {
 			text := empty
 			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Children(func() {
 				if selected >= 0 && selected < len(findings) {
@@ -143,7 +143,7 @@ func (a *NativeApp) translationFindingsView(c *ui.Context, candidate *translatio
 // from the beginning: reset only when the displayed message changes, leaving
 // subsequent scrolling and text selection under the reader's control.
 func reviewReadOnlyText(c *ui.Context, label, text string) ui.Element {
-	area := ui.TextArea(c, &text).ReadOnly(true).Grow(1).MinHeight(0).Label(label)
+	area := ui.TextArea(c, &text).ReadOnly(true).Grow(1).MinHeight(0).Padding(em(c, 12)).FontSize(em(c, 16)).LineHeight(1.5).Background(studioColors(c).panel).Border(0, ui.Transparent).Label(label)
 	previous := ui.Local(area, "read-text", func() string { return "" })
 	if *previous != text {
 		area.SetTextSelection(0, 0)

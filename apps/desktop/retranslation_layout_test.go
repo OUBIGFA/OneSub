@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
@@ -20,6 +22,45 @@ func bulkRetranslationApp(t *testing.T) *NativeApp {
 	a.checkAllSubtitles()
 	a.openRetranslation()
 	return a
+}
+
+// Review text is naturally sized within one scrolling reader. It must still
+// be selectable in full, read-only, and reset to the next sentence's start.
+func TestRetranslationReaderCopiesWholeTextWithoutEditingBatch(t *testing.T) {
+	a := checkedReviewApp(t)
+	r := a.retranslation
+	long := "A new translation.\n" + strings.Repeat("Keep every word in the review.\n", 70) + "Final line."
+	r.rows[0].result = &retranslationResult{text: long, valid: true}
+	before := r.rows[0]
+	tt := settled(a.retranslationView, 1000, 820)
+	box, ok := tt.Find(long)
+	if !ok || box.H <= 0 {
+		t.Fatal("candidate has no readable area", box)
+	}
+	if err := tt.Click(long); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(ui.Cmd, ui.KeyA)
+	tt.Key(ui.Cmd, ui.KeyC)
+	if tt.Clipboard() != long {
+		t.Fatal("candidate copy lost text", len(tt.Clipboard()), len(long))
+	}
+	tt.Type("must not change the translation")
+	if !reflect.DeepEqual(r.rows[0], before) || r.rows[0].result.text != long || a.trackUnsaved(1) {
+		t.Fatal("reader edited the candidate or saved subtitle")
+	}
+	reader, _ := tt.Find(locales.RetranslateCompare())
+	tt.Scroll(reader.X+reader.W/2, reader.Y+reader.H/2, 0, 4000)
+	if err := tt.Click("Second source"); err != nil {
+		t.Fatal(err)
+	}
+	if r.selected != 1 || !tt.HasText(locales.RetranslateNoExisting()) {
+		t.Fatal("directory did not select the next sentence")
+	}
+	text, found := tt.Find(locales.TabSource())
+	if !found || text.H <= 0 {
+		t.Fatal("next sentence retained old scroll position", text)
+	}
 }
 
 func TestRetranslationLargeBatchUsesWorkingHeight(t *testing.T) {
@@ -43,7 +84,8 @@ func TestRetranslationLargeBatchUsesWorkingHeight(t *testing.T) {
 						first, last := r.list.Visible()
 						minimum := 6
 						if size[0] > 1000 {
-							minimum = 20
+							// Every cue now exposes a readable second status line.
+							minimum = 14
 						}
 						if last-first+1 < minimum {
 							t.Fatalf("only %d cues visible, want at least %d", last-first+1, minimum)

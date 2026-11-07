@@ -92,8 +92,8 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 }
 
 func (a *NativeApp) providerConnectionFields(c *ui.Context) {
-	ui.Column(c.Key("provider-connection")).Grow(1).Gap(em(c, 20)).Children(func() {
-		ui.Grid(c).Columns(3).GapX(em(c, 20)).GapY(em(c, 16)).AlignItems(ui.Start).Children(func() {
+	ui.Column(c.Key("provider-connection")).Grow(1).Gap(em(c, 12)).Children(func() {
+		ui.Grid(c).Columns(2).GapX(em(c, 20)).GapY(em(c, 16)).AlignItems(ui.Start).Children(func() {
 			ui.Field(c, locales.TranslationProviderName(), func() {
 				p := a.settings.Provider()
 				name := ""
@@ -102,12 +102,14 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 				}
 				ui.TextInput(c, &name).Label(locales.TranslationProviderName()).Tooltip(name).Disabled(p == nil).OnChange(func() { p.Name = name; a.saveSettings() })
 			})
-			ui.Field(c, locales.TranslationApi(), func() {
-				idSelect(c, &a.settings.ProviderAPI, []option{{translator.APIChatCompletions, "OpenAI Chat Completions"}, {translator.APIResponses, "OpenAI Responses"}}).Label(locales.TranslationApi()).Disabled(a.settings.Provider() == nil).OnChange(a.saveSettings)
-			})
 			ui.Field(c, locales.TranslationRequestLimit(), func() {
 				ui.NumberInput(c, &a.settings.MaxRequests, 1, 10000, 1).Label(locales.TranslationRequestLimit()).OnChange(a.saveSettings)
 			})
+		})
+		// Protocol names are product labels, not user content. Reserve a full
+		// row so the selected API never becomes an ambiguous ellipsis.
+		ui.Field(c, locales.TranslationApi(), func() {
+			idSelect(c, &a.settings.ProviderAPI, []option{{translator.APIChatCompletions, "OpenAI Chat Completions"}, {translator.APIResponses, "OpenAI Responses"}}).Label(locales.TranslationApi()).Disabled(a.settings.Provider() == nil).OnChange(a.saveSettings)
 		})
 		ui.Field(c, locales.TranslationEndpoint(), func() {
 			ui.TextInput(c, &a.settings.ProviderURL).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).Tooltip(a.settings.ProviderURL).Disabled(a.settings.Provider() == nil).OnChange(func() {

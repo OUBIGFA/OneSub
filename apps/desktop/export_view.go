@@ -131,7 +131,7 @@ func (a *NativeApp) exportView(c *ui.Context) {
 							format = i
 						}
 					}
-					if ui.Segmented(c, &format, labels...).Label(locales.ExportFormat()).AlignSelf(ui.Start).Changed() {
+					if segmentedFill(c, &format, labels...).Label(locales.ExportFormat()).Changed() {
 						a.exportFormat = formats[format]
 					}
 				})

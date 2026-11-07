@@ -13,7 +13,18 @@ import (
 // Settings share the same native fieldset hierarchy as the workbench. The
 // section heading and spacing do the grouping; no nested cards or extra rules.
 func settingsGroup(c *ui.Context, title string, content func()) {
-	parameterGroup(c, title, nil, content)
+	ui.Column(c).Gap(em(c, 16)).Children(func() {
+		ui.Text(c, title).FontSize(em(c, headingSize)).FontWeight(600)
+		content()
+	})
+}
+
+// Settings are read as rows: a stable label edge and a stable control edge.
+// Field retains the native label/control relationship and keyboard behavior.
+func settingsRow(c *ui.Context, label string, control func() ui.Element) {
+	ui.Field(c, label, func() { control().Width(em(c, 260)) }).Row().Justify(ui.SpaceBetween).
+		AlignItems(ui.Center).Gap(em(c, 24)).Padding(em(c, 10), 0).MinHeight(em(c, 52))
+	separator(c)
 }
 
 // Settings use one sidebar layout. The active form has explicit native grid
@@ -26,11 +37,11 @@ func (a *NativeApp) settingsView(c *ui.Context) {
 	order := []int{0, 1, 5, 2, 3, 4, 6}
 	fixedDialog(c, &a.settingsOpen, locales.SettingsTitle(), 1280, 800, func() {
 		content := func() {
-			ui.Column(c.Key(a.settingsTab)).Fill().Gap(em(c, 20)).Label(locales.A11ySettingsContent()).Children(func() {
+			ui.Column(c.Key(a.settingsTab)).Fill().Gap(em(c, 28)).Label(locales.A11ySettingsContent()).Children(func() {
 				a.settingsContent(c, a.settingsTab)
 			})
 		}
-		ui.Row(c).Fill().Gap(em(c, 24)).AlignItems(ui.Stretch).Children(func() {
+		ui.Row(c).Fill().Gap(0).AlignItems(ui.Stretch).Children(func() {
 			selected := strconv.Itoa(a.settingsTab)
 			navigationWidth := float32(0)
 			for _, label := range labels {
@@ -41,15 +52,15 @@ func (a *NativeApp) settingsView(c *ui.Context) {
 				for _, tab := range order {
 					ui.SidebarItem(c, strconv.Itoa(tab), icons[pageIcons[tab]], labels[tab])
 				}
-			}).Width(navigationWidth + em(c, 72)).Label(locales.A11ySettingsTabs()).OnChange(func() {
+			}).Width(max(em(c, 200), navigationWidth+em(c, 64))).Padding(em(c, 16), em(c, 12)).Label(locales.A11ySettingsTabs()).OnChange(func() {
 				a.settingsTab, _ = strconv.Atoi(selected)
 			})
-			ui.Column(c).Grow(1).MinWidth(0).Children(content)
+			separator(c)
+			ui.Column(c).Grow(1).MinWidth(0).Padding(em(c, 24)).Children(content)
 		})
-	}, func() {
-		ui.Button(c, locales.ActionClose()).OnClick(func() { a.saveSettings(); a.settingsOpen = false })
-	})
+	}, nil)
 	if wasOpen && !a.settingsOpen {
+		a.saveSettings()
 		a.commitProviderModelInput()
 		a.refreshDownloadedAsrModels()
 	}
@@ -73,21 +84,21 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 			if a.settings.CloseToTray {
 				behavior = "tray"
 			}
-			ui.Grid(c).Columns(3).GapX(em(c, 20)).GapY(em(c, 16)).AlignItems(ui.Start).Children(func() {
-				ui.Field(c, locales.SettingsLanguage(), func() {
-					idSelect(c, &a.settings.UILanguage, interfaceLanguages()).Label(locales.SettingsLanguage()).OnChange(func() {
+			ui.Column(c).Children(func() {
+				settingsRow(c, locales.SettingsLanguage(), func() ui.Element {
+					return idSelect(c, &a.settings.UILanguage, interfaceLanguages()).Label(locales.SettingsLanguage()).OnChange(func() {
 						mygo.App.SetLocale(a.settings.UILanguage)
 						a.saveSettings()
 					})
 				})
-				ui.Field(c, locales.SettingsAppearance(), func() {
-					idSelect(c, &a.settings.Appearance, appearances()).Label(locales.SettingsAppearance()).OnChange(func() {
+				settingsRow(c, locales.SettingsAppearance(), func() ui.Element {
+					return idSelect(c, &a.settings.Appearance, appearances()).Label(locales.SettingsAppearance()).OnChange(func() {
 						mygo.Theme.SetSource(mygo.ThemeSource(a.settings.Appearance))
 						a.saveSettings()
 					})
 				})
-				ui.Field(c, locales.SettingsCloseWindow(), func() {
-					idSelect(c, &behavior, []option{{"tray", locales.SettingsCloseTray()}, {"exit", locales.SettingsCloseExit()}}).Label(locales.SettingsCloseWindow()).OnChange(func() {
+				settingsRow(c, locales.SettingsCloseWindow(), func() ui.Element {
+					return idSelect(c, &behavior, []option{{"tray", locales.SettingsCloseTray()}, {"exit", locales.SettingsCloseExit()}}).Label(locales.SettingsCloseWindow()).OnChange(func() {
 						a.settings.CloseToTray = behavior == "tray"
 						a.saveSettings()
 					})
@@ -95,11 +106,17 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 			})
 		})
 		settingsGroup(c, locales.SettingsPlayback(), func() {
-			ui.Grid(c).Columns(2).GapX(em(c, 20)).GapY(em(c, 16)).AlignItems(ui.Start).Children(func() {
-				a.playbackActionField(c, locales.SettingsSingleClick(), &a.settings.SingleClickAction)
-				a.playbackActionField(c, locales.SettingsDoubleClick(), &a.settings.DoubleClickAction)
+			ui.Column(c).Children(func() {
+				for _, field := range []struct {
+					label string
+					value *string
+				}{{locales.SettingsSingleClick(), &a.settings.SingleClickAction}, {locales.SettingsDoubleClick(), &a.settings.DoubleClickAction}} {
+					settingsRow(c, field.label, func() ui.Element {
+						return idSelect(c, field.value, subtitleActions()).Label(field.label).OnChange(a.saveSettings)
+					})
+				}
+				ui.Checkbox(c, &a.settings.FollowPlayback, locales.SettingsFollowPlayback()).Margin(em(c, 12), 0, 0, 0).OnChange(func() { a.activeCue = -1; a.saveSettings() })
 			})
-			ui.Checkbox(c, &a.settings.FollowPlayback, locales.SettingsFollowPlayback()).OnChange(func() { a.activeCue = -1; a.saveSettings() })
 		})
 	case 1:
 		// The models and their folders. The options of a recognition and its

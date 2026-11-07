@@ -15,10 +15,10 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 		panelHeader(c, nil, func() {
 			ui.Tabs(c, &a.workflowTab, locales.WorkflowRecognize(), locales.WorkflowTranslate()).Label(locales.WorkflowTitle()).OnChange(func() { a.workflowScroll.Y = 0 })
 		}, nil)
-		ui.Divider(c)
+		separator(c)
 		ui.Column(c).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 12)).Shrink(0).Children(func() {
 			if a.workflowTab == 0 {
-				ui.Segmented(c, &a.recognitionMode, locales.RecognitionCurrentFile(), locales.RecognitionFileQueue()).AlignSelf(ui.Center).Label(locales.RecognitionTarget())
+				segmentedFill(c, &a.recognitionMode, locales.RecognitionCurrentFile(), locales.RecognitionFileQueue()).Label(locales.RecognitionTarget())
 				hasMedia := a.snapshot != nil && a.snapshot.Manifest.MediaPath != ""
 				manualUnavailable := a.settings.RecognitionMode == recognitionManual && !a.selectedAsrDownloaded()
 				if a.recognitionMode == 1 {
@@ -202,7 +202,7 @@ func (a *NativeApp) timelineRebuildChoice(c *ui.Context) {
 	t := c.Theme()
 	hint := locales.TranslationOptimizeTimelineHint(locales.TabRebuilt())
 	choice := ui.Toggle(c, &a.settings.OptimizeTimeline, "").Label(locales.TranslationOptimizeTimeline()).Description(hint).
-		MinHeight(em(c, 88)).Padding(em(c, 16)).Gap(em(c, 12)).
+		MinHeight(em(c, 80)).Padding(em(c, 12)).Gap(em(c, 8)).
 		Justify(ui.Start).AlignItems(ui.Center).Disabled(a.busy).OnChange(a.saveSettings)
 	state := locales.TranslationTimelineOff()
 	if a.settings.OptimizeTimeline {
@@ -213,17 +213,16 @@ func (a *NativeApp) timelineRebuildChoice(c *ui.Context) {
 		}
 	}
 	choice.Children(func() {
-		icon(c, "audio-lines").Size(em(c, 24), em(c, 24)).Shrink(0)
-		ui.Column(c).Grow(1).MinWidth(0).Gap(em(c, 6)).Children(func() {
-			ui.Text(c, locales.TranslationOptimizeTimeline()).FontSize(em(c, 17)).FontWeight(600)
+		ui.Column(c).Grow(1).MinWidth(0).Gap(em(c, 8)).Children(func() {
+			ui.Text(c, locales.TranslationOptimizeTimeline()).FontSize(em(c, bodySize)).FontWeight(500)
 			muted(c, hint).FontSize(em(c, captionSize))
 		})
-		ui.Badge(c, state).Shrink(0)
+		muted(c, state).FontSize(em(c, captionSize)).Shrink(0)
 	})
 }
 
 func startButton(c *ui.Context, label, name string, disabled bool, run func()) {
-	ui.PrimaryButton(c, "").Label(label).Tooltip(label).MinHeight(em(c, 42)).Justify(ui.Center).Padding(em(c, 10), em(c, 16)).Disabled(disabled).OnClick(run).Children(func() {
+	ui.PrimaryButton(c, "").Label(label).Tooltip(label).MinHeight(em(c, 40)).Justify(ui.Center).Padding(em(c, 8), em(c, 16)).Disabled(disabled).OnClick(run).Children(func() {
 		icon(c, name)
 		ui.Text(c, label).SingleLine()
 	})

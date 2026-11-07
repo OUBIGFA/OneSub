@@ -37,7 +37,15 @@ func applyWinOneLightColors(t *ui.Theme, highContrast bool) {
 func studioColors(c *ui.Context) studio {
 	t := c.Theme()
 	if t.Dark {
-		return studio{chrome: t.Surface, panel: t.Surface, hairline: t.Border, selected: t.Accent.Alpha(0.12), warningSoft: t.Warning.Alpha(0.16)}
+		panel := ui.Hex("#141414")
+		if c.Preferences().HighContrast {
+			panel = t.Background
+		}
+		hairline := ui.Hex("#343434")
+		if c.Preferences().HighContrast {
+			hairline = t.Border
+		}
+		return studio{chrome: t.Surface, panel: panel, hairline: hairline, selected: t.Accent.Alpha(0.12), warningSoft: t.Warning.Alpha(0.16)}
 	}
 	look := studio{
 		chrome:      ui.Hex("#f3f3f3"),

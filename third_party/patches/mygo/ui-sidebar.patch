@@ -52,7 +52,7 @@ diff --git a/ui/sidebar.go b/ui/sidebar.go
  	if sb != nil {
  		item.level = sb.depth + 1
  		item.afterInput(func() {
-@@ -175,22 +174,22 @@
+@@ -175,22 +174,24 @@
  			}
  
  		})
@@ -63,7 +63,10 @@ diff --git a/ui/sidebar.go b/ui/sidebar.go
  			sb.chosen = item
  		}
  	}
- 	iconColor := c.accent(t)
+-	iconColor := c.accent(t)
++	// OneSub: unselected destinations use the secondary text role.
++	// Accent belongs to the chosen destination, not every navigation icon.
++	iconColor := t.TextMuted
  	switch {
 -	case chosen && focused:
 +	case chosen:

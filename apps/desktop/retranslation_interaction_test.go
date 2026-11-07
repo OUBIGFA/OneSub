@@ -20,14 +20,13 @@ func TestRetranslationSelectionToolbarAtMinimumWindow(t *testing.T) {
 			headerWidths := map[string]float32{}
 			tt := settled(func(c *ui.Context) {
 				a.view(c)
-				for _, label := range []string{locales.ListColumnStart(), locales.ListColumnEnd(), locales.ListColumnText()} {
+				for _, label := range []string{locales.ListColumnStart() + " / " + locales.ListColumnEnd(), locales.ListColumnText()} {
 					headerWidths[label], _ = c.MeasureText(0, ui.Span{Text: label, Weight: 600})
 				}
 			}, 900, 640)
 			list, _ := tt.Find(locales.A11ySubtitleList())
-			// MyGo's finder returns the visible part of an element. Scroll
-			// the narrow table to its text column before measuring its title.
-			tt.Scroll(list.X+list.W/2, list.Y+list.H-5, 1000, 0)
+			// Narrow lists stack the time pair. Headers and subtitle text must
+			// now be readable without horizontal scrolling, including selection.
 			for label, width := range headerWidths {
 				header, found := tt.Find(label)
 				if !found || header.W < width-1 {

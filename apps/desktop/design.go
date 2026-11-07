@@ -6,16 +6,18 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Typography and spacing are shared by every native view. Light colors are
-// reused from WinOne; dark controls retain the established MyGo palette.
+// Shared native typography: controls stay compact; subtitle content and the
+// editor carry the larger reading sizes, as the work rather than the chrome.
 const (
-	bodySize    = 15 // the product's body text
-	captionSize = 13 // the smallest text: status bar, units, hints
-	headingSize = 18 // section headings, distinct from form labels
-	titleSize   = 24 // dialog titles
-	headerSize  = 48 // common panel navigation/title row
-	panelPad    = 20 // breathing room around inspector content
-	iconSize    = 16 // Fluent and Spectrum's icon beside 14–15 text
+	bodySize     = 15 // the product's body text
+	captionSize  = 13 // the smallest text: status bar, units, hints
+	headingSize  = 18 // section headings, distinct from form labels
+	titleSize    = 24 // dialog titles
+	headerSize   = 48 // common panel navigation/title row
+	panelPad     = 20 // breathing room around inspector content
+	iconSize     = 16 // Fluent and Spectrum's icon beside 14–15 text
+	subtitleSize = 17
+	editSize     = 20
 )
 
 // studio holds the colors the theme has no field for.
@@ -23,16 +25,25 @@ type studio struct {
 	chrome, panel, hairline, selected, warningSoft ui.Color
 }
 
-// Apply the shared light color contract without changing native widget
-// behavior or OneSub's type scale. Dark appearance is deliberately unchanged.
+// MyGo owns all widget behavior. The neutral dark ramp follows Fluent 2's
+// background/foreground roles; light retains the registered WinOne palette.
+// See third_party/ports/fluent-ui/README.md for the reference boundary.
 func studioTheme(base *ui.Theme, highContrast bool) (ui.Theme, studio) {
 	t := *base
 	t.FontSize = bodySize * base.FontSize / 14
 	if !base.Dark {
 		applyWinOneLightColors(&t, highContrast)
 	} else if !highContrast {
+		t.Background = ui.Hex("#1f1f1f")
+		t.Surface = ui.Hex("#292929")
+		t.SurfaceHover = ui.Hex("#3d3d3d")
+		t.SurfacePressed = ui.Hex("#383838")
+		t.Border = ui.Hex("#525252")
+		t.Text, t.TextMuted = ui.Hex("#efefef"), ui.Hex("#adadad")
 		primary := ui.LightTheme()
 		t.Accent, t.AccentHover, t.AccentPressed, t.AccentText = primary.Accent, primary.AccentHover, primary.AccentPressed, primary.AccentText
+		// Keep semantic text readable on both the canvas and the controls.
+		t.Danger = ui.Hex("#f87171")
 	}
 	return t, studio{chrome: t.Surface}
 }
@@ -118,23 +129,41 @@ func dialogTitle(c *ui.Context, text string) ui.Element {
 // the shell; no hidden page is built merely to reserve its intrinsic height.
 func fixedDialog(c *ui.Context, open *bool, title string, width, height float32, body, actions func()) {
 	vw, vh := c.Size()
-	modal := ui.Modal(c, open, func() {
-		ui.Column(c).Width(min(em(c, width), vw-c.Theme().Space(20))).Height(min(em(c, height), vh-c.Theme().Space(20))).Gap(em(c, 16)).Label(title).Children(func() {
-			dialogTitle(c, title)
-			ui.Divider(c)
-			ui.Column(c).Grow(1).MinHeight(0).Gap(em(c, 20)).Children(body)
-			ui.Divider(c)
-			ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Shrink(0).Children(actions)
+	look := studioColors(c)
+	ui.Modal(c, open, func() {
+		// The shell keeps the previous outer size. Header, content and footer
+		// own their padding, so dividers span the surface instead of floating
+		// as unrelated lines inside one large padded column.
+		ui.Column(c).Width(min(em(c, width)+40, vw-40)).Height(min(em(c, height)+40, vh-40)).Label(title).Children(func() {
+			ui.Row(c).Padding(em(c, 16), em(c, 24)).Gap(em(c, 16)).AlignItems(ui.Center).Shrink(0).Children(func() {
+				ui.Text(c, title).FontSize(em(c, 20)).FontWeight(600).Grow(1)
+				if actions == nil {
+					ui.Button(c, locales.ActionClose()).OnClick(func() { *open = false })
+				}
+			})
+			separator(c)
+			content := ui.Column(c).Grow(1).MinHeight(0).Gap(em(c, 20))
+			if actions != nil {
+				content.Padding(em(c, 20), em(c, 24))
+			}
+			content.Children(body)
+			if actions != nil {
+				separator(c)
+				ui.Row(c).Padding(em(c, 14), em(c, 24)).Gap(em(c, 8)).Justify(ui.End).AlignItems(ui.Center).Shrink(0).Background(look.chrome).Children(actions)
+			}
 		})
-	})
-	if !c.Theme().Dark {
-		modal.Background(studioColors(c).panel)
-	}
+	}).Padding(0).Background(c.Theme().Background)
 }
 
 // muted is secondary text, as units, counts and hints.
 func muted(c *ui.Context, text string) ui.Element {
 	return ui.Text(c, text).TextColor(c.Theme().TextMuted)
+}
+
+// Boundaries are quieter than input borders. Keep them in the same native
+// divider system across the workbench, settings and review windows.
+func separator(c *ui.Context) ui.Element {
+	return ui.Divider(c).Background(studioColors(c).hairline)
 }
 
 // A section heading leads one flat native settings panel. There are no
@@ -148,9 +177,9 @@ func parameterGroup(c *ui.Context, title string, action, fields func()) {
 				action()
 			}
 		})
-		look := studioColors(c)
-		ui.Column(c).Gap(em(c, 16)).Padding(em(c, 16)).Background(look.panel).
-			Border(1, look.hairline).Radius(c.Theme().Radius + em(c, 4)).Children(fields)
+		// Shared edges and heading spacing define the group. An extra card
+		// around every group crowds narrow panes and duplicates modal borders.
+		ui.Column(c).Gap(em(c, 16)).Children(fields)
 	})
 }
 

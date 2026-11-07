@@ -19,7 +19,7 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 	ass := a.snapshot != nil && (a.snapshot.Document.Format == "ass" || a.snapshot.Document.Format == "ssa")
 	ui.Column(c).Fill().Label(locales.A11yStylePanel()).Children(func() {
 		panelHeader(c, nil, func() { panelTitle(c, locales.StyleTitle()) }, nil)
-		ui.Divider(c)
+		separator(c)
 		switch {
 		case !hasCues:
 			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.ListEmpty()) })
@@ -30,7 +30,7 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 				content := ui.Column(c).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 24))
 				content.Children(func() {
 					if !ass && a.settings.SubtitleOutput.Normalized().Mode == "bilingual" {
-						ui.Segmented(c, &a.styleLayer, locales.StylePrimaryLayer(), locales.StyleSecondaryLayer()).Label(locales.A11yStyleLayers()).AlignSelf(ui.Center)
+						segmentedFill(c, &a.styleLayer, locales.StylePrimaryLayer(), locales.StyleSecondaryLayer()).Label(locales.A11yStyleLayers())
 					}
 					layer := a.editedLayer()
 					cells := a.outputFields(c, false)
@@ -41,14 +41,17 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 							})
 						})
 					}
-					parameterGrid(c, 240, 2, cells...)
+					parameterGrid(c, 180, 2, cells...)
 					if ass {
 						muted(c, locales.StyleKeepAss())
 						return
 					}
-					ui.Tabs(c, &a.styleTab, locales.StyleText(), locales.StyleAppearance(), locales.StyleLayout()).Label(locales.StyleProperties()).OnChange(func() { a.styleScroll.Y = 0 })
-					look := studioColors(c)
-					ui.Column(c).Padding(em(c, 16)).Gap(em(c, 16)).Background(look.panel).Border(1, look.hairline).Radius(c.Theme().Radius + em(c, 4)).Children(func() { a.styleControls(c, layer) })
+					// Panel navigation uses tabs; this segmented choice switches
+					// properties of the same subtitle style without another tab bar.
+					segmentedFill(c, &a.styleTab, locales.StyleText(), locales.StyleAppearance(), locales.StyleLayout()).Label(locales.StyleProperties()).OnChange(func() { a.styleScroll.Y = 0 })
+					// The selected native tab already groups these properties;
+					// use the same flat field alignment as the other inspectors.
+					ui.Column(c).Gap(em(c, 16)).Children(func() { a.styleControls(c, layer) })
 				})
 			})
 		}
@@ -231,10 +234,10 @@ func (a *NativeApp) textSection(c *ui.Context, style *styles.Style) {
 	})
 	ui.Field(c, locales.StyleEmphasis(), func() {
 		ui.ToggleGroup(c, func() {
-			ui.Toggle(c, &style.Bold, "").Label(locales.StyleBold()).Tooltip(locales.StyleBold()).Children(func() { icon(c, "bold") })
-			ui.Toggle(c, &style.Italic, "").Label(locales.StyleItalic()).Tooltip(locales.StyleItalic()).Children(func() { icon(c, "italic") })
-			ui.Toggle(c, &style.Underline, "").Label(locales.StyleUnderline()).Tooltip(locales.StyleUnderline()).Children(func() { icon(c, "underline") })
-		}).Label(locales.StyleEmphasis()).AlignSelf(ui.Start)
+			ui.Toggle(c, &style.Bold, "").Grow(1).Basis(0).Label(locales.StyleBold()).Tooltip(locales.StyleBold()).Children(func() { icon(c, "bold") })
+			ui.Toggle(c, &style.Italic, "").Grow(1).Basis(0).Label(locales.StyleItalic()).Tooltip(locales.StyleItalic()).Children(func() { icon(c, "italic") })
+			ui.Toggle(c, &style.Underline, "").Grow(1).Basis(0).Label(locales.StyleUnderline()).Tooltip(locales.StyleUnderline()).Children(func() { icon(c, "underline") })
+		}).Label(locales.StyleEmphasis())
 	})
 }
 
@@ -250,7 +253,7 @@ func (a *NativeApp) appearanceSection(c *ui.Context, style *styles.Style) {
 		border = 1
 	}
 	ui.Field(c, locales.StyleBorder(), func() {
-		if ui.Segmented(c, &border, locales.StyleBorderOutline(), locales.StyleBorderBox()).Label(locales.StyleBorder()).AlignSelf(ui.Start).Changed() {
+		if segmentedFill(c, &border, locales.StyleBorderOutline(), locales.StyleBorderBox()).Label(locales.StyleBorder()).Changed() {
 			style.BorderStyle = 1
 			if border == 1 {
 				style.BorderStyle = 3
@@ -270,7 +273,7 @@ func (a *NativeApp) appearanceSection(c *ui.Context, style *styles.Style) {
 		})
 		return
 	}
-	parameterGrid(c, 210, 2, func() {
+	parameterGrid(c, 200, 2, func() {
 		ui.Field(c, locales.StyleBorderOutline(), func() {
 			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 				colorWell(c, locales.StyleOutlineColor(), &style.OutlineColor)
@@ -292,21 +295,21 @@ func (a *NativeApp) appearanceSection(c *ui.Context, style *styles.Style) {
 func (a *NativeApp) layoutSection(c *ui.Context, style *styles.Style) {
 	row, column := (style.Alignment-1)/3, (style.Alignment-1)%3
 	ui.Field(c, locales.StylePosition(), func() {
-		ui.Segmented(c, &row, locales.PositionBottom(), locales.PositionMiddle(), locales.PositionTop()).Label(locales.StylePosition()).AlignSelf(ui.Start)
+		segmentedFill(c, &row, locales.PositionBottom(), locales.PositionMiddle(), locales.PositionTop()).Label(locales.StylePosition())
 	})
 	ui.Field(c, locales.StyleAlign(), func() {
 		ui.ToggleGroup(c, func() {
 			for i, name := range []string{"align-left", "align-center", "align-right"} {
 				on := column == i
 				label := []string{locales.AlignLeft(), locales.AlignCenterH(), locales.AlignRight()}[i]
-				if ui.Toggle(c, &on, "").Label(label).Tooltip(label).Children(func() { icon(c, name) }).Changed() {
+				if ui.Toggle(c, &on, "").Grow(1).Basis(0).Label(label).Tooltip(label).Children(func() { icon(c, name) }).Changed() {
 					column = i
 				}
 			}
-		}).Label(locales.StyleAlign()).AlignSelf(ui.Start)
+		}).Label(locales.StyleAlign())
 	})
 	style.Alignment = row*3 + column + 1
-	ui.Divider(c)
+	separator(c)
 	parameterGrid(c, 160, 3, func() {
 		ui.Field(c, locales.StyleMarginLeft(), func() { number(c, locales.StyleMarginLeft(), &style.MarginL, 0, 384, 1) })
 	}, func() {

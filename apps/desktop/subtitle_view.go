@@ -54,7 +54,13 @@ func subtitleSearchLabel(cues []subtitle.Cue) string {
 }
 
 func (a *NativeApp) subtitlesView(c *ui.Context) {
-	ui.Column(c).Fill().Children(func() {
+	width, _ := c.Size()
+	a.subtitlesViewAtWidth(c, width)
+}
+
+func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
+	compact := width < em(c, 680)
+	ui.Column(c).Fill().Background(studioColors(c).panel).Children(func() {
 		hasCues := len(a.activeDocument().Cues) > 0
 		// Keep the track switch centered; all list commands live in the
 		// wrapping toolbar below, so narrow headers never crowd the tabs.
@@ -64,79 +70,48 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 				a.changeSubtitleTab(tab)
 			}
 		}, nil)
-		ui.Divider(c)
-		// One command row gives the table its height back. Native wrapping is
-		// only needed when a deliberately narrow pane cannot fit whole groups.
-		ui.Row(c).Padding(em(c, 12), em(c, 16)).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
-			ui.Toolbar(c, func() {
-				toolIcon(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
-				a.subtitleActionsMenu(c)
-				toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
-				// Keep every command visible; the current track controls its
-				// availability, not whether it is built into the toolbar.
-				ui.Divider(c).Height(em(c, 20)).AlignSelf(ui.Center).Margin(0, em(c, 4))
-				a.listPunctuationTools(c)
-				toolIcon(c, locales.FindReplace(), "text-search").Disabled(!hasCues || a.busy || a.showsTranslationProgress()).OnClick(a.openFindReplace)
-			}).Padding(0).Shrink(0)
-			a.subtitleSelectionTools(c)
-			searchCues := a.activeDocument().Cues
-			if a.showsTranslationProgress() {
-				searchCues = a.translationLive.units
-			}
-			searchLabel := subtitleSearchLabel(searchCues)
-			searchWidth, _ := c.MeasureText(0, ui.Span{Text: searchLabel})
-			searchMinimum := max(em(c, 140), searchWidth+c.Theme().Space(11))
-			// Editing tools form one group before search, so Find and replace
-			// stays next to punctuation even when the outer toolbar wraps.
-			if ui.SearchField(c, &a.query).Placeholder(searchLabel).Label(locales.ListSearch()).Tooltip(searchLabel).Disabled(len(searchCues) == 0).MinWidth(searchMinimum).Grow(1).Changed() {
-				a.pendingClick = nil
-				a.list.StopScroll()
-				a.activeCue = -1
-				a.noteBrowse(c.Now())
-				if a.translationLive != nil {
-					a.translationLive.list.StopScroll()
-					a.translationLive.shown = -1
-				}
-			}
-			a.readingTools(c)
-			a.retranslationTools(c)
-			// Keep the review slot icon-sized. A long disabled label would
-			// wrap again and leave no subtitle row at the minimum pane size.
-			toolIcon(c, locales.TranslationResults(), "file-warning").Disabled(a.translationCandidate == nil).OnClick(func() { a.translationReview = true })
-			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Label(locales.A11ySubtitleFileActions()).Children(func() {
-				// The divider travels with the file actions when groups wrap.
-				ui.Divider(c).Height(em(c, 20)).AlignSelf(ui.Center).Margin(0, em(c, 4))
-				unsaved := a.trackUnsaved(a.subtitleTab)
-				label := locales.ListSave()
-				if unsaved {
-					label = locales.ListUnsaved()
-				}
-				// Reserve the longer state label plus MyGo's native icon, gap,
-				// padding and border. Editing must not resize the same save face.
-				savedWidth, _ := c.MeasureText(0, ui.Span{Text: locales.ListSave()})
-				dirtyWidth, _ := c.MeasureText(0, ui.Span{Text: locales.ListUnsaved()})
-				saveWidth := max(savedWidth, dirtyWidth) + em(c, iconSize) + c.Theme().Space(8.5) + 2
-				// The file status is the save action itself; keep its accessible
-				// action name and tooltip so "Unsaved" still clearly means Save.
-				save := iconButton(c, label, "save").Width(saveWidth).Shrink(0).Label(locales.ListSave()).Description(locales.ListSave()).Tooltip(locales.ListSave()).Disabled(a.busy || a.showsTranslationProgress() || a.snapshot == nil || !unsaved).OnClick(func() { a.saveTrack(a.subtitleTab, false) })
-				if unsaved {
-					save.TextColor(c.Theme().Danger)
-				}
-				iconButton(c, locales.ListSaveAs(), "file-down").Disabled(a.busy || a.showsTranslationProgress() || !hasCues || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
-			})
-		})
-		if a.showsTranslationProgress() {
-			a.translationProgressView(c)
-			return
-		}
-		if !hasCues {
+		separator(c)
+		// An empty track has one useful next action. Avoid presenting a wall
+		// of disabled editing commands before there is anything to edit.
+		if !hasCues && !a.showsTranslationProgress() {
 			label := locales.ListEmpty()
 			if a.subtitleTab == 1 {
 				label = locales.ListRebuiltEmpty()
 			}
-			ui.Column(c).Grow(1).Center().Children(func() { muted(c, label) }).ContextMenu(func(m *ui.Menu) {
-				a.subtitleStructureMenu(m, -1)
+			ui.Column(c).Grow(1).Center().Gap(em(c, 12)).Children(func() {
+				muted(c, label)
+				iconButton(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
+			}).ContextMenu(func(m *ui.Menu) { a.subtitleStructureMenu(m, -1) })
+			return
+		}
+		if compact {
+			a.compactSubtitleToolbar(c, hasCues)
+		} else {
+			// One command row gives the table its height back. Native wrapping is
+			// only needed when a deliberately narrow pane cannot fit whole groups.
+			ui.Row(c).Padding(em(c, 12), em(c, 16)).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
+				ui.Toolbar(c, func() {
+					toolIcon(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
+					a.subtitleActionsMenu(c)
+					toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
+					// Keep every command visible; the current track controls its
+					// availability, not whether it is built into the toolbar.
+					separator(c).Height(em(c, 20)).AlignSelf(ui.Center).Margin(0, em(c, 4))
+					a.listPunctuationTools(c)
+					toolIcon(c, locales.FindReplace(), "text-search").Disabled(!hasCues || a.busy || a.showsTranslationProgress()).OnClick(a.openFindReplace)
+				}).Padding(0).Shrink(0)
+				a.subtitleSelectionTools(c)
+				a.subtitleSearch(c, false)
+				a.readingTools(c)
+				a.retranslationTools(c)
+				// Keep the review slot icon-sized. A long disabled label would
+				// wrap again and leave no subtitle row at the minimum pane size.
+				toolIcon(c, locales.TranslationResults(), "file-warning").Disabled(a.translationCandidate == nil).OnClick(func() { a.translationReview = true })
+				a.subtitleSaveActions(c, false, hasCues)
 			})
+		}
+		if a.showsTranslationProgress() {
+			a.translationProgressView(c)
 			return
 		}
 		cues := a.activeDocument().Cues
@@ -190,6 +165,14 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 		// the subtitle columns under the reader.
 		cols := []ui.TableColumn{subtitleSelectionColumn(c), numbers, timeColumn(c, locales.ListColumnStart()), timeColumn(c, locales.ListColumnEnd()), {Title: locales.ListColumnText(), Fixed: true}}
 		numberIndex, startIndex, endIndex := 1, 2, 3
+		if compact {
+			// Start and end remain explicit, but share a column so subtitle
+			// text can be read without scrolling horizontally in a small pane.
+			timing := timeColumn(c, locales.ListColumnStart()+" / "+locales.ListColumnEnd())
+			timing.ID = "timing-pair"
+			cols = []ui.TableColumn{subtitleSelectionColumn(c), numbers, timing, {Title: locales.ListColumnText(), Fixed: true}}
+			endIndex = -1
+		}
 		loads := a.readingLoads()
 		table := subtitleTable(c, &a.list, cols, len(rows), func(row, col int) {
 			index := rows[row]
@@ -232,7 +215,14 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 					number.TextColor(c.Theme().Danger)
 				}
 			case col == startIndex:
-				cell(stamp(start))
+				if compact {
+					ui.Column(c).Gap(em(c, 4)).Children(func() {
+						cell(stamp(start))
+						cell(stamp(end))
+					})
+				} else {
+					cell(stamp(start))
+				}
 			case col == endIndex:
 				cell(stamp(end))
 			default:
@@ -242,12 +232,12 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 						if index == a.selected && a.editPending && a.editRebuiltSource {
 							source = a.draft
 						}
-						label := muted(c, source)
+						label := muted(c, source).FontSize(em(c, captionSize)).LineHeight(1.5)
 						if index == a.selected {
 							label.TextColor(c.Theme().AccentText)
 						}
 					}
-					ui.Text(c, text)
+					ui.Text(c, text).FontSize(em(c, subtitleSize)).LineHeight(1.5)
 				})
 			}
 		}, func(bool) {
@@ -391,7 +381,7 @@ func (a *NativeApp) editorView(c *ui.Context) {
 				toolIcon(c, locales.EditorRedo(), "redo-2").Disabled(a.busy || a.snapshot == nil || !a.snapshot.CanRedo).OnClick(func() { a.undo(true) })
 			}).Padding(0).Gap(em(c, 2))
 		})
-		ui.Divider(c)
+		separator(c)
 		if !valid {
 			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.EditorNone()) })
 			return
@@ -414,7 +404,7 @@ func (a *NativeApp) editorView(c *ui.Context) {
 					value *float64
 				}{{locales.EditorStart(), &a.start}, {locales.EditorEnd(), &a.end}} {
 					if i == 1 {
-						ui.Divider(c).Width(em(c, 16)).Height(1).AlignSelf(ui.Center)
+						separator(c).Width(em(c, 16)).Height(1).AlignSelf(ui.Center)
 					}
 					ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Shrink(0).Children(func() {
 						input := timecodeField(c.Key(cue.ID), field.label, field.value, .001, fixedTiming, func() { a.changed(c.Now()) })
@@ -439,13 +429,13 @@ func (a *NativeApp) editorView(c *ui.Context) {
 			// The text speaks for itself; the name is for assistive technology.
 			if a.subtitleTab == 1 {
 				textTrack := a.editorTextTrack()
-				if ui.Tabs(c, &textTrack, locales.TabSource(), locales.TabTranslation()).AlignSelf(ui.Start).Shrink(0).Changed() {
+				if segmentedFill(c, &textTrack, locales.TabSource(), locales.TabTranslation()).Shrink(0).Changed() {
 					a.commitEdit(true)
 					a.editRebuiltSource = textTrack == 0
 					a.loadDraft()
 				}
 			}
-			area := ui.TextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(0).Padding(em(c, 12)).FontSize(em(c, 17)).ReadOnly(readonly).Label(locales.A11yCueText())
+			area := ui.TextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(0).Padding(em(c, 16)).FontSize(em(c, editSize)).LineHeight(1.5).Background(studioColors(c).panel).ReadOnly(readonly).Label(locales.A11yCueText())
 			a.composing = area.Composing() || timeComposing
 			a.editing = area.Focused() || timeFocused
 			if area.Changed() {

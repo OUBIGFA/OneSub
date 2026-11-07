@@ -1,7 +1,6 @@
 package main
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -53,14 +52,15 @@ func TestWinOneLightSurfaceRolesAndContrast(t *testing.T) {
 	}
 }
 
-func TestWinOneLightReuseLeavesDarkThemeUnchanged(t *testing.T) {
-	base := ui.DarkTheme()
-	want := *base
-	want.FontSize = bodySize
-	primary := ui.LightTheme()
-	want.Accent, want.AccentHover, want.AccentPressed, want.AccentText = primary.Accent, primary.AccentHover, primary.AccentPressed, primary.AccentText
-	got, _ := studioTheme(base, false)
-	if !reflect.DeepEqual(got, want) {
-		t.Fatal("light palette changed dark appearance")
+func TestStudioThemePreservesNativeMetrics(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		base := ui.LightTheme()
+		if dark {
+			base = ui.DarkTheme()
+		}
+		got, _ := studioTheme(base, false)
+		if got.FontSize != bodySize || got.Font != base.Font || got.Spacing != base.Spacing || got.Radius != base.Radius || got.Dark != dark {
+			t.Fatal("theme styling changed native layout metrics", got)
+		}
 	}
 }
