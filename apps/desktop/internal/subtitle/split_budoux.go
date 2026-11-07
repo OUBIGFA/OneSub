@@ -17,6 +17,12 @@ var japaneseModelJSON string
 //go:embed dict/budoux-th.json
 var thaiModelJSON string
 
+//go:embed dict/budoux-zh-hans.json
+var simplifiedChineseModelJSON string
+
+//go:embed dict/budoux-zh-hant.json
+var traditionalChineseModelJSON string
+
 var budouxFeatures = [...]struct {
 	name       string
 	start, end int
@@ -51,11 +57,19 @@ func loadPhraseModel(data string) phraseModel {
 
 var japanesePhrases = sync.OnceValue(func() phraseModel { return loadPhraseModel(japaneseModelJSON) })
 var thaiPhrases = sync.OnceValue(func() phraseModel { return loadPhraseModel(thaiModelJSON) })
+var simplifiedChinesePhrases = sync.OnceValue(func() phraseModel { return loadPhraseModel(simplifiedChineseModelJSON) })
+var traditionalChinesePhrases = sync.OnceValue(func() phraseModel { return loadPhraseModel(traditionalChineseModelJSON) })
 
 // boundary is the exact pretrained AdaBoost decision. Features slice the
 // original UTF-8 text at known rune offsets, so scoring creates no new strings
 // and never treats a combining mark or an emoji codepoint as a legal cut.
 func (m phraseModel) boundary(text string, bytes []int, index int) bool {
+	return m.score(text, bytes, index) > 0
+}
+
+// score retains the signed AdaBoost margin. It ranks candidate boundaries;
+// it is not a calibrated probability or proof of a complete sentence.
+func (m phraseModel) score(text string, bytes []int, index int) int {
 	score, length := m.base, len(bytes)-1
 	for i, feature := range budouxFeatures {
 		start, end := index+feature.start, index+feature.end
@@ -63,5 +77,5 @@ func (m phraseModel) boundary(text string, bytes []int, index int) bool {
 			score += 2 * m.groups[i][text[bytes[start]:bytes[end]]]
 		}
 	}
-	return score > 0
+	return score
 }

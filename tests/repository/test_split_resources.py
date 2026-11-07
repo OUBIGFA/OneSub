@@ -20,6 +20,8 @@ class SplitResourceTests(unittest.TestCase):
         files = [(dictionary["artifact"], dictionary["artifactSha256"], dictionary["artifactBytes"])]
         files.extend((model["artifact"], model["sha256"], model["bytes"]) for model in budoux["models"])
         files.extend((item["license"], item["licenseSha256"], None) for item in (dictionary, budoux))
+        english = manifest["englishPOS"]
+        files.append((english["license"], english["licenseSha256"], None))
         files.append((dictionary["reviewedPhrases"], dictionary["reviewedPhrasesSha256"], None))
         for name, digest, size in files:
             with self.subTest(path=name):
@@ -52,6 +54,23 @@ class SplitResourceTests(unittest.TestCase):
                 state = next_state
             self.assertGreater(struct.unpack_from("<I", data, state * 8)[0] >> 24, 0)
         self.assertGreater(unknown, 0)
+
+    def test_lexical_classes_share_parent_storage_without_changing_transitions(self):
+        spec = importlib.util.spec_from_file_location("split_compiler", ROOT / "tools/build_split_lexicon.py")
+        compiler = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(compiler)
+        words = {"研究": 1000, "研究生": 100, "完整": 500, "治疗": 100}
+        tags = {"研究": 1, "研究生": 1, "完整": 2, "治疗": 3}
+        data, _ = compiler.compile_trie(words, tags)
+        for word, expected in tags.items():
+            state = 1
+            for byte in word.encode("utf-8"):
+                base = struct.unpack_from("<I", data, state * 8)[0] & 0xFFFFFF
+                child = base + byte + 1
+                parent = struct.unpack_from("<I", data, child * 8 + 4)[0]
+                self.assertEqual(parent & 0xFFFFFF, state)
+                state = child
+            self.assertEqual(parent >> 24, expected)
 
 
 if __name__ == "__main__":

@@ -18,12 +18,19 @@
     "reviewedPhrases": "apps/desktop/internal/subtitle/dict/chinese_phrases.txt",
     "reviewedPhrasesSha256": "fb4a46d1109710e4446d0fa7a2592bcaa6f1f370260ae0702bbf15f6156a84df",
     "artifact": "apps/desktop/internal/subtitle/dict/chinese.json",
-    "artifactBytes": 802197,
-    "artifactSha256": "a5e317635e3b63a9cce3fce44c3b9fd29a9543f682309395273fef212d293b6c",
+    "artifactBytes": 829611,
+    "artifactSha256": "6322408eed10dd7b3cbcf6291cf5b9f8ec8040db2b8c5fad11616641152c17ee",
     "words": 65048,
     "states": 193324,
     "runtimeArrayBytes": 1546592,
-    "modifications": "Frequency-selected dictionary compiled to a packed UTF-8 double-array trie with quantized unigram costs; no jieba Python code or HMM runtime copied"
+    "modifications": "Frequency-selected dictionary compiled to a packed UTF-8 double-array trie with quantized unigram costs and upstream lexical classes in the parent high byte; no jieba Python code or HMM runtime copied",
+    "lexicalClasses": {
+      "0": "unknown",
+      "1": "n* or vn",
+      "2": "a* or b",
+      "3": "other v*",
+      "4": "d"
+    }
   },
   "budoux": {
     "repository": "https://github.com/google/budoux",
@@ -59,9 +66,34 @@
         "bytes": 30936,
         "sha256": "c8fcbe6572925c3293f64d0ca5aa1d08ec746a74e48b9eb1a0019ab9d5daaf50",
         "modifications": "none"
+      },
+      {
+        "language": "zh-hans",
+        "version": "v0.10.3",
+        "revision": "dcf0d0398a35d09c9b03a1b7fc19a57e8a09e5de",
+        "sourcePath": "budoux/models/zh-hans.json",
+        "gitBlob": "225f5cd576b58ec2a9417b6c8b1d6618553851cc",
+        "download": "https://raw.githubusercontent.com/google/budoux/dcf0d0398a35d09c9b03a1b7fc19a57e8a09e5de/budoux/models/zh-hans.json",
+        "artifact": "apps/desktop/internal/subtitle/dict/budoux-zh-hans.json",
+        "bytes": 59159,
+        "sha256": "67b44d996d19704cb04fe18c2005298acaa78489da2b2860e77fed90fd3dc94e",
+        "modifications": "none"
+      },
+      {
+        "language": "zh-hant",
+        "version": "v0.10.3",
+        "revision": "dcf0d0398a35d09c9b03a1b7fc19a57e8a09e5de",
+        "sourcePath": "budoux/models/zh-hant.json",
+        "gitBlob": "d409f81a7a34b6d3a869a26fdd8a4ff62d84fb12",
+        "download": "https://raw.githubusercontent.com/google/budoux/dcf0d0398a35d09c9b03a1b7fc19a57e8a09e5de/budoux/models/zh-hant.json",
+        "artifact": "apps/desktop/internal/subtitle/dict/budoux-zh-hant.json",
+        "bytes": 59323,
+        "sha256": "8f8a943ad104b309167cd88eedabdf28beef33c1014e465051a43897da933c32",
+        "modifications": "none"
       }
     ],
-    "scope": "Only published pretrained models are embedded; no KNBC or other training corpus is redistributed"
+    "scope": "Only published pretrained models are embedded; no KNBC or other training corpus is redistributed",
+    "chineseUsage": "Score both original-script models at legal dictionary boundaries; use the larger signed AdaBoost margin as soft evidence, never as a calibrated probability or a word-lock override. Existing Japanese/Thai models retain their recorded revisions."
   },
   "unicodeWords": {
     "module": "github.com/go-text/typesetting",
@@ -70,5 +102,40 @@
     "usage": "Direct UAX #29 grapheme and word iteration for Korean eojeol, spaced scripts and mixed-text word protection",
     "modifications": "none"
   },
-  "transitive": "No new Go module dependencies; existing dependency and runtime locks remain in force"
+  "transitive": "One new Go module: prose/v3 v3.2.3; only tokenizer and English POS model are linked, with no external transitive runtime modules. No Python, CGO, network or inference server is added.",
+  "englishPOS": {
+    "repository": "https://github.com/jdkato/prose",
+    "module": "github.com/jdkato/prose/v3",
+    "version": "v3.2.3",
+    "revision": "a0b63d28a31f02b14cdba25500fc8534e448a998",
+    "spdx": "MIT",
+    "copyright": "Copyright (c) 2017-2026 Joseph Kato; tagger derived from Copyright (c) 2013 Matthew Honnibal",
+    "license": "third_party/licenses/prose.txt",
+    "licenseSha256": "c20b101147ca7e7990e7cd35a1977f3ed69521036450aa271a826c12ba212761",
+    "modelLicense": "Upstream LICENSE explicitly distributes tag/aptagmodel and ner/maxentmodel artifacts under the project MIT terms; only tag/aptagmodel is linked.",
+    "download": "https://proxy.golang.org/github.com/jdkato/prose/v3/@v/v3.2.3.zip",
+    "bytes": 3807999,
+    "sha256": "c861aedc03aa05bf01ae821a77609927c21b4d867958c1ebcfacd2a35fba303f",
+    "moduleSum": "h1:WYrAHh0Lo+A/qswKjtvi7M5RhQwrF+OY9Qgn121M1us=",
+    "goModSum": "h1:VRQyR/EyA6bX457JTCIF67n04ycHek4v6v0veGiJvUk=",
+    "modelPath": "tag/aptagmodel/en.bin",
+    "modelBytes": 3411804,
+    "modelSha256": "209282c71733883be5c08af24301cc8917079c9deb7721b89a8dd118d071a780",
+    "packages": [
+      "tag",
+      "tokenize",
+      "token",
+      "tag/aptagmodel",
+      "internal/emoticon",
+      "internal/flat"
+    ],
+    "consumer": "apps/desktop/internal/subtitle/split_english.go",
+    "modifications": "none; direct module APIs; only local phrase-connection policy belongs to OneSub",
+    "runtimeTransitive": "Imported packages use only the Go standard library and internal prose packages. NER, Punkt and external regexp2/neurosnap packages are not linked.",
+    "declaredModuleRequirements": [
+      "github.com/dlclark/regexp2/v2 v2.5.2",
+      "gopkg.in/neurosnap/sentences.v1 v1.0.6",
+      "github.com/neurosnap/sentences v1.0.6"
+    ]
+  }
 }

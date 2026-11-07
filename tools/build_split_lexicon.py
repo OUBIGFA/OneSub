@@ -25,15 +25,22 @@ def is_han(word):
     return all("\u3400" <= r <= "\u9fff" or "\uf900" <= r <= "\ufaff" for r in word)
 
 
-def select_words(source):
+def select_words(source, with_tags=False):
     data = source.read_bytes()
     if hashlib.sha256(data).hexdigest() != SOURCE_SHA256:
         raise ValueError("jieba source SHA-256 differs from the fixed manifest")
-    entries = {}
+    entries, tags = {}, {}
     for line in data.decode("utf-8").splitlines():
-        word, frequency, _ = line.split()
+        word, frequency, tag = line.split()
         if 2 <= len(word) <= 8 and is_han(word):
-            entries[word] = max(entries.get(word, 0), int(frequency))
+            if int(frequency) >= entries.get(word, 0):
+                entries[word] = int(frequency)
+                # Retain upstream lexical classes; these are not contextual
+                # syntax predictions. vn is a nominalized verb, useful in
+                # technical noun phrases such as 工作机制 and 临床治疗.
+                tags[word] = (1 if tag.startswith('n') or tag == 'vn' else
+                              2 if tag.startswith('a') or tag == 'b' else
+                              3 if tag.startswith('v') else 4 if tag == 'd' else 0)
     selected = dict(sorted(entries.items(), key=lambda entry: (-entry[1], entry[0]))[:CORE_WORDS])
     # Domain phrases are reviewed text, not inferred runtime compounds. Common
     # verb complements and function words need protection even at low frequency.
@@ -44,13 +51,13 @@ def select_words(source):
             if not is_han(word) or not 2 <= len(word) <= 16:
                 raise ValueError("Invalid reviewed Chinese phrase")
             selected[word] = max(selected.get(word, 0), 500)
-    return selected
+    return (selected, tags) if with_tags else selected
 
 
-def compile_trie(words):
+def compile_trie(words, tags=None):
     # Build the ordinary byte trie only in this offline compiler. Runtime uses
     # base/check directly and checks terminal costs only at UTF-8 rune ends.
-    children, costs = [{}], [0]
+    children, costs, classes = [{}], [0], [0]
     total = sum(words.values())
     for word, frequency in sorted(words.items()):
         node = 0
@@ -60,8 +67,10 @@ def compile_trie(words):
                 children[node][label] = len(children)
                 children.append({})
                 costs.append(0)
+                classes.append(0)
             node = children[node][label]
         costs[node] = max(1, min(254, round(-math.log(frequency / total) * COST_SCALE)))
+        classes[node] = (tags or {}).get(word, 0)
     base, check = [0, 0], [0, 1]
     queue = deque([(0, 1)])
     next_check = 1
@@ -101,7 +110,7 @@ def compile_trie(words):
         base[state] = offset | (costs[node] << 24)
         for label in labels:
             child_state = offset + label
-            check[child_state] = state
+            check[child_state] = state | (classes[children[node][label]] << 24)
             queue.append((children[node][label], child_state))
     last = max(i for i, value in enumerate(check) if value) + 1
     payload = bytearray(last * 8)
@@ -115,16 +124,16 @@ def main():
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=ROOT / "apps/desktop/internal/subtitle/dict/chinese.json")
     args = parser.parse_args()
-    words = select_words(args.source)
-    data, unknown_cost = compile_trie(words)
+    words, tags = select_words(args.source, with_tags=True)
+    data, unknown_cost = compile_trie(words, tags)
     result = {
-        "version": 1,
+        "version": 2,
         "words": len(words),
         "states": len(data) // 8,
         "unknownCost": unknown_cost,
         "costScale": COST_SCALE,
         "sha256": hashlib.sha256(data).hexdigest(),
-        "encoding": "base64+zlib; little-endian uint32 packed-base/cost, uint32 check",
+        "encoding": "base64+zlib; little-endian uint32 packed-base/cost, uint32 packed-parent/lexical-class",
         "data": base64.b64encode(zlib.compress(data, 9)).decode("ascii"),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

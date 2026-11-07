@@ -42,6 +42,82 @@ type splitDPWorkspace struct {
 
 var splitDPPool = sync.Pool{New: func() any { return &splitDPWorkspace{} }}
 
+// The preferred width has a soft cost; the compact ceiling has a steeper
+// one. Both are subordinate to protected words and real timing constraints.
+func (s splitText) lengthCost(units, target float64) float64 {
+	return 12*math.Pow((units-target)/s.limit, 2) +
+		4*math.Pow(math.Max(0, units-s.limit), 2) +
+		8*math.Pow(math.Max(0, units-s.ceiling), 2) +
+		8*math.Pow(math.Max(0, math.Min(target, s.limit/2)-units), 2)
+}
+
+func splitBoundaryCost(b textBoundary, clock splitClock) float64 {
+	cost := b.penalty
+	if gap, measured := clock.pauseAt(b.offset); measured {
+		if gap >= 300 {
+			cost -= math.Min(40, float64(gap-300)/15)
+		} else if gap < 80 && !b.clause {
+			cost += 30
+		}
+	}
+	return cost
+}
+
+// Compare feasible segment counts by phrase evidence as well as width.
+// Otherwise one extra short fragment always wins by shrinking the longest
+// piece, even when the existing plan already contains better natural cuts.
+func (s splitText) planCost(offsets []int, clock splitClock) float64 {
+	count := len(offsets) - 1
+	cost := 40 * float64(count)
+	previous := s.boundaries[0]
+	previousIndex := 0
+	clauses := s.clauseCosts(s.boundaries)
+	for _, offset := range offsets[1:] {
+		index, _ := slices.BinarySearchFunc(s.boundaries, offset, func(b textBoundary, o int) int { return b.offset - o })
+		b := s.boundaries[index]
+		cost += s.lengthCost(b.units-previous.units, s.units/float64(count))
+		cost += clauses[index].before - clauses[previousIndex].through
+		if offset != len(s.text) {
+			cost += splitBoundaryCost(b, clock)
+		}
+		previous = b
+		previousIndex = index
+	}
+	return cost
+}
+
+// Charge for carrying a new clause into the middle of a piece. A reward on
+// selected cuts alone can miss a comma and choose two weaker cuts around it.
+// Ignore short edge interjections, whose punctuation is not enough evidence.
+type splitClauseCost struct{ before, through float64 }
+
+func (s splitText) clauseCosts(bounds []textBoundary) []splitClauseCost {
+	costs := make([]splitClauseCost, len(bounds))
+	for i := 1; i < len(bounds)-1; i++ {
+		costs[i] = splitClauseCost{costs[i-1].through, costs[i-1].through}
+		b := bounds[i]
+		// The positions before/after whitespace represent the same spoken
+		// boundary. Excluding it at either edge prevents charging a chosen
+		// comma as an ignored clause merely because the space stayed left.
+		if strings.TrimSpace(s.text[bounds[i-1].offset:b.offset]) == "" {
+			costs[i].before = costs[i-1].before
+			continue
+		}
+		if b.penalty > -15 {
+			continue
+		}
+		if !s.enoughContent(bounds[0], b) || !s.enoughContent(b, bounds[len(bounds)-1]) {
+			continue
+		}
+		costs[i].through += 120
+	}
+	if len(bounds) > 1 {
+		last := costs[len(bounds)-2].through
+		costs[len(bounds)-1] = splitClauseCost{last, last}
+	}
+	return costs
+}
+
 func (s splitText) enoughContent(a, b textBoundary) bool {
 	characters, words := b.characters-a.characters, b.words-a.words
 	if s.language == splitChinese || s.language == splitJapanese || s.language == splitThai {
@@ -103,6 +179,7 @@ func (s splitText) partition(ctx context.Context, count int, clock splitClock, f
 		return nil, nil, nil
 	}
 	stride := len(bounds)
+	clauseCosts := s.clauseCosts(bounds)
 	size := (count + 1) * stride
 	ws.cost = slices.Grow(ws.cost[:0], size)[:size]
 	ws.parent = slices.Grow(ws.parent[:0], size)[:size]
@@ -120,7 +197,7 @@ func (s splitText) partition(ctx context.Context, count int, clock splitClock, f
 				continue
 			}
 			b := bounds[j]
-			if part < count && s.clauseOnly && b.penalty >= 0 {
+			if part < count && s.clauseOnly && !b.clause {
 				gap, measured := clock.pauseAt(b.offset)
 				if !measured || gap < meaningfulSplitPause {
 					continue // a readable utterance does not need an arbitrary lexical cut
@@ -141,7 +218,11 @@ func (s splitText) partition(ctx context.Context, count int, clock splitClock, f
 						continue
 					}
 				}
-				cost := 20*math.Pow((units-target)/s.limit, 2) + 20*math.Pow(math.Max(0, units-s.limit), 2)
+				// Width is a preference up to the compact ceiling. Charging the
+				// square of each extra column at the preferred width overwhelmed
+				// punctuation and encouraged incomplete phrases near the midpoint.
+				cost := s.lengthCost(units, target)
+				cost += clauseCosts[j].before - clauseCosts[p].through
 				if clock.times == nil && duration > 0 {
 					// Estimated spans can redistribute time inside the original
 					// envelope. Penalize a deficit; the final clock enforces the
@@ -153,14 +234,7 @@ func (s splitText) partition(ctx context.Context, count int, clock splitClock, f
 					cost += 80 // only an acoustically evidenced callout can reach here
 				}
 				if part < count {
-					cost += b.penalty
-					if gap, measured := clock.pauseAt(b.offset); measured {
-						if gap >= 300 {
-							cost -= math.Min(40, float64(gap-300)/15)
-						} else if gap < 80 && b.penalty >= -5 {
-							cost += 30
-						}
-					}
+					cost += splitBoundaryCost(b, clock)
 				}
 				if len(fractions) == count+1 && part < count {
 					position := b.units / s.units
@@ -170,9 +244,6 @@ func (s splitText) partition(ctx context.Context, count int, clock splitClock, f
 					// Alignment outweighs a secondary punctuation preference,
 					// while hard word/content/time gates remain non-negotiable.
 					cost += 8000 * math.Pow(position-fractions[part], 2)
-				} else if count == 2 && part == 1 {
-					other := s.units - units
-					cost += 30*math.Pow((units-other)/s.units, 2) + math.Max(0, units-other)*1.5
 				}
 				index := part*stride + j
 				if previous+cost < ws.cost[index] {

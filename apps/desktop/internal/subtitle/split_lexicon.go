@@ -34,7 +34,7 @@ var splitLexicon = sync.OnceValue(func() chineseTrie {
 	if err := json.Unmarshal([]byte(chineseLexiconJSON), &source); err != nil {
 		panic(fmt.Errorf("invalid embedded split lexicon: %w", err))
 	}
-	if source.Version != 1 || source.States < 2 || source.States > 1<<18 || source.UnknownCost <= 0 {
+	if source.Version != 2 || source.States < 2 || source.States > 1<<18 || source.UnknownCost <= 0 {
 		panic("invalid embedded split lexicon header")
 	}
 	reader, err := zlib.NewReader(base64.NewDecoder(base64.StdEncoding, strings.NewReader(source.Data)))
@@ -60,10 +60,23 @@ var splitLexicon = sync.OnceValue(func() chineseTrie {
 func (t chineseTrie) advance(state int, b byte) int {
 	base := binary.LittleEndian.Uint32(t.data[state*8:]) & 0xffffff
 	next := int(base) + int(b) + 1
-	if next >= len(t.data)/8 || binary.LittleEndian.Uint32(t.data[next*8+4:]) != uint32(state) {
+	if next >= len(t.data)/8 || binary.LittleEndian.Uint32(t.data[next*8+4:])&0xffffff != uint32(state) {
 		return 0
 	}
 	return next
+}
+
+// The dictionary's lexical class is a phrase cue. A word can have different
+// roles in context, so its class alone must not become a syntactic hard lock.
+func (t chineseTrie) lexicalClass(word string) uint32 {
+	state := 1
+	for _, b := range []byte(word) {
+		state = t.advance(state, b)
+		if state == 0 {
+			return 0
+		}
+	}
+	return binary.LittleEndian.Uint32(t.data[state*8+4:]) >> 24
 }
 
 func (t chineseTrie) cost(state int) int {

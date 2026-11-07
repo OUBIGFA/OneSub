@@ -1,10 +1,48 @@
 package subtitle
 
 import (
+	"math"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
+
+// Chinese variants are scored in their original spelling. Taking the larger
+// of the two official margins avoids converting user text or guessing script
+// from a handful of shared characters. The lexicon/grammar hard mask still
+// wins over both models. Weak learned breaks cost more than strong ones.
+func scoreChinesePhrases(text string, ws *splitAnalysis) {
+	hans, hant := simplifiedChinesePhrases(), traditionalChinesePhrases()
+	lexicon := splitLexicon()
+	for i := 1; i < len(ws.runes); i++ {
+		if ws.blocked[i] || !unicode.Is(unicode.Han, ws.runes[i-1]) || !unicode.Is(unicode.Han, ws.runes[i]) {
+			continue
+		}
+		margin := max(hans.score(text, ws.bytes, i), hant.score(text, ws.bytes, i))
+		ws.phraseCosts[i] = 24 - math.Max(-24, math.Min(24, float64(margin)/100))
+	}
+	previous, previousEnd, previousClass := 0, 0, uint32(0)
+	for start := 0; start < len(ws.runes); {
+		if !unicode.Is(unicode.Han, ws.runes[start]) {
+			previousClass = 0
+			start++
+			continue
+		}
+		end := ws.next[start]
+		class := lexicon.lexicalClass(text[ws.bytes[start]:ws.bytes[end]])
+		if start == previousEnd {
+			if (previousClass == 1 || previousClass == 2 || previousClass == 4) && class == 1 || previousClass == 1 && class == 3 && end-previous <= 4 || previousClass == 4 && (class == 2 || class == 3) {
+				ws.phraseCosts[start] += 45
+			}
+			// An unknown single Han character is weak evidence for a complete
+			// subtitle phrase; prefer a longer learned/dictionary boundary.
+			if class == 0 && end-start == 1 || previousClass == 0 && start-previous == 1 {
+				ws.phraseCosts[start] += 20
+			}
+		}
+		previous, previousEnd, previousClass, start = start, end, class, end
+	}
+}
 
 // These grammatical classes bind to the following word. They are tested on
 // the DAG's selected whole tokens, not arbitrary suffixes: 就职/对方/是非 must
@@ -122,6 +160,12 @@ func protectChineseConnections(text string, ws *splitAnalysis) {
 		}
 		word := text[ws.bytes[start]:ws.bytes[end]]
 		if chinese && end == start+1 && (strings.ContainsRune(chineseParticles, ws.runes[start]) || previous != "" && strings.ContainsRune(chineseNominalSuffixes, ws.runes[start])) {
+			protectChineseLeft(ws, start)
+		}
+		// A nominal locative belongs to its place/time noun: 环境中/系统内.
+		// Match a whole one-character token and a dictionary noun, not the
+		// first character of 中心 or the last character of an unrelated word.
+		if chinese && end == start+1 && strings.ContainsRune("中内內外上下前后後", ws.runes[start]) && splitLexicon().lexicalClass(previous) == 1 {
 			protectChineseLeft(ws, start)
 		}
 		right := end

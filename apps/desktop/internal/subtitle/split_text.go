@@ -66,6 +66,7 @@ func nativeSplitRune(language splitLanguage, r rune) bool {
 type textBoundary struct {
 	offset, runeIndex, characters, words int
 	units, penalty                       float64
+	clause                               bool // linguistic clause evidence, separate from model/length costs
 }
 
 type splitText struct {
@@ -83,6 +84,7 @@ type splitAnalysis struct {
 	wordCount, score, next     []int
 	units                      []float64
 	blocked, literals          []bool
+	phraseCosts                []float64
 }
 
 var splitAnalysisPool = sync.Pool{New: func() any { return &splitAnalysis{} }}
@@ -149,12 +151,14 @@ func newSplitText(text string) splitText {
 	ws.next = slices.Grow(ws.next[:0], n+1)[:n+1]
 	ws.blocked = slices.Grow(ws.blocked[:0], n+1)[:n+1]
 	ws.literals = slices.Grow(ws.literals[:0], n)[:n]
+	ws.phraseCosts = slices.Grow(ws.phraseCosts[:0], n+1)[:n+1]
 	clear(ws.units)
 	clear(ws.characters)
 	clear(ws.wordEnd)
 	clear(ws.wordCount)
 	clear(ws.blocked)
 	clear(ws.literals)
+	clear(ws.phraseCosts)
 
 	ws.seg.Init(ws.runes)
 	it := ws.seg.GraphemeIterator()
@@ -226,6 +230,9 @@ func newSplitText(text string) splitText {
 	}
 	if language == splitChinese {
 		protectChineseConnections(text, ws)
+		scoreChinesePhrases(text, ws)
+	} else if language == splitWords {
+		protectEnglishPhrases(text, ws)
 	}
 	for i := 1; i <= n; i++ {
 		ws.wordCount[i] = ws.wordCount[i-1] + ws.wordEnd[i]
@@ -266,10 +273,14 @@ func newSplitText(text string) splitText {
 		}
 		penalty, allow := splitBoundaryPenalty(text, i, ws, language)
 		if allow {
-			out.boundaries = append(out.boundaries, textBoundary{ws.bytes[i], i, ws.characters[i], ws.wordCount[i], ws.units[i], penalty})
+			clause := penalty < 0
+			if !clause {
+				penalty += ws.phraseCosts[i]
+			}
+			out.boundaries = append(out.boundaries, textBoundary{ws.bytes[i], i, ws.characters[i], ws.wordCount[i], ws.units[i], penalty, clause})
 		}
 	}
-	out.boundaries = append(out.boundaries, textBoundary{len(text), n, characters, ws.wordCount[n], out.units, 0})
+	out.boundaries = append(out.boundaries, textBoundary{len(text), n, characters, ws.wordCount[n], out.units, 0, true})
 	return out
 }
 

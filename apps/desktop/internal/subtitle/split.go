@@ -290,7 +290,7 @@ func splitCue(ctx context.Context, cue Cue, format, command string, original boo
 	var pieces [][]string
 	var offsets [][]int
 	var cuts []int64
-	bestLoad := math.Inf(1)
+	bestCost := math.Inf(1)
 	try := func(candidate int) (bool, error) {
 		parts, positions, boundaries, why, err := partitionCue(ctx, cue, format, lanes, primary, candidate, clock)
 		if err != nil {
@@ -301,6 +301,15 @@ func splitCue(ctx context.Context, cue Cue, format, command string, original boo
 			return false, nil
 		}
 		longest := 0.0
+		multilineOverflow := 0.0
+		// A complete sequence of punctuated clauses may use the existing
+		// compact ceiling. A weak conjunction or arbitrary lexical cut is
+		// not evidence for enlarging every subtitle in the sequence.
+		completeClauses := true
+		for _, offset := range positions[primary][1:candidate] {
+			index, _ := slices.BinarySearchFunc(lanes[primary].boundaries, offset, func(b textBoundary, offset int) int { return b.offset - offset })
+			completeClauses = completeClauses && lanes[primary].boundaries[index].penalty <= -15
+		}
 		for i := range candidate {
 			texts := make([]string, groupEnd-groupStart)
 			for lane := groupStart; lane < groupEnd; lane++ {
@@ -309,15 +318,25 @@ func splitCue(ctx context.Context, cue Cue, format, command string, original boo
 				// Compare physical scan columns, including punctuation. Reading
 				// DU is a separate review signal and does not set line capacity.
 				columns := lanes[lane].unitsAt(positions[lane][i+1]) - lanes[lane].unitsAt(positions[lane][i])
-				longest = max(longest, columns/lanes[lane].limit)
+				limit := lanes[lane].limit
+				if completeClauses {
+					limit = lanes[lane].ceiling
+				}
+				longest = max(longest, columns/limit)
 			}
 			if len(texts) > 1 {
 				load := InspectReading(strings.Join(texts, separator), boundaries[i+1]-boundaries[i])
 				longest = max(longest, load.Units/load.MaxUnits)
+				multilineOverflow += math.Pow(math.Max(0, load.Units-load.MaxUnits), 2) * 20
 			}
 		}
-		if longest < bestLoad {
-			pieces, offsets, cuts, bestLoad = parts, positions, boundaries, longest
+		primaryClock := splitClock{}
+		if primary == 0 {
+			primaryClock = clock
+		}
+		cost := lanes[primary].planCost(positions[primary], primaryClock) + multilineOverflow
+		if cost < bestCost {
+			pieces, offsets, cuts, bestCost = parts, positions, boundaries, cost
 		}
 		return longest <= 1, nil
 	}

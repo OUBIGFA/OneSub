@@ -10,7 +10,7 @@ TXT 文稿导出直接调用固定 libse 的 `HtmlUtil.RemoveHtmlTags`、`HtmlUt
 
 文件名分级关联直接调用 MIT 的 `agnivade/levenshtein v1.2.1` 计算 Unicode 编辑距离，规范化与语言代码解析复用既有 `golang.org/x/text`。精确修订、模块／下载校验、许可与测试专用依赖见 [文件名匹配清单](manifests/filename-matching.json)。不复制上游算法，不采用 Subtitle Edit 按首个文件返回或任意截短名称的匹配实现。
 
-字幕阅读负荷与智能拆分的算法边界见 `ports/subtitle-splitting/README.md`。没有复制 Subtitle Edit、stable-ts 或 VideoCaptioner 的拆分代码。中文直接筛选 MIT 的 jieba 固定词典并编译为嵌入式双数组 Trie；日文／泰文移植 Apache-2.0 BudouX 的纯文本评分并保留原模型，见[集成登记](ports/subtitle-splitting/README.md)及[固定清单](manifests/subtitle-splitting.json)。没有新增 CGO、Python 或网络运行时；字典和模型以可复现 UTF-8 文本嵌入，不扩大仓库二进制例外。Unicode 字素／词界直接调用现有 `Unlicense OR BSD-3-Clause` 的 `go-text/typesetting v0.3.5`，字符宽度使用既有 `golang.org/x/text v0.43.0`。字幕技能的阅读负荷阈值由轻量本地检测使用，许可沿用完整技能快照登记。
+字幕阅读负荷与智能拆分的算法边界见 `ports/subtitle-splitting/README.md`。没有复制 Subtitle Edit、stable-ts 或 VideoCaptioner 的拆分代码。中文直接筛选 MIT 的 jieba 固定词频／词类词典并编译为嵌入式双数组 Trie，结合 Apache-2.0 BudouX 0.10.3 简繁中文模型的边界评分；日文／泰文保留既有 BudouX 模型。英文直接引用 MIT 的 prose 3.2.3 分词与词性模型，上游明确授权模型按 MIT 分发。见[集成登记](ports/subtitle-splitting/README.md)、[调研记录](ports/subtitle-splitting/RESEARCH.md)及[固定清单](manifests/subtitle-splitting.json)。没有新增 CGO、Python 或网络运行时；中文字典和模型以可复现 UTF-8 文本嵌入，英文模型通过 Go 模块嵌入，不扩大仓库二进制例外。Unicode 字素／词界直接调用现有 `Unlicense OR BSD-3-Clause` 的 `go-text/typesetting v0.3.5`，字符宽度使用既有 `golang.org/x/text v0.43.0`。字幕技能的阅读负荷阈值由轻量本地检测使用，许可沿用完整技能快照登记。
 
 实际翻译协议与分段流程参考的固定上游修订、源码位置和适配边界见各组件的 `ports/` 登记。它们不是新增运行时依赖；完整字幕技能快照仍为质量规则来源。
 

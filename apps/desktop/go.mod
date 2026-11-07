@@ -7,6 +7,7 @@ require (
 	github.com/egoist/mygo v0.8.3
 	github.com/go-text/typesetting v0.3.5
 	github.com/google/uuid v1.6.0
+	github.com/jdkato/prose/v3 v3.2.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	golang.org/x/image v0.46.0
 	golang.org/x/sys v0.49.0
