@@ -185,11 +185,11 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 		targets := a.retranslationTargets()
 		showChecks := len(a.checkedRetranslationIDs()) > 0
 		numbers := numberColumn(c, maximum)
-		if showChecks {
-			numbers.Width += em(c, 28)
-			numbers.MinWidth = numbers.Width
-		}
-		cols := []ui.TableColumn{numbers, timeColumn(c, locales.ListColumnStart()), timeColumn(c, locales.ListColumnEnd()), {Title: locales.ListColumnText(), Fixed: true}}
+		// The left gutter always mirrors the fixed right navigation rail. Only
+		// its row controls are conditional, so enabling selection never shifts
+		// the subtitle columns under the reader.
+		cols := []ui.TableColumn{subtitleSelectionColumn(c), numbers, timeColumn(c, locales.ListColumnStart()), timeColumn(c, locales.ListColumnEnd()), {Title: locales.ListColumnText(), Fixed: true}}
+		numberIndex, startIndex, endIndex := 1, 2, 3
 		loads := a.readingLoads()
 		table := subtitleTable(c, &a.list, cols, len(rows), func(row, col int) {
 			index := rows[row]
@@ -212,10 +212,10 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 				}
 				return t
 			}
-			switch col {
-			case 0:
-				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-					if showChecks {
+			switch {
+			case col == 0:
+				if showChecks {
+					ui.Row(c).Fill().AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 						checked := a.subtitleChecked[a.subtitleTab][cue.ID]
 						_, eligible := targets[cue.ID]
 						hint := locales.RetranslateCheckCue(cue.Position + 1)
@@ -223,16 +223,17 @@ func (a *NativeApp) subtitlesView(c *ui.Context) {
 							hint = locales.RetranslateUseOptimized()
 						}
 						ui.Checkbox(c, &checked, "").Label(locales.RetranslateCheckCue(cue.Position + 1)).Tooltip(hint).Disabled(a.busy || a.translationLive != nil || !eligible).OnChange(func() { a.setSubtitleChecked(cue.ID, checked) })
-					}
-					number := cell(fmt.Sprint(cue.Position + 1))
-					// Selected rows retain MyGo's uniform accent and readable text.
-					if index != a.selected && a.draftReading(cue, index, loads[index]).Problem() {
-						number.TextColor(c.Theme().Danger)
-					}
-				})
-			case 1:
+					})
+				}
+			case col == numberIndex:
+				number := cell(fmt.Sprint(cue.Position + 1))
+				// Selected rows retain MyGo's uniform accent and readable text.
+				if index != a.selected && a.draftReading(cue, index, loads[index]).Problem() {
+					number.TextColor(c.Theme().Danger)
+				}
+			case col == startIndex:
 				cell(stamp(start))
-			case 2:
+			case col == endIndex:
 				cell(stamp(end))
 			default:
 				ui.Column(c).Gap(em(c, 8)).Padding(em(c, 6), em(c, 2)).Children(func() {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -79,6 +80,25 @@ func TestRetranslationSelectAllAndClearIncludeHiddenRows(t *testing.T) {
 	}
 	if _, ok := tt.Find(locales.RetranslateCheckCue(1)); ok {
 		t.Fatal("last unchecked cue did not hide checks")
+	}
+}
+
+func TestSubtitleSelectionUsesMirroredLeadingGutter(t *testing.T) {
+	a := storeApp(t, subtitle.Cue{ID: "a", Text: "First source", StartMs: 0, EndMs: 4000}, subtitle.Cue{ID: "b", Text: "Second source", StartMs: 5000, EndMs: 9000})
+	tt := settled(a.subtitlesView, 900, 640)
+	list, _ := tt.Find(locales.A11ySubtitleList())
+	number, ok := tt.Find("#")
+	if !ok || number.X < list.X+subtitleNavigationRailSize || tt.HasText(locales.RetranslateCheckCue(1)) {
+		t.Fatal("selection gutter is missing or exposes a checkbox while inactive", list, number)
+	}
+	a.setSubtitleChecked("a", true)
+	tt.Frame()
+	check, ok := tt.Find(locales.RetranslateCheckCue(1))
+	if !ok || check.X < list.X || check.X+check.W > list.X+subtitleNavigationRailSize {
+		t.Fatal("checkbox is outside the mirrored leading gutter", check, list)
+	}
+	if after, _ := tt.Find("#"); after.X != number.X || after.W != number.W {
+		t.Fatal("enabling selection shifted the subtitle columns", number, after)
 	}
 }
 
