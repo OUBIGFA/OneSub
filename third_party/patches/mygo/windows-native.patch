@@ -1,8 +1,7 @@
 diff --git a/internal/windows/menu.go b/internal/windows/menu.go
-index d7924b0..667da50 100644
 --- a/internal/windows/menu.go
 +++ b/internal/windows/menu.go
-@@ -131,7 +131,7 @@ func (b *Backend) buildMenu(m *platform.Menu, bar bool, owner int, accels map[ac
+@@ -131,7 +131,7 @@
  		if !drawn {
  			return nil
  		}
@@ -11,7 +10,7 @@ index d7924b0..667da50 100644
  		looks = append(looks, l)
  		ownerDraw(h, pos, l.ftype(), b.menus.addLook(l))
  		return l
-@@ -289,7 +289,7 @@ func (w *window) popupMenuBar(key uintptr) {
+@@ -289,7 +289,7 @@
  		}
  		procAppendMenuW.Call(popup, flags, item, uintptr(unsafe.Pointer(&buf[0])))
  		if fluentMenus() {
@@ -21,18 +20,9 @@ index d7924b0..667da50 100644
  		}
  	}
 diff --git a/internal/windows/menudraw.go b/internal/windows/menudraw.go
-index 3b594f5..c8e1124 100644
 --- a/internal/windows/menudraw.go
 +++ b/internal/windows/menudraw.go
-@@ -34,6 +34,7 @@ const (
- 	dtCalcRect             = 0x400
- 	dtRight                = 0x002
- 	srcCopy                = 0x00CC0020
-+	dtNoClip               = 0x100
- 	spiGetNonClientMetrics = 0x0029
- 	layoutRTL              = 0x1
- )
-@@ -360,21 +361,40 @@ func (b *Backend) setMenuBackground(menu uintptr) {
+@@ -448,21 +448,40 @@
  	procSetMenuInfo.Call(menu, uintptr(unsafe.Pointer(&mi)))
  }
  
@@ -78,7 +68,7 @@ index 3b594f5..c8e1124 100644
  	top, bottom := l.padding(dpi)
  	l.dpi = dpi
  	if l.separator {
-@@ -394,7 +414,11 @@ func (b *Backend) measureItem(hwnd uintptr, l *menuLook, mis *measureItemStruct)
+@@ -482,7 +501,11 @@
  		w = max(w-extra, 0)
  	}
  	l.width = w
@@ -91,7 +81,7 @@ index 3b594f5..c8e1124 100644
  }
  
  // itemWidth returns the width an item that isn't a separator needs at dpi:
-@@ -444,7 +468,7 @@ func (b *Backend) learnMenuExtra(l *menuLook, dpi int, w int32) {
+@@ -532,7 +555,7 @@
  }
  
  func (b *Backend) drawItem(hwnd uintptr, l *menuLook, d *drawItemStruct) {
@@ -100,42 +90,22 @@ index 3b594f5..c8e1124 100644
  	p := b.menuPalette()
  	r := d.Item
  	b.learnMenuExtra(l, dpi, r.Right-r.Left)
-@@ -527,7 +551,10 @@ func (b *Backend) drawItem(hwnd uintptr, l *menuLook, d *drawItemStruct) {
- 		}
- 		old, _, _ := procSelectObject.Call(dc, f.text)
- 		defer procSelectObject.Call(dc, old)
--		flags := uintptr(dtSingleLine | dtVCenter)
-+		// Glyphs may reach a pixel past their advance, on either side, as
-+		// Microsoft YaHei UI's do: the item's own bitmap bounds the text,
-+		// which is not clipped to its advance within the padding.
-+		flags := uintptr(dtSingleLine | dtVCenter | dtNoClip)
- 		if state&odsNoAccel != 0 {
- 			flags |= dtHidePrefix
- 		}
-@@ -538,7 +565,7 @@ func (b *Backend) drawItem(hwnd uintptr, l *menuLook, d *drawItemStruct) {
- 		if l.accel != "" {
- 			procSetTextColor.Call(dc, uintptr(secondary))
- 			s := u16(l.accel)
--			procDrawTextW.Call(dc, uintptr(unsafe.Pointer(s)), ^uintptr(0), uintptr(unsafe.Pointer(&text)), dtSingleLine|dtVCenter|dtRight|dtNoPrefix)
-+			procDrawTextW.Call(dc, uintptr(unsafe.Pointer(s)), ^uintptr(0), uintptr(unsafe.Pointer(&text)), dtSingleLine|dtVCenter|dtRight|dtNoPrefix|dtNoClip)
- 		}
- 	})
- 	// Windows draws the arrow of a submenu after the item, in its colors:
 diff --git a/internal/windows/menudraw_test.go b/internal/windows/menudraw_test.go
-index 6a8e7ac..2673c1d 100644
 --- a/internal/windows/menudraw_test.go
 +++ b/internal/windows/menudraw_test.go
-@@ -2,7 +2,125 @@
+@@ -4,6 +4,8 @@
  
- package windows
- 
--import "testing"
-+import (
+ import (
+ 	"math"
 +	"runtime"
 +	"syscall"
-+	"testing"
-+	"unsafe"
-+)
+ 	"testing"
+ 	"unsafe"
+ )
+@@ -395,3 +397,132 @@
+ 	}
+ 	return right - left + 1, bottom - top + 1
+ }
 +
 +// The labels of a real popup menu fit in the items Windows lays out. It
 +// widens owner-drawn items by an amount of its own, which measureItem
@@ -249,13 +219,6 @@ index 6a8e7ac..2673c1d 100644
 +		}
 +	}
 +}
- 
- // The highlights of menu items cover their pixels inside fully, those past
- // the rounded corners not at all, and those the corners cross partly.
-@@ -36,3 +154,19 @@ func TestMenuColors(t *testing.T) {
- 		t.Errorf("blend with none = %#x, want the background", got)
- 	}
- }
 +
 +// A real native surface must request a composition swap chain before any
 +// web view exists. Creating an HWND flip chain first leaves an old UI plane.
@@ -273,10 +236,9 @@ index 6a8e7ac..2673c1d 100644
 +	}
 +}
 diff --git a/internal/windows/surface.go b/internal/windows/surface.go
-index 07bb1ac..594bbc0 100644
 --- a/internal/windows/surface.go
 +++ b/internal/windows/surface.go
-@@ -233,10 +233,10 @@ func (s *surface) Native() platform.SurfaceNative {
+@@ -246,10 +246,10 @@
  	return platform.SurfaceNative{HWND: s.hwnd, Composed: s.viaComposition()}
  }
  
@@ -291,7 +253,7 @@ index 07bb1ac..594bbc0 100644
  
  // ShowsMaterial reports whether the window shows its material behind the
  // content: it has one, no redirection bitmap to cover it, and DWM draws
-@@ -697,6 +697,15 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
+@@ -731,6 +731,15 @@
  		}
  		return 0, true
  	case wmEraseBkgnd:
@@ -307,7 +269,7 @@ index 07bb1ac..594bbc0 100644
  		return 1, true
  	case wmSize:
  		if s.layer != nil {
-@@ -706,6 +715,8 @@ func (s *surface) message(hwnd uintptr, m uint32, wp, lp uintptr) (uintptr, bool
+@@ -740,6 +749,8 @@
  				v.placeEmbedded()
  			}
  			s.layer.commit()
@@ -317,10 +279,9 @@ index 07bb1ac..594bbc0 100644
  		s.send(platform.SurfaceEvent{Kind: platform.SurfaceResize})
  		// Draw at once, so the content follows the window while it is
 diff --git a/internal/windows/webview_embed.go b/internal/windows/webview_embed.go
-index c4bc778..2e62f57 100644
 --- a/internal/windows/webview_embed.go
 +++ b/internal/windows/webview_embed.go
-@@ -147,7 +147,9 @@ func (s *surface) NewWebView(o *platform.WindowOptions, h platform.WindowHandler
+@@ -200,7 +200,9 @@
  			// renderer again (Native), and frames drawn in memory go
  			// through the compositor.
  			s.send(platform.SurfaceEvent{Kind: platform.SurfaceRenew})

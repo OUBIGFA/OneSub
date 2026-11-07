@@ -1,8 +1,7 @@
 diff --git a/ui/list.go b/ui/list.go
-index fd1f08b..f392afe 100644
 --- a/ui/list.go
 +++ b/ui/list.go
-@@ -69,6 +69,14 @@ type ListState struct {
+@@ -72,6 +72,14 @@
  	// which shows in the accent color. The list's Changed reports a new
  	// choice, and its Submitted a double click or Enter.
  	Selected *int
@@ -18,10 +17,9 @@ index fd1f08b..f392afe 100644
  	// holds by their keys: a click chooses one, Cmd-click (Ctrl-click on
  	// Linux and Windows) adds a row or takes it out, and Shift-click
 diff --git a/ui/value_input.go b/ui/value_input.go
-index 9e784a4..1e9ea45 100644
 --- a/ui/value_input.go
 +++ b/ui/value_input.go
-@@ -337,6 +337,7 @@ func listRowValueInput(n *node) {
+@@ -337,6 +337,7 @@
  		}
  	}
  	if n.Clicked() {
@@ -29,7 +27,7 @@ index 9e784a4..1e9ea45 100644
  		switch {
  		case st.pressChose:
  		case st.rowPressed:
-@@ -345,6 +346,12 @@ func listRowValueInput(n *node) {
+@@ -345,6 +346,12 @@
  			// The keyboard or assistive technology: the row, and no column.
  			f.click(b.i, n.ClickModifiers())
  		}
@@ -42,7 +40,7 @@ index 9e784a4..1e9ea45 100644
  		if !f.owner.FocusWithin() {
  			// Leave the focus on a control inside a row, such as an editor
  			// a double click opened.
-@@ -352,7 +359,11 @@ func listRowValueInput(n *node) {
+@@ -352,7 +359,11 @@
  		}
  	}
  	if n.DoubleClicked() {

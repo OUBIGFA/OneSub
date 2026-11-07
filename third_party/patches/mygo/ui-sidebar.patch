@@ -1,28 +1,3 @@
-diff --git a/ui/sidebar.go b/ui/sidebar.go
---- a/ui/sidebar.go
-+++ b/ui/sidebar.go
-@@ -182,15 +182,16 @@ func coreSidebarItem(c *context, id string, icon *SVG, label string) *node {
- 		}
- 	}
- 	iconColor := t.Accent
-+	_ = focused
- 	switch {
--	case chosen && focused:
-+	case chosen:
-+		// OneSub: the chosen item keeps the accent whether or not the
-+		// sidebar has the focus, so clicking elsewhere in a window, or a
-+		// dialog moving the focus as it opens, never flips it to gray. The
-+		// focus ring below shows the keyboard focus.
- 		item.checked = 2
- 		item.Background(t.Accent).TextColor(t.AccentText)
- 		iconColor = t.AccentText
--	case chosen:
--		// Chosen in a sidebar without the focus, in gray, as AppKit's.
--		item.checked = 2
--		item.Background(t.SurfacePressed)
- 	default:
- 		item.checked = 1
- 		item.styleFn = func(item *node) {
 diff --git a/ui/onesub_sidebar_test.go b/ui/onesub_sidebar_test.go
 new file mode 100644
 --- /dev/null
@@ -66,3 +41,43 @@ new file mode 100644
 +		t.Fatal("the chosen item changed with the focus", at(focused), at(img.Pix))
 +	}
 +}
+diff --git a/ui/sidebar.go b/ui/sidebar.go
+--- a/ui/sidebar.go
++++ b/ui/sidebar.go
+@@ -165,7 +165,6 @@
+ 	item.widget = "SidebarItem"
+ 	item.flags |= flagClickable | flagHover | flagChoosable
+ 	chosen := false
+-	focused := false
+ 	if sb != nil {
+ 		item.level = sb.depth + 1
+ 		item.afterInput(func() {
+@@ -175,22 +174,22 @@
+ 			}
+ 
+ 		})
+-		chosen, focused = *sb.selected == id, sb.e.Focused()
++		chosen = *sb.selected == id
+ 		sb.items = append(sb.items, sidebarEntry{id, label})
+ 		if chosen {
+ 			sb.chosen = item
+ 		}
+ 	}
+ 	iconColor := c.accent(t)
+ 	switch {
+-	case chosen && focused:
++	case chosen:
++		// OneSub: the chosen item keeps the accent whether or not the
++		// sidebar has the focus, so clicking elsewhere in a window, or a
++		// dialog moving the focus as it opens, never flips it to gray. The
++		// focus ring below shows the keyboard focus.
+ 		item.checked = 2
+ 		item.Background(t.Accent).TextColor(t.AccentText)
+ 		iconColor = t.AccentText
+-	case chosen:
+-		// Chosen in a sidebar without the focus, in gray, as AppKit's.
+-		item.checked = 2
+-		item.Background(t.SurfacePressed)
+ 	default:
+ 		item.checked = 1
+ 		item.styleFn = func(item *node) {

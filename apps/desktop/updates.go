@@ -117,7 +117,7 @@ func (a *NativeApp) completeUpdateCheck(release *mygo.Update, err error) {
 		a.updates.phase = updateCancelled
 	case err != nil:
 		a.updates.phase, a.updates.failure = updateFailed, err.Error()
-		// MyGo 0.7.4 exposes HTTP status in its error text, not a typed error.
+		// MyGo exposes HTTP status in its error text, not a typed error.
 		// A missing release/manifest is not evidence of being up to date.
 		if strings.HasSuffix(err.Error(), ": 404 Not Found") {
 			a.updates.phase = updateMissing

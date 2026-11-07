@@ -1,7 +1,7 @@
 diff --git a/ui/editor.go b/ui/editor.go
 --- a/ui/editor.go
 +++ b/ui/editor.go
-@@ -88,7 +88,10 @@
+@@ -91,7 +91,10 @@
  	painted     spanPaint
  	// layout is what the last frame laid out of a single-line input or a
  	// selectable text; area lays out a text area (textarea.go).
@@ -75,7 +75,7 @@ diff --git a/ui/editor_layout.go b/ui/editor_layout.go
 diff --git a/ui/list.go b/ui/list.go
 --- a/ui/list.go
 +++ b/ui/list.go
-@@ -192,6 +192,9 @@
+@@ -216,6 +216,9 @@
  	wroteY  float64
  	req     listRequest
  	heights listHeights
@@ -85,7 +85,7 @@ diff --git a/ui/list.go b/ui/list.go
  
  	// scrolled tells that the app asked the list to scroll (ScrollTo,
  	// ScrollIntoView, ScrollToEnd): a mouse wheel's notches on their way
-@@ -294,13 +297,67 @@
+@@ -318,13 +321,67 @@
  // the list scrolls as the frame is laid out, to where the row is once it
  // is measured.
  func (s *ListState) ScrollTo(row int, align Align) {
@@ -153,7 +153,7 @@ diff --git a/ui/list.go b/ui/list.go
  	s.req = listRequest{set: true, row: row, near: true}
  	s.scrolled = true
  }
-@@ -308,6 +365,7 @@
+@@ -332,6 +389,7 @@
  // ScrollToEnd scrolls the list to its end, where FollowEnd follows it
  // again.
  func (s *ListState) ScrollToEnd() {
@@ -161,7 +161,7 @@ diff --git a/ui/list.go b/ui/list.go
  	s.req = listRequest{set: true, end: true}
  	s.scrolled = true
  }
-@@ -486,6 +544,9 @@
+@@ -521,6 +579,9 @@
  	}
  	e.list, owner.rowsOf = f, f
  	wrapElement(owner).Bind(&s.Handle)
@@ -171,7 +171,7 @@ diff --git a/ui/list.go b/ui/list.go
  	s.sync(e, n)
  	f.pickForMenu()
  	if s.cursor() != nil && owner == e {
-@@ -1456,6 +1517,19 @@
+@@ -1512,6 +1573,19 @@
  		}
  	}
  	glide := s.glideToEnd(e, n, lo, hi, H, padTop+padBottom+hs.top(n, gap)-gap, func(d float64) { shift(d); cover() })
@@ -191,7 +191,7 @@ diff --git a/ui/list.go b/ui/list.go
  	for k := 0; k < listOverscan && hi < n-1 && ensure(hi+1); k++ {
  		yHi += ht(hi) + gap
  		hi++
-@@ -1541,6 +1615,22 @@
+@@ -1597,6 +1671,22 @@
  	st.scrollTo(st.scrollX, scroll)
  	s.inset = inset
  	s.remember(e, first, last, hi == n-1 && end()-glide <= H+0.5, scroll)

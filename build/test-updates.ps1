@@ -39,5 +39,11 @@ try {
     $env:ONESUB_UPDATE_TEST_ROOT = $previousRoot
     $env:MYGO_DEV = $previousDev
     Pop-Location
-    Remove-Item $task -Recurse -Force
+    # Recycle only this run's generated signing fixture, never an arbitrary
+    # caller path. This preserves the workspace's recoverable-cleanup rule.
+    $taskPath = [IO.Path]::GetFullPath($task)
+    $taskBoundary = [IO.Path]::GetFullPath((Join-Path $root '_temp/signed-update-tests')) + [IO.Path]::DirectorySeparatorChar
+    if (-not $taskPath.StartsWith($taskBoundary, [StringComparison]::OrdinalIgnoreCase)) { throw 'Update fixture escaped its task directory' }
+    Add-Type -AssemblyName Microsoft.VisualBasic
+    [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($taskPath, [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs, [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)
 }

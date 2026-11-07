@@ -1,4 +1,4 @@
-param([string]$GoRoot = $env:GOROOT, [string[]]$Packages = @('./...'), [switch]$GoOnly, [string]$PackageRoot)
+param([string]$GoRoot = $env:GOROOT, [string[]]$Packages = @('./...'), [switch]$GoOnly, [string]$PackageRoot, [string]$TestName)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 if (-not $GoRoot) { $GoRoot = Join-Path $root '.local/toolchains/go1.27.3/go' }
@@ -39,11 +39,15 @@ try {
         # Message accessors are generated from locales/*.json and not tracked.
         & go run github.com/egoist/mygo/cmd/mygo generate
         if ($LASTEXITCODE -ne 0) { throw 'Message catalog generation failed' }
-        & go test github.com/egoist/mygo/internal/windows -run 'TestOneSub(Popup|NativeSurface)' -count=1
+        & go test github.com/egoist/mygo/internal/windows -run 'Test(Menu|OneSub(Popup|NativeSurface))' -count=1
         if ($LASTEXITCODE -ne 0) { throw 'MyGo native Windows tests failed' }
-        & go test github.com/egoist/mygo/ui -run 'Test(OneSub|WebView)' -count=1
+        & go test github.com/egoist/mygo/ui -run 'Test(OneSub|WebView|Tester|Field|Label)' -count=1
         if ($LASTEXITCODE -ne 0) { throw 'MyGo input and scrolling tests failed' }
-        & go test @Packages -count=1
+        # UI review can select a focused behavior/render pass through the same
+        # setup and patched-framework checks as the complete test entry.
+        $testArguments = @('-count=1')
+        if ($TestName) { $testArguments += @('-run', $TestName) }
+        & go test @Packages @testArguments
         if ($LASTEXITCODE -ne 0) { throw 'Go tests failed' }
     } finally { Pop-Location }
     if ($GoOnly) { return }

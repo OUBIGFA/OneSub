@@ -1,7 +1,7 @@
 diff --git a/ui/headless.go b/ui/headless.go
 --- a/ui/headless.go
 +++ b/ui/headless.go
-@@ -447,6 +447,17 @@
+@@ -530,6 +530,17 @@
  // Frame renders another frame, as when the view's state changed.
  func (t *Tester) Frame() { t.h.requested.Store(true); t.settle() }
  
@@ -19,56 +19,33 @@ diff --git a/ui/headless.go b/ui/headless.go
  // FramePending reports whether the view still asks for a frame, as one
  // that animates or never settles does after an input or Frame. The
  // frames of After and Painter.After wait for Advance to reach their
-diff --git a/ui/webview.go b/ui/webview.go
-index 96d800b..fa3eda4 100644
---- a/ui/webview.go
-+++ b/ui/webview.go
-@@ -44,6 +44,21 @@ func coreWebView(c *context, v NativeWebView) *node {
- 	return e
- }
- 
-+// webViewBox applies native containment to this frame's content box. A caller
-+// must not size a media view from Bounds(), which belongs to the previous frame.
-+// Placement and the transparency hole must use the very same rectangle.
-+func (e *node) webViewBox() Rect {
-+	box := e.contentBox()
-+	if e.fit == Contain && e.aspect > 0 {
-+		w := min(box.W, box.H*e.aspect)
-+		h := w / e.aspect
-+		box.X += (box.W - w) / 2
-+		box.Y += (box.H - h) / 2
-+		box.W, box.H = w, h
-+	}
-+	return box
-+}
-+
- // webPlace is where a frame shows a web view: hit is the index of its
- // element's own hit, inert that it shows but takes no pointer.
- type webPlace struct {
-@@ -63,7 +78,7 @@ func (rt *engine) noteWebView(e *node, clip Rect, invisible bool) {
+@@ -655,6 +666,21 @@
+ 			}
+ 		}
  	}
- 	// The hole the painter makes: the content box on whole pixels. Native
- 	// web views stay upright, covering a transformed box's bounds.
--	b := e.visualRect(e.contentBox())
-+	b := e.visualRect(e.webViewBox())
- 	if s := rt.painted[2]; s > 0 {
- 		x0, y0 := float32(math.Round(float64(b.X*s)))/s, float32(math.Round(float64(b.Y*s)))/s
- 		x1, y1 := float32(math.Round(float64((b.X+b.W)*s)))/s, float32(math.Round(float64((b.Y+b.H)*s)))/s
-@@ -192,7 +207,7 @@ func (rt *engine) overWebView() bool {
- // hole paints the hole showing the web view of e: its content box,
- // rounded as its border's inner edge less its padding.
- func (p *Painter) hole(e *node) {
--	b := e.contentBox()
-+	b := e.webViewBox()
- 	if b.W <= 0 || b.H <= 0 {
- 		return
++	// A Field containing a self-labelled control names the outer group.
++	// In a Modal, receiver(named) is the backdrop, while the group's center
++	// correctly hits its control. Accept only that control (or its delegated
++	// input), not any descendant or a control covering the field.
++	if !matches && slices.Contains(hit, n.id) {
++		for i := range t.rt.c.used {
++			e := t.rt.nodeAt(uint32(i))
++			if e.id == n.id && e.field != nil && e.field.control != nil {
++				ctrl := e.field.control
++				got := receiver(hit)
++				matches = got == ctrl.st || ctrl.focusTo != nil && got == ctrl.focusTo.st
++				break
++			}
++		}
++	}
+ 	if !matches || len(named) == 0 || t.rt.states[n.id].ignoreInput {
+ 		return 0, 0, fmt.Errorf("ui: %q is not the input target at (%v, %v)", s, x, y)
  	}
 diff --git a/ui/onesub_layout_test.go b/ui/onesub_layout_test.go
 new file mode 100644
-index 0000000..0c6c5b6
 --- /dev/null
 +++ b/ui/onesub_layout_test.go
-@@ -0,0 +1,43 @@
+@@ -0,0 +1,72 @@
 +package ui
 +
 +import (
@@ -77,6 +54,35 @@ index 0000000..0c6c5b6
 +
 +	"github.com/egoist/mygo/internal/scene"
 +)
++
++// 0.8.1 correctly gives a self-labelled control's field a group name. The
++// headless click guard must distinguish that group from a modal's backdrop.
++func TestOneSubNamedModalFieldTargetsItsControl(t *testing.T) {
++	open, disabled := true, false
++	value := "before"
++	tt := NewTester(func(c *Context) {
++		Modal(c, &open, func() {
++			Field(c, "Address", func() { TextInput(c, &value).Label("Address").Disabled(disabled) }).Width(320)
++		})
++	}, 600, 400)
++	if err := tt.Click("Address"); err != nil {
++		t.Fatal(err)
++	}
++	tt.Key(Cmd, KeyA)
++	tt.Type("after")
++	if value != "after" || !open {
++		t.Fatal("field click did not reach the input", value, open)
++	}
++	disabled = true
++	tt.Frame()
++	if err := tt.Click("Address"); err != nil {
++		t.Fatal(err)
++	}
++	tt.Type("ignored")
++	if value != "after" || !open {
++		t.Fatal("disabled field accepted input or dismissed the dialog", value, open)
++	}
++}
 +
 +// One raw frame per resize, deliberately without Tester's settling loop:
 +// native placement and the painted hole must agree immediately at any aspect.
@@ -112,3 +118,46 @@ index 0000000..0c6c5b6
 +		}
 +	}
 +}
+diff --git a/ui/webview.go b/ui/webview.go
+--- a/ui/webview.go
++++ b/ui/webview.go
+@@ -45,6 +45,21 @@
+ 	return e
+ }
+ 
++// webViewBox applies native containment to this frame's content box. A caller
++// must not size a media view from Bounds(), which belongs to the previous frame.
++// Placement and the transparency hole must use the very same rectangle.
++func (e *node) webViewBox() Rect {
++	box := e.contentBox()
++	if e.fit == Contain && e.aspect > 0 {
++		w := min(box.W, box.H*e.aspect)
++		h := w / e.aspect
++		box.X += (box.W - w) / 2
++		box.Y += (box.H - h) / 2
++		box.W, box.H = w, h
++	}
++	return box
++}
++
+ // webPlace is where a frame shows a web view: size is the size its page
+ // lays out at, which frame shows scaled, and radii its corners', in its
+ // DIPs; hit is the index of its element's own hit, inert that it shows
+@@ -72,7 +87,7 @@
+ 	if s <= 0 {
+ 		s = 1
+ 	}
+-	box := e.contentBox()
++	box := e.webViewBox()
+ 	sx, sy, upright := scaling(e.world)
+ 	var b, page Rect
+ 	if upright && (sx != 1 || sy != 1) {
+@@ -312,7 +327,7 @@
+ // hole paints the hole showing the web view of e: its content box,
+ // rounded as its border's inner edge less its padding.
+ func (p *Painter) hole(e *node) {
+-	b := e.contentBox()
++	b := e.webViewBox()
+ 	if b.W <= 0 || b.H <= 0 {
+ 		return
+ 	}
