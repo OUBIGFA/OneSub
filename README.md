@@ -130,6 +130,12 @@ https://github.com/user-attachments/assets/64fed7da-2e36-48a5-8409-68cfbcf6a299
 
 OneSub 支持 OpenAI Chat Completions 与 Responses 协议。CPA 与 magpie 是第三方项目，与 OneSub 无关联。可用额度、限制和使用条款由 OpenAI 决定，可能随时变化。使用前请阅读其条款。
 
+## 智能体调用
+
+在设置的「MCP 服务」页复制客户端配置，智能体即可调用本地识别、翻译、字幕读取与编辑、检查、格式转换和视频合成
+
+服务使用现有模型、翻译和样式配置，输出新文件；工具参数与完整编排流程见 [MCP 使用说明](apps/desktop/MCP.md)
+
 ## 许可与致谢
 
 本项目以 **AGPL-3.0-or-later** 发布，完整文本见 [LICENSE](LICENSE)。第三方代码、字体与模型各自遵循其许可证，登记见 [第三方依赖规则](third_party/README.md)。

@@ -131,6 +131,7 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 		ui.Field(c, locales.TranslationEndpoint(), func() {
 			ui.TextInput(c, &a.settings.ProviderURL).MinHeight(em(c, 36)).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).Tooltip(a.settings.ProviderURL).Disabled(a.settings.Provider() == nil).OnChange(func() {
 				a.providerKey, a.keyStatus, a.modelsError = "", "", ""
+				a.providerKeyVisible = false
 				a.modelsGeneration++
 				a.modelsLoading = false
 				if p := a.settings.Provider(); p != nil {
@@ -140,7 +141,20 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 			})
 		})
 		ui.Field(c, "API Key", func() {
-			ui.TextInput(c, &a.providerKey).MinHeight(em(c, 36)).Password().Placeholder(locales.TranslationKeyPlaceholder()).Label("API Key").Disabled(a.settings.Provider() == nil)
+			// A shared native grid cell places the action inside the input.
+			// Reserve text padding in this frame, without measuring prior bounds.
+			ui.Grid(c).Columns(1).Children(func() {
+				t := c.Theme()
+				input := ui.TextInput(c.Key(a.settings.CredentialScope()), &a.providerKey).ColumnStart(1).RowStart(1).MinHeight(em(c, 36)).MinWidth(0).Padding(t.Space(1.5), em(c, 40), t.Space(1.5), t.Space(2.5)).Placeholder(locales.TranslationKeyPlaceholder()).Label("API Key").Disabled(a.settings.Provider() == nil)
+				if !a.providerKeyVisible {
+					input.Password()
+				}
+				label, glyph := locales.TranslationShowKey(), "eye"
+				if a.providerKeyVisible {
+					label, glyph = locales.TranslationHideKey(), "eye-off"
+				}
+				toolIcon(c.Key("key-visibility"), label, glyph).ColumnStart(1).RowStart(1).JustifySelf(ui.End).AlignSelf(ui.Center).Size(em(c, 28), em(c, 28)).Margin(0, em(c, 4)).Padding(0).Background(ui.Transparent).Border(0, ui.Transparent).Disabled(a.settings.Provider() == nil).OnClick(a.toggleProviderKey)
+			})
 		})
 		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 			muted(c, a.keyStatus).FontSize(em(c, captionSize)).Grow(1)
@@ -151,6 +165,7 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 				}
 				a.clearError("provider-key")
 				a.providerKey, a.keyStatus, a.modelsError = "", locales.TranslationKeyDeleted(), ""
+				a.providerKeyVisible = false
 				a.modelsGeneration++
 				a.modelsLoading = false
 			})
@@ -161,12 +176,28 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 				}
 				a.clearError("provider-key")
 				a.providerKey, a.keyStatus, a.modelsError = "", locales.TranslationKeySaved(), ""
+				a.providerKeyVisible = false
 				a.modelsGeneration++
 				a.modelsLoading = false
 				a.providerSettingsTab = 0
 			})
 		})
 	})
+}
+
+// Retrieve a saved credential only after an explicit reveal. Toggling keeps
+// an unsaved draft intact and never writes a key into preferences or logs.
+func (a *NativeApp) toggleProviderKey() {
+	if !a.providerKeyVisible && a.providerKey == "" {
+		key, err := security.ReadKey(a.settings.CredentialScope())
+		if err != nil {
+			a.showError("provider-key", err.Error())
+			return
+		}
+		a.providerKey = key
+	}
+	a.clearError("provider-key")
+	a.providerKeyVisible = !a.providerKeyVisible
 }
 
 // Language rules are independent of service credentials. Giving them their own

@@ -35,4 +35,6 @@ Windows 11 / WebView2 `158.0.4370.1` 的正式 `OneSub.exe` 对照中，正常 1
 
 主界面文案统一使用“软字幕（封装）”“硬字幕（烧录）”“背景框”等通行术语，不以自创名称替代；质量参数按真实编码设置展示。维护者提供的应用图标单独登记于 [品牌资源](../apps/desktop/branding/README.md)，不属于 Lucide 操作图标库。
 
+字幕工具栏的设计检查参考 [Impeccable](https://github.com/pbakaus/impeccable)（pbakaus，Apache-2.0）与 [unslop](https://github.com/heydamir/unslop)（Damir Sokolovsky / @heydamir，CC-BY-4.0）的操作分组、间距、文案与克制表达方法；本次仅阅读其公开设计指南，没有复制脚本、组件、图标或其他分发资产，也没有将其加入运行时依赖
+
 具体许可风险与产品发行门禁由 `manifests/` 和各 `ports/` 登记记录。

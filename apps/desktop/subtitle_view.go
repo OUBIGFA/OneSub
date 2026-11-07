@@ -84,32 +84,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			}).ContextMenu(func(m *ui.Menu) { a.subtitleStructureMenu(m, -1) })
 			return
 		}
-		if compact {
-			a.compactSubtitleToolbar(c, hasCues)
-		} else {
-			// One command row gives the table its height back. Native wrapping is
-			// only needed when a deliberately narrow pane cannot fit whole groups.
-			ui.Row(c).Padding(em(c, 12), em(c, 16)).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
-				ui.Toolbar(c, func() {
-					toolIcon(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
-					a.subtitleActionsMenu(c)
-					toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
-					// Keep every command visible; the current track controls its
-					// availability, not whether it is built into the toolbar.
-					separator(c).Height(em(c, 20)).AlignSelf(ui.Center).Margin(0, em(c, 4))
-					a.listPunctuationTools(c)
-					toolIcon(c, locales.FindReplace(), "text-search").Disabled(!hasCues || a.busy || a.showsTranslationProgress()).OnClick(a.openFindReplace)
-				}).Padding(0).Shrink(0)
-				a.subtitleSelectionTools(c)
-				a.subtitleSearch(c, false)
-				a.readingTools(c)
-				a.retranslationTools(c)
-				// Keep the review slot icon-sized. A long disabled label would
-				// wrap again and leave no subtitle row at the minimum pane size.
-				toolIcon(c, locales.TranslationResults(), "file-warning").Disabled(a.translationCandidate == nil).OnClick(func() { a.translationReview = true })
-				a.subtitleSaveActions(c, false, hasCues)
-			})
-		}
+		a.subtitleToolbar(c, compact, hasCues)
 		// The toolbar boundary spans the whole pane, including the gutter.
 		separator(c)
 		if a.showsTranslationProgress() {

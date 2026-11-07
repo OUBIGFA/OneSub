@@ -618,8 +618,8 @@ func TestReadingToolbarNarrowPane(t *testing.T) {
 				if replace.X < trailing.X+trailing.W || replace.X-trailing.X-trailing.W > 8 || replace.Y != trailing.Y {
 					t.Fatal("find/replace is not immediately right of trailing punctuation", trailing, replace)
 				}
-				if width == 900 && (replace.X+replace.W > search.X || replace.Y > search.Y+search.H) {
-					t.Fatal("editing tools are not left of search", replace, search)
+				if width == 900 && replace.Y < search.Y+search.H {
+					t.Fatal("editing tools overlap the file/search row", replace, search)
 				}
 			}
 		})

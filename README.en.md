@@ -130,6 +130,12 @@ A weaker model may fail to return stable segmentation. Turn the option off in th
 
 OneSub supports the OpenAI Chat Completions and Responses protocols. CPA and magpie are third-party projects and are not affiliated with OneSub. OpenAI decides the available quota, limits, and terms. They can change at any time. Read the terms before you use them.
 
+## Agent workflows
+
+Copy the client configuration from Settings → MCP server to let agents transcribe, translate, read, edit, check and convert subtitles, then compose videos
+
+The server uses your saved models, translation service and styles, and writes new files; see the [MCP guide](apps/desktop/MCP.md) for tool parameters and workflow examples
+
 ## License and credits
 
 This project is released under **AGPL-3.0-or-later**. See [LICENSE](LICENSE). Third-party code, fonts, and models follow their own licenses. They are registered in the [third-party rules](third_party/README.md).

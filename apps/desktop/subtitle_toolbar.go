@@ -5,28 +5,38 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// A narrow list uses two stable rows. Secondary edits live in the existing
-// native menu; search, selection and unsaved state remain in the workbench.
-func (a *NativeApp) compactSubtitleToolbar(c *ui.Context, hasCues bool) {
+// File actions have a stable first row; the second groups editing, selection
+// and review. Narrow panes keep the same order through native compact menus.
+func (a *NativeApp) subtitleToolbar(c *ui.Context, compact, hasCues bool) {
 	ui.Column(c).Padding(em(c, 8), em(c, 12)).Gap(em(c, 8)).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
-		ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Children(func() {
-			toolIcon(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
-			a.subtitleSearch(c, true)
-			a.subtitleSaveActions(c, true, hasCues)
+		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+			if compact {
+				toolIcon(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
+			} else {
+				iconButton(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
+			}
+			a.subtitleSearch(c, compact)
+			a.subtitleSaveActions(c, compact, hasCues)
 		})
-		ui.Row(c).Gap(em(c, 4)).Wrap().AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Toolbar(c, func() {
 				a.subtitleActionsMenu(c)
 				toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
-				a.listPunctuationTools(c)
+				if !compact {
+					a.listPunctuationTools(c)
+				}
 				toolIcon(c, locales.FindReplace(), "text-search").Disabled(!hasCues || a.busy || a.showsTranslationProgress()).OnClick(a.openFindReplace)
 			}).Padding(0).Shrink(0)
-			a.readingMenu(c)
-			a.subtitleSelectionActions(c, true)
-			a.retranslationActions(c, true)
-			if a.translationCandidate != nil {
-				toolIcon(c, locales.TranslationResults(), "file-warning").OnClick(func() { a.translationReview = true })
+			ui.Toolbar(c, func() {
+				a.subtitleSelectionActions(c, compact)
+				a.retranslationActions(c, compact)
+			}).Padding(0).Shrink(0)
+			if compact {
+				a.readingMenu(c)
+			} else {
+				a.readingTools(c)
 			}
+			toolIcon(c, locales.TranslationResults(), "file-warning").Disabled(a.translationCandidate == nil).OnClick(func() { a.translationReview = true })
 		})
 	})
 }

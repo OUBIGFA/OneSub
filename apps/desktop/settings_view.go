@@ -71,6 +71,7 @@ func (a *NativeApp) settingsView(c *ui.Context) {
 		})
 	}, nil)
 	if wasOpen && !a.settingsOpen {
+		a.providerKey, a.providerKeyVisible = "", false
 		a.saveSettings()
 		a.commitProviderModelInput()
 		a.refreshDownloadedAsrModels()

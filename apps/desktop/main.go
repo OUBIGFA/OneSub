@@ -157,6 +157,7 @@ type NativeApp struct {
 	insertSource, insertTranslation      string
 	openOnReady                          []string
 	providerKey, keyStatus               string
+	providerKeyVisible                   bool
 	modelQuery                           string
 	modelEdit                            providerModelDraft
 	modelList                            ui.ListState

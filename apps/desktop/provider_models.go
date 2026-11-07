@@ -78,6 +78,7 @@ func (a *NativeApp) providerSelectionChanged(id string) {
 	}
 	a.modelsGeneration++
 	a.providerKey, a.keyStatus, a.modelsError = "", "", ""
+	a.providerKeyVisible = false
 	a.modelsLoading = false
 	a.modelQuery = ""
 	a.modelList.ScrollTo(0, ui.Start)
@@ -269,6 +270,7 @@ func (a *NativeApp) providerDeleteView(c *ui.Context) {
 	a.settings.Providers = slices.Delete(a.settings.Providers, i, i+1)
 	a.settings.ActiveProvider, a.settings.ProviderURL, a.settings.ProviderModel = "", "", ""
 	a.providerKey, a.keyStatus, a.modelsError = "", "", ""
+	a.providerKeyVisible = false
 	a.modelQuery, a.modelsLoading = "", false
 	if len(a.settings.Providers) > 0 {
 		a.providerSelectionChanged(a.settings.Providers[0].ID)

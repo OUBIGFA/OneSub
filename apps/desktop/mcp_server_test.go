@@ -207,7 +207,7 @@ func TestMCPServerTools(t *testing.T) {
 			t.Fatal("tool without schemas or annotations", tool.Name)
 		}
 	}
-	if got := strings.Join(names, " "); got != "list_languages transcribe_media translate_subtitles" {
+	if got := strings.Join(names, " "); got != "check_subtitles compose_video convert_subtitles edit_subtitles get_capabilities inspect_media list_languages read_subtitles transcribe_media translate_subtitles" {
 		t.Fatal(got)
 	}
 	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "list_languages"})

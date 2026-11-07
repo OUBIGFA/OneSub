@@ -18,20 +18,30 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func TestSubtitleCommandsShareSearchRow(t *testing.T) {
+func TestSubtitleToolbarGroupsFilesAndEditing(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := draftApp(t)
 			a.unsaved[0] = true
 			a.translationCandidate = &translationCandidate{}
-			// The category picker and two navigation buttons share the row
-			// when it fits; smaller panes wrap complete toolbar groups.
+			// File actions stay with Search; editing and review share the
+			// following row so state changes cannot displace file actions.
 			tt := settled(a.subtitlesView, 1600, 600)
 			search, _ := tt.Find(locales.ListSearch())
-			for _, label := range []string{locales.ListImport(), locales.SubtitleActionsMenu(), locales.ListLocate(), locales.TranslationResults(), locales.ListUnsaved(), locales.ListSave(), locales.ListSaveAs()} {
+			for _, label := range []string{locales.ListImport(), locales.ListUnsaved(), locales.ListSave(), locales.ListSaveAs()} {
 				r, ok := tt.Find(label)
 				if !ok || math.Abs(float64(r.Y+r.H/2-search.Y-search.H/2)) > 1 {
 					t.Fatal("subtitle command is not on the search row", label, r, search)
+				}
+			}
+			edit, _ := tt.Find(locales.SubtitleActionsMenu())
+			if edit.Y < search.Y+search.H {
+				t.Fatal("editing overlaps file actions", edit, search)
+			}
+			for _, label := range []string{locales.ListLocate(), locales.FindReplace(), locales.ReadingIssueType(), locales.TranslationResults()} {
+				r, ok := tt.Find(label)
+				if !ok || math.Abs(float64(r.Y+r.H/2-edit.Y-edit.H/2)) > 1 {
+					t.Fatal("editing group is not aligned", label, r, edit)
 				}
 			}
 		})

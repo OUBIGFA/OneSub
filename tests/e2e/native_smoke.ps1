@@ -496,17 +496,29 @@ try {
     if($ProviderCatalogEndpoint) {
         if((Invoke-RestMethod "$ProviderCatalogEndpoint/test-state").requests -ne 0){throw 'Opening settings fetched models automatically'}
         if((Find-UI '获取模型失败') -or -not (Find-UI '保留模型 catalog-cached')){throw 'Saved catalog was not restored without discovery'}
-        Select-Value '服务连接'
+        Select-Value '接口配置'
         # This is not a real service credential. The fixture verifies that a
         # manual fetch reads the saved key from this exact account scope.
         (Input-UI 'API Key').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('onesub-local-catalog-test')
         Click-UI '保存 Key'
+        Select-Value '接口配置'
+        $keyBounds=(Input-UI 'API Key').Current.BoundingRectangle
+        for($reveal=0;$reveal -lt 3;$reveal++) {
+            Click-UI '显示密钥'
+            $keyInput=Input-UI 'API Key'
+            if($keyInput.Current.IsPassword -or $keyInput.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne 'onesub-local-catalog-test'){throw 'Saved key was not revealed'}
+            Click-UI '隐藏密钥'
+            $keyInput=Input-UI 'API Key'
+            if(-not $keyInput.Current.IsPassword -or $keyInput.Current.BoundingRectangle -ne $keyBounds){throw 'Key did not remask or its field moved'}
+        }
+        & $ScreenshotTool $p.Id (Join-Path $workPath 'api-settings.png')
+        Select-Value '模型目录'
         if((Invoke-RestMethod "$ProviderCatalogEndpoint/test-state").requests -ne 0){throw 'Saving a key fetched models automatically'}
         Select-NativeOption '供应商' '本地目录 B'
         if((Read-Preferences).providerModel -ne 'catalog-other' -or -not (Find-UI '保留模型 catalog-other')){throw 'Switching provider lost its saved model/catalog'}
         Select-NativeOption '供应商' '本地目录 A'
         if((Read-Preferences).providerModel -ne 'catalog-alpha' -or -not (Find-UI '保留模型 catalog-cached') -or (Invoke-RestMethod "$ProviderCatalogEndpoint/test-state").requests -ne 0){throw 'Provider switching fetched a catalog or lost saved choices'}
-        Select-Value '服务连接'
+        Select-Value '接口配置'
         $address=(Input-UI '服务地址').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
         $address.SetValue($ProviderCatalogEndpoint+'/');Start-Sleep -Milliseconds 200
         $address=(Input-UI '服务地址').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
@@ -550,7 +562,7 @@ try {
         [void][SmokeNative]::PointerClick($p.MainWindowHandle,$p.Id,[int]($header.X+24),[int]($header.Y+12),$false)
         Start-Sleep -Milliseconds 350
         & $ScreenshotTool $p.Id (Join-Path $workPath 'model-library.png')
-        Select-Value '服务连接';Click-UI '删除 Key';Select-Value '模型目录'
+        Select-Value '接口配置';Click-UI '删除 Key';Select-Value '模型目录'
         if((Invoke-RestMethod "$ProviderCatalogEndpoint/test-state").requests -ne 3){throw 'Key deletion or view switching fetched models automatically'}
         Write-Output 'PASS: saved catalogs restored; zero automatic GETs on entry/provider/key/endpoint changes; same-provider retry with saved credentials; equal native status widths and scrollbar gutter'
     }
