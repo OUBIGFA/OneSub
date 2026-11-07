@@ -124,35 +124,69 @@ func dialogTitle(c *ui.Context, text string) ui.Element {
 	return ui.Text(c, text).FontSize(em(c, titleSize)).FontWeight(500)
 }
 
-// fixedDialog gives settings and output dialogs the same hierarchy: title,
-// fixed working area, and an anchored action row. Option changes cannot resize
-// the shell; no hidden page is built merely to reserve its intrinsic height.
+// Forms take their natural content height. A positive height is reserved for
+// unbounded readers/lists; these use the available viewport rather than letting
+// a large document resize the window. Width is a readable minimum, not a cap
+// that can truncate a longer translated label or action.
 func fixedDialog(c *ui.Context, open *bool, title string, width, height float32, body, actions func()) {
 	vw, vh := c.Size()
 	look := studioColors(c)
 	ui.Modal(c, open, func() {
-		// The shell keeps the previous outer size. Header, content and footer
-		// own their padding, so dividers span the surface instead of floating
-		// as unrelated lines inside one large padded column.
-		ui.Column(c).Width(min(em(c, width)+40, vw-40)).Height(min(em(c, height)+40, vh-40)).Label(title).Children(func() {
+		// Native measurement resolves the content and form-label widths in
+		// this frame. The shell itself never introduces a scrolling region.
+		shell := ui.Column(c).MinWidth(min(em(c, width+40), vw-em(c, 40))).MaxWidth(vw - em(c, 40)).Label(title)
+		if height > 0 {
+			shell.Height(min(em(c, height+40), vh-em(c, 40)))
+		}
+		shell.Children(func() {
 			ui.Row(c).Padding(em(c, 16), em(c, 24)).Gap(em(c, 16)).AlignItems(ui.Center).Shrink(0).Children(func() {
-				ui.Text(c, title).FontSize(em(c, 20)).FontWeight(600).Grow(1)
+				ui.Text(c, title).FontSize(em(c, 20)).FontWeight(500).Grow(1)
 				if actions == nil {
 					ui.Button(c, locales.ActionClose()).OnClick(func() { *open = false })
 				}
 			})
 			separator(c)
-			content := ui.Column(c).Grow(1).MinHeight(0).Gap(em(c, 20))
+			content := ui.Column(c).Gap(em(c, 12))
+			if height > 0 {
+				content.Grow(1).MinHeight(0)
+			}
 			if actions != nil {
-				content.Padding(em(c, 20), em(c, 24))
+				content.Padding(em(c, 16), em(c, 24))
 			}
 			content.Children(body)
 			if actions != nil {
 				separator(c)
-				ui.Row(c).Padding(em(c, 14), em(c, 24)).Gap(em(c, 8)).Justify(ui.End).AlignItems(ui.Center).Shrink(0).Background(look.chrome).Children(actions)
+				ui.Row(c).Padding(em(c, 14), em(c, 24)).Gap(em(c, 8)).Justify(ui.End).AlignItems(ui.Center).Shrink(0).Background(look.chrome).Radius(0, 0, c.Theme().Space(2.5), c.Theme().Space(2.5)).Children(actions)
 			}
 		})
 	}).Padding(0).Background(c.Theme().Background)
+}
+
+// Confirmations use the same native modal chrome, but size to their message.
+// Modal retains focus trapping, Escape and focus restoration; callers keep
+// AlertDialog's chosen-index contract, including cancellation via Escape.
+func confirmationDialog(c *ui.Context, open *bool, title, message string, buttons ...string) int {
+	if !*open {
+		return -1
+	}
+	chosen := -1
+	fixedDialog(c, open, title, 600, 0, func() {
+		ui.Text(c, message)
+	}, func() {
+		for i, label := range buttons {
+			button := ui.Button
+			if i == len(buttons)-1 {
+				button = ui.PrimaryButton
+			}
+			if button(c, label).Shrink(0).Clicked() {
+				chosen, *open = i, false
+			}
+		}
+	})
+	if !*open && chosen < 0 {
+		return ui.AlertDismissed
+	}
+	return chosen
 }
 
 // muted is secondary text, as units, counts and hints.

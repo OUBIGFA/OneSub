@@ -15,7 +15,7 @@ func TestComposeQualityDefaultsAndRetiredChoice(t *testing.T) {
 	}
 	for _, quality := range []string{"lossless", "crf18", "crf20", "crf23"} {
 		s := Default()
-		s.ComposeQuality, s.EditorWidth, s.StyleWidth = quality, 63, 29
+		s.ComposeQuality, s.EditorWidth, s.SubtitleHeight = quality, 63, 29
 		raw, err := json.Marshal(s)
 		if err != nil {
 			t.Fatal(err)
@@ -28,7 +28,7 @@ func TestComposeQualityDefaultsAndRetiredChoice(t *testing.T) {
 		if quality == "lossless" {
 			want = "crf20"
 		}
-		if err != nil || loaded.ComposeQuality != want || loaded.EditorWidth != 63 || loaded.StyleWidth != 29 {
+		if err != nil || loaded.ComposeQuality != want || loaded.EditorWidth != 63 || loaded.SubtitleHeight != 29 {
 			t.Fatal("quality migration changed unrelated preferences", quality, loaded, err)
 		}
 		if err = Save(path, loaded); err != nil {

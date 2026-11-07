@@ -316,27 +316,14 @@ func (a *NativeApp) savePromptView(c *ui.Context) {
 		func() { a.finishSavePrompt("discard") }, func() { a.finishSavePrompt("save") })
 }
 
-// saveChoiceDialog is a three-button confirmation whose size follows its
-// content. MyGo's alert has a fixed width, so long button names overflow it.
-// Here the buttons stay on one line at full width and the dialog grows to hold
-// them; only the message text wraps, and only at the window edge.
+// Save, discard and cancel share the confirmation presentation and preserve
+// the existing save transaction; only the affirmative choice writes files.
 func (a *NativeApp) saveChoiceDialog(c *ui.Context, open *bool, title, message, discard, save string, onDiscard, onSave func()) {
-	vw, _ := c.Size()
-	modal := ui.Modal(c, open, func() {
-		ui.Column(c).MinWidth(min(em(c, 420), vw-c.Theme().Space(20))).MaxWidth(vw - c.Theme().Space(20)).Gap(em(c, 16)).Label(title).Children(func() {
-			dialogTitle(c, title)
-			ui.Divider(c)
-			ui.Text(c, message)
-			ui.Divider(c)
-			ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Shrink(0).Children(func() {
-				ui.Button(c, locales.ActionCancel()).Shrink(0).OnClick(func() { *open = false })
-				ui.Button(c, discard).Shrink(0).OnClick(func() { *open = false; onDiscard() })
-				ui.PrimaryButton(c, save).Shrink(0).OnClick(func() { *open = false; onSave() })
-			})
-		})
-	})
-	if !c.Theme().Dark {
-		modal.Background(studioColors(c).panel)
+	switch confirmationDialog(c, open, title, message, locales.ActionCancel(), discard, save) {
+	case 1:
+		onDiscard()
+	case 2:
+		onSave()
 	}
 }
 
@@ -371,7 +358,7 @@ func (a *NativeApp) clearView(c *ui.Context) {
 		return
 	}
 	if !a.unsaved[0] && !a.unsaved[1] {
-		if ui.AlertDialog(c, &a.clearOpen, locales.ClearTitle(), locales.ClearBody(), locales.ActionCancel(), locales.ClearConfirm()) == 1 {
+		if confirmationDialog(c, &a.clearOpen, locales.ClearTitle(), locales.ClearBody(), locales.ActionCancel(), locales.ClearConfirm()) == 1 {
 			a.clearWorkbench()
 		}
 		return

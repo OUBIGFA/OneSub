@@ -31,17 +31,15 @@ func settingsRow(c *ui.Context, label string, control func() ui.Element) {
 // columns, so opening it never waits for previous-frame bounds to settle.
 func (a *NativeApp) settingsView(c *ui.Context) {
 	wasOpen := a.settingsOpen
+	_, height := c.Size()
 	// Pages keep their numbers; models by language (5) follows recognition.
 	labels := []string{locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsTranslation(), locales.SettingsTranslationRules(), locales.SettingsMcp(), locales.SettingsLanguageRoutes(), locales.SettingsAbout()}
 	pageIcons := []string{"settings", "audio-lines", "languages", "file-down", "settings", "text-search", "info"}
 	order := []int{0, 1, 5, 2, 3, 4, 6}
-	fixedDialog(c, &a.settingsOpen, locales.SettingsTitle(), 1280, 800, func() {
-		content := func() {
-			ui.Column(c.Key(a.settingsTab)).Fill().Gap(em(c, 28)).Label(locales.A11ySettingsContent()).Children(func() {
-				a.settingsContent(c, a.settingsTab)
-			})
-		}
-		ui.Row(c).Fill().Gap(0).AlignItems(ui.Stretch).Children(func() {
+	fixedDialog(c, &a.settingsOpen, locales.SettingsTitle(), 1280, 0, func() {
+		// A viewport-relative floor gives sparse pages the same generous
+		// reading area; larger forms still determine the natural height.
+		ui.Row(c).MinHeight(height * .8).Gap(0).AlignItems(ui.Stretch).Children(func() {
 			selected := strconv.Itoa(a.settingsTab)
 			navigationWidth := float32(0)
 			for _, label := range labels {
@@ -52,11 +50,24 @@ func (a *NativeApp) settingsView(c *ui.Context) {
 				for _, tab := range order {
 					ui.SidebarItem(c, strconv.Itoa(tab), icons[pageIcons[tab]], labels[tab])
 				}
-			}).Width(max(em(c, 200), navigationWidth+em(c, 64))).Padding(em(c, 16), em(c, 12)).Label(locales.A11ySettingsTabs()).OnChange(func() {
+			}).Width(max(em(c, 200), navigationWidth+em(c, 88))).Padding(em(c, 16), em(c, 12)).Label(locales.A11ySettingsTabs()).OnChange(func() {
 				a.settingsTab, _ = strconv.Atoi(selected)
 			})
 			separator(c)
-			ui.Column(c).Grow(1).MinWidth(0).Padding(em(c, 24)).Children(content)
+			// All pages occupy one native grid cell. Invisible pages still
+			// contribute their intrinsic size, but cannot paint or take focus.
+			// The largest page therefore sets the shell in this same frame.
+			ui.Grid(c).Columns(1).Grow(1).MinWidth(0).Padding(em(c, 24)).Children(func() {
+				for _, tab := range order {
+					page := ui.Column(c.Key(tab)).ColumnStart(1).RowStart(1).Gap(em(c, 28))
+					if tab != a.settingsTab {
+						page.Invisible()
+					} else {
+						page.Label(locales.A11ySettingsContent())
+					}
+					page.Children(func() { a.settingsContent(c, tab) })
+				}
+			})
 		})
 	}, nil)
 	if wasOpen && !a.settingsOpen {
@@ -291,12 +302,12 @@ func (a *NativeApp) modelManagerView(c *ui.Context) {
 	}
 	model, err := models.ByID(a.modelSelection)
 	if err != nil {
-		ui.AlertDialog(c, &a.modelOpen, locales.ModelFiles(), err.Error(), locales.ActionClose())
+		confirmationDialog(c, &a.modelOpen, locales.ModelFiles(), err.Error(), locales.ActionClose())
 		return
 	}
 	downloaded := model.FilesPresent(a.modelPath(model.ID))
 	assets, assetErr := modelAssetPaths(model, a.modelPath(model.ID))
-	fixedDialog(c, &a.modelOpen, model.Label, 720, 400, func() {
+	fixedDialog(c, &a.modelOpen, model.Label, 720, 0, func() {
 		settingsGroup(c, locales.ModelFiles(), func() {
 			ui.Row(c).Gap(em(c, 16)).Wrap().AlignItems(ui.Center).Children(func() {
 				ui.MenuButton(c, locales.ModelCatalog(), func(m *ui.Menu) {
@@ -325,6 +336,7 @@ func (a *NativeApp) modelManagerView(c *ui.Context) {
 		})
 	}, func() {
 		ui.Button(c, locales.ModelDelete()).TextColor(c.Theme().Danger).Disabled(a.busy || assetErr != nil || len(assets) == 0).OnClick(func() { a.modelRecycle = model.ID })
+		ui.Spacer(c)
 		ui.Button(c, locales.ModelChooseFolder()).Label(locales.A11yModelChooseFolder()).Disabled(a.busy).OnClick(func() { a.pickModelDir(model) })
 		ui.Button(c, locales.ModelVerify()).Disabled(a.busy).OnClick(func() { a.verifyModel(model) })
 		ui.Button(c, locales.ActionClose()).OnClick(func() { a.modelOpen = false })

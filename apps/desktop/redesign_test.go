@@ -50,6 +50,19 @@ func insideRedesign(t *testing.T, tt *ui.Tester, parent string, names ...string)
 	}
 }
 
+// A workbench action can share a dialog's name. Use viewport bounds for
+// content-driven dialogs rather than resolving that name to the toolbar.
+func visibleRedesign(t *testing.T, tt *ui.Tester, names ...string) {
+	t.Helper()
+	area := tt.Image().Bounds()
+	for _, name := range names {
+		r, ok := tt.Find(name)
+		if !ok || r.W <= 0 || r.H <= 0 || r.X < 0 || r.Y < 0 || r.X+r.W > float32(area.Dx())+1 || r.Y+r.H > float32(area.Dy())+1 {
+			t.Errorf("%s outside viewport: %v / %v", name, r, area)
+		}
+	}
+}
+
 func TestNativeRedesignSettingsNavigation(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		for _, width := range []int{900, 1400} {

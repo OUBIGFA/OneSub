@@ -2,6 +2,7 @@ package settings
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -176,37 +177,37 @@ func TestVersionOneDefaultsMoveToCurrentOnes(t *testing.T) {
 	if s.Volume != 80 || s.LastStyle.Shadow != 2 {
 		t.Fatal("a chosen value was changed")
 	}
-	if s = load(`{"version":2,"volume":100,"editorWidth":25,"styleWidth":66.66666666666667}`); s.Volume != 100 || s.EditorWidth != Default().EditorWidth || s.StyleWidth != Default().StyleWidth {
-		t.Fatal("version 2 panes not moved to 1.5:2:1.5, or its volume changed", s.Volume, s.EditorWidth, s.StyleWidth)
+	if s = load(`{"version":2,"volume":100,"editorWidth":25,"styleWidth":66.66666666666667}`); s.Volume != 100 || s.EditorWidth != Default().EditorWidth || s.SubtitleHeight != Default().SubtitleHeight {
+		t.Fatal("version 2 panes not moved to 3:3:1, or its volume changed", s.Volume, s.EditorWidth, s.SubtitleHeight)
 	}
-	if s = load(`{"version":3,"editorWidth":20,"styleWidth":50}`); s.EditorWidth != Default().EditorWidth || s.StyleWidth != Default().StyleWidth {
-		t.Fatal("older default was not upgraded", s.EditorWidth, s.StyleWidth)
+	if s = load(`{"version":3,"editorWidth":20,"styleWidth":50}`); s.EditorWidth != Default().EditorWidth || s.SubtitleHeight != Default().SubtitleHeight {
+		t.Fatal("older default was not upgraded", s.EditorWidth, s.SubtitleHeight)
 	}
 }
 
-// The reordered lower layout takes effect once on an existing install.
-// Other settings and upper pane sizes stay intact; later lower-pane drags
+// The three-column layout takes effect once on an existing install.
+// Other settings stay intact; later divider drags
 // survive subsequent loads rather than resetting on every startup.
 func TestReorderedPaneUpgradeAppliesOnlyOnce(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
-	raw := `{"version":4,"editorWidth":45,"styleWidth":60,"playerWidth":52.5,"topHeight":70,"volume":80,"uiLanguage":"en","closeToTray":true,"modelPaths":{"local":"model-folder"}}`
+	raw := `{"version":5,"editorWidth":45,"styleWidth":60,"playerWidth":52.5,"topHeight":70,"volume":80,"uiLanguage":"en","closeToTray":true,"modelPaths":{"local":"model-folder"}}`
 	if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
 		t.Fatal(err)
 	}
 	s, err := Load(path)
-	if err != nil || s.Version != version || s.EditorWidth != Default().EditorWidth || s.StyleWidth != Default().StyleWidth {
-		t.Fatal("new lower layout was not applied", s.EditorWidth, s.StyleWidth, err)
+	if err != nil || s.Version != version || s.EditorWidth != Default().EditorWidth || s.SubtitleHeight != Default().SubtitleHeight {
+		t.Fatal("new column layout was not applied", s.EditorWidth, s.SubtitleHeight, err)
 	}
-	if s.PlayerWidth != 52.5 || s.TopHeight != 70 || s.Volume != 80 || s.UILanguage != "en" || !s.CloseToTray || s.ModelPaths["local"] != "model-folder" {
+	if s.PlayerWidth != Default().PlayerWidth || s.TopHeight != Default().TopHeight || s.Volume != 80 || s.UILanguage != "en" || !s.CloseToTray || s.ModelPaths["local"] != "model-folder" {
 		t.Fatal("layout upgrade changed unrelated preferences")
 	}
-	s.EditorWidth, s.StyleWidth = 60, 25
+	s.EditorWidth, s.SubtitleHeight = 60, 25
 	if err = Save(path, s); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err := Load(path)
-	if err != nil || loaded.EditorWidth != 60 || loaded.StyleWidth != 25 {
-		t.Fatal("new layout was reset on restart", loaded.EditorWidth, loaded.StyleWidth, err)
+	if err != nil || loaded.EditorWidth != 60 || loaded.SubtitleHeight != 25 {
+		t.Fatal("new layout was reset on restart", loaded.EditorWidth, loaded.SubtitleHeight, err)
 	}
 }
 
@@ -215,12 +216,11 @@ func TestReorderedPaneUpgradeAppliesOnlyOnce(t *testing.T) {
 func TestPaneSizesSurviveRestart(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	s := Default()
-	// Style, editor and workflow: 1.5:2:1.5. The inner split is relative to
-	// the space remaining to the right of the style, not the whole window.
-	editor := (100 - s.StyleWidth) * s.EditorWidth / 100
-	workflow := 100 - s.StyleWidth - editor
-	if editor < s.StyleWidth*4/3-0.1 || editor > s.StyleWidth*4/3+0.1 || workflow < s.StyleWidth-0.1 || workflow > s.StyleWidth+0.1 {
-		t.Fatalf("style, editor and workflow are not 1.5:2:1.5: %v %v %v", s.StyleWidth, editor, workflow)
+	// The inner horizontal split divides the room right of the player.
+	middle := (100 - s.PlayerWidth) * s.EditorWidth / 100
+	workflow := 100 - s.PlayerWidth - middle
+	if math.Abs(middle-s.PlayerWidth) > .01 || math.Abs(workflow*3-s.PlayerWidth) > .01 || s.TopHeight != 75 || s.SubtitleHeight != 75 {
+		t.Fatal("three-column defaults differ from 3:3:1 and 3:1", s)
 	}
 	s.PlayerWidth, s.TopHeight, s.EditorWidth = 52.5, 70, 95
 	if err := Save(path, s); err != nil {

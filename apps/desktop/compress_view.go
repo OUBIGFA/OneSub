@@ -8,9 +8,9 @@ import (
 // Compression has its own entry and encoding choices, but uses the same
 // native dialog, destination policy and verified media job as video export.
 func (a *NativeApp) compressView(c *ui.Context) {
-	fixedDialog(c, &a.compressOpen, locales.ActionCompress(), 760, 440, func() {
-		settingsGroup(c, locales.ComposeEncodingGroup(), func() {
-			ui.Grid(c).Columns(2).Gap(em(c, 24)).Children(func() {
+	fixedDialog(c, &a.compressOpen, locales.ActionCompress(), 620, 0, func() {
+		ui.Form(c, func() {
+			ui.Fieldset(c, locales.ComposeEncodingGroup(), func() {
 				ui.Field(c, locales.CompressFormat(), func() {
 					idSelect(c, &a.settings.CompressionFormat, []option{{"mp4", "MP4"}, {"mkv", "MKV"}}).Label(locales.CompressFormat()).OnChange(a.saveSettings)
 				})
@@ -18,8 +18,9 @@ func (a *NativeApp) compressView(c *ui.Context) {
 					idSelect(c, &a.settings.CompressionQuality, composeQualities()).Label(locales.ComposeQuality()).OnChange(a.saveSettings)
 				})
 			})
-			muted(c, locales.ComposeCrfNote()).FontSize(em(c, captionSize))
 		})
+		muted(c, locales.ComposeCrfNote()).FontSize(em(c, captionSize))
+		separator(c)
 		folderField(c, a.settings.OutputDir, locales.RecognitionBesideMedia(), a.busy, a.pickComposeDir, func() { a.settings.OutputDir = ""; a.saveSettings() })
 		ui.Checkbox(c, &a.settings.ComposeAskPath, locales.ComposeAskPath()).OnChange(a.saveSettings)
 	}, func() {

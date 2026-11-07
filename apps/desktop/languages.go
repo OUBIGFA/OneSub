@@ -161,6 +161,8 @@ func languageLabel(c *ui.Context, o languageOption) ui.Element {
 		if flag := languageFlags()[o.Country]; flag != nil {
 			ui.Image(c, flag).Size(em(c, 20), em(c, 15)).Shrink(0)
 		}
-		ui.Text(c, o.Label).SingleLine()
+		// Language names are fixed product labels, not abbreviatable user
+		// content. A narrow inspector wraps the complete name and code.
+		ui.Text(c, o.Label).MinWidth(0)
 	})
 }

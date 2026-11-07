@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
@@ -34,8 +33,9 @@ func TestWorkflowFieldsHaveTaskHierarchy(t *testing.T) {
 			if math.Abs(float64(location.Y+location.H/2-choose.Y-choose.H/2)) > 1 || choose.X <= location.X {
 				t.Fatal("destination and action are not aligned", location, choose)
 			}
-			if tt.HasText(locales.SettingsMaxTokens()) || tt.HasText(locales.WorkflowStripPunctuation()) {
-				t.Fatal("advanced options are mixed into common settings")
+			decoding, _ := tt.Find(locales.WorkflowRecognitionAdvanced())
+			if !tt.HasText(locales.SettingsMaxTokens()) || tt.HasText(locales.WorkflowStripPunctuation()) || decoding.Y <= folder.Y+folder.H {
+				t.Fatal("expanded decoding does not remain below recognition output")
 			}
 		})
 	}
@@ -84,7 +84,7 @@ func TestWorkflowFolderActionsStayInsideNarrowPanels(t *testing.T) {
 	}
 }
 
-// Scheduling is a secondary disclosure. Its peer fields remain aligned,
+// Scheduling remains expanded. Its peer fields remain aligned,
 // reachable, and persistent, including edits intended for the next task.
 func TestTranslationSchedulingOnWorkbench(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
@@ -95,13 +95,9 @@ func TestTranslationSchedulingOnWorkbench(t *testing.T) {
 			for range 4 {
 				tt.Frame()
 			}
-			if tt.HasText(locales.TranslationConcurrency()) {
-				t.Fatal("scheduling is not secondary")
+			if !tt.HasText(locales.TranslationConcurrency()) {
+				t.Fatal("scheduling is not expanded")
 			}
-			if err := tt.Click(locales.WorkflowTranslationAdvanced()); err != nil {
-				t.Fatal(err)
-			}
-			tt.Advance(300 * time.Millisecond)
 			for range 4 {
 				tt.Frame()
 			}

@@ -254,7 +254,7 @@ func (a *NativeApp) providerDeleteView(c *ui.Context) {
 	if !a.providerDelete {
 		return
 	}
-	if ui.AlertDialog(c, &a.providerDelete, locales.TranslationDeleteProviderTitle(), locales.TranslationDeleteProviderNote(), locales.ActionCancel(), locales.TranslationDeleteProvider()) != 1 {
+	if confirmationDialog(c, &a.providerDelete, locales.TranslationDeleteProviderTitle(), locales.TranslationDeleteProviderNote(), locales.ActionCancel(), locales.TranslationDeleteProvider()) != 1 {
 		return
 	}
 	i := slices.IndexFunc(a.settings.Providers, func(p settings.Provider) bool { return p.ID == a.settings.ActiveProvider })
@@ -286,9 +286,10 @@ func (a *NativeApp) providerModelsView(c *ui.Context) {
 	models := slices.DeleteFunc(items, func(info translator.ModelInfo) bool {
 		return !strings.Contains(strings.ToLower(info.ID), strings.ToLower(strings.TrimSpace(a.modelQuery)))
 	})
-	// Empty, loading, failed and populated catalogs share the available
-	// height. Only this native list scrolls; the dialog and footer stay fixed.
-	ui.Column(c).Grow(1).MinHeight(em(c, 104)).Background(studioColors(c).panel).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Clip().Label(locales.A11yModelCatalog()).Children(func() {
+	// The shared settings layout gives the catalog its remaining height.
+	// A minimum reading area keeps the form usable at the smallest window;
+	// fetching or filtering models cannot change the size of any settings page.
+	ui.Column(c).Height(em(c, 160)).Grow(1).Shrink(0).Background(studioColors(c).panel).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Clip().Label(locales.A11yModelCatalog()).Children(func() {
 		if len(models) == 0 {
 			label := locales.TranslationModelsEmpty()
 			if a.modelQuery != "" {

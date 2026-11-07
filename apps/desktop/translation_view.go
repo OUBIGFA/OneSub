@@ -54,40 +54,55 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 				status.TextColor(c.Theme().Danger)
 			}
 		})
-		if a.providerSettingsTab == 1 {
-			a.providerConnectionFields(c)
-			return
-		}
-		ui.Column(c.Key("provider-models")).Grow(1).MinHeight(0).Gap(em(c, 12)).Children(func() {
-			ui.Row(c).Gap(em(c, 16)).AlignItems(ui.Center).Children(func() {
-				ui.Form(c, func() {
-					ui.Field(c, locales.TranslationModel(), func() { a.providerModelSelect(c) })
-				}).Grow(1).Basis(0).MinWidth(0)
-				ui.SearchField(c, &a.modelQuery).Grow(1).Basis(0).MinWidth(0).Placeholder(locales.TranslationSearchModels()).Label(locales.TranslationSearchModels()).OnChange(func() { a.modelList.ScrollTo(0, ui.Start) })
-				iconButton(c, locales.TranslationFetchModels(), "rotate-cw").Disabled(a.modelsLoading || a.settings.ProviderURL == "").OnClick(a.fetchProviderModels)
-			})
-			a.providerModelsView(c)
-			ui.Grid(c).Columns(3).Gap(em(c, 20)).Children(func() {
-				info := a.settings.ModelInfo()
-				for _, field := range []struct {
-					label string
-					get   func(*translator.ModelInfo) *int
-				}{
-					{locales.TranslationMaxInput(), func(m *translator.ModelInfo) *int { return &m.MaxInputTokens }},
-					{locales.TranslationMaxOutput(), func(m *translator.ModelInfo) *int { return &m.MaxOutputTokens }},
-					{locales.TranslationContextWindow(), func(m *translator.ModelInfo) *int { return &m.ContextWindow }},
-				} {
-					ui.Field(c, field.label, func() {
-						value := float64(0)
-						if info != nil {
-							value = float64(*field.get(info))
-						}
-						ui.NumberInput(c, &value, 0, 2147483647, 1).Label(field.label).Disabled(info == nil).OnChange(func() { *field.get(info) = int(value); info.LimitsSource = "manual"; a.saveSettings() })
-					})
+		// Both subpages determine the shared settings size before painting.
+		ui.Grid(c).Columns(1).Grow(1).Children(func() {
+			for tab := 0; tab < 2; tab++ {
+				page := ui.Column(c.Key(tab)).ColumnStart(1).RowStart(1)
+				if tab != a.providerSettingsTab {
+					page.Invisible()
 				}
-			})
-			muted(c, locales.TranslationLimitsNote()).FontSize(em(c, captionSize))
+				page.Children(func() {
+					if tab == 1 {
+						a.providerConnectionFields(c)
+					} else {
+						a.providerModelFields(c)
+					}
+				})
+			}
 		})
+	})
+}
+
+func (a *NativeApp) providerModelFields(c *ui.Context) {
+	ui.Column(c.Key("provider-models")).Grow(1).MinHeight(0).Gap(em(c, 12)).Children(func() {
+		ui.Row(c).Gap(em(c, 16)).AlignItems(ui.Center).Children(func() {
+			ui.Form(c, func() {
+				ui.Field(c, locales.TranslationModel(), func() { a.providerModelSelect(c) })
+			}).Grow(1).Basis(0).MinWidth(0)
+			ui.SearchField(c, &a.modelQuery).Grow(1).Basis(0).MinWidth(0).Placeholder(locales.TranslationSearchModels()).Label(locales.TranslationSearchModels()).OnChange(func() { a.modelList.ScrollTo(0, ui.Start) })
+			iconButton(c, locales.TranslationFetchModels(), "rotate-cw").Disabled(a.modelsLoading || a.settings.ProviderURL == "").OnClick(a.fetchProviderModels)
+		})
+		a.providerModelsView(c)
+		ui.Grid(c).Columns(3).Gap(em(c, 20)).Children(func() {
+			info := a.settings.ModelInfo()
+			for _, field := range []struct {
+				label string
+				get   func(*translator.ModelInfo) *int
+			}{
+				{locales.TranslationMaxInput(), func(m *translator.ModelInfo) *int { return &m.MaxInputTokens }},
+				{locales.TranslationMaxOutput(), func(m *translator.ModelInfo) *int { return &m.MaxOutputTokens }},
+				{locales.TranslationContextWindow(), func(m *translator.ModelInfo) *int { return &m.ContextWindow }},
+			} {
+				ui.Field(c, field.label, func() {
+					value := float64(0)
+					if info != nil {
+						value = float64(*field.get(info))
+					}
+					ui.NumberInput(c, &value, 0, 2147483647, 1).Label(field.label).Disabled(info == nil).OnChange(func() { *field.get(info) = int(value); info.LimitsSource = "manual"; a.saveSettings() })
+				})
+			}
+		})
+		muted(c, locales.TranslationLimitsNote()).FontSize(em(c, captionSize))
 	})
 }
 
@@ -100,19 +115,21 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 				if p != nil {
 					name = p.Name
 				}
-				ui.TextInput(c, &name).Label(locales.TranslationProviderName()).Tooltip(name).Disabled(p == nil).OnChange(func() { p.Name = name; a.saveSettings() })
+				ui.TextInput(c, &name).MinHeight(em(c, 36)).Label(locales.TranslationProviderName()).Tooltip(name).Disabled(p == nil).OnChange(func() { p.Name = name; a.saveSettings() })
 			})
 			ui.Field(c, locales.TranslationRequestLimit(), func() {
-				ui.NumberInput(c, &a.settings.MaxRequests, 1, 10000, 1).Label(locales.TranslationRequestLimit()).OnChange(a.saveSettings)
+				ui.NumberInput(c, &a.settings.MaxRequests, 1, 10000, 1).MinHeight(em(c, 36)).Label(locales.TranslationRequestLimit()).OnChange(a.saveSettings)
 			})
 		})
+		// Inputs reserve the same minimum line height for empty, CJK and Latin
+		// values, so adding an account cannot move the shared settings shell.
 		// Protocol names are product labels, not user content. Reserve a full
 		// row so the selected API never becomes an ambiguous ellipsis.
 		ui.Field(c, locales.TranslationApi(), func() {
 			idSelect(c, &a.settings.ProviderAPI, []option{{translator.APIChatCompletions, "OpenAI Chat Completions"}, {translator.APIResponses, "OpenAI Responses"}}).Label(locales.TranslationApi()).Disabled(a.settings.Provider() == nil).OnChange(a.saveSettings)
 		})
 		ui.Field(c, locales.TranslationEndpoint(), func() {
-			ui.TextInput(c, &a.settings.ProviderURL).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).Tooltip(a.settings.ProviderURL).Disabled(a.settings.Provider() == nil).OnChange(func() {
+			ui.TextInput(c, &a.settings.ProviderURL).MinHeight(em(c, 36)).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).Tooltip(a.settings.ProviderURL).Disabled(a.settings.Provider() == nil).OnChange(func() {
 				a.providerKey, a.keyStatus, a.modelsError = "", "", ""
 				a.modelsGeneration++
 				a.modelsLoading = false
@@ -123,7 +140,7 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 			})
 		})
 		ui.Field(c, "API Key", func() {
-			ui.TextInput(c, &a.providerKey).Password().Placeholder(locales.TranslationKeyPlaceholder()).Label("API Key").Disabled(a.settings.Provider() == nil)
+			ui.TextInput(c, &a.providerKey).MinHeight(em(c, 36)).Password().Placeholder(locales.TranslationKeyPlaceholder()).Label("API Key").Disabled(a.settings.Provider() == nil)
 		})
 		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 			muted(c, a.keyStatus).FontSize(em(c, captionSize)).Grow(1)

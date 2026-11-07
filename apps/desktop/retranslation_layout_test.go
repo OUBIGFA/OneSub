@@ -75,6 +75,9 @@ func TestRetranslationLargeBatchUsesWorkingHeight(t *testing.T) {
 						tt := settled(a.retranslationView, int(float32(size[0])*scale), int(float32(size[1])*scale))
 						tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
 						firstFrameSettled(t, tt, "large-batch", func() { r.open = true })
+						if tt.HasText(locales.RetranslatePending()) {
+							t.Fatal("missing candidate must stay empty")
+						}
 						insideRedesign(t, tt, locales.RetranslateTitle(), locales.RetranslateList(), locales.RetranslateSearch(), locales.RetranslateCompare(), locales.RetranslateChecks(), locales.RetranslateOne(), locales.RetranslateApplyOne())
 						list, _ := tt.Find(locales.RetranslateList())
 						compare, _ := tt.Find(locales.RetranslateCompare())

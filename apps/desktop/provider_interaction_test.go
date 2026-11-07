@@ -37,7 +37,6 @@ func TestPunctuationControlsBelongToTranslationOnly(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := nativeForTest(t)
-			a.recognitionAdvanced, a.translationAdvanced = true, true
 			tt := settled(a.workflowPanel, 600, 1400)
 			if tt.HasText(locales.WorkflowStripPunctuation()) || tt.HasText(locales.WorkflowReplacePeriods()) {
 				t.Fatal("recognition still contains local translation cleanup")
@@ -47,6 +46,23 @@ func TestPunctuationControlsBelongToTranslationOnly(t *testing.T) {
 			for _, label := range []string{locales.WorkflowTranslationAdvanced(), locales.TranslationBatchSize(), locales.WorkflowStripPunctuation(), locales.WorkflowKeepPunctuation(), locales.WorkflowReplacePeriods()} {
 				if _, ok := tt.Find(label); !ok {
 					t.Fatal("translation cleanup control missing", label)
+				}
+			}
+			for _, width := range []int{320, 500, 900} {
+				for _, scale := range []float32{1, 1.5, 2} {
+					tt := settled(func(c *ui.Context) {
+						theme, _ := studioTheme(c.Theme(), false)
+						c.SetTheme(&theme)
+						a.workflowPanel(c)
+					}, int(float32(width)*scale), int(850*scale))
+					tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
+					tt.Scroll(float32(width)*scale/2, 500*scale, 0, 3000)
+					visibleRedesign(t, tt, locales.TranslationConcurrency(), locales.TranslationBatchSize(), locales.WorkflowStripPunctuation(), locales.WorkflowKeepPunctuation(), locales.WorkflowReplacePeriods())
+					if scale == 1 {
+						captureRedesign(t, tt, fmt.Sprintf("translation-advanced-%s-%d", language, width))
+						tt.SetDark(true)
+						captureRedesign(t, tt, fmt.Sprintf("translation-advanced-%s-%d-dark", language, width))
+					}
 				}
 			}
 		})

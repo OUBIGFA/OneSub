@@ -118,6 +118,7 @@
   "languageRussia": "Russia",
   "languageTaiwan": "Taiwan (Traditional)",
   "workflowTitle": "Transcribe & translate",
+  "a11yWorkflowColumn": "Transcription and translation column",
   "workflowRecognize": "Speech to text",
   "workflowTranslate": "AI translation",
   "workflowStartRecognize": "Transcribe subtitles",

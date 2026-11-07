@@ -25,9 +25,9 @@ func subtitleSelectionColumn(c *ui.Context) ui.TableColumn {
 	return ui.TableColumn{ID: "selection", Width: width, MinWidth: width, Fixed: true}
 }
 
-// subtitleTable keeps native navigation beside the scrolling content, not
-// in a padded-off area of the table. The text column fills the actual table;
-// the narrow rail never covers text or its scrollbar and keeps editor focus.
+// The navigation gutter belongs to the native table, so its header divider
+// and selected-row background reach the pane edge. Fixed buttons occupy only
+// that empty column and leave the native scrollbar accessible at the edge.
 func subtitleTable(c *ui.Context, state *ui.ListState, columns []ui.TableColumn, count int, cell func(int, int), onNavigate func(toEnd bool)) ui.Element {
 	// Keep every header whole even when that leaves little room for text:
 	// MyGo scrolls the table horizontally instead of ellipsizing labels.
@@ -35,10 +35,18 @@ func subtitleTable(c *ui.Context, state *ui.ListState, columns []ui.TableColumn,
 		width, _ := c.MeasureText(0, ui.Span{Text: columns[i].Title, Weight: 600})
 		columns[i].MinWidth = max(columns[i].MinWidth, width+c.Theme().Space(5))
 	}
+	contentColumns := len(columns)
+	railWidth := em(c, subtitleNavigationRailSize)
+	columns = append(columns, ui.TableColumn{ID: "navigation-gutter", Width: railWidth, MinWidth: railWidth, Fixed: true})
 	var table ui.Element
-	ui.Row(c).Grow(1).MinHeight(0).AlignItems(ui.Stretch).Children(func() {
-		table = ui.Table(c, state, columns, count, cell).Grow(1).MinWidth(0)
-		ui.Column(c).Width(em(c, subtitleNavigationRailSize)).Padding(0, em(c, 4)).Shrink(0).Justify(ui.Center).Gap(em(c, 8)).KeepFocus().Children(func() {
+	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
+		table = ui.Table(c, state, columns, count, func(row, col int) {
+			if col < contentColumns {
+				cell(row, col)
+			}
+		}).Grow(1).MinWidth(0)
+		ui.Column(c).Absolute().Top(0).Bottom(0).Right(0).Width(railWidth).Padding(0, em(c, 8), 0, 0).
+			Justify(ui.Center).Gap(em(c, 8)).KeepFocus().PassThrough().Children(func() {
 			toolIcon(c, locales.ListTop(), "arrow-up-to-line").Size(em(c, 32), em(c, 32)).Disabled(count == 0).OnClick(func() {
 				onNavigate(false)
 				state.ScrollToEdgeAnimated(false, subtitleNavigationAnimation)

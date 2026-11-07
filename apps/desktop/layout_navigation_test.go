@@ -13,57 +13,120 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// The workbench has two independently stacked work columns and one
+// full-height workflow column. Ratios apply when minimum controls fit.
 func TestUpdatedPaneOrderAndRatio(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := nativeForTest(t)
-			tt := settled(a.view, 1800, 1000)
+			tt := settled(a.view, 2520, 1100)
+			player, _ := tt.Find(locales.A11yPlayer())
 			style, _ := tt.Find(locales.A11yStylePanel())
 			editor, _ := tt.Find(locales.A11yEditorPanel())
-			workflow, _ := tt.Find(locales.WorkflowTitle())
-			if !(style.X < editor.X && editor.X < workflow.X) || style.Y != editor.Y || editor.Y != workflow.Y {
-				t.Fatal("panes are not style, editor, workflow", style, editor, workflow)
+			workflow, _ := tt.Find(locales.A11yWorkflowColumn())
+			tabs, _ := tt.Find(locales.A11ySubtitleTabs())
+			if !(player.X < editor.X && editor.X < workflow.X) || player.X != style.X || player.W != style.W || tabs.Y < player.Y || tabs.Y > player.Y+headerSize || workflow.Y != player.Y || style.Y <= player.Y+player.H || editor.Y <= tabs.Y {
+				t.Fatal("three-column workbench order is wrong", player, style, editor, workflow, tabs)
 			}
-			if math.Abs(float64(editor.W/style.W)-4.0/3) > 0.015 || math.Abs(float64(workflow.W/style.W)-1) > 0.015 {
-				t.Fatal("pane widths are not 1.5:2:1.5", style, editor, workflow)
+			if math.Abs(float64(editor.W/player.W)-1) > .015 || math.Abs(float64(workflow.W/player.W)-1.0/3) > .015 {
+				t.Fatal("column widths are not 3:3:1", player, editor, workflow)
 			}
+			listHeight := editor.Y - player.Y - 1
+			if math.Abs(float64(player.H/style.H)-3) > .015 || math.Abs(float64(listHeight/editor.H)-3) > .015 || math.Abs(float64(workflow.H-player.H-style.H-1)) > 1 {
+				t.Fatal("independent upper/lower shares are not 3:1", player, style, editor, workflow)
+			}
+			captureRedesign(t, tt, "three-columns-"+language)
 		})
 	}
 }
 
-// A temporary narrow viewport may clamp the displayed panes, but must not
-// overwrite the chosen ratios. This also covers intermediate startup sizes.
+// Nested splits must still reserve the actual labels at the minimum window.
+// Text measurement can produce fractional widths at the clamp boundary.
+func TestCompactWorkflowLabelsRemainWhole(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		for _, scale := range []float32{1, 1.5, 2} {
+			t.Run(fmt.Sprintf("%s/%g", language, scale), func(t *testing.T) {
+				inLocale(t, language, func() {
+					a := nativeForTest(t)
+					var titleWidth, commandWidth float32
+					label := locales.WorkflowStartRecognize()
+					tt := ui.NewTester(func(c *ui.Context) {
+						a.view(c)
+						titleWidth, _ = c.MeasureText(0, ui.Span{Text: locales.TranslationOptimizeTimeline(), Weight: 500})
+						commandWidth, _ = c.MeasureText(0, ui.Span{Text: label})
+					}, int(900*scale), int(720*scale))
+					tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
+					for tab := 0; tab < 2; tab++ {
+						a.workflowTab = tab
+						if tab == 1 {
+							label = locales.WorkflowStartTranslate()
+						}
+						tt.Frame()
+						command, ok := tt.Find(label)
+						if !ok || command.W+1 < commandWidth+56*scale {
+							t.Fatal("workflow command text is truncated", label, command, commandWidth)
+						}
+						insideRedesign(t, tt, locales.A11yWorkflowColumn(), locales.WorkflowRecognize(), locales.WorkflowTranslate())
+						if tab == 1 {
+							choice, _ := tt.Find(locales.TranslationOptimizeTimeline())
+							if choice.W+.01 < titleWidth+24*scale+2 {
+								t.Fatal("timeline title cannot fit on one line", choice, titleWidth)
+							}
+						}
+					}
+				})
+			})
+		}
+	}
+}
+
+// Temporary viewport clamps never overwrite preferences. Each of the four
+// native dividers is independently draggable and persists its own share.
 func TestPaneRatiosSurviveWindowResize(t *testing.T) {
 	a := nativeForTest(t)
-	tt := settled(a.view, 1800, 1000)
-	styleShare, editorShare := a.styleSplit, a.editorSplit
+	tt := settled(a.view, 2520, 1100)
+	before := [4]float32{a.splitX, a.editorSplit, a.splitY, a.subtitleSplit}
 	tt.SetSize(900, 640)
-	tt.SetSize(1800, 1000)
+	tt.SetSize(2520, 1100)
 	tt.Advance(time.Second)
-	if a.styleSplit != styleShare || a.editorSplit != editorShare {
-		t.Fatal("temporary minimum width overwrote pane ratios", styleShare, editorShare, a.styleSplit, a.editorSplit)
+	if got := [4]float32{a.splitX, a.editorSplit, a.splitY, a.subtitleSplit}; got != before {
+		t.Fatal("temporary viewport overwrote pane ratios", before, got)
 	}
-	style, _ := tt.Find(locales.A11yStylePanel())
-	editor, _ := tt.Find(locales.A11yEditorPanel())
-	workflow, _ := tt.Find(locales.WorkflowTitle())
-	if math.Abs(float64(editor.W/style.W)-4.0/3) > .015 || math.Abs(float64(workflow.W/style.W)-1) > .015 {
-		t.Fatal("expanded window did not restore 1.5:2:1.5", style, editor, workflow)
-	}
-	// A real pointer drag, unlike resizing, changes and saves the proportion.
-	x, y := style.X+style.W+0.5, style.Y+style.H/2
-	tt.Press(x, y)
-	tt.Move(x+60, y)
-	tt.Release(x+60, y)
-	tt.Advance(time.Second)
-	prefs, err := settings.Load(a.dataRoot + "/settings.json")
-	if err != nil || a.styleSplit <= styleShare || prefs.StyleWidth != float64(a.styleSplit) {
-		t.Fatal("native divider drag was not persisted", a.styleSplit, prefs.StyleWidth, err)
+	for divider := 0; divider < 4; divider++ {
+		player, _ := tt.Find(locales.A11yPlayer())
+		style, _ := tt.Find(locales.A11yStylePanel())
+		editor, _ := tt.Find(locales.A11yEditorPanel())
+		workflow, _ := tt.Find(locales.A11yWorkflowColumn())
+		x, y, dx, dy := player.X+player.W+.5, player.Y+player.H/2, float32(45), float32(0)
+		switch divider {
+		case 1:
+			x = workflow.X - .5
+		case 2:
+			x, y, dx, dy = player.X+player.W/2, style.Y-.5, 0, -45
+		case 3:
+			x, y, dx, dy = editor.X+editor.W/2, editor.Y-.5, 0, -45
+		}
+		old := [4]float32{a.splitX, a.editorSplit, a.splitY, a.subtitleSplit}
+		tt.Press(x, y)
+		tt.Move(x+dx, y+dy)
+		tt.Release(x+dx, y+dy)
+		tt.Advance(time.Second)
+		got := [4]float32{a.splitX, a.editorSplit, a.splitY, a.subtitleSplit}
+		for i := range got {
+			if (i == divider && got[i] == old[i]) || (i != divider && got[i] != old[i]) {
+				t.Fatal("divider did not resize independently", divider, old, got)
+			}
+		}
+		prefs, err := settings.Load(a.dataRoot + "/settings.json")
+		if err != nil || prefs.PlayerWidth != float64(got[0]) || prefs.EditorWidth != float64(got[1]) || prefs.TopHeight != float64(got[2]) || prefs.SubtitleHeight != float64(got[3]) {
+			t.Fatal("native divider drag was not persisted", got, prefs, err)
+		}
 	}
 }
 
 // Check the rendered button, not just its helper name: the original blue
-// accent and white content stay centered in both appearances.
-func TestOneClickToolbarCenteredAndPrimary(t *testing.T) {
+// accent and white content stay in the fixed workflow band in both appearances.
+func TestOneClickActionStaysAboveWorkflowTabs(t *testing.T) {
 	for language, label := range map[string]string{"zh-Hans": "一键识别并翻译", "en": "One-click transcribe & translate"} {
 		for _, width := range []int{900, 1800} {
 			for _, dark := range []bool{false, true} {
@@ -75,15 +138,21 @@ func TestOneClickToolbarCenteredAndPrimary(t *testing.T) {
 						tt.SetDark(dark)
 						button, ok := tt.Find(label)
 						bar, _ := tt.Find(locales.A11yToolbar())
-						if !ok || math.Abs(float64(button.X+button.W/2-bar.X-bar.W/2)) > 1 {
-							t.Fatal("one-click action is not centered in the toolbar", label, button, bar)
+						column, _ := tt.Find(locales.A11yWorkflowColumn())
+						tabs, _ := tt.Find(locales.WorkflowTitle())
+						if !ok || math.Abs(float64(button.X+button.W/2-column.X-column.W/2)) > 1 || button.Y < bar.Y+bar.H || button.Y+button.H >= tabs.Y {
+							t.Fatal("one-click action is not above the workflow tabs", label, button, column, tabs)
+						}
+						tt.Scroll(column.X+column.W/2, column.Y+column.H-50, 0, 2000)
+						if after, _ := tt.Find(label); after != button {
+							t.Fatal("one-click action scrolled with workflow fields", button, after)
 						}
 						for _, name := range []string{locales.ActionAddFiles(), locales.ActionClearWorkbench(), locales.ActionSettings(), locales.MenuExportSubtitles(), locales.ActionCompose()} {
 							r, found := tt.Find(name)
 							if !found || r.W <= 0 || r.X < bar.X || r.X+r.W > bar.X+bar.W || r.Y < bar.Y || r.Y+r.H > bar.Y+bar.H {
 								t.Fatal("toolbar action clipped", name, r, bar)
 							}
-							if r.X < button.X+button.W && r.X+r.W > button.X {
+							if r.X < button.X+button.W && r.X+r.W > button.X && r.Y < button.Y+button.H && r.Y+r.H > button.Y {
 								t.Fatal("toolbar action overlaps the primary action", name, r, button)
 							}
 						}
@@ -108,7 +177,7 @@ func TestOneClickToolbarCenteredAndPrimary(t *testing.T) {
 							t.Fatal(err)
 						}
 						if !a.settingsOpen || a.settingsTab != 2 || a.busy {
-							t.Fatal("centered action did not keep the one-click setup check")
+							t.Fatal("workflow action did not keep the one-click setup check")
 						}
 					})
 				})
@@ -224,7 +293,7 @@ func TestSubtitleNavigationButtonsCenteredAndStayFixed(t *testing.T) {
 						before := make([]ui.Rect, len(labels))
 						for i, label := range labels {
 							r, ok := tt.Find(label)
-							if !ok || r.W < 32*scale-1 || r.H < 32*scale-1 || r.X < list.X+list.W || r.X+r.W > float32(width) || r.Y < list.Y || r.Y+r.H > list.Y+list.H {
+							if !ok || r.W < 32*scale-1 || r.H < 32*scale-1 || r.X < list.X+list.W-subtitleNavigationRailSize*scale || r.X+r.W > float32(width)-6*scale || r.Y < list.Y || r.Y+r.H > list.Y+list.H {
 								t.Fatal("floating button outside list or too small", label, r, list)
 							}
 							before[i] = r

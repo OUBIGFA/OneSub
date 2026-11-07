@@ -26,6 +26,8 @@ func TestImportCandidateScoresRemainVisible(t *testing.T) {
 					t.Fatal("candidate score is hidden or clipped", language, label, rect)
 				}
 			}
+			visibleRedesign(t, tt, locales.CandidatesTitle(), locales.CandidatesLater())
+			captureRedesign(t, tt, "candidates-"+language)
 		})
 	}
 }

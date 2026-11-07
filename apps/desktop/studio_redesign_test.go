@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/translator"
@@ -34,7 +33,6 @@ func TestWholeStudioPresentation(t *testing.T) {
 			}
 			a.snapshot.SourceDocument = a.snapshot.Document
 			a.mediaURL, a.duration = "http://127.0.0.1/test-media", 60
-			a.splitY = 44
 			a.loadDraft()
 			for _, size := range [][2]int{{1600, 1100}, {1920, 1200}, {900, 720}} {
 				tt := settled(a.view, size[0], size[1])
@@ -94,26 +92,12 @@ func TestStudioCommonOptionsAndAdvancedOptionsAreSeparate(t *testing.T) {
 			t.Fatal("common recognition option missing", label)
 		}
 	}
-	if tt.HasText(locales.SettingsMaxTokens()) {
-		t.Fatal("advanced decoding crowds common options")
-	}
-	if err := tt.Click(locales.WorkflowRecognitionAdvanced()); err != nil {
-		t.Fatal(err)
-	}
-	tt.Advance(300 * time.Millisecond)
 	if !tt.HasText(locales.SettingsMaxTokens()) {
-		t.Fatal("advanced decoding is not reachable")
+		t.Fatal("decoding settings are not expanded")
 	}
 	a.workflowTab = 1
 	tt = settled(a.workflowPanel, 900, 1000)
-	if tt.HasText(locales.TranslationConcurrency()) {
-		t.Fatal("request scheduling crowds common translation options")
-	}
-	if err := tt.Click(locales.WorkflowTranslationAdvanced()); err != nil {
-		t.Fatal(err)
-	}
-	tt.Advance(300 * time.Millisecond)
 	if !tt.HasText(locales.TranslationConcurrency()) {
-		t.Fatal("request scheduling is not reachable")
+		t.Fatal("request scheduling is not expanded")
 	}
 }

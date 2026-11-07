@@ -110,6 +110,8 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 				a.subtitleSaveActions(c, false, hasCues)
 			})
 		}
+		// The toolbar boundary spans the whole pane, including the gutter.
+		separator(c)
 		if a.showsTranslationProgress() {
 			a.translationProgressView(c)
 			return

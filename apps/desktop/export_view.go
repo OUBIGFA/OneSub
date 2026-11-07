@@ -91,13 +91,11 @@ func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) []func() {
 	})
 }
 
-// outputColumn stacks the output fields of a dialog, one a line.
+// outputColumn joins the native Form's aligned label/control columns.
 func (a *NativeApp) outputColumn(c *ui.Context) {
-	ui.Column(c).Gap(em(c, 16)).Children(func() {
-		for _, cell := range a.outputFields(c, true) {
-			cell()
-		}
-	})
+	for _, cell := range a.outputFields(c, true) {
+		cell()
+	}
 }
 
 // exportView separates content, format and line selection, with an anchored
@@ -112,12 +110,12 @@ func (a *NativeApp) exportView(c *ui.Context) {
 		document.TargetFormat = a.exportFormat
 		_, outputErr = subtitle.SelectOutput(document, a.settings.SubtitleOutput)
 	}
-	fixedDialog(c, &a.exportOpen, locales.MenuExportSubtitles(), 860, 560, func() {
-		ui.Grid(c).Columns(2).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
-			settingsGroup(c, locales.OutputTrackGroup(), func() {
+	fixedDialog(c, &a.exportOpen, locales.MenuExportSubtitles(), 620, 0, func() {
+		ui.Form(c, func() {
+			ui.Fieldset(c, locales.OutputTrackGroup(), func() {
 				a.outputColumn(c)
-			})
-			settingsGroup(c, locales.ExportFileOptions(), func() {
+			}).Gap(em(c, 8))
+			ui.Fieldset(c, locales.ExportFileOptions(), func() {
 				ui.Field(c, locales.ExportFormat(), func() {
 					formats := []string{"srt", "vtt", "ass"}
 					if a.snapshot != nil && a.snapshot.Document.Format == "ssa" {
@@ -138,16 +136,16 @@ func (a *NativeApp) exportView(c *ui.Context) {
 				ui.Field(c, locales.ExportLines(), func() {
 					idSelect(c, &a.exportLines, []option{{"all", locales.ExportAllLines()}, {"upper", locales.ExportUpperLine()}, {"lower", locales.ExportLowerLine()}}).Label(locales.ExportLines())
 				})
-				ui.Column(c).MinHeight(em(c, 64)).Children(func() {
-					if outputErr != nil {
-						ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
-					} else if a.exportFormat == "txt" {
-						muted(c, locales.ExportTextNote()).FontSize(em(c, captionSize))
-					} else if a.exportFormat == "srt" || a.exportFormat == "vtt" {
-						muted(c, locales.ExportPlainNote()).FontSize(em(c, captionSize))
-					}
-				})
-			})
+			}).Gap(em(c, 8)).Margin(em(c, 8), 0, 0, 0)
+		}).Gap(em(c, 8))
+		ui.Column(c).MinHeight(em(c, 40)).Children(func() {
+			if outputErr != nil {
+				ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
+			} else if a.exportFormat == "txt" {
+				muted(c, locales.ExportTextNote()).FontSize(em(c, captionSize))
+			} else if a.exportFormat == "srt" || a.exportFormat == "vtt" {
+				muted(c, locales.ExportPlainNote()).FontSize(em(c, captionSize))
+			}
 		})
 	}, func() {
 		ui.Button(c, locales.ActionCancel()).OnClick(func() { a.exportOpen = false })

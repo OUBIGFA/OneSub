@@ -113,12 +113,12 @@ func TestPlaybackSpeed(t *testing.T) {
 func TestPaneSizesAreRemembered(t *testing.T) {
 	a := withStyleCatalog(t)
 	tt := settled(a.view, 1800, 1000)
-	a.styleSplit, a.editorSplit, a.splitX = 25, 60, 55
+	a.subtitleSplit, a.editorSplit, a.splitX = 25, 60, 55
 	tt.Frame()
 	tt.Advance(time.Second)
 	prefs, err := settings.Load(a.dataRoot + "/settings.json")
-	if err != nil || prefs.StyleWidth != 25 || prefs.EditorWidth != 60 || prefs.PlayerWidth != 55 {
-		t.Fatal(prefs.StyleWidth, prefs.EditorWidth, prefs.PlayerWidth, err)
+	if err != nil || prefs.SubtitleHeight != 25 || prefs.EditorWidth != 60 || prefs.PlayerWidth != 55 {
+		t.Fatal(prefs.SubtitleHeight, prefs.EditorWidth, prefs.PlayerWidth, err)
 	}
 }
 

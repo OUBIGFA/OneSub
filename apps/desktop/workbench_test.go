@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -15,6 +14,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo"
 )
 
@@ -62,13 +62,13 @@ func TestWorkbenchRegionsAndStyleSections(t *testing.T) {
 	if !ok {
 		t.Fatal(tt.Texts())
 	}
-	original, ok := tt.Find("原始字幕")
+	original, ok := tt.Find(locales.A11ySubtitleTabs())
 	if !ok {
 		t.Fatal(tt.Texts())
 	}
 	editor, _ := tt.Find("字幕编辑")
 	style, _ := tt.Find("字幕样式")
-	if original.X <= video.X || editor.Y <= original.Y || style.X >= editor.X || math.Abs(float64(style.Y-editor.Y)) > 1 {
+	if original.X <= video.X+video.W || editor.Y <= original.Y || style.X >= editor.X || style.Y <= video.Y+video.H || style.Y >= editor.Y {
 		t.Fatal(video, original, editor, style)
 	}
 	if tt.HasText("左边距") {

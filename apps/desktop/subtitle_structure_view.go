@@ -205,7 +205,7 @@ func (a *NativeApp) refreshAfterStructure(index int) {
 }
 
 func (a *NativeApp) insertSubtitleView(c *ui.Context) {
-	fixedDialog(c, &a.insertOpen, locales.SubtitleInsertTitle(), 600, 480, func() {
+	fixedDialog(c, &a.insertOpen, locales.SubtitleInsertTitle(), 600, 0, func() {
 		step := 0.001
 		if format := a.activeDocument().Format; format == "ass" || format == "ssa" {
 			step = 0.01

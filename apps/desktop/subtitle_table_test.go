@@ -9,6 +9,46 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// The right gutter is part of the native selected row, even though the edge
+// navigation buttons stay fixed while rows scroll underneath that gutter.
+func TestSubtitleSelectionReachesRightEdge(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		for _, scale := range []float32{1, 1.5, 2} {
+			t.Run(fmt.Sprintf("dark%t/%g", dark, scale), func(t *testing.T) {
+				nativeForTest(t)
+				selected := 0
+				state := ui.ListState{Selected: &selected}
+				tt := ui.NewTester(func(c *ui.Context) {
+					theme, _ := studioTheme(c.Theme(), false)
+					c.SetTheme(&theme)
+					ui.Column(c).Fill().Children(func() {
+						subtitleTable(c, &state, []ui.TableColumn{{Title: "Subtitle"}}, 3, func(row, col int) {
+							ui.Text(c, fmt.Sprintf("Row %d", row))
+						}, func(bool) {}).Label("Selection table")
+					})
+				}, int(600*scale), int(400*scale))
+				tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
+				tt.SetDark(dark)
+				for _, index := range []int{0, 1} {
+					selected = index
+					tt.Frame()
+					row, found := tt.Find(fmt.Sprintf("Row %d", index))
+					if !found {
+						t.Fatal("selected row is missing")
+					}
+					y := int(row.Y + row.H/2)
+					pixels := tt.Image()
+					left, right := pixels.RGBAAt(int(2*scale), y), pixels.RGBAAt(pixels.Bounds().Max.X-2, y)
+					if left != right {
+						t.Fatal("selected background stops before the right edge", left, right)
+					}
+				}
+				captureRedesign(t, tt, fmt.Sprintf("selection-edge-dark%t-%g", dark, scale))
+			})
+		}
+	}
+}
+
 // Exercise the actual navigation rail and virtual table. A distant jump must
 // still have a visible landing, including the bottom of an oversized last row.
 func TestSubtitleNavigationEasesToRest(t *testing.T) {

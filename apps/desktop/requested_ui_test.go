@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"os"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/media"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/translator"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -63,12 +65,13 @@ func TestSubtitleTextFillsTableAfterColumnResize(t *testing.T) {
 	tt := settled(a.subtitlesView, 900, 650)
 	list, _ := tt.Find(locales.A11ySubtitleList())
 	body, ok := tt.Find(text)
-	if !ok || list.X+list.W-body.X-body.W > 16 || body.X+body.W > list.X+list.W {
+	contentRight := list.X + list.W - subtitleNavigationRailSize
+	if !ok || contentRight-body.X-body.W > 16 || body.X+body.W > contentRight {
 		t.Fatal("subtitle body left unused table width", body, list)
 	}
 	nav, _ := tt.Find(locales.ListTop())
-	if nav.X < list.X+list.W {
-		t.Fatal("navigation covers the subtitle table", nav, list)
+	if nav.X < body.X+body.W || nav.X+nav.W > list.X+list.W-6 {
+		t.Fatal("navigation covers subtitle text or the scrollbar", nav, body, list)
 	}
 }
 
@@ -91,27 +94,59 @@ func TestRecognitionTargetAndTransportOrder(t *testing.T) {
 	}
 }
 
-func TestSettingsUseOneLargerFixedSidebar(t *testing.T) {
-	a := nativeForTest(t)
-	a.settingsOpen = true
-	tt := settled(a.settingsView, 1800, 1100)
-	shell, _ := tt.Find(locales.SettingsTitle())
-	content, _ := tt.Find(locales.A11ySettingsContent())
-	navigation, _ := tt.Find(locales.A11ySettingsTabs())
-	if shell.W <= 1120 || shell.H <= 640 || navigation.X+navigation.W >= content.X || navigation.H < content.H-1 {
-		t.Fatal("settings did not use the enlarged sidebar layout", shell, navigation, content)
-	}
-	for tab := 0; tab < 7; tab++ {
-		a.settingsTab = tab
-		tt.Frame()
-		before, _ := tt.Find(locales.A11ySettingsContent())
-		for range 4 {
-			tt.Frame()
-			after, _ := tt.Find(locales.A11ySettingsContent())
-			if after != before || after != content {
-				t.Fatal("settings page changed its fixed content region", tab, before, after)
+// A native shared grid sizes every settings page from the largest form,
+// including both provider subpages. Catalog length may scroll internally.
+func TestSettingsUseOneSidebarAndSettleImmediately(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			for _, size := range [][2]int{{900, 640}, {1800, 1100}} {
+				for _, scale := range []float32{1, 1.5, 2} {
+					for _, populated := range []bool{false, true} {
+						t.Run(fmt.Sprintf("%s/%d/%g/catalog%t", language, size[0], scale, populated), func(t *testing.T) {
+							a := nativeForTest(t)
+							if populated {
+								a = modelApp(t)
+								for i := range 100 {
+									a.settings.Provider().Catalog = append(a.settings.Provider().Catalog, translator.ModelInfo{ID: fmt.Sprintf("catalog-model-%03d", i)})
+								}
+							}
+							a.settingsOpen = true
+							tt := ui.NewTester(func(c *ui.Context) {
+								theme, _ := studioTheme(c.Theme(), false)
+								c.SetTheme(&theme)
+								a.settingsView(c)
+							}, int(float32(size[0])*scale), int(float32(size[1])*scale))
+							tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
+							tt.Frame()
+							shell, _ := tt.Find(locales.SettingsTitle())
+							if shell.H < float32(size[1])*scale*.8 {
+								t.Fatal("settings leave too little working height", shell)
+							}
+							content, _ := tt.Find(locales.A11ySettingsContent())
+							navigation, _ := tt.Find(locales.A11ySettingsTabs())
+							closeButton, _ := tt.Find(locales.ActionClose())
+							if navigation.X+navigation.W >= content.X || navigation.H < content.H-1 {
+								t.Fatal("settings sidebar does not contain the largest page", shell, navigation, content)
+							}
+							for _, state := range [][2]int{{0, 0}, {1, 0}, {5, 0}, {2, 0}, {2, 1}, {3, 0}, {4, 0}, {6, 0}} {
+								firstFrameSettled(t, tt, fmt.Sprint(state), func() { a.settingsTab, a.providerSettingsTab = state[0], state[1] })
+								after, _ := tt.Find(locales.SettingsTitle())
+								area, _ := tt.Find(locales.A11ySettingsContent())
+								tabs, _ := tt.Find(locales.A11ySettingsTabs())
+								button, _ := tt.Find(locales.ActionClose())
+								if after != shell || area != content || tabs != navigation || button != closeButton {
+									t.Fatal("switching settings changed its shared geometry", state, shell, after, content, area)
+								}
+								visibleRedesign(t, tt, locales.SettingsTitle(), locales.A11ySettingsContent(), locales.ActionClose())
+								if scale == 1 {
+									captureRedesign(t, tt, fmt.Sprintf("shared-settings-%s-%d-%d-%d-catalog%t", language, size[0], state[0], state[1], populated))
+								}
+							}
+						})
+					}
+				}
 			}
-		}
+		})
 	}
 }
 

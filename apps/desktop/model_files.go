@@ -67,7 +67,7 @@ func (a *NativeApp) modelRecycleView(c *ui.Context) {
 		return
 	}
 	open := true
-	choice := ui.AlertDialog(c, &open, locales.ModelRecycleTitle(), locales.ModelRecycleNote(), locales.ActionCancel(), locales.ModelDelete())
+	choice := confirmationDialog(c, &open, locales.ModelRecycleTitle(), locales.ModelRecycleNote(), locales.ActionCancel(), locales.ModelDelete())
 	if !open {
 		a.modelRecycle = ""
 	}

@@ -43,137 +43,136 @@ var BuildNumber = "native-development"
 // NativeApp keeps model data, not ui.Element values. The view and callbacks run
 // on MyGo's main thread; background results enter through Window.Update.
 type NativeApp struct {
-	win                                      *mygo.Window
-	player                                   *mygo.WebView
-	tray                                     *mygo.Tray
-	store                                    *project.Store
-	snapshot                                 *project.Snapshot
-	worker                                   subtitle.Client
-	preview                                  *media.Server
-	probe, ffmpeg, resources, dataRoot       string
-	settings                                 settings.Settings
-	settingsOpen                             bool
-	settingsTab                              int
-	settingsError                            bool
-	updates                                  appUpdates
-	errorText, status                        string
-	errorScope                               string    // the operation whose error is currently displayed
-	mediaGeneration                          uint64    // rejects out-of-order media load commands
-	errorShown                               string    // the error the status bar shows, since errorSince
-	errorSince                               time.Time // when it began to show
-	playerError                              string    // the page's last error code
-	rate                                     float64   // the playback speed; 0 is normal
-	loop                                     bool      // the video starts again at its end
-	busy                                     bool
-	choosingFile                             bool
-	cancel                                   context.CancelFunc
-	pending                                  *importing.Loaded
-	candidatesOpen                           bool
-	splitX, splitY, styleSplit               float32
-	editorSplit                              float32 // the editor's share of the room right of the style
-	recognitionAdvanced, translationAdvanced bool
-	styleTab, providerSettingsTab            int
-	workflowTab                              int // 0 recognition, 1 translation
-	recognitionMode                          int // 0 current media, 1 file queue; both use settings
-	workflowScroll, styleScroll              ui.ScrollState
-	list                                     ui.ListState
-	selected                                 int
-	query                                    string
-	subtitleChecked                          [2]map[string]bool // batch checks are independent of the editing row
-	retranslation, retranslationNext         *retranslationState
-	readingSnapshot                          *project.Snapshot
-	countSnapshot                            *project.Snapshot
-	originalCount, optimizedCount            int
-	readingTab, readingIssue                 int // issue defaults to long; independent of the active track
-	reading                                  []subtitle.CueReadingLoad
-	splitSkipped                             map[string]string
-	findReplace                              findReplaceState
-	draft                                    string
-	start, end                               float64
-	editPending, composing, editing          bool
-	editDue                                  time.Time
-	savedHash, savedPath                     [2]string
-	unsaved                                  [2]bool
-	savePromptOpen, clearOpen, skipGuard     bool
-	afterSave                                func()
-	position, duration                       float64
-	paused                                   bool
-	mediaURL                                 string
-	playerReady                              bool
-	previewPending                           bool
-	previewRunning                           bool
-	previewRevision                          uint64
-	previewDue                               time.Time
-	previewCancel                            context.CancelFunc
-	observedStyle                            string
-	prefsSaveDue                             time.Time
-	activeCue                                int
-	locateCue                                int       // a cue to center, or -1
-	browseUntil                              time.Time // until when the user's browsing keeps the viewport
-	followRow                                int       // the row the playback follow centered, or -1
-	followPending                            bool      // the follow owes the viewport a move back
-	followHeld                               bool      // explicit select-only holds selection until locate/seek
-	rowClick                                 *subtitleRowClick
-	pendingClick                             *subtitleClick
-	frameAspect                              float64 // the video's display width / height
-	modelStates                              map[string]string
-	downloadedAsr                            []option // complete local ASR files; nil refreshes once
-	modelSelection                           string
-	modelOpen                                bool
-	modelRecycle                             string // model ID awaiting a native recycle confirmation
-	exportOpen                               bool
-	exportFormat                             string
-	exportLines                              string // all, upper or lower; export-only projection
-	quitAfterTask                            bool
-	composeOpen                              bool
-	compressOpen                             bool
-	compressRunning                          bool
-	composeRunning                           bool
-	recognitionRunning                       bool
-	recognitionStarted                       time.Time
-	recognitionStep                          recognitionStep
-	recognitionRoute                         recognitionRoute
-	batchItems                               []batchItem
-	batchList                                ui.ListState
-	translationRunning                       bool
-	translationLive                          *translationLive // what the running translation has shown
-	translationTask                          *translationTask
-	composeProgress                          media.ComposeProgress
-	lastOutput                               string
-	styleClient                              styles.Client
-	styleCatalog                             styles.Catalog
-	currentStyle                             styles.Style
-	secondaryStyle                           styles.Style
-	secondaryPreset                          string
-	styleLayer                               int
-	stylePreset                              string
-	presetDialog                             string // "", "save", "rename" or "delete"
-	presetDialogLayer                        int
-	presetName                               string
-	subtitleTab                              int
-	editRebuiltSource                        bool
-	insertOpen                               bool
-	insertPosition                           int
-	insertStart, insertEnd                   float64
-	insertSource, insertTranslation          string
-	openOnReady                              []string
-	providerKey, keyStatus                   string
-	modelQuery                               string
-	modelEdit                                providerModelDraft
-	modelList                                ui.ListState
-	modelsError                              string
-	modelsLoading                            bool
-	modelsGeneration                         uint64
-	providerDelete                           bool
-	fontCatalogLoading                       bool
-	translationReview                        bool // the check results of the last translation are shown
-	translationCandidate                     *translationCandidate
-	translationProfiles                      []translator.Profile
-	profilesError                            string
-	translationCheckTab                      int
-	translationIssueList                     ui.ListState
-	translationIssueSelected                 int
-	translationIssueQuery                    string
+	win                                  *mygo.Window
+	player                               *mygo.WebView
+	tray                                 *mygo.Tray
+	store                                *project.Store
+	snapshot                             *project.Snapshot
+	worker                               subtitle.Client
+	preview                              *media.Server
+	probe, ffmpeg, resources, dataRoot   string
+	settings                             settings.Settings
+	settingsOpen                         bool
+	settingsTab                          int
+	settingsError                        bool
+	updates                              appUpdates
+	errorText, status                    string
+	errorScope                           string    // the operation whose error is currently displayed
+	mediaGeneration                      uint64    // rejects out-of-order media load commands
+	errorShown                           string    // the error the status bar shows, since errorSince
+	errorSince                           time.Time // when it began to show
+	playerError                          string    // the page's last error code
+	rate                                 float64   // the playback speed; 0 is normal
+	loop                                 bool      // the video starts again at its end
+	busy                                 bool
+	choosingFile                         bool
+	cancel                               context.CancelFunc
+	pending                              *importing.Loaded
+	candidatesOpen                       bool
+	splitX, splitY, subtitleSplit        float32
+	editorSplit                          float32 // middle column's share of the room right of the player
+	styleTab, providerSettingsTab        int
+	workflowTab                          int // 0 recognition, 1 translation
+	recognitionMode                      int // 0 current media, 1 file queue; both use settings
+	workflowScroll, styleScroll          ui.ScrollState
+	list                                 ui.ListState
+	selected                             int
+	query                                string
+	subtitleChecked                      [2]map[string]bool // batch checks are independent of the editing row
+	retranslation, retranslationNext     *retranslationState
+	readingSnapshot                      *project.Snapshot
+	countSnapshot                        *project.Snapshot
+	originalCount, optimizedCount        int
+	readingTab, readingIssue             int // issue defaults to long; independent of the active track
+	reading                              []subtitle.CueReadingLoad
+	splitSkipped                         map[string]string
+	findReplace                          findReplaceState
+	draft                                string
+	start, end                           float64
+	editPending, composing, editing      bool
+	editDue                              time.Time
+	savedHash, savedPath                 [2]string
+	unsaved                              [2]bool
+	savePromptOpen, clearOpen, skipGuard bool
+	afterSave                            func()
+	position, duration                   float64
+	paused                               bool
+	mediaURL                             string
+	playerReady                          bool
+	previewPending                       bool
+	previewRunning                       bool
+	previewRevision                      uint64
+	previewDue                           time.Time
+	previewCancel                        context.CancelFunc
+	observedStyle                        string
+	prefsSaveDue                         time.Time
+	activeCue                            int
+	locateCue                            int       // a cue to center, or -1
+	browseUntil                          time.Time // until when the user's browsing keeps the viewport
+	followRow                            int       // the row the playback follow centered, or -1
+	followPending                        bool      // the follow owes the viewport a move back
+	followHeld                           bool      // explicit select-only holds selection until locate/seek
+	rowClick                             *subtitleRowClick
+	pendingClick                         *subtitleClick
+	frameAspect                          float64 // the video's display width / height
+	modelStates                          map[string]string
+	downloadedAsr                        []option // complete local ASR files; nil refreshes once
+	modelSelection                       string
+	modelOpen                            bool
+	modelRecycle                         string // model ID awaiting a native recycle confirmation
+	exportOpen                           bool
+	exportFormat                         string
+	exportLines                          string // all, upper or lower; export-only projection
+	quitAfterTask                        bool
+	composeOpen                          bool
+	compressOpen                         bool
+	compressRunning                      bool
+	composeRunning                       bool
+	recognitionRunning                   bool
+	recognitionStarted                   time.Time
+	recognitionStep                      recognitionStep
+	recognitionRoute                     recognitionRoute
+	batchItems                           []batchItem
+	batchList                            ui.ListState
+	translationRunning                   bool
+	translationLive                      *translationLive // what the running translation has shown
+	translationTask                      *translationTask
+	composeProgress                      media.ComposeProgress
+	lastOutput                           string
+	styleClient                          styles.Client
+	styleCatalog                         styles.Catalog
+	currentStyle                         styles.Style
+	secondaryStyle                       styles.Style
+	secondaryPreset                      string
+	styleLayer                           int
+	stylePreset                          string
+	presetDialog                         string // "", "save", "rename" or "delete"
+	presetDialogLayer                    int
+	presetName                           string
+	subtitleTab                          int
+	editRebuiltSource                    bool
+	insertOpen                           bool
+	insertPosition                       int
+	insertStart, insertEnd               float64
+	insertSource, insertTranslation      string
+	openOnReady                          []string
+	providerKey, keyStatus               string
+	modelQuery                           string
+	modelEdit                            providerModelDraft
+	modelList                            ui.ListState
+	modelsError                          string
+	modelsLoading                        bool
+	modelsGeneration                     uint64
+	providerDelete                       bool
+	fontCatalogLoading                   bool
+	translationReview                    bool // the check results of the last translation are shown
+	translationCandidate                 *translationCandidate
+	translationProfiles                  []translator.Profile
+	profilesError                        string
+	translationCheckTab                  int
+	translationIssueList                 ui.ListState
+	translationIssueSelected             int
+	translationIssueQuery                string
 }
 
 func stamp(seconds float64) string {
@@ -186,33 +185,35 @@ func stamp(seconds float64) string {
 func (a *NativeApp) view(c *ui.Context) {
 	theme, look := studioTheme(c.Theme(), c.Preferences().HighContrast)
 	c.SetTheme(&theme)
-	x, y, style, editor := a.paneSizes(c)
+	x, y, subtitles, editor := a.paneSizes(c)
 	width, _ := c.Size()
 	// The split percentage and viewport are known in this frame; the list
 	// can choose its compact controls without measuring an earlier layout.
-	subtitleWidth := (width - 1) * (100 - x) / 100
+	subtitleWidth := ((width-1)*(100-x)/100 - 1) * editor / 100
 	surface := ui.Column(c).Fill()
 	surface.Children(func() {
 		a.topBar(c, look)
 		separator(c)
-		ui.SplitVerticalPercent(c, &y, func() {
-			ui.SplitPercent(c, &x, func() { a.playerView(c) }, func() { a.subtitlesViewAtWidth(c, subtitleWidth) }).Fill().OnChange(func() {
-				a.splitX = x
-				a.splitX, _, _, _ = a.paneSizes(c)
+		// Three independent columns: preview/style, subtitles/editor, workflow.
+		// Native splitters retain pointer, keyboard and same-frame layout.
+		ui.SplitPercent(c, &x, func() {
+			ui.SplitVerticalPercent(c, &y, func() { a.playerView(c) }, func() { a.stylePanel(c) }).Fill().OnChange(func() {
+				a.splitY = y
+				_, a.splitY, _, _ = a.paneSizes(c)
 			})
 		}, func() {
-			ui.SplitPercent(c, &style, func() { a.stylePanel(c) }, func() {
-				ui.SplitPercent(c, &editor, func() { a.editorView(c) }, func() { a.workflowPanel(c) }).Fill().OnChange(func() {
-					a.editorSplit = editor
-					_, _, _, a.editorSplit = a.paneSizes(c)
+			ui.SplitPercent(c, &editor, func() {
+				ui.SplitVerticalPercent(c, &subtitles, func() { a.subtitlesViewAtWidth(c, subtitleWidth) }, func() { a.editorView(c) }).Fill().OnChange(func() {
+					a.subtitleSplit = subtitles
+					_, _, a.subtitleSplit, _ = a.paneSizes(c)
 				})
-			}).Fill().OnChange(func() {
-				a.styleSplit = style
-				_, _, a.styleSplit, _ = a.paneSizes(c)
+			}, func() { a.workflowColumn(c) }).Fill().OnChange(func() {
+				a.editorSplit = editor
+				_, _, _, a.editorSplit = a.paneSizes(c)
 			})
 		}).Grow(1).OnChange(func() {
-			a.splitY = y
-			_, a.splitY, _, _ = a.paneSizes(c)
+			a.splitX = x
+			a.splitX, _, _, _ = a.paneSizes(c)
 		})
 		separator(c)
 		a.statusBar(c, look)
@@ -238,8 +239,8 @@ func (a *NativeApp) view(c *ui.Context) {
 	a.observeStyle(c.Now())
 	// The panes keep the sizes the user drags them to, saved once the drag
 	// stops, as the other preferences.
-	if w, h, e, s := float64(a.splitX), float64(a.splitY), float64(a.editorSplit), float64(a.styleSplit); w != a.settings.PlayerWidth || h != a.settings.TopHeight || e != a.settings.EditorWidth || s != a.settings.StyleWidth {
-		a.settings.PlayerWidth, a.settings.TopHeight, a.settings.EditorWidth, a.settings.StyleWidth = w, h, e, s
+	if w, h, e, s := float64(a.splitX), float64(a.splitY), float64(a.editorSplit), float64(a.subtitleSplit); w != a.settings.PlayerWidth || h != a.settings.TopHeight || e != a.settings.EditorWidth || s != a.settings.SubtitleHeight {
+		a.settings.PlayerWidth, a.settings.TopHeight, a.settings.EditorWidth, a.settings.SubtitleHeight = w, h, e, s
 		a.prefsSaveDue = c.Now().Add(400 * time.Millisecond)
 	}
 	if !a.prefsSaveDue.IsZero() {
@@ -285,33 +286,45 @@ func (a *NativeApp) view(c *ui.Context) {
 // paneSizes clamps only the displayed shares, so startup or a narrow window
 // cannot overwrite the user's proportions. Split OnChange callbacks also use
 // these bounds to persist actual divider gestures, never temporary resizing.
-func (a *NativeApp) paneSizes(c *ui.Context) (player, top, style, editor float32) {
-	player, top, style, editor = a.splitX, a.splitY, a.styleSplit, a.editorSplit
+func (a *NativeApp) paneSizes(c *ui.Context) (player, top, subtitles, editor float32) {
+	player, top, subtitles, editor = a.splitX, a.splitY, a.subtitleSplit, a.editorSplit
 	width, height := c.Size()
 	toolbar := em(c, toolbarSize)
 	// Two horizontal rules and the split's own one-DIP line are not part
 	// of either pane. Include them instead of leaving a phantom scrollbar.
 	height -= toolbar + em(c, 32) + 3
 	keep := func(percent *float32, room, first, second float32) {
-		if room >= first+second {
+		// Nested percentage conversion can lose a fraction of a pixel at
+		// an exact minimum. Keep the bound instead of reverting to the ratio.
+		if room+.01 >= first+second {
 			*percent = min(max(*percent, first/room*100), 100-second/room*100)
 		}
 	}
-	keep(&player, width, em(c, 500), em(c, 360))
+	// Clamp display sizes only when the requested ratios cannot fit the
+	// inspector's fixed action and title. User proportions stay unchanged.
+	workflowMinimum := em(c, 250)
+	titleWidth, _ := c.MeasureText(0, ui.Span{Text: locales.TranslationOptimizeTimeline(), Size: em(c, bodySize), Weight: 500})
+	// Include both panel and toggle padding plus its two one-DIP borders.
+	// Round up so SingleLine never ellipsizes a subpixel overflow.
+	workflowMinimum = max(workflowMinimum, float32(math.Ceil(float64(titleWidth+em(c, 2*panelPad+24)+2))))
+	for _, label := range []string{locales.WorkflowStartRecognize(), locales.WorkflowStartTranslate()} {
+		w, _ := c.MeasureText(0, ui.Span{Text: label, Weight: 500})
+		workflowMinimum = max(workflowMinimum, float32(math.Ceil(float64(w+em(c, 2*panelPad+32+iconSize+8)+2))))
+	}
+	keep(&player, width-1, em(c, 260), em(c, 356)+workflowMinimum+1)
 	// Content must scroll inside a deliberately shortened pane, never
 	// override a user's drag with its measured natural height.
-	keep(&top, height, em(c, 320), em(c, 180))
-	keep(&style, width, em(c, 340), em(c, 260+300))
-	keep(&editor, width*(100-style)/100, em(c, 260), em(c, 300))
+	keep(&top, height, em(c, 240), em(c, 180))
+	keep(&subtitles, height, em(c, 240), em(c, 220))
+	keep(&editor, (width-1)*(100-player)/100-1, em(c, 356), workflowMinimum)
 	return
 }
 
-// Equal flexible sides center the primary workflow action in the whole
-// toolbar, not just in the space left by unequal command groups.
+// Global file and output actions stay at opposite ends of the toolbar.
+// Processing belongs to the right workflow column.
 func (a *NativeApp) topBar(c *ui.Context, look studio) {
 	width, _ := c.Size()
-	// Keep the central label and every action reachable at minimum width;
-	// secondary commands use their native icon buttons with full tooltips.
+	// Secondary commands use their native icon buttons at minimum width.
 	command := func(label, name string) ui.Element {
 		if width < em(c, 1400) {
 			return toolIcon(c, label, name)
@@ -319,14 +332,14 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 		return iconButton(c, label, name)
 	}
 	ui.Row(c).Children(func() {
-		ui.Grid(c).ColumnTracks(ui.Fr(1), ui.FitContent(), ui.Fr(1)).Grow(1).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Grow(1).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 				iconButton(c, locales.ActionAddFiles(), "folder-open").MinHeight(em(c, 40)).Disabled(a.busy).OnClick(a.pickFiles)
 				ui.Toolbar(c, func() {
 					command(locales.ActionClearWorkbench(), "eraser").Disabled(a.busy || a.snapshot == nil).OnClick(a.requestClear)
 				}).Padding(0)
 			})
-			primaryIconButton(c, a.processingLabel(), "languages").MinHeight(em(c, 40)).Padding(em(c, 8), em(c, 20)).Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(a.processMedia)
+			ui.Spacer(c)
 			ui.Row(c).Gap(em(c, 12)).Justify(ui.End).AlignItems(ui.Center).Children(func() {
 				ui.Toolbar(c, func() {
 					toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
@@ -339,7 +352,7 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 	}).Height(em(c, toolbarSize)).Shrink(0).AlignItems(ui.Center).Gap(em(c, 16)).Padding(em(c, 12), em(c, 20)).Background(look.chrome).Label(locales.A11yToolbar())
 }
 
-// toolbarSize is the top bar's height: the 40 of the primary action and
+// toolbarSize is the top bar's height: the 40 of the file action and
 // 12 above and below. Pane sizes use it in the same frame, unmeasured.
 const toolbarSize = 64
 
@@ -671,36 +684,50 @@ func (a *NativeApp) replaceProject(next *project.Store, state project.Snapshot, 
 	a.loadVideo()
 }
 func (a *NativeApp) candidatesView(c *ui.Context) {
-	fixedDialog(c, &a.candidatesOpen, locales.CandidatesTitle(), 600, 380, func() {
-		ui.Scroll(c).Grow(1).Children(func() {
-			if a.pending != nil {
-				for _, candidate := range a.pending.Selection.Candidates {
-					path := candidate.Path
-					rule := locales.CandidatesSimilar()
-					switch candidate.Reason {
-					case "exact":
-						rule = locales.CandidatesExact()
-					case "normalized":
-						rule = locales.CandidatesNormalized()
-					case "language":
-						rule = locales.CandidatesLanguage()
-					}
-					score := locales.CandidatesScore(candidate.Score)
-					ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-						ui.Button(c, filepath.Base(path)).Grow(1).MinWidth(0).Tooltip(path+"\n"+score+" · "+rule).Padding(em(c, 12), em(c, 16)).OnClick(func() {
-							a.candidatesOpen = false
-							paths := []string{path}
-							if a.pending.Selection.CandidateKind == "subtitle" {
-								paths = append(paths, a.pending.Selection.Media)
-							} else {
-								paths = append(paths, a.pending.Selection.Subtitle)
-							}
-							a.importPaths(paths)
+	fixedDialog(c, &a.candidatesOpen, locales.CandidatesTitle(), 600, 0, func() {
+		_, height := c.Size()
+		count := 0
+		if a.pending != nil {
+			count = len(a.pending.Selection.Candidates)
+		}
+		// Short selections fit their rows; only an unbounded candidate list
+		// scrolls. The primary workbench remains available after dismissal.
+		ui.Scroll(c).Height(min(em(c, float32(max(count, 1))*72), height*.55)).Children(func() {
+			ui.Column(c).Gap(em(c, 8)).Children(func() {
+				if a.pending != nil {
+					for _, candidate := range a.pending.Selection.Candidates {
+						path := candidate.Path
+						rule := locales.CandidatesSimilar()
+						switch candidate.Reason {
+						case "exact":
+							rule = locales.CandidatesExact()
+						case "normalized":
+							rule = locales.CandidatesNormalized()
+						case "language":
+							rule = locales.CandidatesLanguage()
+						}
+						score := locales.CandidatesScore(candidate.Score)
+						ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+							ui.Button(c, "").Label(filepath.Base(path)).Grow(1).MinWidth(0).Tooltip(path+"\n"+score+" · "+rule).Padding(em(c, 10), em(c, 16)).Children(func() {
+								ui.Column(c).MinWidth(0).Gap(em(c, 4)).Children(func() {
+									ui.Text(c, filepath.Base(path)).SingleLine()
+									muted(c, rule).FontSize(em(c, captionSize))
+								})
+							}).OnClick(func() {
+								a.candidatesOpen = false
+								paths := []string{path}
+								if a.pending.Selection.CandidateKind == "subtitle" {
+									paths = append(paths, a.pending.Selection.Media)
+								} else {
+									paths = append(paths, a.pending.Selection.Subtitle)
+								}
+								a.importPaths(paths)
+							})
+							muted(c, score).SingleLine().FontFeatures("tnum").Shrink(0)
 						})
-						muted(c, score).SingleLine().FontFeatures("tnum").Shrink(0)
-					})
+					}
 				}
-			}
+			})
 		})
 	}, func() {
 		ui.Button(c, locales.CandidatesLater()).OnClick(func() { a.candidatesOpen = false })
@@ -932,7 +959,7 @@ func main() {
 		log.Fatal(err)
 	}
 	defer preview.Close()
-	a := &NativeApp{resources: resources, dataRoot: data, settings: prefs, settingsError: prefsErr != nil, preview: preview, worker: subtitle.Client{Executable: filepath.Join(resources, "subtitle-core", "OneSub.SubtitleCore.exe"), Scratch: scratch}, probe: filepath.Join(resources, "media-tools", "ffprobe.exe"), ffmpeg: filepath.Join(resources, "media-tools", "ffmpeg.exe"), splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
+	a := &NativeApp{resources: resources, dataRoot: data, settings: prefs, settingsError: prefsErr != nil, preview: preview, worker: subtitle.Client{Executable: filepath.Join(resources, "subtitle-core", "OneSub.SubtitleCore.exe"), Scratch: scratch}, probe: filepath.Join(resources, "media-tools", "ffprobe.exe"), ffmpeg: filepath.Join(resources, "media-tools", "ffmpeg.exe"), splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), subtitleSplit: float32(prefs.SubtitleHeight), selected: -1, paused: true, activeCue: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
 	a.refreshDownloadedAsrModels()
 	if prefsErr != nil {
 		a.showError("settings", locales.ErrSettingsUnreadable())

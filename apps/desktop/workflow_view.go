@@ -6,9 +6,25 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The command band stays visible while the inspector scrolls. Common options
-// have a deliberate two-column density; decoding and scheduling are secondary
-// disclosures, not equally weighted controls in one long wrapping row.
+// The combined action has its own fixed band above the two workflow tabs.
+// Only the three main columns resize; this band follows its content height.
+func (a *NativeApp) workflowColumn(c *ui.Context) {
+	ui.Column(c).Fill().Label(locales.A11yWorkflowColumn()).Children(func() {
+		ui.Column(c).Shrink(0).Padding(em(c, 16), em(c, panelPad)).Background(c.Theme().Surface).Children(func() {
+			label := a.processingLabel()
+			ui.PrimaryButton(c, "").Label(label).Tooltip(label).MinHeight(em(c, 44)).Padding(em(c, 10), em(c, 12)).Justify(ui.Center).
+				Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(a.processMedia).Children(func() {
+				icon(c, "languages").Shrink(0)
+				ui.Text(c, label).MinWidth(0).TextAlign(ui.Center)
+			})
+		})
+		separator(c)
+		ui.Column(c).Grow(1).MinHeight(0).Children(func() { a.workflowPanel(c) })
+	})
+}
+
+// The command band stays visible while the full-height inspector scrolls.
+// Decoding and scheduling remain expanded below their common options.
 func (a *NativeApp) workflowPanel(c *ui.Context) {
 	panel := ui.Column(c).Fill().Label(locales.WorkflowTitle())
 	panel.Children(func() {
@@ -111,7 +127,7 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 	if model, err := models.ByID(a.settings.AsrModel); err == nil && !routed {
 		oneAsr = !model.Sherpa()
 	}
-	ui.Collapsible(c, locales.WorkflowRecognitionAdvanced(), &a.recognitionAdvanced, func() {
+	parameterGroup(c, locales.WorkflowRecognitionAdvanced(), nil, func() {
 		parameterGrid(c, 170, 3, func() {
 			ui.Field(c, locales.SettingsBackend(), func() {
 				idSelect(c, &a.settings.Backend, []option{{"auto", locales.BackendAuto()}, {"gpu", "GPU"}, {"cpu", "CPU"}}).Label(locales.SettingsBackend()).Disabled(!oneAsr).OnChange(a.saveSettings)
@@ -171,28 +187,35 @@ func (a *NativeApp) translateTab(c *ui.Context) {
 		})
 		folderField(c, a.settings.TranslationDir, locales.TranslationBesideSource(), a.busy, a.pickTranslationDir, func() { a.settings.TranslationDir = ""; a.saveSettings() })
 	})
-	ui.Collapsible(c, locales.WorkflowTranslationAdvanced(), &a.translationAdvanced, func() {
-		cells := []func(){}
-		for _, field := range []struct {
-			label string
-			value *int
-		}{
-			{locales.TranslationConcurrency(), &a.settings.TranslationConcurrency},
-			{locales.TranslationBatchSize(), &a.settings.TranslationBatchSize},
-		} {
-			cells = append(cells, func() {
-				ui.Field(c, field.label, func() {
-					value := float64(*field.value)
-					number(c, field.label, &value, 1, 10000, 1).OnChange(func() { *field.value = int(value); a.saveSettings() })
+	parameterGroup(c, locales.WorkflowTranslationAdvanced(), nil, func() {
+		// Scheduling is a pair of peer fields. Punctuation has its own
+		// group, with the exception field indented under its controlling check.
+		ui.Column(c).Gap(em(c, 16)).Padding(em(c, 16)).Background(c.Theme().Surface).Radius(c.Theme().Radius).Children(func() {
+			cells := []func(){}
+			for _, field := range []struct {
+				label string
+				value *int
+			}{
+				{locales.TranslationConcurrency(), &a.settings.TranslationConcurrency},
+				{locales.TranslationBatchSize(), &a.settings.TranslationBatchSize},
+			} {
+				cells = append(cells, func() {
+					ui.Field(c, field.label, func() {
+						value := float64(*field.value)
+						number(c, field.label, &value, 1, 10000, 1).OnChange(func() { *field.value = int(value); a.saveSettings() })
+					})
 				})
+			}
+			parameterGrid(c, 160, 2, cells...)
+			separator(c)
+			ui.Column(c).Gap(em(c, 12)).Children(func() {
+				ui.Checkbox(c, &a.settings.StripPunctuation, locales.WorkflowStripPunctuation()).OnChange(a.saveSettings)
+				ui.Field(c, locales.WorkflowKeepPunctuation(), func() {
+					ui.TextInput(c, &a.settings.KeepPunctuation).Width(em(c, 120)).Placeholder("?").Label(locales.WorkflowKeepPunctuation()).Disabled(!a.settings.StripPunctuation).OnChange(a.saveSettings)
+				}).Gap(em(c, 8)).Margin(0, 0, 0, em(c, 24))
 			})
-		}
-		parameterGrid(c, 180, 2, cells...)
-		ui.Checkbox(c, &a.settings.StripPunctuation, locales.WorkflowStripPunctuation()).OnChange(a.saveSettings)
-		ui.Field(c, locales.WorkflowKeepPunctuation(), func() {
-			ui.TextInput(c, &a.settings.KeepPunctuation).Width(em(c, 120)).Placeholder("?").Label(locales.WorkflowKeepPunctuation()).Disabled(!a.settings.StripPunctuation).OnChange(a.saveSettings)
+			ui.Checkbox(c, &a.settings.ReplacePeriods, locales.WorkflowReplacePeriods()).Tooltip(locales.WorkflowReplacePeriodsHint()).OnChange(a.saveSettings)
 		})
-		ui.Checkbox(c, &a.settings.ReplacePeriods, locales.WorkflowReplacePeriods()).Tooltip(locales.WorkflowReplacePeriodsHint()).OnChange(a.saveSettings)
 	})
 }
 
@@ -204,20 +227,22 @@ func (a *NativeApp) timelineRebuildChoice(c *ui.Context) {
 	choice := ui.Toggle(c, &a.settings.OptimizeTimeline, "").Label(locales.TranslationOptimizeTimeline()).Description(hint).
 		MinHeight(em(c, 80)).Padding(em(c, 12)).Gap(em(c, 8)).
 		Justify(ui.Start).AlignItems(ui.Center).Disabled(a.busy).OnChange(a.saveSettings)
-	state := locales.TranslationTimelineOff()
+	indicator := t.TextMuted
 	if a.settings.OptimizeTimeline {
-		state = locales.TranslationTimelineOn()
+		indicator = t.Accent
 		choice.Background(studioColors(c).selected).Border(1, t.Accent)
 		if choice.Hovered() && !a.busy {
 			choice.Background(t.Accent.Alpha(0.18))
 		}
 	}
 	choice.Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Gap(em(c, 8)).Children(func() {
-			ui.Text(c, locales.TranslationOptimizeTimeline()).FontSize(em(c, bodySize)).FontWeight(500)
-			muted(c, hint).FontSize(em(c, captionSize))
+		// A native empty badge is the state lamp. The toggle itself retains
+		// the checked state for keyboard users and assistive technology.
+		ui.Badge(c, "").Absolute().Top(em(c, 8)).Left(em(c, 8)).Size(em(c, 10), em(c, 10)).Padding(0).Background(indicator).PassThrough()
+		ui.Column(c).Grow(1).MinWidth(0).Gap(em(c, 6)).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, locales.TranslationOptimizeTimeline()).FontSize(em(c, bodySize)).FontWeight(500).SingleLine()
+			muted(c, hint).FontSize(em(c, captionSize)).TextAlign(ui.Center)
 		})
-		muted(c, state).FontSize(em(c, captionSize)).Shrink(0)
 	})
 }
 

@@ -72,7 +72,7 @@ func nativeForTest(t *testing.T) *NativeApp {
 		icons[strings.TrimSuffix(e.Name(), ".svg")] = ui.MustParseSVG(data)
 	}
 	prefs := settings.Default()
-	a := &NativeApp{dataRoot: t.TempDir(), settings: prefs, splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), styleSplit: float32(prefs.StyleWidth), selected: -1, paused: true, activeCue: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
+	a := &NativeApp{dataRoot: t.TempDir(), settings: prefs, splitX: float32(prefs.PlayerWidth), splitY: float32(prefs.TopHeight), editorSplit: float32(prefs.EditorWidth), subtitleSplit: float32(prefs.SubtitleHeight), selected: -1, paused: true, activeCue: -1, locateCue: -1, modelStates: map[string]string{}, exportFormat: "srt"}
 	// General UI tests use a populated availability snapshot, as a configured
 	// workbench does. Discovery tests clear it and exercise real local files.
 	for _, model := range models.Catalog() {

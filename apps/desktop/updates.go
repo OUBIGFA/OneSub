@@ -226,40 +226,50 @@ func (a *NativeApp) updateStatus() string {
 	return ""
 }
 
-// About follows the existing flat native fieldsets. The status/progress area
-// is reserved, so checking, finding and installing updates never resize it.
+// About has a readable central column: product identity, update controls,
+// then the repository. Reserved progress space keeps update states stable.
 func (a *NativeApp) aboutSettingsView(c *ui.Context) {
-	settingsGroup(c, "OneSub", func() {
+	ui.Column(c).WidthPercent(100).MaxWidth(em(c, 760)).AlignSelf(ui.Center).Gap(em(c, 28)).Padding(em(c, 16), 0).Children(func() {
 		version := a.updates.productVersion
 		if version == "" {
 			version = "0.0.1"
 		}
-		ui.Row(c).Gap(em(c, 20)).Wrap().AlignItems(ui.Center).Children(func() {
-			ui.Text(c, locales.AboutVersion(version))
-			muted(c, locales.AboutBuild(BuildNumber)).Tooltip(BuildNumber)
+		ui.Column(c).Gap(em(c, 10)).Children(func() {
+			ui.Text(c, "OneSub").FontSize(em(c, 28)).FontWeight(500)
+			ui.Row(c).Gap(em(c, 20)).Wrap().AlignItems(ui.Center).Children(func() {
+				ui.Text(c, locales.AboutVersion(version))
+				muted(c, locales.AboutBuild(BuildNumber)).FontFeatures("tnum").Tooltip(BuildNumber)
+			})
 		})
+		separator(c)
+		ui.Column(c).Gap(em(c, 20)).Children(func() {
+			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Wrap().Children(func() {
+				ui.Text(c, locales.AboutUpdates()).FontSize(em(c, headingSize)).FontWeight(500).Grow(1)
+				ui.Row(c).Gap(em(c, 8)).Wrap().Children(func() {
+					install := primaryIconButton(c, locales.AboutInstallUpdate(), "download").Disabled(a.busy || a.settingsError).OnClick(func() { a.installUpdate(false) })
+					if a.updates.release == nil || a.updates.phase == updateInstalling || a.updates.phase == updateInstalled {
+						// Reserve the complete action row before a release arrives.
+						install.Invisible()
+					}
+					iconButton(c, locales.AboutCheckUpdates(), "rotate-cw").Disabled(!a.updates.enabled || a.settingsError || a.updates.phase == updateChecking || a.updates.phase == updateInstalling || a.updates.phase == updateInstalled).OnClick(a.checkUpdates)
+				})
+			})
+			ui.Column(c).MinHeight(em(c, 64)).Gap(em(c, 12)).Label(locales.AboutUpdateStatus()).Children(func() {
+				ui.Text(c, a.updateStatus()).Tooltip(a.updates.failure)
+				if a.updates.phase == updateInstalling && a.updates.total > 0 && a.updates.downloaded < a.updates.total {
+					ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+						fraction := float64(a.updates.downloaded) / float64(a.updates.total)
+						ui.Progress(c, fraction).Grow(1).Label(locales.AboutUpdateProgress())
+						ui.Text(c, locales.Percent(100*fraction)).FontFeatures("tnum").Shrink(0)
+					})
+				}
+			})
+			ui.Checkbox(c, &a.settings.AutoUpdate, locales.AboutAutoUpdate()).Disabled(a.settingsError).OnChange(a.automaticUpdatesChanged)
+		})
+		separator(c)
 		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 			icon(c, "github").Shrink(0).Label("GitHub")
 			ui.Link(c, repositoryURL, repositoryURL).SingleLine().MinWidth(0).Tooltip(repositoryURL)
-		})
-	})
-	settingsGroup(c, locales.AboutUpdates(), func() {
-		ui.Row(c).Gap(em(c, 12)).Wrap().Children(func() {
-			iconButton(c, locales.AboutCheckUpdates(), "rotate-cw").Disabled(!a.updates.enabled || a.settingsError || a.updates.phase == updateChecking || a.updates.phase == updateInstalling || a.updates.phase == updateInstalled).OnClick(a.checkUpdates)
-			if a.updates.release != nil && a.updates.phase != updateInstalling && a.updates.phase != updateInstalled {
-				iconButton(c, locales.AboutInstallUpdate(), "download").Disabled(a.busy || a.settingsError).OnClick(func() { a.installUpdate(false) })
-			}
-		})
-		ui.Checkbox(c, &a.settings.AutoUpdate, locales.AboutAutoUpdate()).Disabled(a.settingsError).OnChange(a.automaticUpdatesChanged)
-		ui.Column(c).Height(em(c, 72)).Gap(em(c, 8)).Label(locales.AboutUpdateStatus()).Children(func() {
-			muted(c, a.updateStatus()).Tooltip(a.updates.failure)
-			if a.updates.phase == updateInstalling && a.updates.total > 0 && a.updates.downloaded < a.updates.total {
-				ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-					fraction := float64(a.updates.downloaded) / float64(a.updates.total)
-					ui.Progress(c, fraction).Grow(1).Label(locales.AboutUpdateProgress())
-					ui.Text(c, locales.Percent(100*fraction)).FontFeatures("tnum").Shrink(0)
-				})
-			}
 		})
 	})
 }

@@ -374,7 +374,7 @@ func (row *retranslationRow) status() string {
 		return locales.RetranslateApplied()
 	}
 	if row.result == nil {
-		return locales.RetranslatePending()
+		return ""
 	}
 	if !row.result.valid {
 		return locales.RetranslateInvalid()
@@ -405,7 +405,7 @@ func (r *retranslationState) filteredRows() []int {
 func (a *NativeApp) retranslationView(c *ui.Context) {
 	if a.retranslationNext != nil {
 		open := true
-		switch ui.AlertDialog(c, &open, locales.RetranslateNewTitle(), locales.RetranslateNewBody(), locales.ActionCancel(), locales.RetranslateNewConfirm()) {
+		switch confirmationDialog(c, &open, locales.RetranslateNewTitle(), locales.RetranslateNewBody(), locales.ActionCancel(), locales.RetranslateNewConfirm()) {
 		case 0:
 			a.retranslationNext = nil
 		case 1:
@@ -499,14 +499,10 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 								}
 								ui.Column(c).Gap(em(c, 8)).Children(func() {
 									ui.Text(c, field.label).FontSize(em(c, captionSize)).TextColor(c.Theme().TextMuted)
-									if field.text == "" {
-										label := locales.RetranslateNoExisting()
-										if i == 2 {
-											label = locales.RetranslatePending()
-										}
-										muted(c, label)
-									} else {
+									if field.text != "" {
 										ui.Text(c, field.text).Selectable().FontSize(em(c, 17)).LineHeight(1.5)
+									} else if i != 2 {
+										muted(c, locales.RetranslateNoExisting())
 									}
 								})
 							}

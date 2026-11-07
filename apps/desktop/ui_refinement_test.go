@@ -164,6 +164,11 @@ func TestTimelineFeatureToggleIsProminentAndNative(t *testing.T) {
 						}, w, int(850*scale))
 						tt.SetPreferences(ui.Preferences{TextScale: scale})
 						feature, ok := tt.Find(locales.TranslationOptimizeTimeline())
+						if tt.HasText(locales.TranslationTimelineOn()) || tt.HasText(locales.TranslationTimelineOff()) {
+							t.Fatal("timeline state still uses visible text")
+						}
+						indicatorX, indicatorY := int(feature.X+13*scale), int(feature.Y+13*scale)
+						indicatorBefore := tt.Image().RGBAAt(indicatorX, indicatorY)
 						start, _ := tt.Find(locales.WorkflowStartTranslate())
 						service, _ := tt.Find(locales.WorkflowAIService())
 						if !ok || feature.X < 0 || feature.X+feature.W > float32(w) || feature.W < float32(w)*0.85 || feature.H < 80*scale || feature.Y <= start.Y || feature.Y+feature.H >= service.Y {
@@ -182,6 +187,9 @@ func TestTimelineFeatureToggleIsProminentAndNative(t *testing.T) {
 						}
 						if a.settings.OptimizeTimeline == before || !tt.HasText(hintLabel) {
 							t.Fatal("feature label did not toggle or lost the result explanation")
+						}
+						if after := tt.Image().RGBAAt(indicatorX, indicatorY); after == indicatorBefore {
+							t.Fatal("timeline state indicator did not change with the toggle")
 						}
 						tt.Key(0, ui.KeySpace)
 						if a.settings.OptimizeTimeline != before {

@@ -330,7 +330,7 @@ func (a *NativeApp) presetDialogView(c *ui.Context) {
 			a.presetDialog = ""
 			return
 		}
-		switch ui.AlertDialog(c, &open, locales.PresetDeleteTitle(a.settings.UserPresets[index].Name), locales.PresetDeleteBody(), locales.ActionCancel(), locales.PresetDeleteConfirm()) {
+		switch confirmationDialog(c, &open, locales.PresetDeleteTitle(a.settings.UserPresets[index].Name), locales.PresetDeleteBody(), locales.ActionCancel(), locales.PresetDeleteConfirm()) {
 		case 1:
 			// The current values stay; only the saved copy goes.
 			a.settings.UserPresets = append(a.settings.UserPresets[:index], a.settings.UserPresets[index+1:]...)
@@ -347,7 +347,7 @@ func (a *NativeApp) presetDialogView(c *ui.Context) {
 	if a.presetDialog == "rename" {
 		title, confirm = locales.PresetRename(), locales.PresetRenameConfirm()
 	}
-	fixedDialog(c, &open, title, 480, 280, func() {
+	fixedDialog(c, &open, title, 480, 0, func() {
 		ui.Field(c, locales.PresetNameLabel(), func() {
 			ui.TextInput(c, &a.presetName).AutoFocus().Label(locales.PresetNameLabel()).Placeholder(locales.PresetNameLabel())
 		})

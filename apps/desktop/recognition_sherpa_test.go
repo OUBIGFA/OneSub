@@ -242,7 +242,6 @@ func TestWorkflowSherpaModelLanguagesAndOptions(t *testing.T) {
 					if got := modelLanguages(a.settings.AsrModel); len(got) != 7 || got[0].ID != "en" {
 						t.Fatal(got)
 					}
-					a.recognitionAdvanced = true
 					tt := settled(a.workflowPanel, width, 900)
 					for range 4 {
 						tt.Frame()

@@ -137,7 +137,7 @@ func currentMatchNumber(matches []listTextMatch, current listTextMatch) int {
 
 func (a *NativeApp) findReplaceView(c *ui.Context) {
 	f := &a.findReplace
-	fixedDialog(c, &f.open, locales.FindReplace(), 640, 460, func() {
+	fixedDialog(c, &f.open, locales.FindReplace(), 640, 0, func() {
 		ui.Field(c, locales.FindText(), func() {
 			ui.TextInput(c, &f.find).Label(locales.FindText()).AutoFocus().Disabled(a.busy).OnChange(func() { f.current = nil })
 		})
@@ -163,6 +163,7 @@ func (a *NativeApp) findReplaceView(c *ui.Context) {
 		muted(c, locales.FindLiteralHint())
 	}, func() {
 		ui.Button(c, locales.ActionClose()).OnClick(func() { f.open = false })
+		ui.Spacer(c)
 		disabled := a.busy || len(a.findMatches()) == 0
 		ui.Button(c, locales.FindNext()).Disabled(disabled).OnClick(a.findNextText)
 		ui.Button(c, locales.ReplaceOne()).Disabled(disabled).OnClick(func() { a.replaceListText(false) })

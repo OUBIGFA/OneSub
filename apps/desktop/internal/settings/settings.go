@@ -93,14 +93,13 @@ type Settings struct {
 	SingleClickAction      string                 `json:"singleClickAction"`
 	DoubleClickAction      string                 `json:"doubleClickAction"`
 	FollowPlayback         bool                   `json:"followPlayback"`
-	// The workbench panes, in percent: the player's width beside the list,
-	// the upper area's height, and the style's width in the lower area.
-	// EditorWidth is the editor's share of the room right of the style,
-	// beside recognition and translation.
-	PlayerWidth float64 `json:"playerWidth"`
-	TopHeight   float64 `json:"topHeight"`
-	EditorWidth float64 `json:"editorWidth"`
-	StyleWidth  float64 `json:"styleWidth"`
+	// Percentages: PlayerWidth divides the left column from the other two;
+	// EditorWidth divides their remaining room. TopHeight is the player's
+	// vertical share; SubtitleHeight independently divides the middle column.
+	PlayerWidth    float64 `json:"playerWidth"`
+	TopHeight      float64 `json:"topHeight"`
+	EditorWidth    float64 `json:"editorWidth"`
+	SubtitleHeight float64 `json:"subtitleHeight"`
 	// Local translation-output cleanup. Recognition preserves its punctuation;
 	// existing saved strip/keep choices move with the controls.
 	StripPunctuation bool   `json:"stripPunctuation"`
@@ -113,10 +112,10 @@ type Settings struct {
 
 // version is that of the settings written now. Version 1 had full volume
 // and SmartSub's shadow as defaults; Load moves them to version 2's.
-const version = 5
+const version = 6
 
 func Default() Settings {
-	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, AutoUpdate: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", RecognitionMode: "route", Language: "zh", LanguageModels: map[string]string{}, ManualLanguages: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", CompressionFormat: "mp4", CompressionQuality: "crf23", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 60, TopHeight: 64, EditorWidth: 400.0 / 7, StyleWidth: 30, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
+	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, AutoUpdate: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", RecognitionMode: "route", Language: "zh", LanguageModels: map[string]string{}, ManualLanguages: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", CompressionFormat: "mp4", CompressionQuality: "crf23", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 300.0 / 7, TopHeight: 75, EditorWidth: 75, SubtitleHeight: 75, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
 }
 
 // TranslationPunctuation freezes the local output options for a task.
@@ -186,7 +185,7 @@ func Load(path string) (Settings, error) {
 	s.Volume = max(0, min(100, s.Volume))
 	// A pane is never made too small to show or to drag back.
 	d := Default()
-	for _, pane := range []struct{ value, fallback *float64 }{{&s.PlayerWidth, &d.PlayerWidth}, {&s.TopHeight, &d.TopHeight}, {&s.EditorWidth, &d.EditorWidth}, {&s.StyleWidth, &d.StyleWidth}} {
+	for _, pane := range []struct{ value, fallback *float64 }{{&s.PlayerWidth, &d.PlayerWidth}, {&s.TopHeight, &d.TopHeight}, {&s.EditorWidth, &d.EditorWidth}, {&s.SubtitleHeight, &d.SubtitleHeight}} {
 		if !(*pane.value >= 10 && *pane.value <= 90) {
 			*pane.value = *pane.fallback
 		}
@@ -194,12 +193,13 @@ func Load(path string) (Settings, error) {
 	return s, nil
 }
 
-// Version 5 swaps style and editor and applies the new 1.5:2:1.5 lower layout
-// once on upgrade. The old percentages belonged to different split positions;
-// upper panes and all unrelated preferences remain intact. Later drags persist.
+// Version 6 changes the split hierarchy to three columns (3:3:1), with two
+// independent 3:1 vertical splits. Old ratios describe different dividers;
+// reset only that geometry once and retain all other user preferences.
 func upgrade(s *Settings) {
 	d := Default()
-	s.EditorWidth, s.StyleWidth = d.EditorWidth, d.StyleWidth
+	s.PlayerWidth, s.TopHeight = d.PlayerWidth, d.TopHeight
+	s.EditorWidth, s.SubtitleHeight = d.EditorWidth, d.SubtitleHeight
 	if s.Version >= 2 {
 		s.Version = version
 		return

@@ -45,35 +45,35 @@ func (a *NativeApp) composeView(c *ui.Context) {
 	if a.composeOpen && a.snapshot != nil {
 		_, outputErr = subtitle.SelectOutput(a.snapshot.OutputDocument(a.settings.SubtitleOutput), a.settings.SubtitleOutput)
 	}
-	fixedDialog(c, &a.composeOpen, locales.ActionCompose(), 920, 608, func() {
+	fixedDialog(c, &a.composeOpen, locales.ActionCompose(), 740, 0, func() {
 		hard := strings.HasPrefix(a.settings.ComposeMode, "hard")
-		ui.Grid(c).Columns(2).Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
-			settingsGroup(c, locales.OutputTrackGroup(), func() {
+		ui.Form(c, func() {
+			ui.Fieldset(c, locales.OutputTrackGroup(), func() {
 				a.outputColumn(c)
-			})
-			settingsGroup(c, locales.ComposeEncodingGroup(), func() {
+			}).Gap(em(c, 8))
+			ui.Fieldset(c, locales.ComposeEncodingGroup(), func() {
 				ui.Field(c, locales.ComposeMode(), func() {
 					idSelect(c, &a.settings.ComposeMode, composeModes()).Label(locales.ComposeMode()).OnChange(a.saveSettings)
 				})
 				ui.Field(c, locales.ComposeQuality(), func() {
 					idSelect(c, &a.settings.ComposeQuality, composeQualities()).Label(locales.ComposeQuality()).Disabled(!hard).OnChange(a.saveSettings)
 				})
-				ui.Column(c).MinHeight(em(c, 56)).Gap(em(c, 8)).FontSize(em(c, captionSize)).Children(func() {
-					switch {
-					case outputErr != nil:
-						ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
-					case a.settings.ComposeMode == "soft-mp4":
-						ui.Text(c, locales.ComposeMovTextNote()).TextColor(c.Theme().Warning)
-					case !hard:
-						muted(c, locales.ComposeSoftNote())
-					default:
-						muted(c, locales.ComposeCrfNote())
-						muted(c, locales.ComposeCrfRecommendation())
-					}
-				})
-			})
+			}).Gap(em(c, 8)).Margin(em(c, 8), 0, 0, 0)
+		}).Gap(em(c, 8))
+		ui.Column(c).MinHeight(em(c, 40)).Gap(em(c, 4)).FontSize(em(c, captionSize)).Children(func() {
+			switch {
+			case outputErr != nil:
+				ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
+			case a.settings.ComposeMode == "soft-mp4":
+				ui.Text(c, locales.ComposeMovTextNote()).TextColor(c.Theme().Warning)
+			case !hard:
+				muted(c, locales.ComposeSoftNote())
+			default:
+				muted(c, locales.ComposeCrfNote())
+				muted(c, locales.ComposeCrfRecommendation())
+			}
 		})
-		ui.Divider(c)
+		separator(c)
 		ui.Column(c).Gap(em(c, 12)).Children(func() {
 			folderField(c, a.settings.OutputDir, locales.RecognitionBesideMedia(), a.busy, a.pickComposeDir, func() { a.settings.OutputDir = ""; a.saveSettings() })
 			ui.Checkbox(c, &a.settings.ComposeAskPath, locales.ComposeAskPath()).OnChange(a.saveSettings)
