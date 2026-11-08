@@ -155,11 +155,7 @@ func primarySplitLane(lanes []splitText, sourceCount int, translated bool) (int,
 // available, then projects secondary text to the resulting shared times.
 // Estimated clocks redistribute within the envelope; aligned clocks never do.
 func partitionCue(ctx context.Context, cue Cue, format string, lanes []splitText, primary, count int, clock splitClock) ([][]string, [][]int, []int64, string, error) {
-	unit, minDuration := int64(1), minimumSplitDuration
-	if format == "ass" || format == "ssa" {
-		unit = 10
-		minDuration = (minDuration + unit - 1) / unit * unit
-	}
+	_, minDuration := splitTimeUnits(format)
 	pieces, offsets := make([][]string, len(lanes)), make([][]int, len(lanes))
 	var primaryClock splitClock
 	if primary == 0 {
@@ -170,6 +166,20 @@ func partitionCue(ctx context.Context, cue Cue, format string, lanes []splitText
 	if err != nil || len(pieces[primary]) != count {
 		return nil, nil, nil, "boundary", err
 	}
+	return projectSplitOffsets(ctx, cue, format, lanes, primary, clock, offsets[primary])
+}
+
+// Project a chosen primary-language plan onto one shared clock and all lanes.
+// No word clock is manufactured for third-party subtitles.
+func projectSplitOffsets(ctx context.Context, cue Cue, format string, lanes []splitText, primary int, clock splitClock, primaryOffsets []int) ([][]string, [][]int, []int64, string, error) {
+	count := len(primaryOffsets) - 1
+	unit, minDuration := splitTimeUnits(format)
+	pieces, offsets := make([][]string, len(lanes)), make([][]int, len(lanes))
+	offsets[primary] = primaryOffsets
+	for i := range count {
+		pieces[primary] = append(pieces[primary], lanes[primary].text[primaryOffsets[i]:primaryOffsets[i+1]])
+	}
+	var err error
 	fractions := lanes[primary].fractions(offsets[primary])
 	if clock.times != nil && primary != 0 {
 		// A translation determines linguistic cuts; its source chooses the
@@ -225,7 +235,18 @@ func splitCue(ctx context.Context, cue Cue, format, command string, original boo
 	if reason != "" {
 		return nil, reason, nil
 	}
+	if times, _ := wordBoundaries(cue, SourceText(cue)); times == nil && !force {
+		return splitUntimedCue(ctx, cue, format, command, original, source)
+	}
 	return splitCueLanes(ctx, cue, format, command, original, force, source)
+}
+
+func splitTimeUnits(format string) (unit, minimum int64) {
+	unit = 1
+	if format == "ass" || format == "ssa" {
+		unit = 10
+	}
+	return unit, (minimumSplitDuration + unit - 1) / unit * unit
 }
 
 // The recognition path supplies wider reading limits without changing the
@@ -370,7 +391,11 @@ func splitCueLanes(ctx context.Context, cue Cue, format, command string, origina
 		}
 		return nil, reason, nil
 	}
-	count = len(cuts) - 1
+	return splitCuesFromPlan(cue, command, original, len(source), lanes, separator, clock, pieces, offsets, cuts), "", nil
+}
+
+func splitCuesFromPlan(cue Cue, command string, original bool, sourceCount int, lanes []splitText, separator string, clock splitClock, pieces [][]string, offsets [][]int, cuts []int64) []Cue {
+	count := len(cuts) - 1
 	from := cue.SplitCueIDs
 	if len(from) == 0 {
 		from = cue.MergedCueIDs
@@ -384,13 +409,13 @@ func splitCueLanes(ctx context.Context, cue Cue, format, command string, origina
 		for lane := range lanes {
 			texts[lane] = pieces[lane][i]
 		}
-		src := strings.Join(texts[:len(source)], separator)
+		src := strings.Join(texts[:sourceCount], separator)
 		part := cue
 		part.ID = fmt.Sprintf("split-%s-%s-%d", command, cue.ID, i)
 		part.StartMs, part.EndMs = cuts[i], cuts[i+1]
 		part.Text, part.OriginalText, part.TranslationSource = src, src, ""
 		if cue.Translated {
-			part.TranslationSource, part.Text = src, strings.Join(texts[len(source):], separator)
+			part.TranslationSource, part.Text = src, strings.Join(texts[sourceCount:], separator)
 		}
 		part.TimeLocked, part.TextLocked = true, cue.TextLocked || cue.Translated
 		part.TimingQuality, part.Words = "estimated", nil
@@ -408,5 +433,5 @@ func splitCueLanes(ctx context.Context, cue Cue, format, command string, origina
 		}
 		out[i] = part
 	}
-	return out, "", nil
+	return out
 }
