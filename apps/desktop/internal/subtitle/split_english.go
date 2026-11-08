@@ -52,15 +52,7 @@ func protectEnglishPhrases(text string, ws *splitAnalysis) {
 	if !englishSplitText(text) {
 		return
 	}
-	tokens := englishSplitTokenizer.Tokenize(text)
-	// Reset the model's previous-tag context at sentence punctuation.
-	start := 0
-	for i, token := range tokens {
-		if strings.ContainsAny(token.Text, ".!?") && len(token.Text) == 1 || i == len(tokens)-1 {
-			englishSplitTagger().TagTokens(tokens[start : i+1])
-			start = i + 1
-		}
-	}
+	tokens := englishSplitTokens(text)
 	for i := 1; i < len(tokens); i++ {
 		left, right := tokens[i-1], tokens[i]
 		gap := text[left.End():right.Start]
@@ -94,4 +86,17 @@ func protectEnglishPhrases(text string, ws *splitAnalysis) {
 			}
 		}
 	}
+}
+
+func englishSplitTokens(text string) []tokenize.Token {
+	tokens := englishSplitTokenizer.Tokenize(text)
+	// Reset the model's previous-tag context at sentence punctuation.
+	start := 0
+	for i, token := range tokens {
+		if strings.ContainsAny(token.Text, ".!?") && len(token.Text) == 1 || i == len(tokens)-1 {
+			englishSplitTagger().TagTokens(tokens[start : i+1])
+			start = i + 1
+		}
+	}
+	return tokens
 }

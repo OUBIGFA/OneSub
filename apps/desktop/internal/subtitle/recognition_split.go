@@ -50,7 +50,7 @@ func SegmentRecognition(ctx context.Context, doc Document) (Document, error) {
 						pieces := []Cue{clause}
 						lane := recognitionSplitText(clause.Text)
 						if recognitionLong(lane) {
-							split, _, err := splitCueLanes(ctx, clause, doc.Format, "recognition", true, false, []splitText{lane})
+							split, err := splitRecognitionClause(ctx, clause, doc.Format, lane)
 							if err != nil {
 								return Document{}, err
 							}

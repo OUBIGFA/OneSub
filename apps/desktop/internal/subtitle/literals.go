@@ -94,6 +94,17 @@ func literalSpans(text string) []textSpan {
 	for i, r := range text {
 		if r == '.' || unicode.IsLetter(r) && !unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Hangul, unicode.Thai) {
 			if start < 0 {
+				// A suffix of an alphanumeric term is not a name initial:
+				// "3D. You" must not protect the final "D." as "J. Smith".
+				if i > 0 {
+					previous, _ := utf8.DecodeLastRuneInString(text[:i])
+					if unicode.IsDigit(previous) || previous == '_' {
+						continue
+					}
+					if unicode.IsLetter(previous) && !unicode.In(previous, unicode.Han, unicode.Hiragana, unicode.Katakana, unicode.Hangul, unicode.Thai) {
+						continue
+					}
+				}
 				start = i
 			}
 			continue
