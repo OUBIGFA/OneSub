@@ -23,6 +23,7 @@ func (a *NativeApp) stylePanelAtWidth(c *ui.Context, width float32) {
 	hasCues := a.snapshot != nil && len(a.snapshot.Document.Cues) > 0
 	ready := hasCues && len(a.styleCatalog.Presets) > 0
 	ass := a.snapshot != nil && (a.snapshot.Document.Format == "ass" || a.snapshot.Document.Format == "ssa")
+	bilingual := !ass && a.settings.SubtitleOutput.Normalized().Mode == "bilingual"
 	panel := ui.Column(c).Fill().Label(locales.A11yStylePanel())
 	split := ui.Local(panel, "content-width", func() float32 { return float32(a.settings.StyleContentWidth) })
 	contentScroll := ui.Local(panel, "content-scroll", func() ui.ScrollState { return ui.ScrollState{} })
@@ -30,6 +31,10 @@ func (a *NativeApp) stylePanelAtWidth(c *ui.Context, width float32) {
 	// overwrite the saved ratio or wait for a measured second frame.
 	fit := func(value float32) float32 {
 		room, left, right := width-1, em(c, 220), em(c, 360)
+		if bilingual {
+			// Keep both full layer names visible in the horizontal selector.
+			left = em(c, 290)
+		}
 		if room >= left+right {
 			return min(100-right/room*100, max(left/room*100, value))
 		}
@@ -48,9 +53,8 @@ func (a *NativeApp) stylePanelAtWidth(c *ui.Context, width float32) {
 			ui.SplitPercent(c, &shown, func() {
 				ui.Scroll(c).Fill().TrackScroll(contentScroll).Children(func() {
 					ui.Column(c).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 16)).Children(func() {
-						if !ass && a.settings.SubtitleOutput.Normalized().Mode == "bilingual" {
-							// Stack the two full layer names in the narrow content pane.
-							segmentedFill(c, &a.styleLayer, locales.StylePrimaryLayer(), locales.StyleSecondaryLayer()).Column().Label(locales.A11yStyleLayers())
+						if bilingual {
+							segmentedFill(c, &a.styleLayer, locales.StylePrimaryLayer(), locales.StyleSecondaryLayer()).Label(locales.A11yStyleLayers())
 						}
 						layer := a.editedLayer()
 						cells := a.outputFields(c, false)
