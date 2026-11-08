@@ -127,9 +127,9 @@ func splitClusterUnits(g []rune, cjk bool) float64 {
 func newSplitText(text string) splitText {
 	language := splitLanguageOf(text)
 	cjk, _, _ := readingProfile(text)
-	// Space-separated scripts aim for a line and a half: 56 columns preferred,
-	// 64 at most. One 42-column line cut English into fragments; two full
-	// lines (84) left cues too long to read and to translate.
+	// Explicit editor splitting aims for a line and a half: 56 columns
+	// preferred, 64 at most. Recognition separately allows two lines so
+	// automatic formatting preserves moderately long complete sentences.
 	limit, ceiling := 56.0, 64.0
 	if language == splitChinese || language == splitJapanese || language == splitKorean {
 		limit, ceiling = 16, 20

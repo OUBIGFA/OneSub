@@ -224,6 +224,13 @@ func splitCue(ctx context.Context, cue Cue, format, command string, original boo
 	if reason != "" {
 		return nil, reason, nil
 	}
+	return splitCueLanes(ctx, cue, format, command, original, force, source)
+}
+
+// The recognition path supplies wider reading limits without changing the
+// explicit editor command's length preferences or timing/protection gates.
+func splitCueLanes(ctx context.Context, cue Cue, format, command string, original bool, force bool, source []splitText) ([]Cue, string, error) {
+	reason := ""
 	lanes := source
 	if cue.Translated {
 		translated, why := splitLanes(cue.Text, format)
