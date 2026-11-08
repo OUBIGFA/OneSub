@@ -117,7 +117,7 @@ func TestRecognitionAllowsTwoLineSentenceBeforeSplitting(t *testing.T) {
 		cue.Words[0].Text = strings.Repeat(" ", len(text)-len(strings.TrimLeft(text, " "))) + cue.Words[0].Text
 		cue.Words[len(cue.Words)-1].Text += strings.Repeat(" ", len(text)-len(strings.TrimRight(text, " ")))
 		out, err := SegmentRecognition(context.Background(), Document{Format: "srt", Cues: []Cue{cue}})
-		if err != nil || len(out.Cues) != 1 || out.Cues[0].Text != text {
+		if err != nil || len(out.Cues) != 1 || out.Cues[0].Text != strings.TrimLeft(text," ") {
 			t.Fatal("split readable complete sentence", out, err)
 		}
 	}

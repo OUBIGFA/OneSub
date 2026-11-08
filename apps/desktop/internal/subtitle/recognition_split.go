@@ -16,8 +16,24 @@ import (
 func SegmentRecognition(ctx context.Context, doc Document) (Document, error) {
 	out := doc
 	out.Cues = make([]Cue, 0, len(doc.Cues))
-	for index := 0; index < len(doc.Cues); index++ {
-		cue := doc.Cues[index]
+	// Separate completed sentences before joining unfinished chunk tails.
+	// Two large ASR chunks can exceed solver capacity even when the sentence
+	// crossing their boundary is short and has a fully usable word clock.
+	var sentences []Cue
+	for _, cue := range doc.Cues {
+		if err := ctx.Err(); err != nil {
+			return Document{}, err
+		}
+		parts := []Cue{cue}
+		if times, _ := wordBoundaries(cue, cue.Text); times != nil && !cue.ReadOnly && !cue.Translated {
+			if lanes, _ := splitLanes(cue.Text, doc.Format); len(lanes) == 1 {
+				parts = recognitionPunctuationParts(cue, lanes[0], true)
+			}
+		}
+		sentences = append(sentences, parts...)
+	}
+	for index := 0; index < len(sentences); index++ {
+		cue := sentences[index]
 		if err := ctx.Err(); err != nil {
 			return Document{}, err
 		}
@@ -27,8 +43,8 @@ func SegmentRecognition(ctx context.Context, doc Document) (Document, error) {
 			if len(lanes) == 1 {
 				// Audio chunk edges are not sentence boundaries. Rejoin only
 				// contiguous, fully timed prose before choosing punctuation cuts.
-				for index+1 < len(doc.Cues) {
-					joined, ok := joinRecognitionContinuation(cue, doc.Cues[index+1], doc.Format)
+				for index+1 < len(sentences) {
+					joined, ok := joinRecognitionContinuation(cue, sentences[index+1], doc.Format)
 					if !ok {
 						break
 					}
@@ -65,6 +81,9 @@ func SegmentRecognition(ctx context.Context, doc Document) (Document, error) {
 			}
 		}
 		for _, part := range parts {
+			if !part.ReadOnly && !part.Translated {
+				part = trimSplitPadding(part, doc.Format)
+			}
 			part.Position = len(out.Cues)
 			out.Cues = append(out.Cues, part)
 		}

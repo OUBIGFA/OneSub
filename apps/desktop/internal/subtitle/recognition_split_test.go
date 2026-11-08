@@ -39,9 +39,10 @@ func TestSegmentRecognitionPreservesWordsPunctuationAndClock(t *testing.T) {
 				t.Fatal(part)
 			}
 		}
-		if joined != text || !reflect.DeepEqual(recovered, words) {
+		if withoutSpace(joined) != withoutSpace(text) {
 			t.Fatal("text or word evidence changed", out)
 		}
+		assertWordClockAfterPadding(t, recovered, words)
 		if !reflect.DeepEqual(doc.Cues, []Cue{cue}) {
 			t.Fatal("input changed")
 		}

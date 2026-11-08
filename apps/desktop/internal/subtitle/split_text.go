@@ -84,6 +84,7 @@ type splitAnalysis struct {
 	wordCount, score, next     []int
 	units                      []float64
 	blocked, literals          []bool
+	clauseHeads                []bool // contextual English clause openers; separate from literal/word masks
 	phraseCosts                []float64
 }
 
@@ -150,6 +151,7 @@ func newSplitText(text string) splitText {
 	ws.score = slices.Grow(ws.score[:0], n+1)[:n+1]
 	ws.next = slices.Grow(ws.next[:0], n+1)[:n+1]
 	ws.blocked = slices.Grow(ws.blocked[:0], n+1)[:n+1]
+	ws.clauseHeads = slices.Grow(ws.clauseHeads[:0], n+1)[:n+1]
 	ws.literals = slices.Grow(ws.literals[:0], n)[:n]
 	ws.phraseCosts = slices.Grow(ws.phraseCosts[:0], n+1)[:n+1]
 	clear(ws.units)
@@ -157,6 +159,7 @@ func newSplitText(text string) splitText {
 	clear(ws.wordEnd)
 	clear(ws.wordCount)
 	clear(ws.blocked)
+	clear(ws.clauseHeads)
 	clear(ws.literals)
 	clear(ws.phraseCosts)
 
@@ -309,6 +312,9 @@ func splitBoundaryPenalty(text string, index int, ws *splitAnalysis, language sp
 	}
 
 	right := strings.TrimLeftFunc(text[ws.bytes[index]:], unicode.IsSpace)
+	if ws.clauseHeads[index] {
+		return -5, true // "the so because ...": the speaker restarted before completing the noun phrase
+	}
 	if slices.Contains(noSplitAfterWords, lastSpacedWord(text[:ws.bytes[index]])) {
 		return 0, false
 	}

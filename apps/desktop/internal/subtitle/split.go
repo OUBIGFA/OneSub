@@ -78,6 +78,7 @@ func smartSplit(ctx context.Context, doc Document, command string, original bool
 				out.Added += len(parts) - 1
 				for i := range parts {
 					part := &parts[i]
+					*part = trimSplitPadding(*part, doc.Format)
 					source := punctuation.Apply(SourceText(*part))
 					if punctuation.StripTrailing {
 						source = strings.TrimSpace(source) // remove only split-edge padding during explicit cleanup

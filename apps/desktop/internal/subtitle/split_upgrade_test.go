@@ -32,8 +32,11 @@ func assertSplitEnvelope(t *testing.T, cue Cue, parts []Cue) {
 		}
 		text += part.Text
 		source += SourceText(part)
+		if !part.Translated && part.Text != part.OriginalText && part.Text != trimSplitLines(part.OriginalText, "srt") && part.Text != trimSplitLines(part.OriginalText, "ass") {
+			t.Fatal("changed more than split indentation", part)
+		}
 	}
-	if text != cue.Text || source != SourceText(cue) {
+	if withoutSpace(text) != withoutSpace(cue.Text) || withoutSpace(source) != withoutSpace(SourceText(cue)) {
 		t.Fatalf("lost or inserted text: %q / %q", text, source)
 	}
 }
@@ -314,7 +317,10 @@ func FuzzIntelligentSplitPreservesText(f *testing.F) {
 			if !utf8.ValidString(part.Text) || part.EndMs-part.StartMs < minimumSplitDuration || i > 0 && part.StartMs != parts[i-1].EndMs {
 				t.Fatal("invalid split", part)
 			}
-			combined += part.Text
+			if part.Text != trimSplitLines(part.OriginalText, "srt") {
+				t.Fatal("changed more than leading whitespace", part)
+			}
+			combined += part.OriginalText
 			// Existing illegal punctuation at the very beginning is retained;
 			// a newly introduced boundary must not strand it on the next piece.
 			first, _ := utf8.DecodeRuneInString(strings.TrimLeftFunc(part.Text, unicode.IsSpace))

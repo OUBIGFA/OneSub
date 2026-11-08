@@ -2,7 +2,6 @@ package subtitle
 
 import (
 	"context"
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -32,9 +31,7 @@ func TestRecognitionPrefersConnectorBeforeLengthBalance(t *testing.T) {
 			for _, part := range out.Cues {
 				words = append(words, part.Words...)
 			}
-			if !reflect.DeepEqual(words, cue.Words) {
-				t.Fatal("changed word clocks")
-			}
+			assertWordClockAfterPadding(t, words, cue.Words)
 		})
 	}
 }
