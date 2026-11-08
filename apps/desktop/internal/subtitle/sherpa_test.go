@@ -1,8 +1,37 @@
 package subtitle
 
 import (
+	"strings"
 	"testing"
 )
+
+// A recognizer result is the original subtitle boundary. Display length,
+// punctuation and pauses must not turn its trailing word into another cue.
+func TestSherpaOriginalResultIsNotSplit(t *testing.T) {
+	for _, text := range []string{
+		"We will use the selected object and then apply a simple bevel modifier.",
+		"A complete sentence. Another one! The end?",
+		strings.Repeat("这是一段需要保留完整边界的中文原文", 4) + "。",
+	} {
+		t.Run(text, func(t *testing.T) {
+			words := []SpacedWord{}
+			for i, part := range strings.Fields(text) {
+				words = append(words, SpacedWord{Word: Word{Text: part, StartMs: int64(i) * 2000, EndMs: int64(i)*2000 + 300}, Space: i > 0})
+			}
+			// Split Chinese into token evidence, just as the native model does.
+			if len(words) == 1 {
+				words = nil
+				for i, r := range []rune(text) {
+					words = append(words, SpacedWord{Word: Word{Text: string(r), StartMs: int64(i) * 200, EndMs: int64(i)*200 + 200}})
+				}
+			}
+			cue := SherpaCue(text, words, words[len(words)-1].EndMs+100)
+			if cue.Text != text || cue.OriginalText != text || len(cue.Words) != len(words) || cue.StartMs != words[0].StartMs || cue.EndMs != words[len(words)-1].EndMs+100 {
+				t.Fatalf("engine result changed: %+v", cue)
+			}
+		})
+	}
+}
 
 // The results below are real sherpa-onnx v2.0.1 output of the models'
 // own test recordings.
@@ -15,11 +44,11 @@ func TestSherpaWordsSenseVoiceChinese(t *testing.T) {
 	if len(words) != 13 || words[12].Text != "点。" || words[0].StartMs != 720 || words[0].EndMs != 960 || words[12].EndMs != 5400 {
 		t.Fatal(words)
 	}
-	cues := WordCues(words)
-	if len(cues) != 1 || cues[0].Text != "开饭时间早上9点至下午5点。" || cues[0].StartMs != 720 || cues[0].EndMs != 5500 {
-		t.Fatal(cues)
+	cue := SherpaCue(results[0].Text, words, 5600)
+	if cue.Text != "开饭时间早上9点至下午5点。" || cue.StartMs != 720 || cue.EndMs != 5500 {
+		t.Fatal(cue)
 	}
-	if _, _, err := attachCheck(cues); err != nil {
+	if _, _, err := attachCheck([]Cue{cue}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -31,21 +60,21 @@ func TestSherpaWordsSentencePiecesJoinWordsAndNumbers(t *testing.T) {
 	for _, w := range words {
 		got = append(got, w.Text)
 	}
-	// The 2.16 s pause between "chieftain" and "with" ends the first cue.
-	cues := WordCues(words)
-	if len(cues) != 2 || cues[0].Text != "The tribal chieftain" || cues[1].Text != "with 50 pieces." || cues[0].EndMs != 2920 {
-		t.Fatal(got, cues)
+	// A pause inside the engine result does not create a subtitle boundary.
+	if strings.Join(got, "|") != "The|tribal|chieftain|with|50|pieces." {
+		t.Fatal(got)
 	}
 }
 
 func TestSherpaWordsKoreanAndJapanese(t *testing.T) {
 	ko := SherpaResult{Tokens: []string{"조", "금", "만", " 생각을", " 하면서", "."}, Timestamps: []float64{0.1, 0.2, 0.3, 0.5, 1.0, 1.4}}
-	if text := WordCues(SherpaWords(ko, SherpaPieces, 2000))[0].Text; text != "조금만 생각을 하면서." {
-		t.Fatal(text)
+	koWords := SherpaWords(ko, SherpaPieces, 2000)
+	if len(koWords) != 5 || koWords[4].Text != "하면서." || !koWords[3].Space {
+		t.Fatal(koWords)
 	}
 	ja := SherpaResult{Tokens: []string{"は", "5", "0", "円", "。"}, Timestamps: []float64{0.1, 0.2, 0.3, 0.4, 0.5}}
 	words := SherpaWords(ja, SherpaPieces, 1000)
-	if len(words) != 3 || words[1].Text != "50" || WordCues(words)[0].Text != "は50円。" {
+	if len(words) != 3 || words[1].Text != "50" || words[2].Text != "円。" {
 		t.Fatal(words)
 	}
 }
@@ -64,9 +93,6 @@ func TestSherpaWordsParaformerContinuationAndPunctuation(t *testing.T) {
 	if len(words) != 7 || words[0].Text != "yesterday" || words[0].StartMs != 380 {
 		t.Fatal(words)
 	}
-	if text := WordCues(words)[0].Text; text != "yesterday was星期一today is" {
-		t.Fatal(text)
-	}
 	// CT-Transformer removes the spaces around Chinese and adds marks.
 	punctuated, ok := PunctuateWords(words, "yesterday was星期一，today is。")
 	if !ok || punctuated[4].Text != "一，" || punctuated[6].Text != "is。" {
@@ -77,32 +103,20 @@ func TestSherpaWordsParaformerContinuationAndPunctuation(t *testing.T) {
 	}
 }
 
-func TestWordCuesBreakAtSentencesPausesAndLength(t *testing.T) {
-	words := []SpacedWord{}
-	add := func(text string, start, end int64, space bool) {
-		words = append(words, SpacedWord{Word: Word{Text: text, StartMs: start, EndMs: end}, Space: space})
+// Preserve engine spacing and punctuation even when the vocabulary uses
+// multiple token pieces; inference input boundaries must remain separate.
+func TestSherpaCueKeepsNativeTextAndRegionBoundary(t *testing.T) {
+	words := []SpacedWord{{Word: Word{Text: "Hello", StartMs: 100, EndMs: 300}}, {Word: Word{Text: "world.", StartMs: 400, EndMs: 700}, Space: true}}
+	cue := SherpaCue("Hello  world.", words, 750)
+	if cue.Text != "Hello  world." || cue.EndMs != 750 || len(cue.Words) != 2 {
+		t.Fatal(cue)
 	}
-	add("Pi", 0, 200, false)
-	add("is", 200, 400, true)
-	add("3.", 400, 600, true)
-	add("14.", 600, 800, false)
-	add("Yes!", 900, 1100, true)
-	add("Later", 2000, 2300, true)
-	cues := WordCues(words)
-	if len(cues) != 3 || cues[0].Text != "Pi is 3.14." || cues[1].Text != "Yes!" || cues[2].Text != "Later" || cues[0].EndMs != 900 || cues[1].EndMs != 1200 {
-		t.Fatal(cues)
+	if _, _, err := attachCheck([]Cue{cue}); err != nil {
+		t.Fatal(err)
 	}
-	long := []SpacedWord{}
-	for i := 0; i < 40; i++ {
-		text := "字"
-		if i == 19 {
-			text = "字，"
-		}
-		long = append(long, SpacedWord{Word: Word{Text: text, StartMs: int64(i) * 200, EndMs: int64(i)*200 + 200}})
-	}
-	cues = WordCues(long)
-	if len(cues) != 2 || len([]rune(cues[0].Text)) != 21 {
-		t.Fatal(cues)
+	words[0].Text = "changed"
+	if cue.Words[0].Text != "Hello" {
+		t.Fatal("cue aliases mutable word evidence")
 	}
 }
 

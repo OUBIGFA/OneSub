@@ -133,11 +133,13 @@ func TestSherpaEnginesRecognizeRealSpeech(t *testing.T) {
 			}
 			duration := pcm.length / pcmBytesPerMs
 			pcm.Close()
-			words, err := toolset{}.recognizeSherpa(context.Background(), model, dir, c.language, wav, scratch, []speechRegion{{0, duration}}, func(recognitionStep) {})
+			cues, err := toolset{}.recognizeSherpa(context.Background(), model, dir, c.language, wav, scratch, []speechRegion{{0, duration}}, func(recognitionStep) {})
 			if err != nil {
 				t.Fatal(err)
 			}
-			cues := subtitle.WordCues(words)
+			if len(cues) != 1 {
+				t.Fatalf("one engine result became %d cues", len(cues))
+			}
 			text := ""
 			for _, cue := range cues {
 				text += cue.Text

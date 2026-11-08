@@ -32,7 +32,9 @@ FP32 的 `encoder.weights` 是 `encoder.onnx` 的外部数据，不能省略、�
 
 ## 适配边界
 
-实现位于 `apps/desktop/recognition_sherpa.go`、`punctuate_windows.go`；token 转词与断句位于 `internal/subtitle/sherpa.go`。
+实现位于 `apps/desktop/recognition_sherpa.go`、`punctuate_windows.go`；token 转词与原始字幕封装位于 `internal/subtitle/sherpa.go`。
+
+原始字幕保留每个引擎结果的完整文字与输入片段边界，不再按标点、停顿、阅读长度或最长字幕时长再次分条。CT-Transformer 只恢复 Paraformer 的标点，不产生额外字幕边界。Qwen3-ASR 继续采用 OneAsr 返回的 SRT。sherpa-onnx CLI 返回的片段边界不是语义句界；必要的音频分块仍保留，原始条目可能较长，识别后可由用户显式编辑。
 
 1. 语音检测、静音保护与 OneAsr 路径共用同一 FireRedVAD；输入不超过 20 秒，相邻输入不重叠。
 2. CLI 以 ANSI 代码页读取参数。所有 WAV 与模型路径都是工作目录内的 ASCII 相对路径，模型目录经目录联接挂载，不复制权重。

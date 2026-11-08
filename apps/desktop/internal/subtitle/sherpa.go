@@ -198,117 +198,21 @@ func PunctuateWords(words []SpacedWord, punctuated string) ([]SpacedWord, bool) 
 	return out, true
 }
 
-// Cue boundaries of recognized words: a sentence ends at a strong mark, a
-// pause of breakGapMs or more always ends a cue, and a cue never becomes
-// too long to read (the readability limits) or lasts more than maxCueMs.
-// An over-long cue ends at its last weak mark when it has one.
-const (
-	breakGapMs = 600
-	maxCueMs   = 10000
-	cuePadMs   = 100
-)
-
-// WordCues makes sentence cues of words, one cue per sentence, with the
-// words as their timing evidence. Each cue ends cuePadMs after its last
-// word, never after the next cue starts.
-func WordCues(words []SpacedWord) []Cue {
-	groups := [][]SpacedWord{}
-	current := []SpacedWord{}
-	text := func(ws []SpacedWord) string {
-		var b strings.Builder
-		for i, w := range ws {
-			if i > 0 && w.Space {
-				b.WriteByte(' ')
-			}
-			b.WriteString(w.Text)
-		}
-		return b.String()
+// SherpaCue preserves one engine result as one original subtitle. Text comes
+// from the engine, not reconstructed tokens. Word times bound the cue but never
+// split it by punctuation, pauses, reading length or duration. endMs is the
+// input region's end on the same clock as words.
+func SherpaCue(text string, words []SpacedWord, endMs int64) Cue {
+	cue := Cue{Text: text, OriginalText: text}
+	if len(words) == 0 {
+		return cue
 	}
-	flush := func() {
-		if len(current) > 0 {
-			groups = append(groups, current)
-			current = nil
-		}
-	}
+	cue.StartMs = words[0].StartMs
+	cue.EndMs = min(endMs, words[len(words)-1].EndMs+100)
 	for _, w := range words {
-		if n := len(current); n > 0 && sentenceEnd(current[n-1].Text, &w) {
-			flush()
-		}
-		if n := len(current); n > 0 {
-			if w.StartMs-current[n-1].EndMs >= breakGapMs {
-				flush()
-			} else {
-				candidate := append(append([]SpacedWord{}, current...), w)
-				if w.EndMs-current[0].StartMs > maxCueMs || InspectReading(text(candidate), w.EndMs-current[0].StartMs).TooLong {
-					cut := n
-					for j := n - 1; j > 0; j-- {
-						if endsWith(current[j-1].Text, weakMarks) {
-							cut = j
-							break
-						}
-					}
-					tail := append([]SpacedWord{}, current[cut:]...)
-					current = current[:cut]
-					flush()
-					current = tail
-				}
-			}
-		}
-		current = append(current, w)
+		cue.Words = append(cue.Words, w.Word)
 	}
-	flush()
-	cues := []Cue{}
-	for i, g := range groups {
-		end := g[len(g)-1].EndMs + cuePadMs
-		if i+1 < len(groups) {
-			end = min(end, groups[i+1][0].StartMs)
-		}
-		end = max(end, g[len(g)-1].EndMs)
-		ws := []Word{}
-		for _, w := range g {
-			ws = append(ws, w.Word)
-		}
-		t := text(g)
-		cues = append(cues, Cue{Position: i, StartMs: g[0].StartMs, EndMs: end, Text: t, OriginalText: t, Words: ws})
-	}
-	return cues
-}
-
-const (
-	strongMarks = "。！？!?…"
-	weakMarks   = "，、,：:；;"
-)
-
-// endsWith reports whether text ends with one of marks, ignoring closing
-// quotes and brackets after it.
-func endsWith(text, marks string) bool {
-	last, _ := utf8.DecodeLastRuneInString(trimClosing(text))
-	return last != utf8.RuneError && strings.ContainsRune(marks, last)
-}
-
-// sentenceEnd reports whether a sentence ends after the word text, before
-// next. A period does not end one inside a number (3.5, the next word goes
-// on without a space) or after a letter abbreviation (U.S.).
-func sentenceEnd(text string, next *SpacedWord) bool {
-	if endsWith(text, strongMarks) {
-		return true
-	}
-	before, found := strings.CutSuffix(trimClosing(text), ".")
-	if !found || before == "" || strings.HasSuffix(before, ".") {
-		return false
-	}
-	if next != nil && !next.Space {
-		if first, _ := utf8.DecodeRuneInString(next.Text); unicode.IsDigit(first) {
-			return false
-		}
-	}
-	runes := []rune(before)
-	return !(len(runes) >= 2 && runes[len(runes)-2] == '.' && unicode.IsLetter(runes[len(runes)-1]))
-}
-
-// trimClosing drops the closing quotes and brackets that end text.
-func trimClosing(text string) string {
-	return strings.TrimRightFunc(text, func(r rune) bool { return unicode.In(r, unicode.Pe, unicode.Pf) || r == '"' || r == '\'' })
+	return cue
 }
 
 func punctuationOnly(s string) bool {
@@ -323,20 +227,6 @@ func punctuationOnly(s string) bool {
 func opening(s string) bool {
 	r, _ := utf8.DecodeRuneInString(s)
 	return unicode.In(r, unicode.Ps, unicode.Pi) || r == '¿' || r == '¡'
-}
-
-// BoundarySpace reports whether a space joins two words recognized in
-// separate inputs: always, unless a side is Chinese or Japanese text or a
-// full-width mark.
-func BoundarySpace(before, next string) bool {
-	last, _ := utf8.DecodeLastRuneInString(before)
-	first, _ := utf8.DecodeRuneInString(next)
-	for _, r := range []rune{last, first} {
-		if unicode.In(r, unicode.Han, unicode.Hiragana, unicode.Katakana) || (r >= 0x3000 && r <= 0x303F) || (r >= 0xFF00 && r <= 0xFFEF) {
-			return false
-		}
-	}
-	return true
 }
 
 // noSpaceScript reports runes of scripts written without spaces between

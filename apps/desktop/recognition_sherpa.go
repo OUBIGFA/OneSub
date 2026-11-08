@@ -40,7 +40,8 @@ func (t toolset) sherpaRuntime() string {
 
 // recognizeWithSherpa is recognize for a sherpa-onnx model: the same audio
 // extraction and FireRedVAD speech detection as OneAsr, then the model's
-// own token times become word timings and sentence cues. It returns the
+// own token times become word timings. Each engine result keeps its text
+// and boundary as one original subtitle. It returns the
 // same SRT and word artifacts, in a scratch folder that cleanup removes.
 func (t toolset) recognizeWithSherpa(ctx context.Context, asr models.Model, asrDir, vad, language, source string, step func(recognitionStep)) (srt string, words []byte, cleanup func(), err error) {
 	scratch, err := os.MkdirTemp(t.worker.Scratch, "asr-")
@@ -76,7 +77,7 @@ func (t toolset) recognizeWithSherpa(ctx context.Context, asr models.Model, asrD
 		return "", nil, nil, errors.New(locales.RecognitionNoSpeech())
 	}
 	step(recognitionStep{Stage: "save"})
-	doc := subtitle.Document{Format: "srt", TargetFormat: "srt", Cues: subtitle.WordCues(recognized)}
+	doc := subtitle.Document{Format: "srt", TargetFormat: "srt", Cues: recognized}
 	all := []subtitle.Word{}
 	for i := range doc.Cues {
 		doc.Cues[i].ID = fmt.Sprintf("asr-%d", i)
@@ -121,7 +122,7 @@ func sherpaArgs(model models.Model, dir, language string) []string {
 // most sherpaChunkMs, every input file and model path the CLI opens is an
 // ASCII path relative to scratch (the CLI reads paths in the ANSI code
 // page), and the token times come back on the recording's clock.
-func (t toolset) recognizeSherpa(ctx context.Context, model models.Model, modelDir, language, wav, scratch string, regions []speechRegion, step func(recognitionStep)) ([]subtitle.SpacedWord, error) {
+func (t toolset) recognizeSherpa(ctx context.Context, model models.Model, modelDir, language, wav, scratch string, regions []speechRegion, step func(recognitionStep)) ([]subtitle.Cue, error) {
 	root, removeRoot, err := models.RuntimeRoot(ctx, scratch, map[string]string{model.ID: modelDir})
 	if err != nil {
 		return nil, err
@@ -149,6 +150,7 @@ func (t toolset) recognizeSherpa(ctx context.Context, model models.Model, modelD
 	}
 	cli := filepath.Join(t.sherpaRuntime(), "sherpa-onnx-offline.exe")
 	chunks := make([][]subtitle.SpacedWord, len(regions))
+	texts := make([]string, len(regions))
 	step(recognitionStep{Stage: "load-asr"})
 	for first := 0; first < len(regions); first += sherpaBatch {
 		last := min(first+sherpaBatch, len(regions))
@@ -173,6 +175,7 @@ func (t toolset) recognizeSherpa(ctx context.Context, model models.Model, modelD
 		}
 		for i, result := range results {
 			region := regions[first+i]
+			texts[first+i] = result.Text
 			words := subtitle.SherpaWords(result, style, region.EndMs-region.StartMs)
 			for j := range words {
 				words[j].StartMs += region.StartMs
@@ -183,18 +186,18 @@ func (t toolset) recognizeSherpa(ctx context.Context, model models.Model, modelD
 	}
 	if model.Engine == models.EngineParaformer {
 		step(recognitionStep{Stage: "punctuate"})
-		if err = t.punctuate(ctx, modelDir, chunks); err != nil {
+		if err = t.punctuate(ctx, modelDir, chunks, texts); err != nil {
 			return nil, err
 		}
 	}
-	all := []subtitle.SpacedWord{}
-	for _, words := range chunks {
-		if len(words) > 0 && len(all) > 0 {
-			// Inputs are separate utterances: a word after another input
-			// is spaced by its script, not by the token that began it.
-			words[0].Space = subtitle.BoundarySpace(all[len(all)-1].Text, words[0].Text)
+	all := []subtitle.Cue{}
+	for i, words := range chunks {
+		if len(words) == 0 {
+			continue
 		}
-		all = append(all, words...)
+		cue := subtitle.SherpaCue(texts[i], words, regions[i].EndMs)
+		cue.Position = len(all)
+		all = append(all, cue)
 	}
 	return all, nil
 }
@@ -203,7 +206,7 @@ func (t toolset) recognizeSherpa(ctx context.Context, model models.Model, modelD
 // with the CT-Transformer model in the model folder. It runs in a child
 // OneSub process; see runPunctuate. A chunk whose punctuated text does not
 // match its words keeps its words without marks.
-func (t toolset) punctuate(ctx context.Context, modelDir string, chunks [][]subtitle.SpacedWord) error {
+func (t toolset) punctuate(ctx context.Context, modelDir string, chunks [][]subtitle.SpacedWord, texts []string) error {
 	self, err := os.Executable()
 	if err != nil {
 		return err
@@ -237,6 +240,7 @@ func (t toolset) punctuate(ctx context.Context, modelDir string, chunks [][]subt
 	for i := range chunks {
 		if words, ok := subtitle.PunctuateWords(chunks[i], outputs[i]); ok {
 			chunks[i] = words
+			texts[i] = outputs[i]
 		}
 	}
 	return nil
