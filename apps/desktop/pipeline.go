@@ -74,10 +74,46 @@ func (t toolset) recognitionModels(prefs settings.Settings) (asr, aligner models
 	return asr, aligner, nil
 }
 
-// recognize runs the selected model's CLI after language detection in smart
-// mode. It returns SRT and word timings in a scratch folder that cleanup
-// removes. step reports the actual recognition stages.
+// recognize publishes locally segmented original subtitles for every engine.
+// Desktop, batch and MCP callers all pass through this post-ASR boundary.
 func (t toolset) recognize(ctx context.Context, prefs settings.Settings, source string, step func(recognitionStep)) (srt string, words []byte, cleanup func(), err error) {
+	srt, words, cleanup, err = t.recognizeNative(ctx, prefs, source, step)
+	if err != nil {
+		return
+	}
+	if err = t.segmentRecognition(ctx, srt, words); err != nil {
+		cleanup()
+		return "", nil, nil, err
+	}
+	return
+}
+
+// segmentRecognition preserves the sidecar's original evidence. Loading the
+// final subtitle attaches that evidence again and reports unmatched cues; the
+// automatic splitter leaves those cues intact rather than estimating times.
+func (t toolset) segmentRecognition(ctx context.Context, srt string, words []byte) error {
+	doc, err := t.worker.Read(ctx, srt)
+	if err != nil {
+		return err
+	}
+	doc, _, err = subtitle.AttachOneAsrWords(doc, words)
+	if err != nil {
+		return err
+	}
+	doc, err = subtitle.SegmentRecognition(ctx, doc)
+	if err != nil {
+		return err
+	}
+	data, err := t.worker.Write(ctx, doc)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(srt, data, 0600)
+}
+
+// recognizeNative retains each engine's text and boundaries before local
+// subtitle segmentation. The scratch artifacts are owned by cleanup.
+func (t toolset) recognizeNative(ctx context.Context, prefs settings.Settings, source string, step func(recognitionStep)) (srt string, words []byte, cleanup func(), err error) {
 	if prefs.RecognitionMode == recognitionRouted {
 		// Detect the language first, then recognize with its model.
 		var route recognitionRoute

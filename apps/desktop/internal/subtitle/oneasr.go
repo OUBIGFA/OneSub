@@ -76,18 +76,12 @@ func AttachOneAsrWords(doc Document, data []byte) (Document, []string, error) {
 	for i, cue := range out.Cues {
 		text, offset := SourceText(cue), 0
 		selected := []Word{}
+		groupTimed := false
 		first := sort.Search(len(words), func(j int) bool { return words[j].StartMs >= cue.StartMs })
 		for j := first; j < len(words) && words[j].StartMs < cue.EndMs; j++ {
 			word := words[j]
 			if word.StartMs < cue.StartMs || word.EndMs > cue.EndMs {
 				continue
-			}
-			// OneAsr v1.3.0 deliberately retains zero-duration aligner tokens.
-			// They are valid evidence, but not safe split anchors. Preserve this
-			// whole cue (including the token's text), without inventing duration.
-			if word.EndMs == word.StartMs || (len(selected) > 0 && word.StartMs < selected[len(selected)-1].EndMs) {
-				selected = nil
-				break
 			}
 			at := strings.Index(text[offset:], word.Text)
 			if word.Text == "" || at < 0 || strings.TrimSpace(text[offset:offset+at]) != "" {
@@ -96,10 +90,20 @@ func AttachOneAsrWords(doc Document, data []byte) (Document, []string, error) {
 			}
 			end := offset + at + len(word.Text)
 			word.Text = text[offset:end]
-			selected = append(selected, word)
+			// Collapsed subwords and overlapping tokens cannot be independent
+			// split anchors. Keep their exact text in an indivisible time group
+			// bounded by the existing evidence, without synthesizing durations.
+			if n := len(selected); n > 0 && (word.StartMs == word.EndMs || !groupTimed || word.StartMs < selected[n-1].EndMs) {
+				selected[n-1].Text += word.Text
+				selected[n-1].EndMs = max(selected[n-1].EndMs, word.EndMs)
+				groupTimed = groupTimed || word.StartMs < word.EndMs
+			} else {
+				selected = append(selected, word)
+				groupTimed = word.StartMs < word.EndMs
+			}
 			offset = end
 		}
-		if len(selected) == 0 || strings.TrimSpace(text[offset:]) != "" {
+		if len(selected) == 0 || !groupTimed || strings.TrimSpace(text[offset:]) != "" {
 			unmatched++
 			continue
 		}

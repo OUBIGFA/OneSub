@@ -198,7 +198,7 @@ func PunctuateWords(words []SpacedWord, punctuated string) ([]SpacedWord, bool) 
 	return out, true
 }
 
-// SherpaCue preserves one engine result as one original subtitle. Text comes
+// SherpaCue preserves one engine result before local segmentation. Text comes
 // from the engine, not reconstructed tokens. Word times bound the cue but never
 // split it by punctuation, pauses, reading length or duration. endMs is the
 // input region's end on the same clock as words.

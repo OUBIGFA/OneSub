@@ -9,7 +9,7 @@ import (
 )
 
 // Upstream timeline::place_whole/round_millis retain collapsed aligner tokens.
-// The sentence remains usable; only word-level splitting loses its evidence.
+// A collapsed punctuation token stays with its preceding timed word.
 func TestOneAsrZeroDurationRetainsSentenceAndOtherAnchors(t *testing.T) {
 	doc := Document{Format: "srt", Cues: []Cue{
 		{ID: "a", Text: "Hello!", OriginalText: "Hello!", StartMs: 0, EndMs: 1000},
@@ -17,8 +17,11 @@ func TestOneAsrZeroDurationRetainsSentenceAndOtherAnchors(t *testing.T) {
 	}}
 	raw := []byte(`{"unit":"aligner_token","word_count":3,"words":[{"text":"Hello","start":0.1,"end":0.8},{"text":"!","start":0.8,"end":0.8},{"text":"Next","start":1.1,"end":1.9}]}`)
 	out, warnings, err := AttachOneAsrWords(doc, raw)
-	if err != nil || len(warnings) != 1 || out.Cues[0].Text != "Hello!" || len(out.Cues[0].Words) != 0 || len(out.Cues[1].Words) != 1 {
+	if err != nil || len(warnings) != 0 || out.Cues[0].Text != "Hello!" || len(out.Cues[0].Words) != 1 || len(out.Cues[1].Words) != 1 {
 		t.Fatal(out, warnings, err)
+	}
+	if out.Cues[0].Words[0] != (Word{"Hello!", 100, 800}) {
+		t.Fatal(out.Cues[0].Words)
 	}
 	if out.Cues[0].StartMs != 0 || out.Cues[0].EndMs != 1000 {
 		t.Fatal("invented sentence time")
