@@ -7,7 +7,33 @@ import (
 
 // File actions have a stable first row; the second groups editing, selection
 // and review. Narrow panes keep the same order through native compact menus.
-func (a *NativeApp) subtitleToolbar(c *ui.Context, compact, hasCues bool) {
+func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) {
+	compact := width < em(c, 680)
+	// Decide from this frame's width and localized labels. English and a
+	// larger text scale need more room before the complete labels can fit.
+	labels := []string{locales.SubtitleActionsMenu(), locales.ListLocate(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.FindReplace(), locales.RetranslateCheckAll(), locales.TranslationResults()}
+	if count := len(a.checkedRetranslationIDs()); count > 0 {
+		labels = append(labels, locales.RetranslateSelected(count), locales.RetranslateClear())
+	} else {
+		labels = append(labels, locales.RetranslateSelect())
+	}
+	if a.retranslation != nil {
+		labels = append(labels, locales.RetranslateReopen())
+	}
+	issues := a.readingIssues()
+	labels = append(labels, locales.ReadingSplitCount(issues[0].count))
+	// The existing compact layout covers icons, button padding and gaps.
+	labelWidth := em(c, 680)
+	for _, label := range labels {
+		w, _ := c.MeasureText(0, ui.Span{Text: label})
+		labelWidth += w
+	}
+	var issueWidth float32
+	for _, issue := range issues {
+		w, _ := c.MeasureText(0, ui.Span{Text: issue.label})
+		issueWidth = max(issueWidth, w)
+	}
+	iconOnly := width < labelWidth+issueWidth
 	ui.Column(c).Padding(em(c, 8), em(c, 12)).Gap(em(c, 8)).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
 		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
 			if compact {
@@ -20,25 +46,34 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, compact, hasCues bool) {
 		})
 		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Toolbar(c, func() {
-				a.subtitleActionsMenu(c)
-				toolIcon(c, locales.ListLocate(), "locate-fixed").Disabled(!hasCues).OnClick(a.locateCurrent)
+				a.subtitleActionsMenu(c, iconOnly)
+				subtitleTool(c, locales.ListLocate(), "locate-fixed", iconOnly).Disabled(!hasCues).OnClick(a.locateCurrent)
 				if !compact {
-					a.listPunctuationTools(c)
+					a.listPunctuationTools(c, iconOnly)
 				}
-				toolIcon(c, locales.FindReplace(), "text-search").Disabled(!hasCues || a.busy || a.showsTranslationProgress()).OnClick(a.openFindReplace)
+				subtitleTool(c, locales.FindReplace(), "text-search", iconOnly).Disabled(!hasCues || a.busy || a.showsTranslationProgress()).OnClick(a.openFindReplace)
 			}).Padding(0).Shrink(0)
 			ui.Toolbar(c, func() {
-				a.subtitleSelectionActions(c, compact)
-				a.retranslationActions(c, compact)
+				a.subtitleSelectionActions(c, iconOnly)
+				a.retranslationActions(c, iconOnly)
 			}).Padding(0).Shrink(0)
 			if compact {
 				a.readingMenu(c)
 			} else {
-				a.readingTools(c)
+				a.readingTools(c, iconOnly)
 			}
-			toolIcon(c, locales.TranslationResults(), "file-warning").Disabled(a.translationCandidate == nil).OnClick(func() { a.translationReview = true })
+			subtitleTool(c, locales.TranslationResults(), "file-warning", iconOnly).Disabled(a.translationCandidate == nil).OnClick(func() { a.translationReview = true })
 		})
 	})
+}
+
+// Both toolbar presentations keep the same action, tooltip and accessible
+// name. Compact panes hide only the label, using the existing native button.
+func subtitleTool(c *ui.Context, label, name string, compact bool) ui.Element {
+	if compact {
+		return toolIcon(c, label, name)
+	}
+	return iconButton(c, label, name)
 }
 
 func (a *NativeApp) subtitleSearch(c *ui.Context, compact bool) {

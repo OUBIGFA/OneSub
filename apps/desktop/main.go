@@ -261,7 +261,9 @@ func (a *NativeApp) view(c *ui.Context) {
 			c.After(a.editDue.Sub(c.Now()))
 		}
 	}
-	if a.previewPending && !a.previewRunning && !a.busy && !a.editPending && a.playerReady && a.mediaURL != "" && len(a.styleCatalog.Presets) > 0 {
+	// Style previews use their own worker and revision checks. Unrelated
+	// background work must not delay a visible style change until it finishes.
+	if a.previewPending && !a.previewRunning && !a.editPending && a.playerReady && a.mediaURL != "" && len(a.styleCatalog.Presets) > 0 {
 		if !c.Now().Before(a.previewDue) {
 			a.refreshSubtitles()
 		} else {

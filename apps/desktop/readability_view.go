@@ -91,7 +91,7 @@ func (a *NativeApp) readingIssues() []subtitleReadingIssue {
 	}
 }
 
-func (a *NativeApp) readingTools(c *ui.Context) {
+func (a *NativeApp) readingTools(c *ui.Context, compact bool) {
 	issues := a.readingIssues()
 	long, fast, brief := issues[0].count, issues[1].count, issues[2].count
 	selected := issues[a.readingIssue]
@@ -103,9 +103,9 @@ func (a *NativeApp) readingTools(c *ui.Context) {
 		labelWidth = max(labelWidth, width)
 	}
 	ui.Row(c).Gap(em(c, 8)).Wrap().Shrink(1).AlignItems(ui.Center).Children(func() {
-		ui.Button(c, locales.ReadingSplitCount(long)).Disabled(a.busy || a.showsTranslationProgress() || long == 0).Tooltip(locales.ReadingSplitHint()).OnClick(a.smartSplitSubtitles)
+		subtitleTool(c, locales.ReadingSplitCount(long), "scissors", compact).Disabled(a.busy || a.showsTranslationProgress() || long == 0).Tooltip(locales.ReadingSplitHint()).OnClick(a.smartSplitSubtitles)
 		ui.Row(c).Gap(em(c, 4)).Shrink(0).AlignItems(ui.Center).Children(func() {
-			ui.MenuButton(c, selected.label, func(m *ui.Menu) {
+			picker := subtitleTool(c, selected.label, "triangle-alert", compact).Menu(func(m *ui.Menu) {
 				for i, issue := range issues {
 					if m.Item(issue.summary).Checked(i == a.readingIssue).Disabled(issue.count == 0).Chosen() {
 						// Choosing a category changes only the navigation target.
@@ -113,8 +113,11 @@ func (a *NativeApp) readingTools(c *ui.Context) {
 						a.readingIssue = i
 					}
 				}
-			}).Label(locales.ReadingIssueType()).Width(labelWidth + c.Theme().Space(11) + 2).Shrink(0).
+			}).Label(locales.ReadingIssueType()).Shrink(0).
 				Disabled(a.showsTranslationProgress() || long+fast+brief == 0).Tooltip(selected.summary + "\n" + locales.ReadingInspectHint())
+			if !compact {
+				picker.Width(labelWidth + em(c, iconSize) + c.Theme().Space(11) + 2)
+			}
 			disabled := a.showsTranslationProgress() || selected.count == 0
 			toolIcon(c, locales.ReadingPrevious(), "chevron-left").Shrink(0).
 				Disabled(disabled).Tooltip(locales.ReadingPreviousHint()).OnClick(func() { a.locateReadingIssue(selected.kind, -1) })

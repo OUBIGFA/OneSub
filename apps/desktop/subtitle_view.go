@@ -85,7 +85,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			}).ContextMenu(func(m *ui.Menu) { a.subtitleStructureMenu(m, -1) })
 			return
 		}
-		a.subtitleToolbar(c, compact, hasCues)
+		a.subtitleToolbar(c, width, hasCues)
 		// The toolbar boundary spans the whole pane, including the gutter.
 		separator(c)
 		if a.showsTranslationProgress() {

@@ -2,10 +2,13 @@ package main
 
 import (
 	"fmt"
+	"image"
+	"math"
 	"testing"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
+	"github.com/egoist/mygo/ui"
 )
 
 // Empty tracks keep import and track navigation, without presenting disabled
@@ -45,6 +48,47 @@ func TestSubtitleEmptyTrackShowsImportAndTrackNavigation(t *testing.T) {
 	}
 }
 
+// Center the visible ink, not just the line box: the system font reserves
+// unequal space above and below the glyphs even in a centered native row.
+func TestLabeledToolbarButtonCentersVisibleIconAndText(t *testing.T) {
+	nativeForTest(t) // load the production icon resources
+	for _, label := range []string{"字幕列表操作", "Subtitle actions"} {
+		for _, scale := range []float32{1, 1.5, 2} {
+			t.Run(fmt.Sprintf("%s/%g", label, scale), func(t *testing.T) {
+				tt := ui.NewTester(func(c *ui.Context) {
+					ui.Toolbar(c, func() { iconButton(c, label, "ellipsis") }).Padding(0)
+				}, 600, 100)
+				tt.SetPreferences(ui.Preferences{TextScale: scale})
+				tt.Frame()
+				button, _ := tt.Find(label)
+				glyph, _ := tt.Find(locales.A11yIconOf(label))
+				frame := tt.Image()
+				inkCenter := func(r image.Rectangle) float64 {
+					low, high := r.Max.Y, r.Min.Y
+					for y := r.Min.Y; y < r.Max.Y; y++ {
+						for x := r.Min.X; x < r.Max.X; x++ {
+							pixel := frame.RGBAAt(x, y)
+							if pixel.R < 128 && pixel.G < 128 && pixel.B < 128 {
+								low, high = min(low, y), max(high, y)
+							}
+						}
+					}
+					if low > high {
+						t.Fatal("button content was not rendered", r)
+					}
+					return float64(low+high) / 2
+				}
+				iconCenter := inkCenter(image.Rect(int(glyph.X), int(button.Y), int(math.Ceil(float64(glyph.X+glyph.W))), int(button.Y+button.H)))
+				textCenter := inkCenter(image.Rect(int(math.Ceil(float64(glyph.X+glyph.W)))+1, int(button.Y), int(button.X+button.W), int(button.Y+button.H)))
+				t.Logf("icon/text ink centers: %.1f / %.1f", iconCenter, textCenter)
+				if math.Abs(iconCenter-textCenter) > 1 {
+					t.Fatal("icon and label ink are not vertically centered", iconCenter, textCenter)
+				}
+			})
+		}
+	}
+}
+
 // Once subtitles exist, all edits are available through the compact menu.
 func TestSubtitleToolbarFindReplaceBecomesAvailable(t *testing.T) {
 	a := storeApp(t, subtitle.Cue{ID: "a", Text: "First subtitle", StartMs: 0, EndMs: 3000})
@@ -63,5 +107,36 @@ func TestSubtitleToolbarFindReplaceBecomesAvailable(t *testing.T) {
 	tt.Frame()
 	if err := tt.Click(locales.TranslationResults()); err != nil || !a.translationReview {
 		t.Fatal("translation checks stayed disabled after results arrived", err)
+	}
+}
+
+func TestSubtitleToolbarShowsLabelsWithIconsExceptNavigation(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			a := storeApp(t, subtitle.Cue{ID: "a", Text: "First subtitle", StartMs: 0, EndMs: 3000})
+			tt := settled(a.subtitlesView, 1800, 800)
+			for _, label := range []string{locales.SubtitleActionsMenu(), locales.ListLocate(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.FindReplace(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.ReadingSplitCount(0), locales.ReadingLongCues(), locales.TranslationResults()} {
+				if box, ok := tt.Find(label); !ok || box.W < box.H*1.5 {
+					t.Fatal("wide toolbar does not allocate space for the label", label, box)
+				}
+				if _, ok := tt.Find(locales.A11yIconOf(label)); !ok {
+					t.Fatal("wide toolbar has no icon", label)
+				}
+			}
+			for _, label := range []string{locales.ReadingPrevious(), locales.ReadingNext()} {
+				if box, ok := tt.Find(label); !ok || box.W > box.H+2 {
+					t.Fatal("navigation must remain icon-only", label)
+				}
+			}
+			captureRedesign(t, tt, "subtitle-tools-wide-"+language)
+			tt.SetSize(640, 800)
+			tt.Frame()
+			for _, label := range []string{locales.SubtitleActionsMenu(), locales.ListLocate(), locales.FindReplace(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.TranslationResults()} {
+				if box, ok := tt.Find(label); !ok || box.W > box.H+2 {
+					t.Fatal("narrow toolbar must retain icon-only actions", label)
+				}
+			}
+			captureRedesign(t, tt, "subtitle-tools-narrow-"+language)
+		})
 	}
 }

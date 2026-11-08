@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 )
 
-func (a *NativeApp) subtitleActionsMenu(c *ui.Context) {
-	toolIcon(c, locales.SubtitleActionsMenu(), "ellipsis").Disabled(a.busy || len(a.activeDocument().Cues) == 0 || a.showsTranslationProgress()).Menu(func(m *ui.Menu) {
+func (a *NativeApp) subtitleActionsMenu(c *ui.Context, compact bool) {
+	subtitleTool(c, locales.SubtitleActionsMenu(), "ellipsis", compact).Disabled(a.busy || len(a.activeDocument().Cues) == 0 || a.showsTranslationProgress()).Menu(func(m *ui.Menu) {
 		a.pendingClick = nil
 		a.subtitleStructureMenu(m, a.selected)
 		// The same commands remain available when a narrow list moves its

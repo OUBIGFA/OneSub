@@ -28,7 +28,9 @@ func TestSubtitleToolbarGroupsFilesAndEditing(t *testing.T) {
 			// following row so state changes cannot displace file actions.
 			tt := settled(a.subtitlesView, 1600, 600)
 			search, _ := tt.Find(locales.ListSearch())
-			for _, label := range []string{locales.ListImport(), locales.ListUnsaved(), locales.ListSave(), locales.ListSaveAs()} {
+			// Save has a stable accessible name even when its label says
+			// Unsaved. Compare button bounds, not the optically aligned ink.
+			for _, label := range []string{locales.ListImport(), locales.ListSave(), locales.ListSaveAs()} {
 				r, ok := tt.Find(label)
 				if !ok || math.Abs(float64(r.Y+r.H/2-search.Y-search.H/2)) > 1 {
 					t.Fatal("subtitle command is not on the search row", label, r, search)

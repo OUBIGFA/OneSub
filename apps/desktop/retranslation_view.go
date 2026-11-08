@@ -119,8 +119,8 @@ func (a *NativeApp) subtitleSelectionActions(c *ui.Context, compact bool) {
 	_, eligible := a.retranslationTargets()[id]
 	// Start by checking the current cue, so there is never an empty checkbox
 	// mode. These compact actions sit before Search, beside the editing tools.
-	toolIcon(c, locales.RetranslateSelect(), "list-checks").Disabled(disabled || !eligible).OnClick(func() { a.setSubtitleChecked(id, true) })
-	toolIcon(c, locales.RetranslateCheckAll(), "copy-check").Tooltip(locales.RetranslateAllHint()).Disabled(disabled || len(a.retranslationTargets()) == 0).OnClick(a.checkAllSubtitles)
+	subtitleTool(c, locales.RetranslateSelect(), "list-checks", compact).Disabled(disabled || !eligible).OnClick(func() { a.setSubtitleChecked(id, true) })
+	subtitleTool(c, locales.RetranslateCheckAll(), "copy-check", compact).Tooltip(locales.RetranslateAllHint()).Disabled(disabled || len(a.retranslationTargets()) == 0).OnClick(a.checkAllSubtitles)
 }
 
 func (a *NativeApp) retranslationTools(c *ui.Context) {
@@ -133,14 +133,14 @@ func (a *NativeApp) retranslationActions(c *ui.Context, compact bool) {
 	disabled := a.busy || a.translationLive != nil
 	if count > 0 && !compact {
 		iconButton(c, locales.RetranslateSelected(count), "rotate-cw").Disabled(disabled).OnClick(a.openRetranslation)
-		ui.Button(c, locales.RetranslateCheckAll()).Tooltip(locales.RetranslateAllHint()).Disabled(disabled).OnClick(a.checkAllSubtitles)
-		ui.Button(c, locales.RetranslateClear()).Disabled(disabled).OnClick(func() { a.subtitleChecked[a.subtitleTab] = nil })
+		iconButton(c, locales.RetranslateCheckAll(), "copy-check").Tooltip(locales.RetranslateAllHint()).Disabled(disabled).OnClick(a.checkAllSubtitles)
+		iconButton(c, locales.RetranslateClear(), "eraser").Disabled(disabled).OnClick(func() { a.subtitleChecked[a.subtitleTab] = nil })
 	}
 	if a.retranslation != nil {
 		if compact {
 			toolIcon(c, locales.RetranslateReopen(), "eye").OnClick(a.reopenRetranslation)
 		} else {
-			ui.Button(c, locales.RetranslateReopen()).OnClick(a.reopenRetranslation)
+			iconButton(c, locales.RetranslateReopen(), "eye").OnClick(a.reopenRetranslation)
 		}
 	}
 }

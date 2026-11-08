@@ -45,7 +45,8 @@ func (a *NativeApp) observeStyle(now time.Time) {
 	}
 	a.observedStyle = string(raw)
 	// Store the whole SmartSub style, so newly added parameters are remembered
-	// too. Debounce disk I/O independently from the faster preview refresh.
+	// too. Only disk I/O waits for input to stop; a held step button must
+	// not keep postponing the preview. One in-flight build coalesces changes.
 	style := a.currentStyle
 	a.settings.LastStyle = &style
 	a.settings.StylePreset = a.stylePreset
@@ -55,7 +56,7 @@ func (a *NativeApp) observeStyle(now time.Time) {
 	a.prefsSaveDue = now.Add(400 * time.Millisecond)
 	a.previewRevision++
 	a.previewPending = true
-	a.previewDue = now.Add(140 * time.Millisecond)
+	a.previewDue = now
 }
 
 func (a *NativeApp) refreshSubtitles() {
@@ -96,9 +97,18 @@ func (a *NativeApp) refreshSubtitles() {
 			if a.snapshot == nil || a.snapshot.Manifest.ID != state.Manifest.ID {
 				return
 			}
-			if version != a.previewRevision || a.snapshot.Revision != state.Revision {
+			if a.snapshot.Revision != state.Revision {
 				a.previewPending = true
 				return
+			}
+			if version != a.previewRevision {
+				a.previewPending = true
+				if err != nil {
+					return // an obsolete style must not report an error
+				}
+				// Builds run one at a time, so this cannot replace a newer
+				// rendered result. Show the completed style while building
+				// the next, rather than freezing during continuous input.
 			}
 			if err != nil {
 				a.showError("preview", err.Error())
