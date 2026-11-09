@@ -18,7 +18,7 @@ func TestAllFormDialogsExposeCompleteContents(t *testing.T) {
 			for _, size := range [][2]int{{900, 640}, {1440, 1000}} {
 				for _, scale := range []float32{1, 1.5, 2} {
 					for _, dark := range []bool{false, true} {
-						for _, name := range []string{"export", "compose", "compress", "find", "insert", "preset", "model"} {
+						for _, name := range []string{"export", "compose", "compress", "audio", "find", "insert", "preset", "model"} {
 							t.Run(fmt.Sprintf("%s/%s/%d/%g/dark%t", language, name, size[0], scale, dark), func(t *testing.T) {
 								a := nativeForTest(t)
 								var view func(*ui.Context)
@@ -33,10 +33,15 @@ func TestAllFormDialogsExposeCompleteContents(t *testing.T) {
 									a.composeOpen = true
 									view, title, action = a.composeView, locales.ActionCompose(), locales.ComposeStart()
 									fields = []string{locales.OutputContent(), locales.OutputOrder(), locales.OutputPrimary(), locales.ComposeMode(), locales.ComposeQuality(), locales.ComposeCrfRecommendation(), locales.ComposeAskPath()}
-								case "compress":
+								case "compress", "audio":
 									a.compressOpen = true
 									view, title, action = a.compressView, locales.ActionCompress(), locales.CompressStart()
 									fields = []string{locales.CompressFormat(), locales.ComposeQuality(), locales.ComposeCrfNote(), locales.ComposeAskPath()}
+									if name == "audio" {
+										a.settings.MediaProcessMode = "audio"
+										action = locales.AudioExtractStart()
+										fields = []string{locales.MediaProcessMode(), locales.CompressFormat(), locales.AudioExtractNote(), locales.ComposeAskPath()}
+									}
 								case "find":
 									a.findReplace.open = true
 									view, title, action = a.findReplaceView, locales.FindReplace(), locales.ReplaceAll()
@@ -78,7 +83,7 @@ func TestAllFormDialogsExposeCompleteContents(t *testing.T) {
 								if title != "" {
 									insideRedesign(t, tt, title, append(fields, action)...)
 								}
-								if name == "compose" || name == "compress" {
+								if name == "compose" || name == "compress" || name == "audio" {
 									previous := a.settings.ComposeAskPath
 									if err := tt.Click(locales.ComposeAskPath()); err != nil || a.settings.ComposeAskPath == previous {
 										t.Fatal("save prompt option is not operable", err)

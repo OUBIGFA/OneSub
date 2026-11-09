@@ -93,6 +93,9 @@ func (a *NativeApp) composeProgressView(c *ui.Context) {
 		if a.compressRunning {
 			title, cancel = locales.CompressRunning(), locales.ActionCancelTask()
 		}
+		if a.audioExtractRunning {
+			title, cancel = locales.AudioExtractRunning(), locales.ActionCancelTask()
+		}
 		dialogTitle(c, title)
 		muted(c, composeStageLabel(a.composeProgress.Stage)).Label(locales.A11yComposeStage())
 		ui.Progress(c, a.composeProgress.Fraction).Width(em(c, 400)).Label(locales.A11yComposeProgress())
@@ -138,8 +141,8 @@ func (a *NativeApp) startCompose(sample bool) {
 	a.startVideoExport(sample, false)
 }
 
-// Both operations freeze inputs, preserve source streams and share atomic
-// publication and cancellation. Compression bypasses the subtitle pipeline.
+// Exports freeze inputs and share atomic publication and cancellation.
+// Compression and audio extraction bypass the subtitle pipeline.
 func (a *NativeApp) startVideoExport(sample, compress bool) {
 	if a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" {
 		return
@@ -161,11 +164,16 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 		language = "mul"
 	}
 	quality, title := a.settings.ComposeQuality, locales.ActionCompose()
+	audio := compress && a.settings.MediaProcessMode == "audio"
 	if compress {
 		mode, quality, title = "compress-"+a.settings.CompressionFormat, a.settings.CompressionQuality, locales.ActionCompress()
 	}
+	if audio {
+		mode, title = "audio-"+a.settings.AudioFormat, locales.MediaExtractAudio()
+	}
 	outputDir, askPath := a.settings.OutputDir, a.settings.ComposeAskPath
 	a.composeRunning, a.compressRunning = true, compress
+	a.audioExtractRunning = audio
 	a.composeProgress = media.ComposeProgress{Stage: media.StageChooseOutput, Fraction: -1}
 	a.evalPlayer("video.pause()")
 	a.run(title, func(ctx context.Context) (func(), error) {
@@ -173,8 +181,13 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 		if strings.HasSuffix(mode, "mkv") {
 			extension = "mkv"
 		}
+		if audio {
+			extension = strings.TrimPrefix(mode, "audio-")
+		}
 		name := composeFilename(state.Manifest.MediaPath, extension, sample)
-		if compress {
+		if audio {
+			name = strings.TrimSuffix(name, "."+extension) + "-audio." + extension
+		} else if compress {
 			name = strings.TrimSuffix(name, "."+extension) + "-compressed." + extension
 		}
 		output, err := uniqueVideoOutputPath(state.Manifest.MediaPath, outputDir, name)
@@ -196,6 +209,9 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 		progress(media.ComposeProgress{Stage: media.StagePrepare, Fraction: -1})
 		var document styles.Document
 		subtitleMode := "compress"
+		if audio {
+			subtitleMode = "audio"
+		}
 		if !compress {
 			document, err = a.styledDocument(ctx, state, style, secondary, outputOptions, aspect)
 			if err != nil {
@@ -209,6 +225,9 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 		options := media.ComposeOptions{Source: state.Manifest.MediaPath, Destination: output, Mode: subtitleMode, Quality: quality, Sample: sample, Language: language, Revision: state.Revision}
 		report, err := media.Compose(ctx, a.ffmpeg, a.probe, filepath.Join(a.dataRoot, "cache", "worker"), options, document, progress)
 		if err != nil {
+			if audio {
+				return nil, apperr.Wrap(locales.ErrAudioExport(err.Error()), err)
+			}
 			if compress {
 				return nil, apperr.Wrap(locales.ErrCompress(err.Error()), err)
 			}
@@ -218,7 +237,7 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 		return func() {
 			a.lastOutput, a.status = output, locales.StatusExported(filepath.Base(output))
 			if reportErr != nil {
-				// The validated video is already published. Keep it reachable
+				// The validated media is already published. Keep it reachable
 				// instead of reporting a failed encode and inviting a rerun.
 				a.showError("compose-report", locales.ErrComposeReport(reportErr.Error()))
 			} else {

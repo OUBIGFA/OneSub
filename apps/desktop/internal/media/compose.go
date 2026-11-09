@@ -36,7 +36,7 @@ const (
 type ComposeOptions struct {
 	Source      string `json:"source"`
 	Destination string `json:"destination"`
-	Mode        string `json:"mode"`    // hard, soft or compress (no added subtitles)
+	Mode        string `json:"mode"`    // hard, soft, compress or audio (no added subtitles)
 	Quality     string `json:"quality"` // lossless, crf18, crf20 or crf23
 	Sample      bool   `json:"sample"`
 	Language    string `json:"language"`
@@ -125,6 +125,9 @@ func chaptersPreserved(source, output []Chapter, origin float64, sample bool) bo
 // streams are never dropped silently. Chapter metadata has its own mapping;
 // unsupported data streams still fail preflight. MP4 attachments require MKV.
 func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]string, error) {
+	if options.Mode == "audio" {
+		return audioArgs(options, info, partial)
+	}
 	if options.Mode != "hard" && options.Mode != "soft" && options.Mode != "compress" {
 		return nil, errors.New(locales.ErrComposeMode())
 	}
@@ -326,7 +329,8 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	} else if !os.IsNotExist(err) {
 		return report, err
 	}
-	if options.Mode != "compress" && len(document.Report.MissingGlyphs) > 0 {
+	withSubtitles := options.Mode == "hard" || options.Mode == "soft"
+	if withSubtitles && len(document.Report.MissingGlyphs) > 0 {
 		return report, errors.New(locales.ErrMissingGlyphs(strings.Join(document.Report.MissingGlyphs, " ")))
 	}
 	info, err := Probe(ctx, probe, options.Source)
@@ -345,7 +349,7 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	}
 	defer os.RemoveAll(scratch)
 	assPath := ""
-	if options.Mode != "compress" {
+	if withSubtitles {
 		assPath = filepath.Join(scratch, "render.ass")
 		if err = os.WriteFile(assPath, []byte(document.ASS), 0600); err != nil {
 			return report, err
@@ -415,6 +419,12 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	if strings.Contains(info.Format.FormatName, "matroska") || strings.Contains(info.Format.FormatName, "webm") {
 		duration -= int64(math.Round(report.SourceStart * 1000))
 	}
+	if options.Mode == "audio" {
+		duration, err = audioDuration(ctx, probe, options.Source)
+		if err != nil {
+			return report, err
+		}
+	}
 	if options.Sample && duration > 5000 {
 		duration = 5000
 	}
@@ -433,6 +443,9 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 		return report, err
 	}
 	expected := streamCounts(compositionStreams(info))
+	if options.Mode == "audio" {
+		expected = map[string]int{"audio": 1}
+	}
 	if options.Mode == "soft" {
 		expected["subtitle"]++
 	}
@@ -447,24 +460,43 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 			return report, errors.New(locales.ErrComposeStreamCount(kind, expected[kind], count))
 		}
 	}
-	if duration <= 0 || math.Abs(float64(output.DurationMs()-duration)) > 250 {
+	outputDuration := output.DurationMs()
+	if options.Mode == "audio" {
+		// Raw AAC has no duration header. The demuxer's bitrate estimate can
+		// be far off after silence; validate actual packets, just as for input.
+		outputDuration, err = audioDuration(ctx, probe, partial)
+		if err != nil {
+			return report, err
+		}
+	}
+	if duration <= 0 || math.Abs(float64(outputDuration-duration)) > 250 {
 		return report, errors.New(locales.ErrComposeDuration())
 	}
-	if !chaptersPreserved(info.Chapters, output.Chapters, report.SourceStart, options.Sample) {
+	if options.Mode != "audio" && !chaptersPreserved(info.Chapters, output.Chapters, report.SourceStart, options.Sample) {
 		return report, errors.New(locales.ErrComposeChapters())
 	}
 	// Full decode is intentionally stronger than merely finding streams in headers.
-	if err = jobs.Run(ctx, exec.Command(ffmpeg, "-nostdin", "-v", "error", "-xerror", "-i", partial, "-map", "0:V:0", "-map", "0:a?", "-f", "null", "-"), nil); err != nil {
+	decode := []string{"-nostdin", "-v", "error", "-xerror", "-i", partial}
+	if options.Mode == "audio" {
+		decode = append(decode, "-map", "0:a:0")
+	} else {
+		decode = append(decode, "-map", "0:V:0", "-map", "0:a?")
+	}
+	decode = append(decode, "-f", "null", "-")
+	if err = jobs.Run(ctx, exec.Command(ffmpeg, decode...), nil); err != nil {
 		return report, apperr.Wrap(locales.ErrComposeDecode(err.Error()), err)
 	}
 	report.OutputSHA256, err = hashFile(ctx, partial)
 	if err != nil {
 		return report, err
 	}
-	report.DurationMs = output.DurationMs()
+	report.DurationMs = outputDuration
 	report.Streams = streamCounts(output.Streams)
 	report.Chapters = len(output.Chapters)
 	report.Checks = []string{"streams", "duration", "chapter titles and timings", "full audiovisual decode", "sha256"}
+	if options.Mode == "audio" {
+		report.Checks = []string{"audio stream only", "selected audio duration", "full audio decode", "sha256"}
+	}
 	if err = os.Link(partial, options.Destination); err != nil {
 		return report, apperr.Wrap(locales.ErrComposePublish(err.Error()), err)
 	}

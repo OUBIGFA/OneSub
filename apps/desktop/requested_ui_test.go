@@ -216,6 +216,15 @@ func TestCompressionEntryDoesNotRequireSubtitles(t *testing.T) {
 	if tt.HasText(locales.OutputContent()) || !tt.HasText(locales.CompressStart()) {
 		t.Fatal("compression still requires subtitle output options", tt.Texts())
 	}
+	if err := tt.Click(locales.MediaProcessMode()); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click(locales.MediaExtractAudio()); err != nil {
+		t.Fatal(err)
+	}
+	if a.settings.MediaProcessMode != "audio" || !tt.HasText("MP3") || !tt.HasText(locales.AudioExtractStart()) || tt.HasText(locales.ComposeQuality()) || tt.HasText(locales.ComposeSample()) {
+		t.Fatal("audio extraction is not independent of video options", tt.Texts())
+	}
 }
 
 func TestIndependentSubtitleImportKeepsUnsavedGuard(t *testing.T) {

@@ -1,5 +1,7 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark')
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark', [switch]$PresetReset, [switch]$PrivateDesktop)
 $ErrorActionPreference = 'Stop'
+if(-not $PrivateDesktop){throw 'Run through private_native_smoke.ps1 to preserve the user desktop'}
+if(-not $UIAPlayback){throw 'Private desktop playback must use UIA, never global keyboard input'}
 if($SubtitleMenus -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport)){throw 'Run subtitle menu presentation as a separate scenario'}
 if($LayoutNavigation -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport -or $SubtitleMenus)){throw 'Run layout/navigation as a separate scenario'}
 Add-Type -AssemblyName UIAutomationClient
@@ -8,13 +10,31 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 public static class SmokeNative {
-  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] public static extern IntPtr GetThreadDesktop(uint id);
+  [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern bool GetUserObjectInformation(IntPtr obj,int index,StringBuilder name,int size,out int needed);
+  public static bool IsPrivateDesktop() {
+    var name=new StringBuilder(256);int needed;
+    return GetUserObjectInformation(GetThreadDesktop(GetCurrentThreadId()),2,name,512,out needed)&&name.ToString().StartsWith("OneSub-test-");
+  }
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int command);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern uint GetDoubleClickTime();
-  [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
   public delegate bool Visitor(IntPtr h, IntPtr p);
+  [DllImport("user32.dll")] public static extern bool EnumDesktopWindows(IntPtr desktop,Visitor fn,IntPtr p);
+  public static IntPtr TestWindow(int pid) {
+    IntPtr result=IntPtr.Zero;
+    EnumDesktopWindows(GetThreadDesktop(GetCurrentThreadId()),(h,p)=>{
+      uint id;GetWindowThreadProcessId(h,out id);
+      var name=new StringBuilder(128);GetClassName(h,name,128);
+      if(id==(uint)pid&&name.ToString()=="MyGoWindow"){result=h;return false;}
+      return true;
+    },IntPtr.Zero);
+    return result;
+  }
   [DllImport("user32.dll")] public static extern bool EnumWindows(Visitor fn, IntPtr p);
   [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr h, Visitor fn, IntPtr p);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);
@@ -57,11 +77,8 @@ public static class SmokeNative {
   }
   public static string MenuActivationError="";
   static bool PressMenuKey(IntPtr owner, byte key) {
-    if(GetForegroundWindow()!=owner){MenuActivationError="Test owner is not foreground";return false;}
-    keybd_event(key,0,0,UIntPtr.Zero);
-    keybd_event(key,0,2,UIntPtr.Zero);
-    System.Threading.Thread.Sleep(75);
-    return true;
+    if(!PostMessage(owner,256,new IntPtr(key),IntPtr.Zero)||!PostMessage(owner,257,new IntPtr(key),IntPtr.Zero))return false;
+    System.Threading.Thread.Sleep(75);return true;
   }
   public static bool ChooseMenuItem(IntPtr owner, int pid, string label) {
     IntPtr popup=IntPtr.Zero;
@@ -89,13 +106,12 @@ public static class SmokeNative {
     // Navigate by observed native state instead of assuming a key count.
     // Input stays outside enumeration and only reaches the verified owner;
     // never synthesize an application WM_COMMAND.
-    SetForegroundWindow(owner);
     System.Threading.Thread.Sleep(100);
     for(int step=0;step<=count;step++) {
       var state=new MenuItemInfo{Size=(uint)Marshal.SizeOf(typeof(MenuItemInfo)),Mask=1};
       if(!GetMenuItemInfo(menu,target,true,ref state)){MenuActivationError="Cannot read highlighted item";return false;}
-      if((state.State&0x80)!=0)return PressMenuKey(owner,13); // Enter
-      if(step<count&&!PressMenuKey(owner,40))return false; // Down
+      if((state.State&0x80)!=0)return PressMenuKey(popup,13); // Enter
+      if(step<count&&!PressMenuKey(popup,40))return false; // Down
     }
     MenuActivationError="Target was not highlighted after native navigation";
     return false;
@@ -147,6 +163,8 @@ public static class SmokeNative {
   }
 }
 '@
+if(-not [SmokeNative]::IsPrivateDesktop()){throw 'The driver is not attached to the isolated test desktop'}
+[void][SmokeNative]::SetProcessDPIAware()
 $workPath = [IO.Path]::GetFullPath($Work)
 if (Test-Path $workPath) { throw 'Use a fresh smoke directory' }
 New-Item -ItemType Directory $workPath | Out-Null
@@ -174,8 +192,12 @@ if($SubtitleClicks){
     }
     [IO.File]::WriteAllText($subtitle,$body.ToString(),[Text.UTF8Encoding]::new($false))
 }
-$fixture=if($SubtitleClicks){'testsrc2=size=320x180:rate=2:duration=170'}elseif($ComposeOutput){'testsrc2=size=1280x720:rate=30:duration=12'}else{'testsrc2=size=320x180:rate=10:duration=3'}
-& ffmpeg -v error -f lavfi -i $fixture -c:v libx264 -pix_fmt yuv420p $video
+$fixture=if($SubtitleClicks){'testsrc2=size=320x180:rate=2:duration=170'}elseif($ComposeOutput){'testsrc2=size=1280x720:rate=30:duration=12'}elseif($VideoTools -or $PresetReset){'testsrc2=size=320x180:rate=10:duration=12'}else{'testsrc2=size=320x180:rate=10:duration=3'}
+if($VideoTools){
+    & ffmpeg -v error -f lavfi -i $fixture -f lavfi -i 'sine=frequency=440:duration=12' -c:v libx264 -pix_fmt yuv420p -c:a aac $video
+}else{
+    & ffmpeg -v error -f lavfi -i $fixture -c:v libx264 -pix_fmt yuv420p $video
+}
 if($LASTEXITCODE -ne 0){throw 'Fixture creation failed'}
 $env:ONESUB_DATA_ROOT = Join-Path $workPath 'data'
 New-Item -ItemType Directory $env:ONESUB_DATA_ROOT | Out-Null
@@ -209,13 +231,15 @@ $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $workPath 'webview'
 $env:XDG_RUNTIME_DIR = Join-Path $workPath 'ipc'
 if($env:XDG_RUNTIME_DIR.Length -gt 65){throw 'Use a shorter smoke directory for the isolated single-instance socket'}
 New-Item -ItemType Directory $env:XDG_RUNTIME_DIR | Out-Null
-$launch=@{FilePath=[IO.Path]::GetFullPath($Exe);PassThru=$true;RedirectStandardError=(Join-Path $workPath 'stderr.log')}
+# The window must render on this verified non-input desktop; SW_HIDE prevents
+# MyGo from creating its normal workbench. No window is shown on the user desktop.
+$launch=@{FilePath=[IO.Path]::GetFullPath($Exe);PassThru=$true;WindowStyle='Normal';RedirectStandardError=(Join-Path $workPath 'stderr.log')}
 if($OpenArgument){$launch.ArgumentList=@('"'+$video+'"')}
 $p=Start-Process @launch
 function Find-UI($name) {
     $p.Refresh()
     if($p.HasExited){return $null}
-    $handle=$p.MainWindowHandle
+    $handle=([SmokeNative]::TestWindow($p.Id))
     if($handle -eq [IntPtr]::Zero){return $null}
     $root=[System.Windows.Automation.AutomationElement]::FromHandle($handle)
     if(-not $root){return $null}
@@ -226,7 +250,7 @@ function Click-UI($name) {
     for($i=0;$i -lt 100;$i++) {
         try {
             $p.Refresh()
-            $root=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+            $root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
             $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name)
             foreach($item in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)) {
                 if(-not $item.Current.IsEnabled){continue}
@@ -242,7 +266,7 @@ function Click-UI($name) {
     throw "Control unavailable: $name"
 }
 function Input-UI($name) {
-    $root=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+    $root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
     $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name)
     foreach($item in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)) {
         $pattern=$null
@@ -294,7 +318,7 @@ function Open-SubtitleMenu($label) {
     $item=Find-UI $label
     if(-not $item){throw "Subtitle missing: $label"}
     $r=$item.Current.BoundingRectangle
-    if(-not [SmokeNative]::RightClick($p.MainWindowHandle,$p.Id,[int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2))){throw 'Test surface did not receive the right-click'}
+    if(-not [SmokeNative]::RightClick(([SmokeNative]::TestWindow($p.Id)),$p.Id,[int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2))){throw 'Test surface did not receive the right-click'}
 }
 function Wait-SubtitleMenu {
     # Read the owner-drawn popup's Win32 labels, which UIA does not expose.
@@ -308,7 +332,7 @@ function Wait-SubtitleMenu {
 }
 function Choose-SubtitleMenu($label) {
     $items=Wait-SubtitleMenu
-    if($items -notcontains $label -or -not [SmokeNative]::ChooseMenuItem($p.MainWindowHandle,$p.Id,$label)){throw "Native menu item could not be activated: $label ($([SmokeNative]::MenuActivationError))"}
+    if($items -notcontains $label -or -not [SmokeNative]::ChooseMenuItem(([SmokeNative]::TestWindow($p.Id)),$p.Id,$label)){throw "Native menu item could not be activated: $label ($([SmokeNative]::MenuActivationError))"}
     Start-Sleep -Milliseconds 350
 }
 function Wait-VisibleSubtitle($text) {
@@ -331,22 +355,13 @@ function Capture-Navigation($file) {
     # A pointer click on the inert style header clears them without selecting
     # another subtitle or changing the viewport being captured.
     $header=(Find-UI '字幕样式面板').Current.BoundingRectangle
-    if(-not [SmokeNative]::PointerClick($p.MainWindowHandle,$p.Id,[int]($header.X+$header.Width/2),[int]($header.Y+12),$false)){throw 'Could not clear navigation focus adornments'}
+    if(-not [SmokeNative]::PointerClick(([SmokeNative]::TestWindow($p.Id)),$p.Id,[int]($header.X+$header.Width/2),[int]($header.Y+12),$false)){throw 'Could not clear navigation focus adornments'}
     Start-Sleep -Milliseconds 300
     & $ScreenshotTool $p.Id (Join-Path $workPath $file)
 }
 function Choose-Path($path){
     for($i=0;$i -lt 100;$i++) { if([SmokeNative]::Choose($p.Id,$path)){return};Start-Sleep -Milliseconds 100 }
     throw 'File dialog did not appear'
-}
-function Press-PlaybackSpace {
-    $p.Refresh()
-    [void][SmokeNative]::SetForegroundWindow($p.MainWindowHandle)
-    $list=Find-UI '字幕列表'
-    if(-not $list){throw 'Subtitle list unavailable for keyboard playback test'}
-    $list.SetFocus()
-    if([SmokeNative]::GetForegroundWindow() -ne $p.MainWindowHandle){throw 'Test window is not foreground; no keyboard input sent'}
-    [System.Windows.Forms.SendKeys]::SendWait(' ')
 }
 function Read-PlaybackPosition {
     return (Find-UI '播放位置').GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern).Current.Value
@@ -358,7 +373,7 @@ function Set-PlaybackPosition($seconds) {
     $r=$slider.Current.BoundingRectangle
     $max=$slider.GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern).Current.Maximum
     $x=$r.X+$r.Height/2+($r.Width-$r.Height)*$seconds/$max
-    if(-not [SmokeNative]::PointerClick($p.MainWindowHandle,$p.Id,[int]$x,[int]($r.Y+$r.Height/2),$false,80)){throw 'Native slider seek could not be sent'}
+    if(-not [SmokeNative]::PointerClick(([SmokeNative]::TestWindow($p.Id)),$p.Id,[int]$x,[int]($r.Y+$r.Height/2),$false,80)){throw 'Native slider seek could not be sent'}
     Start-Sleep -Milliseconds 350
     if([Math]::Abs((Read-PlaybackPosition)-$seconds) -gt 1){throw 'Native slider did not seek to the requested test position'}
 }
@@ -369,11 +384,11 @@ function Visible-ClickRow {
     return $row.Current.BoundingRectangle
 }
 function Pointer-ClickRow($r) {
-    if(-not [SmokeNative]::PointerClick($p.MainWindowHandle,$p.Id,[int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2),$false)){throw 'Native row click could not be sent'}
+    if(-not [SmokeNative]::PointerClick(([SmokeNative]::TestWindow($p.Id)),$p.Id,[int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2),$false)){throw 'Native row click could not be sent'}
 }
 function Select-NativeOption($field,$label) {
     # Select's popover uses its actual trigger, not a duplicate field label.
-    $root=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+    $root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
     $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$field)
     $trigger=$null
     foreach($node in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)) {
@@ -454,21 +469,21 @@ try {
     for($i=0;$i -lt 150;$i++){if(Find-UI '字幕文字'){break};Start-Sleep -Milliseconds 100}
     if(-not (Find-UI '字幕文字')){
         & $ScreenshotTool $p.Id (Join-Path $workPath 'failure.png')
-        $p.Refresh();$root=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+        $p.Refresh();$root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
         $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {$_.Current.Name}
         throw 'Same-name subtitle was not loaded'
     }
     if($SubtitleClicks){Test-SubtitleClicks;return}
-    if($WorkflowLayout){[void][SmokeNative]::ShowWindow($p.MainWindowHandle,3);Start-Sleep -Milliseconds 800}
-    # UIA is an explicit mode for a locked/remote desktop, not a passing
-    # keyboard test. Default runs still require real foreground Space input.
-    if($UIAPlayback){Click-UI '播放'}else{Press-PlaybackSpace}
+    if($WorkflowLayout){[void][SmokeNative]::ShowWindow(([SmokeNative]::TestWindow($p.Id)),3);Start-Sleep -Milliseconds 800}
+    # Playback is exercised through UIA on the private desktop. This does not
+    # claim a global keyboard-input test on the user's interactive desktop.
+    Click-UI '播放'
     Start-Sleep -Seconds 2
     if(-not (Find-UI '暂停')){
         & $ScreenshotTool $p.Id (Join-Path $workPath 'failure.png')
         throw 'Playback did not start'
     }
-    if($UIAPlayback){Click-UI '暂停'}else{Press-PlaybackSpace}
+    Click-UI '暂停'
     for($i=0;$i -lt 30;$i++){if(Find-UI '播放'){break};Start-Sleep -Milliseconds 100}
     if(-not (Find-UI '播放')){throw 'Playback did not pause'}
     # Muting updates the native slider as well as the audio, and restores it.
@@ -478,11 +493,28 @@ try {
     Click-UI '取消静音';Start-Sleep -Milliseconds 300
     if((Find-UI '音量').GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern).Current.Value -ne $volume){throw 'Unmute did not restore the previous volume'}
     & $ScreenshotTool $p.Id (Join-Path $workPath 'editor.png')
+    $initialStyle=(Read-Preferences).lastStyle
     $bold=Find-UI '粗体'
     if($bold){
         $bold.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle()
         Start-Sleep -Seconds 2
         & $ScreenshotTool $p.Id (Join-Path $workPath 'style-bold.png')
+    }
+    if($PresetReset) {
+        $size=Input-UI '字号'
+        $size.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('31')
+        Start-Sleep -Seconds 1
+        if((Read-Preferences).lastStyle.fontSize -ne 31){throw 'Style edit was not saved before reset'}
+        Scroll-PanelEnd '字幕样式面板'
+        Click-UI '预设操作'
+        $items=Wait-SubtitleMenu
+        if($items -notcontains '恢复默认'){throw 'Preset menu has no reset action'}
+        Choose-SubtitleMenu '恢复默认'
+        Start-Sleep -Seconds 1
+        $restored=Read-Preferences
+        if($restored.stylePreset -ne 'default' -or ($restored.lastStyle|ConvertTo-Json -Compress) -ne ($initialStyle|ConvertTo-Json -Compress)){throw 'Preset reset did not restore and save the original style'}
+        & $ScreenshotTool $p.Id (Join-Path $workPath 'style-restored.png')
+        Write-Output 'PASS: built-in preset restored through its native three-dot menu and persisted'
     }
     Click-UI '设置'
     & $ScreenshotTool $p.Id (Join-Path $workPath 'settings.png')
@@ -544,7 +576,7 @@ try {
         Click-UI '切换模型'
         $names=Wait-SubtitleMenu
         if($names.Count -ne 2 -or $names -notcontains 'catalog-alpha' -or $names -notcontains 'catalog-beta'){throw 'Model dropdown must contain only enabled models'}
-        [void][SmokeNative]::PostMessage($p.MainWindowHandle,31,[IntPtr]::Zero,[IntPtr]::Zero)
+        [void][SmokeNative]::PostMessage(([SmokeNative]::TestWindow($p.Id)),31,[IntPtr]::Zero,[IntPtr]::Zero)
         Start-Sleep -Milliseconds 400
         (Input-UI '搜索模型').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('alpha')
         Start-Sleep -Milliseconds 250
@@ -559,7 +591,7 @@ try {
         $catalog=(Find-UI '供应商模型目录').Current.BoundingRectangle
         if([Math]::Abs($used.Width-$unused.Width) -gt 1 -or [Math]::Abs($current.Width-$unused.Width) -gt 1 -or $unused.Right -gt $catalog.Right-12){throw 'Native model status widths differ or overlap the scrollbar gutter'}
         $header=(Find-UI '供应商模型目录').Current.BoundingRectangle
-        [void][SmokeNative]::PointerClick($p.MainWindowHandle,$p.Id,[int]($header.X+24),[int]($header.Y+12),$false)
+        [void][SmokeNative]::PointerClick(([SmokeNative]::TestWindow($p.Id)),$p.Id,[int]($header.X+24),[int]($header.Y+12),$false)
         Start-Sleep -Milliseconds 350
         & $ScreenshotTool $p.Id (Join-Path $workPath 'model-library.png')
         Select-Value '接口配置';Click-UI '删除 Key';Select-Value '模型目录'
@@ -571,7 +603,7 @@ try {
         Select-Tab '识别与翻译' 'AI 翻译'
         Click-UI '切换模型';$names=Wait-SubtitleMenu
         if($names.Count -ne 2 -or $names -notcontains 'catalog-beta'){throw 'Workbench dropdown did not use the same enabled model list'}
-        [void][SmokeNative]::PostMessage($p.MainWindowHandle,31,[IntPtr]::Zero,[IntPtr]::Zero)
+        [void][SmokeNative]::PostMessage(([SmokeNative]::TestWindow($p.Id)),31,[IntPtr]::Zero,[IntPtr]::Zero)
         Start-Sleep -Milliseconds 400
         $toggle=Find-UI '按意群重建时间轴'
         $original=(Read-Preferences).optimizeTimeline
@@ -664,12 +696,13 @@ try {
         # Standalone media now retains current subtitles when no same-name
         # match exists. Clear through the confirmed UI action to test a new,
         # genuinely subtitle-free workbench rather than a media reassociation.
-        Remove-Item $subtitle
+        # Move this fixture out of discovery without deleting a file permanently.
+        Move-Item -LiteralPath $subtitle -Destination ($subtitle+'.saved')
         Click-UI '清空工作台';Click-UI '清空'
         Click-UI '添加文件';Choose-Path $video
         for($i=0;$i -lt 100;$i++){if(Find-UI '未加载字幕'){break};Start-Sleep -Milliseconds 100}
         if(-not (Find-UI '未加载字幕')){throw 'Subtitle-free import was not empty'}
-        Click-UI '视频压缩'
+        Click-UI '音视频处理'
         if(Find-UI '字幕内容'){throw 'Compression exposes subtitle output options'}
         Click-UI '开始压缩'
         $compressed=Join-Path $workPath 'test-OneSub-compressed.mp4'
@@ -677,8 +710,20 @@ try {
         if(-not (Test-Path $compressed)){throw 'Subtitle-free compression did not publish a video'}
         $streams=(& ffprobe -v error -show_streams -of json $compressed | Out-String | ConvertFrom-Json).streams
         if($LASTEXITCODE -ne 0 -or @($streams|Where-Object codec_type -eq 'video').Count -ne 1 -or @($streams|Where-Object codec_type -eq 'subtitle').Count -ne 0){throw 'Compression added subtitles or lost video'}
+        Click-UI '音视频处理'
+        Select-NativeOption '处理方式' '提取音频'
+        if((Read-Preferences).audioFormat -ne 'mp3' -or (Find-UI '编码质量')){throw 'Audio mode did not default to MP3 or still shows video quality'}
+        & $ScreenshotTool $p.Id (Join-Path $workPath 'audio-tools.png')
+        Click-UI '开始提取'
+        $audio=Join-Path $workPath 'test-OneSub-audio.mp3'
+        for($i=0;$i -lt 600;$i++){if(Test-Path $audio){break};Start-Sleep -Milliseconds 100}
+        if(-not (Test-Path $audio)){throw 'Audio extraction did not publish MP3'}
+        $streams=(& ffprobe -v error -show_streams -of json $audio | Out-String | ConvertFrom-Json).streams
+        if($LASTEXITCODE -ne 0 -or @($streams).Count -ne 1 -or $streams[0].codec_type -ne 'audio' -or $streams[0].codec_name -ne 'mp3'){throw 'Audio extraction produced incorrect streams'}
+        & ffmpeg -nostdin -v error -xerror -i $audio -f null -
+        if($LASTEXITCODE -ne 0){throw 'Extracted MP3 cannot be decoded'}
         Capture-Navigation 'video-tools.png'
-        Write-Output 'PASS: independent nonmatching subtitle import/edit/save/compose; current video retained; standalone compression without subtitles'
+        Write-Output 'PASS: independent subtitle import/edit/save/compose; video compression and MP3 extraction without subtitles; MP3 decoded'
     }
     if($SubtitleMenus) {
         # Invoke closes the modal asynchronously. Wait for the workbench's
@@ -792,7 +837,7 @@ try {
                 if((Find-UI '导出').Current.BoundingRectangle -ne $action){throw 'Format/line choice moved the export action'}
                 if($format -eq 'txt' -and -not (Find-UI '仅导出文字，不含序号、时间轴或样式。')){throw 'TXT note is missing'}
                 $heading=(Find-UI '导出字幕').Current.BoundingRectangle
-                if(-not [SmokeNative]::PointerClick($p.MainWindowHandle,$p.Id,[int]($heading.X+24),[int]($heading.Y+16),$false)){throw 'Could not clear export focus adornments'}
+                if(-not [SmokeNative]::PointerClick(([SmokeNative]::TestWindow($p.Id)),$p.Id,[int]($heading.X+24),[int]($heading.Y+16),$false)){throw 'Could not clear export focus adornments'}
                 Start-Sleep -Milliseconds 350
                 & $ScreenshotTool $p.Id (Join-Path $workPath ("export-"+$choice.id+'-'+$format+'.png'))
                 if($LASTEXITCODE -ne 0){throw 'Export screenshot failed'}
@@ -832,11 +877,11 @@ try {
 } catch {
     Write-Output ("FAIL: native smoke: " + $_.Exception.Message)
     $p.Refresh()
-    if(-not $p.HasExited -and $p.MainWindowHandle -ne 0) {
+    if(-not $p.HasExited -and ([SmokeNative]::TestWindow($p.Id)) -ne 0) {
         # Capture the actual modal/workbench state before teardown so a picker
         # or save guard failure is not mistaken for a failed import service.
         & $ScreenshotTool $p.Id (Join-Path $workPath 'failure.png') | Out-Host
-        $root=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+        $root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
         $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object { Write-Output ("UIA: " + $_.Current.Name) }
     }
     throw
@@ -844,7 +889,7 @@ try {
     # A failed menu assertion must close this test-owned popup before WM_CLOSE;
     # otherwise its native menu loop can keep the test window alive.
     $p.Refresh()
-    if(-not $p.HasExited){[void][SmokeNative]::PostMessage($p.MainWindowHandle,31,[IntPtr]::Zero,[IntPtr]::Zero);Start-Sleep -Milliseconds 200}
+    if(-not $p.HasExited){[void][SmokeNative]::PostMessage(([SmokeNative]::TestWindow($p.Id)),31,[IntPtr]::Zero,[IntPtr]::Zero);Start-Sleep -Milliseconds 200}
     for($i=0;$i -lt 200;$i++){if(-not (Find-UI '取消任务')){break};Start-Sleep -Milliseconds 100}
     $p.Refresh()
     if(-not $p.HasExited){

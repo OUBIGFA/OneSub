@@ -108,11 +108,17 @@ func (a *NativeApp) presetControls(c *ui.Context, layer int) {
 	})
 	ui.Toolbar(c, func() {
 		toolIcon(c, locales.PresetActions(), "ellipsis").Menu(func(m *ui.Menu) {
+			own := a.userPreset(*preset) >= 0
+			original, known := a.presetStyle(*preset)
+			if m.Item(locales.PresetRestoreDefaults()).Disabled(own || !known).Chosen() && !own && known {
+				// Restore this layer from the immutable catalog. The regular
+				// style observer refreshes preview and persists the whole style.
+				*style = original
+			}
 			if m.Item(locales.PresetSaveNew()).Chosen() {
 				a.presetDialog, a.presetDialogLayer = "save", layer
 				a.presetName = locales.PresetNewName(len(a.settings.UserPresets) + 1)
 			}
-			own := a.userPreset(*preset) >= 0
 			if m.Item(locales.PresetRename()).Disabled(!own).Chosen() && own {
 				a.presetDialog, a.presetDialogLayer = "rename", layer
 				a.presetName = a.settings.UserPresets[a.userPreset(*preset)].Name

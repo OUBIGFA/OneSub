@@ -127,6 +127,7 @@ type NativeApp struct {
 	composeOpen                          bool
 	compressOpen                         bool
 	compressRunning                      bool
+	audioExtractRunning                  bool
 	composeRunning                       bool
 	recognitionRunning                   bool
 	recognitionStarted                   time.Time
@@ -497,7 +498,7 @@ func (a *NativeApp) run(label string, work func(context.Context) (func(), error)
 // finishTask reconciles worker results on the UI thread before exit or update.
 func (a *NativeApp) finishTask(label string, apply func(), err error) {
 	a.busy = false
-	a.composeRunning, a.compressRunning = false, false
+	a.composeRunning, a.compressRunning, a.audioExtractRunning = false, false, false
 	a.recognitionRunning = false
 	if a.translationRunning && err != nil && a.translationLive != nil {
 		a.translationLive.stopped = err.Error()
