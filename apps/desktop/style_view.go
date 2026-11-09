@@ -33,7 +33,7 @@ func (a *NativeApp) stylePanelAtWidth(c *ui.Context, width float32) {
 		room, left, right := width-1, em(c, 220), em(c, 360)
 		if bilingual {
 			// Keep both full layer names visible in the horizontal selector.
-			left = em(c, 290)
+			left = em(c, 320)
 		}
 		if room >= left+right {
 			return min(100-right/room*100, max(left/room*100, value))
@@ -107,24 +107,20 @@ func (a *NativeApp) presetControls(c *ui.Context, layer int) {
 		}
 	})
 	ui.Toolbar(c, func() {
-		toolIcon(c, locales.PresetActions(), "ellipsis").Menu(func(m *ui.Menu) {
+		lobeMenuButton(c, locales.PresetActions(), "ellipsis", true, func() []menuCommand {
 			own := a.userPreset(*preset) >= 0
 			original, known := a.presetStyle(*preset)
-			if m.Item(locales.PresetRestoreDefaults()).Disabled(own || !known).Chosen() && !own && known {
-				// Restore this layer from the immutable catalog. The regular
-				// style observer refreshes preview and persists the whole style.
-				*style = original
-			}
-			if m.Item(locales.PresetSaveNew()).Chosen() {
-				a.presetDialog, a.presetDialogLayer = "save", layer
-				a.presetName = locales.PresetNewName(len(a.settings.UserPresets) + 1)
-			}
-			if m.Item(locales.PresetRename()).Disabled(!own).Chosen() && own {
-				a.presetDialog, a.presetDialogLayer = "rename", layer
-				a.presetName = a.settings.UserPresets[a.userPreset(*preset)].Name
-			}
-			if m.Item(locales.PresetDelete()).Disabled(!own).Chosen() && own {
-				a.presetDialog, a.presetDialogLayer = "delete", layer
+			return []menuCommand{
+				{Label: locales.PresetRestoreDefaults(), Disabled: own || !known, Run: func() { *style = original }},
+				{Label: locales.PresetSaveNew(), Run: func() {
+					a.presetDialog, a.presetDialogLayer = "save", layer
+					a.presetName = locales.PresetNewName(len(a.settings.UserPresets) + 1)
+				}},
+				{Label: locales.PresetRename(), Disabled: !own, Run: func() {
+					a.presetDialog, a.presetDialogLayer = "rename", layer
+					a.presetName = a.settings.UserPresets[a.userPreset(*preset)].Name
+				}},
+				{Label: locales.PresetDelete(), Disabled: !own, Danger: true, Run: func() { a.presetDialog, a.presetDialogLayer = "delete", layer }},
 			}
 		})
 	}).Padding(0)
@@ -222,13 +218,18 @@ func (a *NativeApp) userPreset(id string) int {
 // colorWell edits a #RRGGBB color; its name is the property it paints.
 func colorWell(c *ui.Context, label string, value *string) ui.Element {
 	color := ui.Hex(*value)
-	return ui.ColorWell(c, &color).Label(label).Tooltip(label).AlignSelf(ui.Start).OnChange(func() { *value = fmt.Sprintf("#%02X%02X%02X", color.R, color.G, color.B) })
+	before := color
+	picker := lobeColorPicker(c, &color).Label(label).Tooltip(label).AlignSelf(ui.Start)
+	if color != before {
+		*value = fmt.Sprintf("#%02X%02X%02X", color.R, color.G, color.B)
+	}
+	return picker
 }
 
 // number is a native number input at its own size: a narrower one would
 // draw its step buttons over what follows.
-func number(c *ui.Context, label string, value *float64, low, high, step float64) ui.Element {
-	return ui.NumberInput(c, value, low, high, step).AlignSelf(ui.Start).Label(label).Tooltip(label)
+func number(c *ui.Context, label string, value *float64, low, high, step float64, changed ...func()) ui.Element {
+	return lobeNumberInput(c, value, low, high, step, false, changed...).Label(label).Tooltip(label)
 }
 
 // percent is a number input for an opacity, with its unit after it.
@@ -266,7 +267,7 @@ func (a *NativeApp) textSection(c *ui.Context, style *styles.Style) {
 	}
 	ui.Field(c, locales.StyleFont(), func() {
 		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-			ui.Combobox(c, &style.FontName, fonts).Label(locales.StyleFont()).Grow(1).MinWidth(0)
+			lobeCombobox(c, &style.FontName, fonts, func(frame ui.Element) { frame.Grow(1).MinWidth(0) }).Label(locales.StyleFont())
 			toolIcon(c, locales.StyleReloadFonts(), "rotate-cw").Disabled(a.fontCatalogLoading).OnClick(a.reloadFonts)
 		})
 	})
@@ -277,9 +278,9 @@ func (a *NativeApp) textSection(c *ui.Context, style *styles.Style) {
 	})
 	ui.Field(c, locales.StyleEmphasis(), func() {
 		ui.ToggleGroup(c, func() {
-			ui.Toggle(c, &style.Bold, "").Grow(1).Basis(0).Label(locales.StyleBold()).Tooltip(locales.StyleBold()).Children(func() { icon(c, "bold") })
-			ui.Toggle(c, &style.Italic, "").Grow(1).Basis(0).Label(locales.StyleItalic()).Tooltip(locales.StyleItalic()).Children(func() { icon(c, "italic") })
-			ui.Toggle(c, &style.Underline, "").Grow(1).Basis(0).Label(locales.StyleUnderline()).Tooltip(locales.StyleUnderline()).Children(func() { icon(c, "underline") })
+			lobeToggle(c, &style.Bold, "").Grow(1).Basis(0).Label(locales.StyleBold()).Tooltip(locales.StyleBold()).Children(func() { icon(c, "bold") })
+			lobeToggle(c, &style.Italic, "").Grow(1).Basis(0).Label(locales.StyleItalic()).Tooltip(locales.StyleItalic()).Children(func() { icon(c, "italic") })
+			lobeToggle(c, &style.Underline, "").Grow(1).Basis(0).Label(locales.StyleUnderline()).Tooltip(locales.StyleUnderline()).Children(func() { icon(c, "underline") })
 		}).Label(locales.StyleEmphasis())
 	})
 }
@@ -345,7 +346,7 @@ func (a *NativeApp) layoutSection(c *ui.Context, style *styles.Style) {
 			for i, name := range []string{"align-left", "align-center", "align-right"} {
 				on := column == i
 				label := []string{locales.AlignLeft(), locales.AlignCenterH(), locales.AlignRight()}[i]
-				if ui.Toggle(c, &on, "").Grow(1).Basis(0).Label(label).Tooltip(label).Children(func() { icon(c, name) }).Changed() {
+				if lobeToggle(c, &on, "").Grow(1).Basis(0).Label(label).Tooltip(label).Children(func() { icon(c, name) }).Changed() {
 					column = i
 				}
 			}
@@ -392,12 +393,12 @@ func (a *NativeApp) presetDialogView(c *ui.Context) {
 	}
 	fixedDialog(c, &open, title, 480, 0, func() {
 		ui.Field(c, locales.PresetNameLabel(), func() {
-			ui.TextInput(c, &a.presetName).AutoFocus().Label(locales.PresetNameLabel()).Placeholder(locales.PresetNameLabel())
+			lobeTextInput(c, &a.presetName).AutoFocus().Label(locales.PresetNameLabel()).Placeholder(locales.PresetNameLabel())
 		})
 	}, func() {
 		name := strings.TrimSpace(a.presetName)
-		ui.Button(c, locales.ActionCancel()).OnClick(func() { a.presetDialog = "" })
-		ui.PrimaryButton(c, confirm).Disabled(name == "").OnClick(func() {
+		lobeButton(c, locales.ActionCancel()).OnClick(func() { a.presetDialog = "" })
+		lobePrimaryButton(c, confirm).Disabled(name == "").OnClick(func() {
 			if a.presetDialog == "rename" && index >= 0 {
 				a.settings.UserPresets[index].Name = name
 			} else {

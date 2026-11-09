@@ -67,7 +67,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		// wrapping toolbar below, so narrow headers never crowd the tabs.
 		panelHeader(c, nil, func() {
 			tab := a.subtitleTab
-			if ui.Tabs(c, &tab, locales.TabOriginal(), locales.TabRebuilt()).Label(locales.A11ySubtitleTabs()).Changed() {
+			if lobeTabs(c, &tab, locales.TabOriginal(), locales.TabRebuilt()).Label(locales.A11ySubtitleTabs()).Changed() {
 				a.changeSubtitleTab(tab)
 			}
 		}, nil)
@@ -79,10 +79,11 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			if a.subtitleTab == 1 {
 				label = locales.ListRebuiltEmpty()
 			}
-			ui.Column(c).Grow(1).Center().Gap(em(c, 12)).Children(func() {
+			empty := ui.Column(c).Grow(1).Center().Gap(em(c, 12)).Children(func() {
 				muted(c, label)
 				iconButton(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
-			}).ContextMenu(func(m *ui.Menu) { a.subtitleStructureMenu(m, -1) })
+			})
+			a.subtitleContextMenu(c, empty, -1, -1, nil)
 			return
 		}
 		a.subtitleToolbar(c, width, hasCues)
@@ -114,26 +115,11 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		a.list.OnRowClick = func(row int, double bool) {
 			a.rowClick = &subtitleRowClick{index: rows[row], double: double}
 		}
-		a.list.CellMenu = func(m *ui.Menu, row, col int) {
-			a.pendingClick = nil
-			a.noteBrowse(c.Now())
-			index := rows[row]
-			// MyGo's single-selection list keeps its old selection on a
-			// right-click. Select this cue explicitly, without a playback action.
-			if a.selected != index {
-				if !a.commitEdit(true) {
-					return
-				}
-				a.selected, selected = index, row
-				a.loadDraft()
-				c.Invalidate()
-			}
-			a.list.Focus(c)
-			a.subtitleStructureMenu(m, index)
-		}
 		maximum := 1
+		maximumTime := int64(math.Max(a.start, a.end) * 1000)
 		for _, cue := range cues {
 			maximum = max(maximum, cue.Position+1)
+			maximumTime = max(maximumTime, cue.StartMs, cue.EndMs)
 		}
 		targets := a.retranslationTargets()
 		showChecks := len(a.checkedRetranslationIDs()) > 0
@@ -141,12 +127,12 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		// The left gutter always mirrors the fixed right navigation rail. Only
 		// its row controls are conditional, so enabling selection never shifts
 		// the subtitle columns under the reader.
-		cols := []ui.TableColumn{subtitleSelectionColumn(c), numbers, timeColumn(c, locales.ListColumnStart()), timeColumn(c, locales.ListColumnEnd()), {Title: locales.ListColumnText(), Fixed: true}}
+		cols := []ui.TableColumn{subtitleSelectionColumn(c), numbers, timeColumn(c, locales.ListColumnStart(), maximumTime), timeColumn(c, locales.ListColumnEnd(), maximumTime), {Title: locales.ListColumnText(), Fixed: true}}
 		numberIndex, startIndex, endIndex := 1, 2, 3
 		if compact {
 			// Start and end remain explicit, but share a column so subtitle
 			// text can be read without scrolling horizontally in a small pane.
-			timing := timeColumn(c, locales.ListColumnStart()+" / "+locales.ListColumnEnd())
+			timing := timeColumn(c, locales.ListColumnStart()+" / "+locales.ListColumnEnd(), maximumTime)
 			timing.ID = "timing-pair"
 			cols = []ui.TableColumn{subtitleSelectionColumn(c), numbers, timing, {Title: locales.ListColumnText(), Fixed: true}}
 			endIndex = -1
@@ -167,7 +153,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			// Secondary columns are muted, but on the accent of the chosen
 			// row they take its text color.
 			cell := func(value string) ui.Element {
-				t := ui.Text(c, value).FontSize(em(c, captionSize)).FontFeatures("tnum").SingleLine()
+				t := ui.Text(c, value).FontSize(em(c, captionSize)).FontFeatures("tnum").NoWrap().Shrink(0)
 				if index != a.selected {
 					t.TextColor(c.Theme().TextMuted)
 				}
@@ -183,7 +169,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 						if !eligible {
 							hint = locales.RetranslateUseOptimized()
 						}
-						ui.Checkbox(c, &checked, "").Label(locales.RetranslateCheckCue(cue.Position + 1)).Tooltip(hint).Disabled(a.busy || a.translationLive != nil || !eligible).OnChange(func() { a.setSubtitleChecked(cue.ID, checked) })
+						lobeCheckbox(c, &checked, "").Label(locales.RetranslateCheckCue(cue.Position + 1)).Tooltip(hint).Disabled(a.busy || a.translationLive != nil || !eligible).OnChange(func() { a.setSubtitleChecked(cue.ID, checked) })
 					})
 				}
 			case col == numberIndex:
@@ -225,11 +211,11 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			a.pendingClick = nil
 			a.noteBrowse(c.Now())
 			a.locateCue = -1
-		}).Label(locales.A11ySubtitleList()).ContextMenu(func(m *ui.Menu) {
-			// The blank list area and keyboard menu use the current selection.
-			a.list.Focus(c)
-			a.subtitleStructureMenu(m, a.selected)
-		})
+		}, func(row int, target ui.Element) {
+			a.subtitleContextMenu(c, target, rows[row], row, &selected)
+		}).Label(locales.A11ySubtitleList())
+		// Blank space keeps the current selection; a cell prepares its own cue.
+		a.subtitleContextMenu(c, table, a.selected, rowOf(a.selected), &selected)
 		// The wheel and the touchpad scroll the list by the user's own hand.
 		// The scroll still happens; the playback's follow waits for the
 		// reading to be over.
@@ -344,8 +330,12 @@ func (a *NativeApp) locateCurrent() {
 }
 
 // timeColumn fits a timestamp in the active font, digits of one width.
-func timeColumn(c *ui.Context, title string) ui.TableColumn {
-	width, _ := c.MeasureText(0, ui.Span{Text: stamp(0)})
+func timeColumn(c *ui.Context, title string, maximum ...int64) ui.TableColumn {
+	var longest int64
+	for _, value := range maximum {
+		longest = max(longest, value)
+	}
+	width, _ := c.MeasureText(0, ui.Span{Text: stamp(float64(longest) / 1000), Features: "tnum"})
 	width += 2*c.Theme().Space(2.5) + 4
 	return ui.TableColumn{Title: title, Width: width, MinWidth: width}
 }
@@ -374,7 +364,7 @@ func (a *NativeApp) editorView(c *ui.Context) {
 			// Cue number and duration are peer metadata at opposite edges.
 			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Justify(ui.SpaceBetween).Shrink(0).Children(func() {
 				muted(c, locales.EditorCueNumber(cue.Position+1)).FontFeatures("tnum").SingleLine().Shrink(0)
-				muted(c, locales.EditorSeconds(math.Max(0, a.end-a.start))).Label(locales.EditorDuration()).FontFeatures("tnum").SingleLine().Shrink(0)
+				muted(c, locales.EditorSeconds(math.Max(0, a.end-a.start))).Label(locales.EditorDuration()).FontFeatures("tnum").NoWrap().Shrink(0)
 			})
 			timeFocused, timeComposing := false, false
 			ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Justify(ui.Center).Shrink(0).Label(locales.EditorTiming()).Children(func() {
@@ -413,7 +403,7 @@ func (a *NativeApp) editorView(c *ui.Context) {
 					a.loadDraft()
 				}
 			}
-			area := ui.TextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(0).Padding(em(c, 16)).FontSize(em(c, editSize)).LineHeight(1.5).Background(studioColors(c).panel).ReadOnly(readonly).Label(locales.A11yCueText())
+			area := lobeTextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(0).Padding(em(c, 16)).FontSize(em(c, editSize)).LineHeight(1.5).Background(studioColors(c).panel).ReadOnly(readonly).Label(locales.A11yCueText())
 			a.composing = area.Composing() || timeComposing
 			a.editing = area.Focused() || timeFocused
 			if area.Changed() {

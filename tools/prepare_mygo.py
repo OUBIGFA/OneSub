@@ -4,13 +4,15 @@ Go forbids overlays below GOMODCACHE. A generated -modfile points only MyGo
 at an ignored patched source copy; the checked-in go.mod/go.sum remain pinned.
 """
 import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = "github.com/egoist/mygo@v0.8.3"
+MODULE = "github.com/egoist/mygo@v0.8.4-0.20261109145827-434ef0956afb"
 BASE_HASHES = {
     "internal/windows/menu.go": "355564d0d9a6d34b96557d9e71a1109fdd65a7166cc6c84929797ea922ddbf96",
     "internal/windows/menudraw.go": "4b3e9006379538d4739dd7a5cc8189cef7718742ccc3c7054f7a234aff78f7b6",
@@ -18,13 +20,14 @@ BASE_HASHES = {
     "internal/windows/surface.go": "81de18fd3d2a299abb27c38414093cc39bdba979c1a95d7fbe7279d901ac0a59",
     "internal/windows/webview_embed.go": "8e8048672152b4eb7a21b60a34495ddd6ea7ccf758fb1786ebdb16981b0caf2e",
     "ui/editor.go": "89d34e1993be3fb6751a4d8ffe0ca4cebb13ec3700d9ba0323fded728765789c",
-    "ui/editor_layout.go": "bc53c797b69b52fa6bf01be3b15a1fc6eec01241e9f31289a8a81c8a6b8aeeb7",
-    "ui/headless.go": "a1fb07bf39700ec6be6add85bd4fad49104841f1157b66da1a3423c3b980dfe5",
+    "ui/editor_layout.go": "84574fea7e59d9aade29d342f110b3bd7e09048bcf8ae23d9b125682e60b0a41",
+    "ui/headless.go": "5ff47299def10ea34520492ff3b0d9d8507acc9236df8d6bf00f7523a615b500",
     "ui/sidebar.go": "e2a6fe527d0ee57bdb1ef58eecc1f014f26ee023ad39bdce908d216e2ab593d3",
-    "ui/list.go": "e10dcfe58e256a43f181650c7d0094f0b01133bc4e5f4d0712c3aaecfc042f9a",
+    "ui/list.go": "b293f9164dac22d290eab14b5d3aa2844a33d7e4b61a098a2d7a4aae0db2f48c",
     "ui/value_input.go": "d1aac3c4a8428821692fd3f01aeb6d12e73f5da6ecc46d973ffc0eaa9619654c",
-    "ui/webview.go": "57d637898c762902d818bced327f09b23e900336380ea4c5c653b19cb2897949",
-    "ui/textinput.go": "ec45c181c6fbcd08885381c0cb48f792a3db18de74f2be3ceb84b9a29dd71680",
+    "ui/webview.go": "4d7861d4631df4b9488fc8aa950dff80633009bd8eb647f5dc6c572b446eed55",
+    "ui/textinput.go": "f2e45b5eae24f2f863786db2a06fb6c0729cba5e54a488d51e75abfb2058792f",
+    "ui/table.go": "1c4e5242602e110e60669423f8fd8139154f765440ba4fcfe64096e991988f0f",
 }
 
 
@@ -39,14 +42,41 @@ def mirror(source, output):
         target = output / Path(folder).relative_to(source)
         target.mkdir(parents=True, exist_ok=True)
         for name in files:
-            shutil.copyfile(Path(folder) / name, target / name)
+            destination = target / name
+            # Older mirrors may retain the module cache's read-only bit.
+            # Change only the owned working copy, never the verified source.
+            if destination.exists():
+                destination.chmod(destination.stat().st_mode | stat.S_IWRITE)
+            shutil.copyfile(Path(folder) / name, destination)
+
+
+def prepare_lobe():
+    """Apply the kit's limited native integration without editing its cache."""
+    manifest = json.loads((ROOT / "third_party/manifests/lobe-mygo.json").read_text(encoding="utf-8"))
+    module = manifest["module"] + "@" + manifest["version"]
+    source = ROOT / ".local/gomodcache" / module
+    relative = ".local/lobe-mygo-source-" + manifest["version"]
+    output = ROOT / relative
+    for name, expected in manifest["sourceHashes"].items():
+        if hashlib.sha256((source / name).read_bytes()).hexdigest() != expected:
+            raise RuntimeError(f"Lobe MyGo source changed; review integration patch: {name}")
+    patch = ROOT / manifest["patch"]
+    fingerprint = hashlib.sha256(module.encode("ascii") + b"\0" + patch.read_bytes()).hexdigest()
+    stamp = output / ".onesub-patch-sha256"
+    if not stamp.exists() or stamp.read_text() != fingerprint:
+        mirror(source, output)
+        for name in manifest["addedFiles"]:
+            (output / name).unlink(missing_ok=True)
+        subprocess.run(["git", "apply", "--whitespace=nowarn", "--directory=" + relative, str(patch)], cwd=ROOT, check=True)
+        stamp.write_text(fingerprint, encoding="ascii")
+    return output
 
 
 def prepare():
     source = ROOT / ".local/gomodcache" / MODULE
     patches = [ROOT / "third_party/patches/mygo" / name for name in
-               ("windows-native.patch", "ui-interaction.patch", "ui-layout.patch", "ui-row-click.patch", "ui-sidebar.patch")]
-    relative = ".local/mygo-menu-source-v0.8.3"
+               ("windows-native.patch", "ui-interaction.patch", "ui-layout.patch", "ui-row-click.patch", "ui-sidebar.patch", "ui-table-elements.patch")]
+    relative = ".local/mygo-menu-source-v0.8.4-0.20261109145827-434ef0956afb"
     output = ROOT / relative
     for name, expected in BASE_HASHES.items():
         data = (source / name).read_bytes()
@@ -61,7 +91,7 @@ def prepare():
         mirror(source, output)
         # Upstream files are reset by mirror. Reset this patch-added test too,
         # so a changed or interrupted patch can be applied again safely.
-        for name in ("onesub_interaction_test.go", "onesub_layout_test.go", "onesub_sidebar_test.go"):
+        for name in ("onesub_interaction_test.go", "onesub_layout_test.go", "onesub_menu_tester.go", "onesub_sidebar_test.go"):
             (output / "ui" / name).unlink(missing_ok=True)
         for patch in patches:
             subprocess.run(
@@ -72,9 +102,11 @@ def prepare():
     modfile = ROOT / ".local/onesub-patched.mod"
     modfile.write_bytes((ROOT / "apps/desktop/go.mod").read_bytes())
     modfile.with_suffix(".sum").write_bytes((ROOT / "apps/desktop/go.sum").read_bytes())
+    lobe = prepare_lobe()
     subprocess.run(
         ["go", "mod", "edit", "-modfile=" + str(modfile),
-         "-replace=github.com/egoist/mygo=" + str(output)], cwd=ROOT / "apps/desktop", check=True,
+         "-replace=github.com/egoist/mygo=" + str(output),
+         "-replace=github.com/lobehub/lobe-mygo=" + str(lobe)], cwd=ROOT / "apps/desktop", check=True,
     )
     print(modfile)
 

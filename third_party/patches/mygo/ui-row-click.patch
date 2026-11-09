@@ -1,9 +1,9 @@
 diff --git a/ui/list.go b/ui/list.go
 --- a/ui/list.go
 +++ b/ui/list.go
-@@ -72,6 +72,14 @@
- 	// which shows in the accent color. The list's Changed reports a new
- 	// choice, and its Submitted a double click or Enter.
+@@ -77,6 +77,14 @@
+ 	// app that shows another set of rows in the same list can start it
+ 	// afresh (list = ListState{}), which forgets the item chosen before.
  	Selected *int
 +	// OnRowClick observes native row activation, including another click on
 +	// the selected row. Double clicks are reported at the second press, not

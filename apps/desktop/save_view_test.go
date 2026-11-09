@@ -323,40 +323,18 @@ func TestSubtitleSaveStatusKeepsOneButtonWidth(t *testing.T) {
 	}
 }
 
-func TestSubtitleSaveAsIconAndFileSeparator(t *testing.T) {
+func TestSubtitleSaveAsIconWithoutFileSeparator(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := draftApp(t)
-			var border ui.Color
-			tt := settled(func(c *ui.Context) {
-				border = c.Theme().Border
-				a.subtitlesView(c)
-			}, 1600, 600)
+			tt := settled(a.subtitlesView, 1600, 600)
 			group, found := tt.Find(locales.A11ySubtitleFileActions())
 			save, _ := tt.Find(locales.ListSave())
 			saveAs, _ := tt.Find(locales.ListSaveAs())
 			next, _ := tt.Find(locales.ReadingNext())
 			fileIcon, hasIcon := tt.Find(locales.A11yIconOf(locales.ListSaveAs()))
-			if !found || group.X <= next.X+next.W || save.X <= group.X || !hasIcon || fileIcon.W <= 0 || fileIcon.X < saveAs.X || fileIcon.X+fileIcon.W > saveAs.X+saveAs.W {
-				t.Fatal("save group separator or Save As icon missing", group, saveAs, fileIcon)
-			}
-			// A native Divider is a real vertical line, not blank padding.
-			longest := 0
-			frame := tt.Image()
-			for x := int(group.X); x < int(save.X); x++ {
-				run := 0
-				for y := int(group.Y); y < int(group.Y+group.H); y++ {
-					p := frame.RGBAAt(x, y)
-					if p.R == border.R && p.G == border.G && p.B == border.B {
-						run++
-						longest = max(longest, run)
-					} else {
-						run = 0
-					}
-				}
-			}
-			if longest < 10 {
-				t.Fatal("save group has no visible native separator", longest)
+			if !found || group.X <= next.X+next.W || save.X != group.X || !hasIcon || fileIcon.W <= 0 || fileIcon.X < saveAs.X || fileIcon.X+fileIcon.W > saveAs.X+saveAs.W {
+				t.Fatal("save group retains a leading separator or lost Save As icon", group, save, saveAs, fileIcon)
 			}
 			captureRedesign(t, tt, "subtitle-toolbar-"+language)
 		})

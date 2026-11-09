@@ -58,9 +58,11 @@ func TestRawSubtitlesDoNotPopulateOptimizedView(t *testing.T) {
 		t.Fatal("raw cues were presented as an optimized result", tt.Texts())
 	}
 	label, _ := tt.Find(locales.ListRebuiltEmpty())
-	commands, _ := tt.Find(locales.A11ySubtitleActions())
-	if math.Abs(float64(label.X+label.W/2-400)) > 1 || math.Abs(float64(label.Y+label.H/2-(commands.Y+commands.H+600)/2)) > 1 {
-		t.Fatal("empty optimized message is not centered", label, commands)
+	importAction, found := tt.Find(locales.ListImport())
+	tabs, _ := tt.Find(locales.A11ySubtitleTabs())
+	// Empty tracks center their message and import action as one group.
+	if !found || math.Abs(float64(label.X+label.W/2-400)) > 1 || importAction.Y <= label.Y+label.H || label.Y <= tabs.Y+tabs.H || importAction.Y+importAction.H >= 600 {
+		t.Fatal("empty optimized actions are not visible and centered", label, importAction, tabs)
 	}
 	a.changeSubtitleTab(0)
 	tt.Frame()

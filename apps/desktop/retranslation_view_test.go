@@ -216,7 +216,9 @@ func TestRetranslationDialogLayoutAndReopen(t *testing.T) {
 						a := checkedReviewApp(t)
 						r := a.retranslation
 						r.open = false
-						tt := settled(a.retranslationView, int(1000*scale), int(820*scale))
+						// Use the application root so the production Lobe theme also
+						// participates in dark-mode and text-scale layout checks.
+						tt := settled(a.view, int(1000*scale), int(820*scale))
 						tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
 						tt.SetDark(dark)
 						firstFrameSettled(t, tt, "retranslation", func() { r.open = true })
@@ -239,11 +241,24 @@ func TestRetranslationDialogLayoutAndReopen(t *testing.T) {
 						tt.Move(0, 0) // Do not carry the Close button's hover into the new modal.
 						firstFrameSettled(t, tt, "reopen", a.reopenRetranslation)
 						insideRedesign(t, tt, locales.RetranslateTitle(), locales.RetranslateOne(), locales.RetranslateApplyOne(), locales.RetranslateCandidate())
-						compact := settled(a.retranslationView, int(900*scale), int(640*scale))
+						compact := settled(a.view, int(900*scale), int(640*scale))
 						compact.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
 						compact.SetDark(dark)
 						compact.Frame()
-						insideRedesign(t, compact, locales.RetranslateTitle(), locales.RetranslateCompare(), locales.RetranslateChecks(), locales.RetranslateRetry(), locales.RetranslateApply())
+						insideRedesign(t, compact, locales.RetranslateTitle(), locales.RetranslateCompare(), locales.RetranslateRetry(), locales.RetranslateApply())
+						if _, ok := compact.Find(locales.RetranslateChecks()); ok {
+							t.Fatal("review without diagnostics keeps a redundant status region")
+						}
+						apply, _ := compact.Find(locales.RetranslateApply())
+						r.errorText = strings.Repeat("Translation service unavailable. ", 30)
+						compact.Frame()
+						insideRedesign(t, compact, locales.RetranslateTitle(), locales.RetranslateChecks())
+						captureRedesign(t, compact, fmt.Sprintf("retranslation-error-%s-%g-%t", language, scale, dark))
+						if next, _ := compact.Find(locales.RetranslateApply()); next != apply {
+							t.Fatal("diagnostic moved the dialog actions", apply, next)
+						}
+						r.errorText = ""
+						compact.Frame()
 						comparison, ok := compact.Find(locales.RetranslateCompare())
 						if !ok || comparison.H < 75*scale {
 							t.Fatal("minimum window lost readable comparison", comparison)

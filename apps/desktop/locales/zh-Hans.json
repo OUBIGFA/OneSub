@@ -1,5 +1,8 @@
 {
   "@@locale": "zh-Hans",
+  "actionClearInput": "清除输入",
+  "actionIncrease": "增加",
+  "actionDecrease": "减少",
   "readingInspect": "检查字幕",
   "retranslateTitle": "重新翻译",
   "retranslateSelected": "重译 · {count} 条",
@@ -13,7 +16,6 @@
   "retranslateAllHint": "选择当前字幕集的全部可重译条目，包括搜索隐藏的字幕",
   "retranslateUseOptimized": "该条目已改变或受格式保护；请在优化字幕中勾选可编辑条目",
   "retranslateScope": "发送选中原文、每条前后最多 5 条上下文及翻译规则；不发送媒体；可能计费",
-  "retranslateNoWrite": "替换后可撤销；点击保存才写入字幕文件",
   "retranslateStale": "字幕已修改，旧结果仅供查看；关闭后重新选择字幕并翻译",
   "retranslateReady": "已翻译 {count} 条",
   "@retranslateReady": {"placeholders":{"count":{"type":"int"}}},

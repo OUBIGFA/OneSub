@@ -16,7 +16,7 @@ diff --git a/ui/editor.go b/ui/editor.go
 diff --git a/ui/editor_layout.go b/ui/editor_layout.go
 --- a/ui/editor_layout.go
 +++ b/ui/editor_layout.go
-@@ -143,26 +143,51 @@
+@@ -144,26 +144,51 @@
  // placeholderParams lays out the placeholder of an empty input in a
  // content box width wide: in the input's style, its line height too, fixed
  // or not. A text area's placeholder wraps; a single-line input's stays on
@@ -38,7 +38,7 @@ diff --git a/ui/editor_layout.go b/ui/editor_layout.go
 +// same shaper as Text.SingleLine. Cache it on the editor, not globally.
 +func (e *node) inputPaintLayout(width float32) *text.Layout {
 +	ed := e.st.editor
-+	if e.Focused() || ed.multiline || ed.layout == nil || ed.layout.Width <= width {
++	if e.noWrap || e.Focused() || ed.multiline || ed.layout == nil || ed.layout.Width <= width {
 +		ed.elidedLayout = nil
 +		return ed.layout
 +	}
@@ -75,7 +75,7 @@ diff --git a/ui/editor_layout.go b/ui/editor_layout.go
 diff --git a/ui/list.go b/ui/list.go
 --- a/ui/list.go
 +++ b/ui/list.go
-@@ -216,6 +216,9 @@
+@@ -221,6 +221,9 @@
  	wroteY  float64
  	req     listRequest
  	heights listHeights
@@ -85,7 +85,7 @@ diff --git a/ui/list.go b/ui/list.go
  
  	// scrolled tells that the app asked the list to scroll (ScrollTo,
  	// ScrollIntoView, ScrollToEnd): a mouse wheel's notches on their way
-@@ -318,13 +321,67 @@
+@@ -323,13 +326,67 @@
  // the list scrolls as the frame is laid out, to where the row is once it
  // is measured.
  func (s *ListState) ScrollTo(row int, align Align) {
@@ -153,7 +153,7 @@ diff --git a/ui/list.go b/ui/list.go
  	s.req = listRequest{set: true, row: row, near: true}
  	s.scrolled = true
  }
-@@ -332,6 +389,7 @@
+@@ -337,6 +394,7 @@
  // ScrollToEnd scrolls the list to its end, where FollowEnd follows it
  // again.
  func (s *ListState) ScrollToEnd() {
@@ -161,7 +161,7 @@ diff --git a/ui/list.go b/ui/list.go
  	s.req = listRequest{set: true, end: true}
  	s.scrolled = true
  }
-@@ -521,6 +579,9 @@
+@@ -530,6 +588,9 @@
  	}
  	e.list, owner.rowsOf = f, f
  	wrapElement(owner).Bind(&s.Handle)
@@ -171,7 +171,7 @@ diff --git a/ui/list.go b/ui/list.go
  	s.sync(e, n)
  	f.pickForMenu()
  	if s.cursor() != nil && owner == e {
-@@ -1512,6 +1573,19 @@
+@@ -1522,6 +1583,19 @@
  		}
  	}
  	glide := s.glideToEnd(e, n, lo, hi, H, padTop+padBottom+hs.top(n, gap)-gap, func(d float64) { shift(d); cover() })
@@ -191,7 +191,7 @@ diff --git a/ui/list.go b/ui/list.go
  	for k := 0; k < listOverscan && hi < n-1 && ensure(hi+1); k++ {
  		yHi += ht(hi) + gap
  		hi++
-@@ -1597,6 +1671,22 @@
+@@ -1607,6 +1681,22 @@
  	st.scrollTo(st.scrollX, scroll)
  	s.inset = inset
  	s.remember(e, first, last, hi == n-1 && end()-glide <= H+0.5, scroll)

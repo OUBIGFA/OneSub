@@ -7,6 +7,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
+	lobeField "github.com/lobehub/lobe-mygo/pkg/field"
 )
 
 // option is a stable value with the label said in the current language.
@@ -17,24 +18,18 @@ type option struct{ ID, Label string }
 // An optional placeholder is shown only when the stored choice is absent;
 // it is not added to the selectable items.
 func idSelect(c *ui.Context, value *string, options []option, placeholder ...string) ui.Element {
-	labels, chosen := make([]string, len(options)), ""
+	items := make([]lobeField.SelectOption, len(options))
+	chosen, hint := "", ""
 	if len(placeholder) > 0 {
-		chosen = placeholder[0]
+		hint = placeholder[0]
 	}
-	for i, o := range options {
-		labels[i] = o.Label
-		if o.ID == *value {
-			chosen = o.Label
+	for i, option := range options {
+		items[i] = lobeField.SelectOption{Value: option.ID, Label: option.Label}
+		if option.ID == *value {
+			chosen = option.Label
 		}
 	}
-	return ui.Select(c, &chosen, labels).Tooltip(chosen).OnChange(func() {
-		for _, o := range options {
-			if o.Label == chosen {
-				*value = o.ID
-				return
-			}
-		}
-	})
+	return lobeField.Select(c, value, lobeField.SelectProps{Options: items, Placeholder: hint}).Tooltip(chosen)
 }
 
 // Actions follow Subtitle Edit's separate single/double-click preferences.

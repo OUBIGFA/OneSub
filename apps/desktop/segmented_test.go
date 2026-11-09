@@ -28,7 +28,8 @@ func TestPropertySegmentsFillTrackAndKeepNativeNavigation(t *testing.T) {
 					previous := ui.Rect{}
 					for i, label := range labels {
 						r, ok := tt.Find(label)
-						if !ok || r.W < track.W/3-5 || i > 0 && math.Abs(float64(r.W-previous.W)) > 1 {
+						// Lobe reserves its native outer inset and inter-item gaps.
+						if !ok || r.W < track.W/3-6 || i > 0 && math.Abs(float64(r.W-previous.W)) > 1 {
 							t.Fatal("choices do not equally fill the track", label, r, previous, track)
 						}
 						if i == 2 && track.X+track.W-r.X-r.W > 4*scale {

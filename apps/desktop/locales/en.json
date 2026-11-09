@@ -1,5 +1,8 @@
 {
   "@@locale": "en",
+  "actionClearInput": "Clear input",
+  "actionIncrease": "Increase",
+  "actionDecrease": "Decrease",
   "readingInspect": "Check subtitles",
   "retranslateTitle": "Retranslate",
   "retranslateSelected": "Retranslate · {count}",
@@ -13,7 +16,6 @@
   "retranslateAllHint": "Select all eligible cues in this track, including cues hidden by search",
   "retranslateUseOptimized": "This cue has changed or is protected; Check an editable cue in Optimized subtitles",
   "retranslateScope": "Sends selected sources, up to 5 neighbors on each side, and translation rules; Does not send media; Charges may apply",
-  "retranslateNoWrite": "Undo replacements if needed; Use Save to write the subtitle file",
   "retranslateStale": "Subtitles changed; Old results are read-only; Close, select the cues again, and translate",
   "retranslateReady": "Translated {count} cues",
   "@retranslateReady": {"placeholders":{"count":{"type":"int"}}},

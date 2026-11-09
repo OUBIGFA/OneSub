@@ -39,7 +39,10 @@ func TestInterfaceTextContrast(t *testing.T) {
 			{"warning", theme.Warning, theme.Surface},
 			{"primary action", theme.AccentText, theme.Accent},
 		} {
-			fg, bg := luminance(pair.foreground), luminance(pair.background)
+			// Lobe uses translucent control fills. Contrast is measured after
+			// compositing them over the actual canvas, as the renderer does.
+			background := pair.background.Over(theme.Background)
+			fg, bg := luminance(pair.foreground.Over(background)), luminance(background)
 			ratio := (max(fg, bg) + 0.05) / (min(fg, bg) + 0.05)
 			if ratio < 4.5 {
 				t.Errorf("dark=%t %s contrast %.2f:1, want at least 4.5:1", theme.Dark, pair.name, ratio)

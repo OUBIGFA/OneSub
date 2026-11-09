@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"regexp"
 	"strconv"
 	"time"
@@ -90,8 +91,14 @@ func timecodeField(c *ui.Context, label string, value *float64, step float64, di
 		ui.Form(c, func() {
 			field := ui.Field(c, label, func() {
 				ui.Row(c).Gap(c.Theme().Space(1)).AlignItems(ui.Center).Shrink(0).Children(func() {
-					width, _ := c.MeasureText(0, ui.Span{Text: stamp(*value)})
-					input = ui.TextInput(c, &draft.text).Width(width + c.Theme().Space(5) + 4).Tooltip(stamp(*value)).Disabled(disabled)
+					// Measure the exact text style and own the field's padding. Kit
+					// defaults must not consume the final milliseconds after migration.
+					fontSize, padding := em(c, bodySize), em(c, 12)
+					width, _ := c.MeasureText(0, ui.Span{Text: stamp(*value), Size: fontSize, Features: "tnum"})
+					width = float32(math.Ceil(float64(width + 2*padding + 4)))
+					input = lobeTextInput(c, &draft.text).Width(width).MinWidth(width).Shrink(0).
+						Padding(em(c, 6), padding).FontSize(fontSize).FontFeatures("tnum").NoWrap().
+						Tooltip(stamp(*value)).Disabled(disabled)
 					input.OnTextKey(func(k ui.TextKey) bool {
 						if disabled || k.Mods != 0 || (k.Key != ui.KeyUp && k.Key != ui.KeyDown) {
 							return false
@@ -126,7 +133,7 @@ func timecodeField(c *ui.Context, label string, value *float64, step float64, di
 						text, name string
 						delta      float64
 					}{{"−", locales.EditorDecreaseTime(label), -step}, {"+", locales.EditorIncreaseTime(label), step}} {
-						arrow := ui.Button(c, button.text).Padding(c.Theme().Space(1), c.Theme().Space(2)).KeepFocus().Label(button.name).
+						arrow := lobeButton(c, button.text).Padding(c.Theme().Space(1), c.Theme().Space(2)).KeepFocus().Label(button.name).
 							Tooltip(button.name + "\n" + locales.EditorTimeStepHint(int(step*1000))).
 							Disabled(disabled || button.delta < 0 && *value <= 0 || button.delta > 0 && *value >= 9007199254740)
 						hold := ui.Local(arrow, "hold", func() timecodeHold { return timecodeHold{} })

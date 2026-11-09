@@ -97,9 +97,9 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 			ui.Text(c, label).FontFeatures("tnum").SingleLine()
 			muted(c, locales.TranslationUsage(l.requests, l.input, l.output)).FontFeatures("tnum")
 			if l.stopped != "" {
-				ui.Button(c, locales.TranslationResume()).Disabled(a.busy).OnClick(a.retryTranslation)
+				lobeButton(c, locales.TranslationResume()).Disabled(a.busy).OnClick(a.retryTranslation)
 			} else {
-				ui.Button(c, locales.ActionCancelTask()).Disabled(a.cancel == nil).OnClick(func() {
+				lobeButton(c, locales.ActionCancelTask()).Disabled(a.cancel == nil).OnClick(func() {
 					if a.cancel != nil {
 						a.cancel()
 					}
@@ -108,7 +108,7 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 		})
 		fraction := l.progress()
 		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-			ui.Progress(c, fraction).Grow(1).Label(label)
+			lobeProgress(c, fraction).Grow(1).Label(label)
 			if fraction >= 0 && l.total > 0 {
 				ui.Text(c, locales.Percent(100*fraction)).FontFeatures("tnum")
 			}
@@ -143,12 +143,14 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 		return
 	}
 	rows := []int{}
+	var maximumTime int64
 	for i, cue := range l.units {
+		maximumTime = max(maximumTime, cue.StartMs)
 		if strings.Contains(strings.ToLower(subtitle.SourceText(cue)+"\n"+l.texts[i]), strings.ToLower(a.query)) {
 			rows = append(rows, i)
 		}
 	}
-	cols := []ui.TableColumn{numberColumn(c, len(l.units)), timeColumn(c, locales.ListColumnStart()), {Title: locales.TabSource(), Fixed: true}, {Title: locales.TabTranslation(), Fixed: true}}
+	cols := []ui.TableColumn{numberColumn(c, len(l.units)), timeColumn(c, locales.ListColumnStart(), maximumTime), {Title: locales.TabSource(), Fixed: true}, {Title: locales.TabTranslation(), Fixed: true}}
 	table := subtitleTable(c, &l.list, cols, len(rows), func(row, col int) {
 		row = rows[row]
 		cue := l.units[row]
@@ -156,7 +158,7 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 		case 0:
 			muted(c, fmt.Sprint(row+1)).FontFeatures("tnum").SingleLine()
 		case 1:
-			muted(c, stamp(float64(cue.StartMs)/1000)).FontFeatures("tnum").SingleLine()
+			muted(c, stamp(float64(cue.StartMs)/1000)).FontFeatures("tnum").NoWrap().Shrink(0)
 		case 2:
 			muted(c, subtitle.SourceText(cue))
 		default:

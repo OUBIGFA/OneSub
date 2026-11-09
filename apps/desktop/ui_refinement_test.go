@@ -188,6 +188,7 @@ func TestTimelineFeatureToggleIsProminentAndNative(t *testing.T) {
 						if a.settings.OptimizeTimeline == before || !tt.HasText(hintLabel) {
 							t.Fatal("feature label did not toggle or lost the result explanation")
 						}
+						tt.Advance(250 * time.Millisecond)
 						if after := tt.Image().RGBAAt(indicatorX, indicatorY); after == indicatorBefore {
 							t.Fatal("timeline state indicator did not change with the toggle")
 						}

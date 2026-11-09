@@ -343,10 +343,13 @@ func TestSubtitleListMenuPlacementAndKeyboard(t *testing.T) {
 			if err := tt.RightClick("第二句"); err != nil {
 				t.Fatal(err)
 			}
-			if len(tt.Menu()) == 0 || !tt.Focused(locales.A11ySubtitleList()) {
-				t.Fatal("visible row menu did not retain list focus", language, tt.Menu())
+			if len(tt.Menu()) == 0 {
+				t.Fatal("visible row menu did not open", language, tt.Menu())
 			}
 			tt.CloseMenu()
+			if !tt.Focused(locales.A11ySubtitleList()) {
+				t.Fatal("closing the menu did not restore list focus", language)
+			}
 			tt.Key(ui.Shift, ui.KeyF10)
 			if !slices.Contains(tt.Menu(), locales.SubtitleDelete()) {
 				t.Fatal("keyboard context menu missing", tt.Menu())

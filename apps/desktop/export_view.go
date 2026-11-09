@@ -138,18 +138,19 @@ func (a *NativeApp) exportView(c *ui.Context) {
 				})
 			}).Gap(em(c, 8)).Margin(em(c, 8), 0, 0, 0)
 		}).Gap(em(c, 8))
-		ui.Column(c).MinHeight(em(c, 40)).Children(func() {
-			if outputErr != nil {
-				ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
-			} else if a.exportFormat == "txt" {
-				muted(c, locales.ExportTextNote()).FontSize(em(c, captionSize))
-			} else if a.exportFormat == "srt" || a.exportFormat == "vtt" {
-				muted(c, locales.ExportPlainNote()).FontSize(em(c, captionSize))
-			}
-		})
+		note, warning := "", false
+		switch {
+		case outputErr != nil:
+			note, warning = outputErr.Error(), true
+		case a.exportFormat == "txt":
+			note = locales.ExportTextNote()
+		case a.exportFormat == "srt" || a.exportFormat == "vtt":
+			note = locales.ExportPlainNote()
+		}
+		stableDialogNote(c, note, warning, a.outputNoteVariants(locales.ExportTextNote(), locales.ExportPlainNote())...)
 	}, func() {
-		ui.Button(c, locales.ActionCancel()).OnClick(func() { a.exportOpen = false })
-		ui.PrimaryButton(c, locales.ExportConfirm()).Disabled(outputErr != nil || a.snapshot == nil || a.busy).OnClick(func() { a.exportOpen = false; a.exportSubtitle() })
+		lobeButton(c, locales.ActionCancel()).OnClick(func() { a.exportOpen = false })
+		lobePrimaryButton(c, locales.ExportConfirm()).Disabled(outputErr != nil || a.snapshot == nil || a.busy).OnClick(func() { a.exportOpen = false; a.exportSubtitle() })
 	})
 }
 

@@ -43,7 +43,7 @@ func (a *NativeApp) batchRecognitionView(c *ui.Context) {
 	ui.Column(c).Grow(1).MinHeight(0).Padding(0, em(c, panelPad), em(c, 24), em(c, panelPad)).Gap(em(c, 8)).Children(func() {
 		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Shrink(0).Children(func() {
 			iconButton(c, locales.BatchAddFiles(), "folder-open").Disabled(a.busy).OnClick(a.addBatchFiles)
-			ui.Button(c, locales.BatchRemove()).Disabled(a.busy || len(a.batchItems) == 0).OnClick(a.clearBatchFiles)
+			lobeButton(c, locales.BatchRemove()).Disabled(a.busy || len(a.batchItems) == 0).OnClick(a.clearBatchFiles)
 			ui.Spacer(c)
 			done, failed := a.batchCounts()
 			muted(c, locales.BatchProgress(strconv.Itoa(done+failed), strconv.Itoa(len(a.batchItems)))).FontFeatures("tnum").SingleLine()

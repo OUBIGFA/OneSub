@@ -7,19 +7,21 @@
     "onnxruntime 1.28.2 ThirdPartyNotices for the bundled sherpa-onnx runtime"
   ],
   "mygo": {
-    "version": "v0.8.3",
+    "version": "v0.8.4-0.20261109145827-434ef0956afb",
     "repository": "https://github.com/egoist/mygo",
-    "revision": "5add3817c74bb7505d0b473bc5fb28abe2201b99",
-    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.8.3.zip",
-    "archiveBytes": 12120539,
-    "archiveSha256": "631fe8925fe19f0d67ea518060538b988319fd0677dd397df8e16498c4cd0777",
-    "moduleSum": "h1:aTLEhS221YhsX+gKGNLQ5xEKMLCcYYr3pH9AkTwIRs4=",
-    "goModSum": "h1:dVav53PwF2xEotjf4oA5lTY2Jp2exgzyjLhbSXhbMwE=",
+    "revision": "434ef0956afb08dee24c72409a3da6804eca9b93",
+    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.8.4-0.20261109145827-434ef0956afb.zip",
+    "archiveBytes": 13934583,
+    "archiveSha256": "34d9f5dbc92c454dd6e6370c038437bfe6ebf65677d78deabf70668acfc9d30c",
+    "moduleSum": "h1:mBG+1RZBLquQ98QfNJ47YUaiyIxf0qvorG2Ap1Zcp/Q=",
+    "goModSum": "h1:M9l8H3dNtckOTlEpDp8JrLNL5mXOYMpYqv3tLuyPylI=",
     "spdx": "MIT",
     "license": "third_party/licenses/mygo.txt",
     "licenseSha256": "f0b56f4ab53beb6e18c5e155219c2e2b6000b5475c0ae3ddb3af3894fd9349b4",
     "usage": "Native desktop controls, layout, themes, menus and embedded media WebView",
-    "modifications": "Five reviewed native/UI patches; see third_party/patches/mygo/README.md"
+    "modifications": "Six reviewed native/UI patches; see third_party/patches/mygo/README.md",
+    "checkedAt": "2026-11-09",
+    "latestRelease": "v0.8.3"
   },
   "mcpGoSdk": {
     "module": "github.com/modelcontextprotocol/go-sdk",
@@ -187,5 +189,13 @@
       "sha256": "2b7e65f65ab7c84736dbcc5f2bbe3af9536db142f65ca8673b54bca21f38fbf8"
     }
   ],
-  "fontRedistribution": "No system font files are copied into the installer. Runtime preview uses the user's installed fonts through local capability URLs."
+  "fontRedistribution": "No system font files are copied into the installer. Runtime preview uses the user's installed fonts through local capability URLs.",
+  "lobeMygo": {
+    "module": "github.com/lobehub/lobe-mygo",
+    "version": "v0.0.0-20261109101238-5b3ecde8b184",
+    "manifest": "third_party/manifests/lobe-mygo.json",
+    "license": "third_party/licenses/lobe-mygo.txt",
+    "spdx": "MIT",
+    "usage": "Native workbench components and theme"
+  }
 }

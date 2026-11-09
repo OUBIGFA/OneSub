@@ -27,6 +27,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/google/uuid"
+	lobeLayout "github.com/lobehub/lobe-mygo/pkg/layout"
 )
 
 //go:embed icons/*.svg
@@ -185,8 +186,7 @@ func stamp(seconds float64) string {
 	return fmt.Sprintf("%02d:%02d:%02d.%03d", ms/3600000, ms/60000%60, ms/1000%60, ms%1000)
 }
 func (a *NativeApp) view(c *ui.Context) {
-	theme, look := studioTheme(c.Theme(), c.Preferences().HighContrast)
-	c.SetTheme(&theme)
+	look := applyStudioTheme(c)
 	x, y, subtitles, editor := a.paneSizes(c)
 	width, _ := c.Size()
 	// The split percentage and viewport are known in this frame; the list
@@ -317,7 +317,7 @@ func (a *NativeApp) paneSizes(c *ui.Context) (player, top, subtitles, editor flo
 	}
 	// Reserve the style split's labels at the supported minimum. If the OS work
 	// area is smaller, retain the compact bounds for the other two columns.
-	playerMinimum, otherMinimum := em(c, 660), em(c, 356)+workflowMinimum+1
+	playerMinimum, otherMinimum := em(c, 700), em(c, 356)+workflowMinimum+1
 	if width-1 < playerMinimum+otherMinimum {
 		playerMinimum = em(c, 260)
 	}
@@ -351,12 +351,12 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 			})
 			ui.Spacer(c)
 			ui.Row(c).Gap(em(c, 12)).Justify(ui.End).AlignItems(ui.Center).Children(func() {
-				ui.Toolbar(c, func() {
-					toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
-				}).Padding(0)
 				command(locales.MenuExportSubtitles(), "file-down").Disabled(a.busy || a.snapshot == nil || len(a.snapshot.Document.Cues) == 0).OnClick(a.requestExport)
 				command(locales.ActionCompress(), "file-down").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(func() { a.compressOpen = true })
 				command(locales.ActionCompose(), "clapperboard").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" || len(a.snapshot.Document.Cues) == 0).OnClick(a.compose)
+				ui.Toolbar(c, func() {
+					toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
+				}).Padding(0)
 			})
 		})
 	}).Height(em(c, toolbarSize)).Shrink(0).AlignItems(ui.Center).Gap(em(c, 16)).Padding(em(c, 12), em(c, 20)).Background(look.chrome).Label(locales.A11yToolbar())
@@ -433,7 +433,7 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 			separator(c).Height(em(c, 16)).AlignSelf(ui.Center)
 		}
 		if canCancel {
-			ui.Button(c, locales.StatusOwnerTask()+locales.ActionCancelTask()).Padding(em(c, 2), em(c, 10)).Shrink(0).OnClick(func() { a.cancel() })
+			lobeButton(c, locales.StatusOwnerTask()+locales.ActionCancelTask()).Padding(em(c, 2), em(c, 10)).Shrink(0).OnClick(func() { a.cancel() })
 		}
 		if canCancel && len(counts) > 0 {
 			separator(c).Height(em(c, 16)).AlignSelf(ui.Center)
@@ -468,7 +468,7 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 			if compact {
 				toolIcon(c, label, "folder-open").Shrink(0).OnClick(open)
 			} else {
-				ui.Button(c, label).Padding(em(c, 2), em(c, 10)).Shrink(0).OnClick(open)
+				lobeButton(c, label).Padding(em(c, 2), em(c, 10)).Shrink(0).OnClick(open)
 			}
 		}
 	})
@@ -705,13 +705,9 @@ func (a *NativeApp) replaceProject(next *project.Store, state project.Snapshot, 
 func (a *NativeApp) candidatesView(c *ui.Context) {
 	fixedDialog(c, &a.candidatesOpen, locales.CandidatesTitle(), 600, 0, func() {
 		_, height := c.Size()
-		count := 0
-		if a.pending != nil {
-			count = len(a.pending.Selection.Candidates)
-		}
-		// Short selections fit their rows; only an unbounded candidate list
-		// scrolls. The primary workbench remains available after dismissal.
-		ui.Scroll(c).Height(min(em(c, float32(max(count, 1))*72), height*.55)).Children(func() {
+		// Candidate rows size to both text lines; only a long list scrolls.
+		// Do not estimate the viewport from a fixed single-line button height.
+		ui.Scroll(c).MaxHeight(height * .55).Children(func() {
 			ui.Column(c).Gap(em(c, 8)).Children(func() {
 				if a.pending != nil {
 					for _, candidate := range a.pending.Selection.Candidates {
@@ -726,30 +722,31 @@ func (a *NativeApp) candidatesView(c *ui.Context) {
 							rule = locales.CandidatesLanguage()
 						}
 						score := locales.CandidatesScore(candidate.Score)
-						ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-							ui.Button(c, "").Label(filepath.Base(path)).Grow(1).MinWidth(0).Tooltip(path+"\n"+score+" · "+rule).Padding(em(c, 10), em(c, 16)).Children(func() {
-								ui.Column(c).MinWidth(0).Gap(em(c, 4)).Children(func() {
+						lobeLayout.Block(c.Key(path), lobeLayout.BlockProps{Variant: lobeLayout.BlockOutlined, Clickable: true}).
+							Row().Gap(em(c, 16)).Padding(em(c, 12), em(c, 16)).AlignItems(ui.Center).
+							Label(filepath.Base(path)).Tooltip(path + "\n" + score + " · " + rule).Disabled(a.busy).
+							Children(func() {
+								ui.Column(c).Grow(1).MinWidth(0).Gap(em(c, 4)).Children(func() {
 									ui.Text(c, filepath.Base(path)).SingleLine()
 									muted(c, rule).FontSize(em(c, captionSize))
 								})
+								muted(c, score).SingleLine().FontFeatures("tnum").Shrink(0)
 							}).OnClick(func() {
-								a.candidatesOpen = false
-								paths := []string{path}
-								if a.pending.Selection.CandidateKind == "subtitle" {
-									paths = append(paths, a.pending.Selection.Media)
-								} else {
-									paths = append(paths, a.pending.Selection.Subtitle)
-								}
-								a.importPaths(paths)
-							})
-							muted(c, score).SingleLine().FontFeatures("tnum").Shrink(0)
+							a.candidatesOpen = false
+							paths := []string{path}
+							if a.pending.Selection.CandidateKind == "subtitle" {
+								paths = append(paths, a.pending.Selection.Media)
+							} else {
+								paths = append(paths, a.pending.Selection.Subtitle)
+							}
+							a.importPaths(paths)
 						})
 					}
 				}
 			})
 		})
 	}, func() {
-		ui.Button(c, locales.CandidatesLater()).OnClick(func() { a.candidatesOpen = false })
+		lobeButton(c, locales.CandidatesLater()).OnClick(func() { a.candidatesOpen = false })
 	})
 }
 func (a *NativeApp) saveSettings() {

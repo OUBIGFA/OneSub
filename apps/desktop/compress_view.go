@@ -9,22 +9,28 @@ import (
 // Each operation retains its own encoding choices when the user switches modes.
 func (a *NativeApp) compressView(c *ui.Context) {
 	fixedDialog(c, &a.compressOpen, locales.ActionCompress(), 620, 0, func() {
+		audio := a.settings.MediaProcessMode == "audio"
+		mode := 0
+		if audio {
+			mode = 1
+		}
 		ui.Form(c, func() {
 			ui.Fieldset(c, locales.MediaOutputGroup(), func() {
 				ui.Field(c, locales.MediaProcessMode(), func() {
 					idSelect(c, &a.settings.MediaProcessMode, []option{{"compress", locales.MediaCompressVideo()}, {"audio", locales.MediaExtractAudio()}}).Label(locales.MediaProcessMode()).OnChange(a.saveSettings)
 				})
 				ui.Field(c, locales.CompressFormat(), func() {
-					if a.settings.MediaProcessMode == "audio" {
-						idSelect(c, &a.settings.AudioFormat, []option{{"mp3", "MP3"}, {"m4a", "M4A (AAC)"}, {"aac", "AAC"}, {"wav", "WAV"}, {"flac", "FLAC"}, {"ogg", "OGG (Vorbis)"}, {"opus", "Opus"}}).Label(locales.CompressFormat()).OnChange(a.saveSettings)
-					} else {
+					stableVariants(c, mode, func() {
 						idSelect(c, &a.settings.CompressionFormat, []option{{"mp4", "MP4"}, {"mkv", "MKV"}}).Label(locales.CompressFormat()).OnChange(a.saveSettings)
-					}
-				})
-				if a.settings.MediaProcessMode != "audio" {
-					ui.Field(c, locales.ComposeQuality(), func() {
-						idSelect(c, &a.settings.CompressionQuality, composeQualities()).Label(locales.ComposeQuality()).OnChange(a.saveSettings)
+					}, func() {
+						idSelect(c, &a.settings.AudioFormat, []option{{"mp3", "MP3"}, {"m4a", "M4A (AAC)"}, {"aac", "AAC"}, {"wav", "WAV"}, {"flac", "FLAC"}, {"ogg", "OGG (Vorbis)"}, {"opus", "Opus"}}).Label(locales.CompressFormat()).OnChange(a.saveSettings)
 					})
+				})
+				quality := ui.Field(c, locales.ComposeQuality(), func() {
+					idSelect(c, &a.settings.CompressionQuality, composeQualities()).Label(locales.ComposeQuality()).OnChange(a.saveSettings)
+				})
+				if audio {
+					quality.Invisible()
 				}
 			})
 		})
@@ -32,18 +38,26 @@ func (a *NativeApp) compressView(c *ui.Context) {
 		if a.settings.MediaProcessMode == "audio" {
 			note = locales.AudioExtractNote()
 		}
-		muted(c, note).FontSize(em(c, captionSize))
+		stableDialogNote(c, note, false, locales.ComposeCrfNote(), locales.AudioExtractNote())
 		separator(c)
 		folderField(c, a.settings.OutputDir, locales.RecognitionBesideMedia(), a.busy, a.pickComposeDir, func() { a.settings.OutputDir = ""; a.saveSettings() })
-		ui.Checkbox(c, &a.settings.ComposeAskPath, locales.ComposeAskPath()).OnChange(a.saveSettings)
+		lobeCheckbox(c, &a.settings.ComposeAskPath, locales.ComposeAskPath()).OnChange(a.saveSettings)
 	}, func() {
-		ui.Button(c, locales.ActionCancel()).OnClick(func() { a.compressOpen = false })
-		action := locales.CompressStart()
-		if a.settings.MediaProcessMode == "audio" {
-			action = locales.AudioExtractStart()
-		} else {
-			ui.Button(c, locales.ComposeSample()).OnClick(func() { a.compressOpen = false; a.startVideoExport(true, true) })
+		lobeButton(c, locales.ActionCancel()).OnClick(func() { a.compressOpen = false })
+		audio := a.settings.MediaProcessMode == "audio"
+		mode := 0
+		if audio {
+			mode = 1
 		}
-		ui.PrimaryButton(c, action).OnClick(func() { a.compressOpen = false; a.startVideoExport(false, true) })
+		if !audio {
+			lobeButton(c, locales.ComposeSample()).OnClick(func() { a.compressOpen = false; a.startVideoExport(true, true) })
+		}
+		// Keep the primary slot aligned, but only lay out visible actions:
+		// audio extraction must not leave a blank preview-button slot.
+		stableVariants(c, mode, func() {
+			lobePrimaryButton(c, locales.CompressStart()).OnClick(func() { a.compressOpen = false; a.startVideoExport(false, true) })
+		}, func() {
+			lobePrimaryButton(c, locales.AudioExtractStart()).OnClick(func() { a.compressOpen = false; a.startVideoExport(false, true) })
+		})
 	})
 }

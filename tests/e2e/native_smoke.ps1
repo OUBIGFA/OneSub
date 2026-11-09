@@ -321,18 +321,27 @@ function Open-SubtitleMenu($label) {
     if(-not [SmokeNative]::RightClick(([SmokeNative]::TestWindow($p.Id)),$p.Id,[int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2))){throw 'Test surface did not receive the right-click'}
 }
 function Wait-SubtitleMenu {
-    # Read the owner-drawn popup's Win32 labels, which UIA does not expose.
-    # The activation helper separately checks the real highlighted item.
+    # Lobe menus live in the native surface and expose UIA menu items. Read
+    # only this test-owned window; there is no separate Win32 popup anymore.
     for($i=0;$i -lt 100;$i++) {
-        $items=[SmokeNative]::MenuItems($p.Id)
-        if($items){return $items}
+        $root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
+        $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::MenuItem)
+        $items=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition) | ForEach-Object { $_.Current.Name })
+        if($items.Count){return $items}
         Start-Sleep -Milliseconds 100
     }
     throw 'Native subtitle menu did not appear'
 }
 function Choose-SubtitleMenu($label) {
     $items=Wait-SubtitleMenu
-    if($items -notcontains $label -or -not [SmokeNative]::ChooseMenuItem(([SmokeNative]::TestWindow($p.Id)),$p.Id,$label)){throw "Native menu item could not be activated: $label ($([SmokeNative]::MenuActivationError))"}
+    if($items -notcontains $label){throw "Native menu item unavailable: $label"}
+    $root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
+    $condition=[System.Windows.Automation.AndCondition]::new(
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::MenuItem),
+        [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$label))
+    $item=$root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$condition)
+    if(-not $item -or -not $item.Current.IsEnabled){throw "Native menu item cannot be activated: $label"}
+    $item.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     Start-Sleep -Milliseconds 350
 }
 function Wait-VisibleSubtitle($text) {
@@ -519,9 +528,17 @@ try {
     Click-UI '设置'
     & $ScreenshotTool $p.Id (Join-Path $workPath 'settings.png')
     if(Find-UI '设置分类'){
-        foreach($tab in @('识别与模型','翻译服务')){
+        foreach($tab in @('识别与模型','语言与模型','翻译规则','MCP 服务','关于','翻译服务')){
             Select-Tab '设置分类' $tab
             if($tab -eq '翻译服务' -and ((Find-UI '并发批数') -or (Find-UI '每批字幕数'))){throw 'Task scheduling is still in service settings'}
+            if($tab -eq '关于') {
+                $check=Find-UI '检查更新'
+                $version=Find-UI '版本 0.0.1'
+                if(-not $check -or -not $version -or -not (Find-UI 'https://github.com/OUBIGFA/OneSub')){throw 'About lost its version, update action or project link'}
+                $button=$check.Current.BoundingRectangle
+                $badge=$version.Current.BoundingRectangle
+                if($button.Top -gt $badge.Bottom -or $button.Bottom -lt $badge.Top){throw 'About update action is detached from version information'}
+            }
             & $ScreenshotTool $p.Id (Join-Path $workPath ("settings-"+$tab+'.png'))
         }
     }
@@ -576,7 +593,7 @@ try {
         Click-UI '切换模型'
         $names=Wait-SubtitleMenu
         if($names.Count -ne 2 -or $names -notcontains 'catalog-alpha' -or $names -notcontains 'catalog-beta'){throw 'Model dropdown must contain only enabled models'}
-        [void][SmokeNative]::PostMessage(([SmokeNative]::TestWindow($p.Id)),31,[IntPtr]::Zero,[IntPtr]::Zero)
+        Choose-SubtitleMenu 'catalog-beta'
         Start-Sleep -Milliseconds 400
         (Input-UI '搜索模型').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('alpha')
         Start-Sleep -Milliseconds 250
@@ -603,7 +620,7 @@ try {
         Select-Tab '识别与翻译' 'AI 翻译'
         Click-UI '切换模型';$names=Wait-SubtitleMenu
         if($names.Count -ne 2 -or $names -notcontains 'catalog-beta'){throw 'Workbench dropdown did not use the same enabled model list'}
-        [void][SmokeNative]::PostMessage(([SmokeNative]::TestWindow($p.Id)),31,[IntPtr]::Zero,[IntPtr]::Zero)
+        Choose-SubtitleMenu 'catalog-beta'
         Start-Sleep -Milliseconds 400
         $toggle=Find-UI '按意群重建时间轴'
         $original=(Read-Preferences).optimizeTimeline
@@ -740,7 +757,9 @@ try {
         $sourceHash=(Get-FileHash $subtitle -Algorithm SHA256).Hash
         Open-SubtitleMenu 'Second subtitle.'
         $items=Wait-SubtitleMenu
-        if(($items -join '|') -ne '在前面插入字幕|在后面插入字幕|-|与上一条合并|与下一条合并|-|删除字幕'){throw "Incorrect native menu items: $items"}
+        # UIA returns actionable items; separators have their own role. The
+        # current menu also includes retranslation, location and split actions.
+        if(($items -join '|') -ne '勾选／取消此条|重译 · 0 条|全选|取消勾选|定位视频|在前面插入字幕|在后面插入字幕|智能拆分|强制拆分|与上一条合并|与下一条合并|删除字幕'){throw "Incorrect native menu items: $items"}
         Choose-SubtitleMenu '与上一条合并'
         Wait-VisibleSubtitle 'First subtitle, Second subtitle.'
         if(-not (Find-UI '# 1') -or (Input-UI '开始').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '00:00:00.100' -or (Input-UI '结束').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne '00:00:01.900'){throw 'Previous merge lost numbering or its full time range'}
@@ -755,7 +774,9 @@ try {
         Wait-VisibleSubtitle 'First subtitle, Second subtitle，第一段字幕，第二段字幕。'
         Click-UI '撤销';Wait-VisibleSubtitle 'First subtitle, Second subtitle.'
         Wait-VisibleSubtitle '第一段字幕，第二段字幕。'
-        if((Get-FileHash $subtitle -Algorithm SHA256).Hash -ne $sourceHash -or -not (Find-UI '未保存')){throw 'Merge silently wrote the source file or did not mark it unsaved'}
+        # The visible label is Unsaved, while the accessible action remains
+        # Save. Enabled Save and the unchanged file verify the pending write.
+        if((Get-FileHash $subtitle -Algorithm SHA256).Hash -ne $sourceHash -or -not (Find-UI '保存').Current.IsEnabled){throw 'Merge silently wrote the source file or did not enable saving'}
         Click-UI '保存'
         $expected="1`n00:00:00,100 --> 00:00:01,900`nFirst subtitle, Second subtitle.`n`n2`n00:00:02,000 --> 00:00:02,900`n第一段字幕，第二段字幕。"
         for($i=0;$i -lt 100;$i++){
@@ -835,7 +856,7 @@ try {
                 # option. Reuse the driver that clicks its real popup trigger.
                 Select-NativeOption '保留字幕行' $choice.label
                 if((Find-UI '导出').Current.BoundingRectangle -ne $action){throw 'Format/line choice moved the export action'}
-                if($format -eq 'txt' -and -not (Find-UI '仅导出文字，不含序号、时间轴或样式。')){throw 'TXT note is missing'}
+                if($format -eq 'txt' -and -not (Find-UI '仅导出文字，不含序号、时间轴或样式')){throw 'TXT note is missing'}
                 $heading=(Find-UI '导出字幕').Current.BoundingRectangle
                 if(-not [SmokeNative]::PointerClick(([SmokeNative]::TestWindow($p.Id)),$p.Id,[int]($heading.X+24),[int]($heading.Y+16),$false)){throw 'Could not clear export focus adornments'}
                 Start-Sleep -Milliseconds 350

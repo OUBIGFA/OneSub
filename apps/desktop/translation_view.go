@@ -32,11 +32,11 @@ func (a *NativeApp) translationSettingsView(c *ui.Context) {
 	ui.Column(c).Fill().Gap(em(c, 16)).Children(func() {
 		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 			a.providerSelect(c).Grow(1).MinWidth(0)
-			ui.Button(c, locales.TranslationAddProvider()).OnClick(func() { a.addProvider(); a.providerSettingsTab = 1 })
-			ui.Button(c, locales.TranslationDeleteProvider()).Disabled(a.settings.Provider() == nil).OnClick(func() { a.providerDelete = true })
+			lobeButton(c, locales.TranslationAddProvider()).OnClick(func() { a.addProvider(); a.providerSettingsTab = 1 })
+			lobeButton(c, locales.TranslationDeleteProvider()).Disabled(a.settings.Provider() == nil).OnClick(func() { a.providerDelete = true })
 		})
 		ui.Row(c).Gap(em(c, 16)).AlignItems(ui.Center).Children(func() {
-			ui.Tabs(c, &a.providerSettingsTab, locales.TranslationModels(), locales.TranslationService()).OnChange(a.commitProviderModelInput)
+			lobeTabs(c, &a.providerSettingsTab, locales.TranslationModels(), locales.TranslationService()).OnChange(a.commitProviderModelInput)
 			ui.Spacer(c)
 			kept := 0
 			if p := a.settings.Provider(); p != nil {
@@ -79,7 +79,7 @@ func (a *NativeApp) providerModelFields(c *ui.Context) {
 			ui.Form(c, func() {
 				ui.Field(c, locales.TranslationModel(), func() { a.providerModelSelect(c) })
 			}).Grow(1).Basis(0).MinWidth(0)
-			ui.SearchField(c, &a.modelQuery).Grow(1).Basis(0).MinWidth(0).Placeholder(locales.TranslationSearchModels()).Label(locales.TranslationSearchModels()).OnChange(func() { a.modelList.ScrollTo(0, ui.Start) })
+			lobeSearchField(c, &a.modelQuery, func() { a.modelList.ScrollTo(0, ui.Start) }, func(frame ui.Element) { frame.Grow(1).Basis(0).MinWidth(0) }).Placeholder(locales.TranslationSearchModels()).Label(locales.TranslationSearchModels())
 			iconButton(c, locales.TranslationFetchModels(), "rotate-cw").Disabled(a.modelsLoading || a.settings.ProviderURL == "").OnClick(a.fetchProviderModels)
 		})
 		a.providerModelsView(c)
@@ -98,7 +98,7 @@ func (a *NativeApp) providerModelFields(c *ui.Context) {
 					if info != nil {
 						value = float64(*field.get(info))
 					}
-					ui.NumberInput(c, &value, 0, 2147483647, 1).Label(field.label).Disabled(info == nil).OnChange(func() { *field.get(info) = int(value); info.LimitsSource = "manual"; a.saveSettings() })
+					lobeNumberInput(c, &value, 0, 2147483647, 1, info == nil, func() { *field.get(info) = int(value); info.LimitsSource = "manual"; a.saveSettings() }).Label(field.label)
 				})
 			}
 		})
@@ -115,10 +115,10 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 				if p != nil {
 					name = p.Name
 				}
-				ui.TextInput(c, &name).MinHeight(em(c, 36)).Label(locales.TranslationProviderName()).Tooltip(name).Disabled(p == nil).OnChange(func() { p.Name = name; a.saveSettings() })
+				lobeTextInput(c, &name).MinHeight(em(c, 36)).Label(locales.TranslationProviderName()).Tooltip(name).Disabled(p == nil).OnChange(func() { p.Name = name; a.saveSettings() })
 			})
 			ui.Field(c, locales.TranslationRequestLimit(), func() {
-				ui.NumberInput(c, &a.settings.MaxRequests, 1, 10000, 1).MinHeight(em(c, 36)).Label(locales.TranslationRequestLimit()).OnChange(a.saveSettings)
+				lobeNumberInput(c, &a.settings.MaxRequests, 1, 10000, 1, false, a.saveSettings).Label(locales.TranslationRequestLimit())
 			})
 		})
 		// Inputs reserve the same minimum line height for empty, CJK and Latin
@@ -129,7 +129,7 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 			idSelect(c, &a.settings.ProviderAPI, []option{{translator.APIChatCompletions, "OpenAI Chat Completions"}, {translator.APIResponses, "OpenAI Responses"}}).Label(locales.TranslationApi()).Disabled(a.settings.Provider() == nil).OnChange(a.saveSettings)
 		})
 		ui.Field(c, locales.TranslationEndpoint(), func() {
-			ui.TextInput(c, &a.settings.ProviderURL).MinHeight(em(c, 36)).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).Tooltip(a.settings.ProviderURL).Disabled(a.settings.Provider() == nil).OnChange(func() {
+			lobeTextInput(c, &a.settings.ProviderURL).MinHeight(em(c, 36)).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).Tooltip(a.settings.ProviderURL).Disabled(a.settings.Provider() == nil).OnChange(func() {
 				a.providerKey, a.keyStatus, a.modelsError = "", "", ""
 				a.providerKeyVisible = false
 				a.modelsGeneration++
@@ -145,7 +145,7 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 			// Reserve text padding in this frame, without measuring prior bounds.
 			ui.Grid(c).Columns(1).Children(func() {
 				t := c.Theme()
-				input := ui.TextInput(c.Key(a.settings.CredentialScope()), &a.providerKey).ColumnStart(1).RowStart(1).MinHeight(em(c, 36)).MinWidth(0).Padding(t.Space(1.5), em(c, 40), t.Space(1.5), t.Space(2.5)).Placeholder(locales.TranslationKeyPlaceholder()).Label("API Key").Disabled(a.settings.Provider() == nil)
+				input := lobeTextInput(c.Key(a.settings.CredentialScope()), &a.providerKey).ColumnStart(1).RowStart(1).MinHeight(em(c, 36)).MinWidth(0).Padding(t.Space(1.5), em(c, 40), t.Space(1.5), t.Space(2.5)).Placeholder(locales.TranslationKeyPlaceholder()).Label("API Key").Disabled(a.settings.Provider() == nil)
 				if !a.providerKeyVisible {
 					input.Password()
 				}
@@ -158,7 +158,7 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 		})
 		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 			muted(c, a.keyStatus).FontSize(em(c, captionSize)).Grow(1)
-			ui.Button(c, locales.TranslationDeleteKey()).Disabled(a.settings.Provider() == nil).OnClick(func() {
+			lobeButton(c, locales.TranslationDeleteKey()).Disabled(a.settings.Provider() == nil).OnClick(func() {
 				if err := security.DeleteKey(a.settings.CredentialScope()); err != nil {
 					a.showError("provider-key", err.Error())
 					return
@@ -169,7 +169,7 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 				a.modelsGeneration++
 				a.modelsLoading = false
 			})
-			ui.PrimaryButton(c, locales.TranslationSaveKey()).Disabled(a.providerKey == "" || a.settings.ProviderURL == "").OnClick(func() {
+			lobePrimaryButton(c, locales.TranslationSaveKey()).Disabled(a.providerKey == "" || a.settings.ProviderURL == "").OnClick(func() {
 				if err := security.SaveKey(a.settings.CredentialScope(), a.providerKey); err != nil {
 					a.showError("provider-key", err.Error())
 					return
@@ -226,7 +226,7 @@ func (a *NativeApp) translationRulesView(c *ui.Context) {
 				})
 			}).Error(a.profilesError)
 			ui.Field(c, locales.TranslationGlossary(), func() {
-				ui.TextArea(c, &a.settings.Glossary).Height(em(c, 220)).Padding(em(c, 12)).Label(locales.TranslationGlossary()).Placeholder(locales.TranslationGlossaryPlaceholder()).OnChange(a.saveSettings)
+				lobeTextArea(c, &a.settings.Glossary).Height(em(c, 220)).Padding(em(c, 12)).Label(locales.TranslationGlossary()).Placeholder(locales.TranslationGlossaryPlaceholder()).OnChange(a.saveSettings)
 			})
 		})
 	})

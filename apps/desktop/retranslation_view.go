@@ -439,9 +439,7 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 			directoryWidth := min(em(c, 340), max(em(c, 240), (width-em(c, 88))*.28))
 			ui.Row(c).Grow(1).Basis(0).MinHeight(0).Gap(em(c, 20)).AlignItems(ui.Stretch).Children(func() {
 				ui.Column(c).Width(directoryWidth).Shrink(0).MinHeight(0).Gap(em(c, 12)).Children(func() {
-					if ui.SearchField(c, &r.query).Label(locales.RetranslateSearch()).Placeholder(locales.RetranslateSearch()).Changed() {
-						r.list.ScrollTo(0, ui.Start)
-					}
+					lobeSearchField(c, &r.query, func() { r.list.ScrollTo(0, ui.Start) }).Label(locales.RetranslateSearch()).Placeholder(locales.RetranslateSearch())
 					rows := r.filteredRows()
 					selected := slices.Index(rows, r.selected)
 					r.list.Selected = &selected
@@ -479,7 +477,11 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 					row := &r.rows[r.selected]
 					ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Wrap().Shrink(0).Children(func() {
 						ui.Text(c, fmt.Sprintf("# %d", row.cue.Position+1)).FontSize(em(c, headingSize)).FontWeight(500)
-						muted(c, stamp(float64(row.cue.StartMs)/1000)+" – "+stamp(float64(row.cue.EndMs)/1000)).FontFeatures("tnum").FontSize(em(c, captionSize))
+						ui.Row(c).Wrap().Gap(em(c, 4)).Children(func() {
+							muted(c, stamp(float64(row.cue.StartMs)/1000)).FontFeatures("tnum").FontSize(em(c, captionSize)).NoWrap().Shrink(0)
+							muted(c, "–").FontSize(em(c, captionSize))
+							muted(c, stamp(float64(row.cue.EndMs)/1000)).FontFeatures("tnum").FontSize(em(c, captionSize)).NoWrap().Shrink(0)
+						})
 						ui.Spacer(c)
 						muted(c, row.status()).FontSize(em(c, captionSize))
 					})
@@ -509,12 +511,12 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 						})
 					})
 					ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Shrink(0).Children(func() {
-						ui.Button(c, locales.RetranslateOne()).Disabled(a.busy || stale).OnClick(func() { a.startRetranslation(true) })
-						ui.Button(c, locales.RetranslateApplyOne()).Disabled(a.busy || stale || len(r.replacementEdits(true)) == 0).OnClick(func() { a.acceptRetranslation(true) })
+						lobeButton(c, locales.RetranslateOne()).Disabled(a.busy || stale).OnClick(func() { a.startRetranslation(true) })
+						lobeButton(c, locales.RetranslateApplyOne()).Disabled(a.busy || stale || len(r.replacementEdits(true)) == 0).OnClick(func() { a.acceptRetranslation(true) })
 					})
 				})
 			})
-			note := locales.RetranslateNoWrite()
+			note := ""
 			if r.selected >= 0 && r.selected < len(r.rows) {
 				if result := r.rows[r.selected].result; result != nil && result.problems != "" {
 					note = result.problems
@@ -526,16 +528,23 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 			if stale {
 				note = locales.RetranslateStale()
 			}
-			status := ui.TextArea(c, &note).ReadOnly(true).Height(em(c, 38)).MinHeight(0).Shrink(0).Padding(0).Background(c.Theme().Background).Border(0, ui.Transparent).FontSize(em(c, captionSize)).TextColor(c.Theme().TextMuted).Label(locales.RetranslateChecks())
-			if stale || r.errorText != "" {
-				status.TextColor(c.Theme().Danger)
+			if note != "" {
+				// Reuse the diagnostic reader so new messages open at the start,
+				// retain padding, and remain selectable without moving the actions.
+				ui.Column(c).Height(em(c, 64)).Shrink(0).Padding(em(c, 12)).Background(studioColors(c).panel).Radius(c.Theme().Radius).Children(func() {
+					// The outer padding stays clear even while the text scrolls.
+					status := reviewReadOnlyText(c, locales.RetranslateChecks(), note).Padding(0).FontSize(em(c, captionSize)).LineHeight(1.45).TextColor(c.Theme().TextMuted)
+					if stale || r.errorText != "" {
+						status.TextColor(c.Theme().Danger)
+					}
+				})
 			}
 		})
 	}, func() {
-		ui.Button(c, locales.ActionClose()).Tooltip(locales.RetranslateCloseHint()).OnClick(func() { r.open = false })
+		lobeButton(c, locales.ActionClose()).Tooltip(locales.RetranslateCloseHint()).OnClick(func() { r.open = false })
 		ui.Spacer(c)
 		if r.running {
-			ui.Button(c, locales.ActionCancel()).OnClick(func() {
+			lobeButton(c, locales.ActionCancel()).OnClick(func() {
 				if a.cancel != nil {
 					a.cancel()
 				}
@@ -545,8 +554,8 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 			if r.hasResults() {
 				label = locales.RetranslateRetry()
 			}
-			ui.Button(c, label).Tooltip(locales.RetranslateScope()).Disabled(a.busy || stale).OnClick(func() { a.startRetranslation(false) })
+			lobeButton(c, label).Tooltip(locales.RetranslateScope()).Disabled(a.busy || stale).OnClick(func() { a.startRetranslation(false) })
 		}
-		ui.PrimaryButton(c, locales.RetranslateApply()).Disabled(a.busy || len(r.replacementEdits(false)) == 0 || stale).OnClick(func() { a.acceptRetranslation(false) })
+		lobePrimaryButton(c, locales.RetranslateApply()).Disabled(a.busy || len(r.replacementEdits(false)) == 0 || stale).OnClick(func() { a.acceptRetranslation(false) })
 	})
 }

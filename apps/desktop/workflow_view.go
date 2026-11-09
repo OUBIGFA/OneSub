@@ -12,7 +12,7 @@ func (a *NativeApp) workflowColumn(c *ui.Context) {
 	ui.Column(c).Fill().Label(locales.A11yWorkflowColumn()).Children(func() {
 		ui.Column(c).Shrink(0).Padding(em(c, 16), em(c, panelPad)).Background(c.Theme().Surface).Children(func() {
 			label := a.processingLabel()
-			ui.PrimaryButton(c, "").Label(label).Tooltip(label).MinHeight(em(c, 44)).Padding(em(c, 10), em(c, 12)).Justify(ui.Center).
+			lobePrimaryButton(c, "").Label(label).Tooltip(label).MinHeight(em(c, 44)).Padding(em(c, 10), em(c, 12)).Justify(ui.Center).
 				Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(a.processMedia).Children(func() {
 				icon(c, "languages").Shrink(0)
 				ui.Text(c, label).MinWidth(0).TextAlign(ui.Center)
@@ -29,7 +29,7 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 	panel := ui.Column(c).Fill().Label(locales.WorkflowTitle())
 	panel.Children(func() {
 		panelHeader(c, nil, func() {
-			ui.Tabs(c, &a.workflowTab, locales.WorkflowRecognize(), locales.WorkflowTranslate()).Label(locales.WorkflowTitle()).OnChange(func() { a.workflowScroll.Y = 0 })
+			lobeTabs(c, &a.workflowTab, locales.WorkflowRecognize(), locales.WorkflowTranslate()).Label(locales.WorkflowTitle()).OnChange(func() { a.workflowScroll.Y = 0 })
 		}, nil)
 		separator(c)
 		ui.Column(c).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 12)).Shrink(0).Children(func() {
@@ -135,13 +135,13 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 		}, func() {
 			ui.Field(c, locales.SettingsChunk(), func() {
 				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-					number(c, locales.SettingsChunk(), &a.settings.ChunkSeconds, 30, 180, 1).Disabled(!oneAsr).OnChange(a.saveSettings)
+					lobeNumberInput(c, &a.settings.ChunkSeconds, 30, 180, 1, !oneAsr, a.saveSettings).Label(locales.SettingsChunk()).Tooltip(locales.SettingsChunk())
 					muted(c, locales.UnitSeconds())
 				})
 			})
 		}, func() {
 			ui.Field(c, locales.SettingsMaxTokens(), func() {
-				number(c, locales.SettingsMaxTokens(), &a.settings.MaxTokens, 1, 32768, 1).Disabled(!oneAsr).OnChange(a.saveSettings)
+				lobeNumberInput(c, &a.settings.MaxTokens, 1, 32768, 1, !oneAsr, a.saveSettings).Label(locales.SettingsMaxTokens()).Tooltip(locales.SettingsMaxTokens())
 			})
 		})
 	})
@@ -153,11 +153,11 @@ func folderField(c *ui.Context, dir, fallback string, busy bool, choose, reset f
 			if dir == "" {
 				muted(c, fallback).Grow(1).Basis(em(c, 180)).MinWidth(0)
 			} else {
-				ui.TextInput(c, &dir).ReadOnly(true).Grow(1).Basis(em(c, 180)).MinWidth(0).Label(locales.RecognitionDirectory()).Tooltip(dir)
+				lobeTextInput(c, &dir).ReadOnly(true).Grow(1).Basis(em(c, 180)).MinWidth(0).Label(locales.RecognitionDirectory()).Tooltip(dir)
 			}
 			ui.Row(c).Gap(em(c, 8)).Shrink(0).Children(func() {
-				ui.Button(c, locales.RecognitionChooseFolder()).Disabled(busy).OnClick(choose)
-				ui.Button(c, locales.RecognitionResetFolder()).Disabled(busy || dir == "").OnClick(reset)
+				lobeButton(c, locales.RecognitionChooseFolder()).Disabled(busy).OnClick(choose)
+				lobeButton(c, locales.RecognitionResetFolder()).Disabled(busy || dir == "").OnClick(reset)
 			})
 		})
 	})
@@ -202,19 +202,19 @@ func (a *NativeApp) translateTab(c *ui.Context) {
 				cells = append(cells, func() {
 					ui.Field(c, field.label, func() {
 						value := float64(*field.value)
-						number(c, field.label, &value, 1, 10000, 1).OnChange(func() { *field.value = int(value); a.saveSettings() })
+						number(c, field.label, &value, 1, 10000, 1, func() { *field.value = int(value); a.saveSettings() })
 					})
 				})
 			}
 			parameterGrid(c, 160, 2, cells...)
 			separator(c)
 			ui.Column(c).Gap(em(c, 12)).Children(func() {
-				ui.Checkbox(c, &a.settings.StripPunctuation, locales.WorkflowStripPunctuation()).OnChange(a.saveSettings)
+				lobeCheckbox(c, &a.settings.StripPunctuation, locales.WorkflowStripPunctuation()).OnChange(a.saveSettings)
 				ui.Field(c, locales.WorkflowKeepPunctuation(), func() {
-					ui.TextInput(c, &a.settings.KeepPunctuation).Width(em(c, 120)).Placeholder("?").Label(locales.WorkflowKeepPunctuation()).Disabled(!a.settings.StripPunctuation).OnChange(a.saveSettings)
+					lobeTextInput(c, &a.settings.KeepPunctuation).Width(em(c, 120)).Placeholder("?").Label(locales.WorkflowKeepPunctuation()).Disabled(!a.settings.StripPunctuation).OnChange(a.saveSettings)
 				}).Gap(em(c, 8)).Margin(0, 0, 0, em(c, 24))
 			})
-			ui.Checkbox(c, &a.settings.ReplacePeriods, locales.WorkflowReplacePeriods()).Tooltip(locales.WorkflowReplacePeriodsHint()).OnChange(a.saveSettings)
+			lobeCheckbox(c, &a.settings.ReplacePeriods, locales.WorkflowReplacePeriods()).Tooltip(locales.WorkflowReplacePeriodsHint()).OnChange(a.saveSettings)
 		})
 	})
 }
@@ -224,21 +224,18 @@ func (a *NativeApp) translateTab(c *ui.Context) {
 func (a *NativeApp) timelineRebuildChoice(c *ui.Context) {
 	t := c.Theme()
 	hint := locales.TranslationOptimizeTimelineHint(locales.TabRebuilt())
-	choice := ui.Toggle(c, &a.settings.OptimizeTimeline, "").Label(locales.TranslationOptimizeTimeline()).Description(hint).
+	choice := lobeToggle(c, &a.settings.OptimizeTimeline, "").Label(locales.TranslationOptimizeTimeline()).Description(hint).
 		MinHeight(em(c, 80)).Padding(em(c, 12)).Gap(em(c, 8)).
 		Justify(ui.Start).AlignItems(ui.Center).Disabled(a.busy).OnChange(a.saveSettings)
-	indicator := t.TextMuted
+	choice.TextColor(t.Text)
 	if a.settings.OptimizeTimeline {
-		indicator = t.Accent
 		choice.Background(studioColors(c).selected).Border(1, t.Accent)
 		if choice.Hovered() && !a.busy {
 			choice.Background(t.Accent.Alpha(0.18))
 		}
 	}
 	choice.Children(func() {
-		// A native empty badge is the state lamp. The toggle itself retains
-		// the checked state for keyboard users and assistive technology.
-		ui.Badge(c, "").Absolute().Top(em(c, 8)).Left(em(c, 8)).Size(em(c, 10), em(c, 10)).Padding(0).Background(indicator).PassThrough()
+		icon(c, "scissors").TextColor(t.Accent).Shrink(0)
 		ui.Column(c).Grow(1).MinWidth(0).Gap(em(c, 6)).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, locales.TranslationOptimizeTimeline()).FontSize(em(c, bodySize)).FontWeight(500).SingleLine()
 			muted(c, hint).FontSize(em(c, captionSize)).TextAlign(ui.Center)
@@ -247,7 +244,7 @@ func (a *NativeApp) timelineRebuildChoice(c *ui.Context) {
 }
 
 func startButton(c *ui.Context, label, name string, disabled bool, run func()) {
-	ui.PrimaryButton(c, "").Label(label).Tooltip(label).MinHeight(em(c, 40)).Justify(ui.Center).Padding(em(c, 8), em(c, 16)).Disabled(disabled).OnClick(run).Children(func() {
+	lobePrimaryButton(c, "").Label(label).Tooltip(label).MinHeight(em(c, 40)).Justify(ui.Center).Padding(em(c, 8), em(c, 16)).Disabled(disabled).OnClick(run).Children(func() {
 		icon(c, name)
 		ui.Text(c, label).SingleLine()
 	})

@@ -57,7 +57,7 @@ func (a *NativeApp) translationView(c *ui.Context) {
 		if candidate := a.translationCandidate; candidate != nil {
 			muted(c, locales.ReviewSummary(candidate.Result.Report.Translated, candidate.Result.Report.TimelineChanges))
 		}
-		ui.Button(c, locales.ActionClose()).OnClick(func() { a.translationReview = false })
+		lobeButton(c, locales.ActionClose()).OnClick(func() { a.translationReview = false })
 	})
 }
 
@@ -68,9 +68,9 @@ func (a *NativeApp) translationFindingsView(c *ui.Context, candidate *translatio
 		if segmentedFill(c, &a.translationCheckTab, locales.ReviewAll(errors+warnings), locales.ReviewErrors(errors), locales.ReviewWarnings(warnings)).MinWidth(em(c, 320)).Grow(1).Changed() {
 			a.translationIssueList.ScrollTo(0, ui.Start)
 		}
-		ui.SearchField(c, &a.translationIssueQuery).Grow(1).Basis(0).MinWidth(em(c, 220)).Label(locales.ReviewSearchFindings()).Placeholder(locales.ReviewSearchFindings()).OnChange(func() {
+		lobeSearchField(c, &a.translationIssueQuery, func() {
 			a.translationIssueList.ScrollTo(0, ui.Start)
-		})
+		}, func(frame ui.Element) { frame.Grow(1).Basis(0).MinWidth(em(c, 220)) }).Label(locales.ReviewSearchFindings()).Placeholder(locales.ReviewSearchFindings())
 	})
 	findings := candidate.reviewFindings(a.translationCheckTab, a.translationIssueQuery)
 	selected := slices.IndexFunc(findings, func(f translationFinding) bool { return f.index == a.translationIssueSelected })
@@ -143,7 +143,7 @@ func (a *NativeApp) translationFindingsView(c *ui.Context, candidate *translatio
 // from the beginning: reset only when the displayed message changes, leaving
 // subsequent scrolling and text selection under the reader's control.
 func reviewReadOnlyText(c *ui.Context, label, text string) ui.Element {
-	area := ui.TextArea(c, &text).ReadOnly(true).Grow(1).MinHeight(0).Padding(em(c, 12)).FontSize(em(c, 16)).LineHeight(1.5).Background(studioColors(c).panel).Border(0, ui.Transparent).Label(label)
+	area := lobeTextArea(c, &text).ReadOnly(true).Grow(1).MinHeight(0).Padding(em(c, 12)).FontSize(em(c, 16)).LineHeight(1.5).Background(studioColors(c).panel).Border(0, ui.Transparent).Label(label)
 	previous := ui.Local(area, "read-text", func() string { return "" })
 	if *previous != text {
 		area.SetTextSelection(0, 0)

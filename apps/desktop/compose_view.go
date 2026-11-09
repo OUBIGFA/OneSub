@@ -60,28 +60,26 @@ func (a *NativeApp) composeView(c *ui.Context) {
 				})
 			}).Gap(em(c, 8)).Margin(em(c, 8), 0, 0, 0)
 		}).Gap(em(c, 8))
-		ui.Column(c).MinHeight(em(c, 40)).Gap(em(c, 4)).FontSize(em(c, captionSize)).Children(func() {
-			switch {
-			case outputErr != nil:
-				ui.Text(c, outputErr.Error()).TextColor(c.Theme().Warning)
-			case a.settings.ComposeMode == "soft-mp4":
-				ui.Text(c, locales.ComposeMovTextNote()).TextColor(c.Theme().Warning)
-			case !hard:
-				muted(c, locales.ComposeSoftNote())
-			default:
-				muted(c, locales.ComposeCrfNote())
-				muted(c, locales.ComposeCrfRecommendation())
-			}
-		})
+		crfNote := locales.ComposeCrfNote() + "\n" + locales.ComposeCrfRecommendation()
+		note, warning := crfNote, false
+		switch {
+		case outputErr != nil:
+			note, warning = outputErr.Error(), true
+		case a.settings.ComposeMode == "soft-mp4":
+			note, warning = locales.ComposeMovTextNote(), true
+		case !hard:
+			note = locales.ComposeSoftNote()
+		}
+		stableDialogNote(c, note, warning, a.outputNoteVariants(crfNote, locales.ComposeMovTextNote(), locales.ComposeSoftNote())...)
 		separator(c)
 		ui.Column(c).Gap(em(c, 12)).Children(func() {
 			folderField(c, a.settings.OutputDir, locales.RecognitionBesideMedia(), a.busy, a.pickComposeDir, func() { a.settings.OutputDir = ""; a.saveSettings() })
-			ui.Checkbox(c, &a.settings.ComposeAskPath, locales.ComposeAskPath()).OnChange(a.saveSettings)
+			lobeCheckbox(c, &a.settings.ComposeAskPath, locales.ComposeAskPath()).OnChange(a.saveSettings)
 		})
 	}, func() {
-		ui.Button(c, locales.ActionCancel()).OnClick(func() { a.composeOpen = false })
-		ui.Button(c, locales.ComposeSample()).Disabled(outputErr != nil).OnClick(func() { a.composeOpen = false; a.startCompose(true) })
-		ui.PrimaryButton(c, locales.ComposeStart()).Disabled(outputErr != nil).OnClick(func() { a.composeOpen = false; a.startCompose(false) })
+		lobeButton(c, locales.ActionCancel()).OnClick(func() { a.composeOpen = false })
+		lobeButton(c, locales.ComposeSample()).Disabled(outputErr != nil).OnClick(func() { a.composeOpen = false; a.startCompose(true) })
+		lobePrimaryButton(c, locales.ComposeStart()).Disabled(outputErr != nil).OnClick(func() { a.composeOpen = false; a.startCompose(false) })
 	})
 }
 
@@ -98,11 +96,11 @@ func (a *NativeApp) composeProgressView(c *ui.Context) {
 		}
 		dialogTitle(c, title)
 		muted(c, composeStageLabel(a.composeProgress.Stage)).Label(locales.A11yComposeStage())
-		ui.Progress(c, a.composeProgress.Fraction).Width(em(c, 400)).Label(locales.A11yComposeProgress())
+		lobeProgress(c, a.composeProgress.Fraction).Width(em(c, 400)).Label(locales.A11yComposeProgress())
 		if a.composeProgress.Fraction >= 0 {
 			ui.Text(c, locales.Percent(100*a.composeProgress.Fraction)).FontSize(em(c, 28)).FontWeight(600).FontFeatures("tnum")
 		}
-		ui.Button(c, cancel).Disabled(a.cancel == nil).OnClick(func() {
+		lobeButton(c, cancel).Disabled(a.cancel == nil).OnClick(func() {
 			if a.cancel != nil {
 				a.cancel()
 			}

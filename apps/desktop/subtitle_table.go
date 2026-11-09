@@ -28,7 +28,7 @@ func subtitleSelectionColumn(c *ui.Context) ui.TableColumn {
 // The navigation gutter belongs to the native table, so its header divider
 // and selected-row background reach the pane edge. Fixed buttons occupy only
 // that empty column and leave the native scrollbar accessible at the edge.
-func subtitleTable(c *ui.Context, state *ui.ListState, columns []ui.TableColumn, count int, cell func(int, int), onNavigate func(toEnd bool)) ui.Element {
+func subtitleTable(c *ui.Context, state *ui.ListState, columns []ui.TableColumn, count int, cell func(int, int), onNavigate func(toEnd bool), cellMenu ...func(row int, target ui.Element)) ui.Element {
 	// Keep every header whole even when that leaves little room for text:
 	// MyGo scrolls the table horizontally instead of ellipsizing labels.
 	for i := range columns {
@@ -38,6 +38,10 @@ func subtitleTable(c *ui.Context, state *ui.ListState, columns []ui.TableColumn,
 	contentColumns := len(columns)
 	railWidth := em(c, subtitleNavigationRailSize)
 	columns = append(columns, ui.TableColumn{ID: "navigation-gutter", Width: railWidth, MinWidth: railWidth, Fixed: true})
+	state.CellElement = nil
+	if len(cellMenu) > 0 {
+		state.CellElement = func(target ui.Element, row, col int) { cellMenu[0](row, target) }
+	}
 	var table ui.Element
 	ui.Column(c).Grow(1).MinHeight(0).Children(func() {
 		table = ui.Table(c, state, columns, count, func(row, col int) {

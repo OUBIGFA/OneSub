@@ -167,11 +167,11 @@ func (a *NativeApp) recognitionProgressView(c *ui.Context) {
 		if step := a.recognitionStep; step.Total > 1 {
 			fraction = float64(step.Done) / float64(step.Total)
 		}
-		ui.Progress(c, fraction).Width(em(c, 400)).Label(label)
+		lobeProgress(c, fraction).Width(em(c, 400)).Label(label)
 		seconds := max(0, int(c.Now().Sub(a.recognitionStarted).Seconds()))
 		muted(c, locales.RecognitionElapsed(seconds)).FontFeatures("tnum")
 		c.After(time.Second)
-		ui.Button(c, locales.ActionCancelTask()).Disabled(a.cancel == nil).OnClick(func() {
+		lobeButton(c, locales.ActionCancelTask()).Disabled(a.cancel == nil).OnClick(func() {
 			if a.cancel != nil {
 				a.cancel()
 			}

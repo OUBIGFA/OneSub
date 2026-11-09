@@ -14,84 +14,77 @@ import (
 )
 
 func (a *NativeApp) subtitleActionsMenu(c *ui.Context, compact bool) {
-	subtitleTool(c, locales.SubtitleActionsMenu(), "ellipsis", compact).Disabled(a.busy || len(a.activeDocument().Cues) == 0 || a.showsTranslationProgress()).Menu(func(m *ui.Menu) {
-		a.pendingClick = nil
-		a.subtitleStructureMenu(m, a.selected)
-		// The same commands remain available when a narrow list moves its
-		// secondary toolbar actions into this native overflow menu.
-		m.Separator()
-		if m.Item(locales.FindReplace()).Shortcut(ui.Cmd, ui.KeyH).Chosen() {
-			a.openFindReplace()
-		}
-		if m.Item(locales.TextReplacePeriods()).Chosen() {
-			a.cleanListPunctuation(false)
-		}
-		if m.Item(locales.TextStripTrailing()).Chosen() {
-			a.cleanListPunctuation(true)
-		}
-	})
+	lobeMenuButton(c, locales.SubtitleActionsMenu(), "ellipsis", compact, func() []menuCommand {
+		return append(a.subtitleStructureCommands(a.selected),
+			menuCommand{Divider: true},
+			menuCommand{Label: locales.FindReplace(), Hotkey: "mod+h", Run: a.openFindReplace},
+			menuCommand{Label: locales.TextReplacePeriods(), Run: func() { a.cleanListPunctuation(false) }},
+			menuCommand{Label: locales.TextStripTrailing(), Run: func() { a.cleanListPunctuation(true) }})
+	}, func() { a.pendingClick = nil }).Disabled(a.busy || len(a.activeDocument().Cues) == 0 || a.showsTranslationProgress())
 }
 
-// The list toolbar and its context menus share commands and availability;
-// opening a row menu must not bypass task or format protection.
-func (a *NativeApp) subtitleStructureMenu(m *ui.Menu, index int) {
+// Both Lobe menu presentations use these same permissions and commands. Build
+// them only for an open menu; a virtual table must not rescan cues per cell.
+func (a *NativeApp) subtitleStructureCommands(index int) []menuCommand {
 	cues := a.activeDocument().Cues
-	id := ""
-	protected := false
+	id, protected := "", false
 	if index >= 0 && index < len(cues) {
-		id = cues[index].ID
-		protected = cues[index].ReadOnly
+		id, protected = cues[index].ID, cues[index].ReadOnly
 	}
 	disabled := a.busy || a.snapshot == nil || a.showsTranslationProgress()
 	targets := a.retranslationTargets()
 	_, eligible := targets[id]
-	if m.Item(locales.RetranslatePick()).Disabled(disabled || a.translationLive != nil || !eligible).Chosen() {
-		a.setSubtitleChecked(id, !a.subtitleChecked[a.subtitleTab][id])
-	}
-	if m.Item(locales.RetranslateSelected(len(a.checkedRetranslationIDs()))).Disabled(disabled || a.translationLive != nil || len(a.checkedRetranslationIDs()) == 0).Chosen() {
-		a.openRetranslation()
-	}
-	if m.Item(locales.RetranslateCheckAll()).Disabled(disabled || a.translationLive != nil || len(targets) == 0).Chosen() {
-		a.checkAllSubtitles()
-	}
-	if m.Item(locales.RetranslateClear()).Disabled(disabled || len(a.checkedRetranslationIDs()) == 0).Chosen() {
-		a.subtitleChecked[a.subtitleTab] = nil
-	}
-	m.Separator()
-	// Locating does not edit protected ASS content. Use an explicit pause
-	// action, never the user's configurable single/double-click preference.
-	if m.Item(locales.SubtitleLocateVideo()).Disabled(disabled || id == "" || !a.playbackAvailable()).Chosen() {
-		a.pendingClick, a.rowClick = nil, nil
-		a.list.StopScroll()
-		a.selectSubtitle(index, "seek-pause")
-	}
-	m.Separator()
-	if m.Item(locales.SubtitleInsertBefore()).Disabled(disabled).Chosen() {
-		a.openSubtitleInsert(id, true)
-	}
-	if m.Item(locales.SubtitleInsertAfter()).Disabled(disabled).Chosen() {
-		a.openSubtitleInsert(id, false)
-	}
-	if m.Item(locales.ReadingSplit()).Disabled(disabled || id == "" || protected).Chosen() {
-		a.smartSplitSubtitle(id, false)
-	}
-	if m.Item(locales.ReadingSplitForced()).Disabled(disabled || id == "" || protected).Chosen() {
-		a.smartSplitSubtitle(id, true)
-	}
-	m.Separator()
+	checked := len(a.checkedRetranslationIDs())
 	canMerge := func(first int) bool {
 		return !disabled && first >= 0 && first+1 < len(cues) && !cues[first].ReadOnly && !cues[first+1].ReadOnly && cues[first].Translated == cues[first+1].Translated
 	}
-	if m.Item(locales.SubtitleMergePrevious()).Disabled(!canMerge(index - 1)).Chosen() {
-		a.mergeSubtitle(id, true)
+	return []menuCommand{
+		{Label: locales.RetranslatePick(), Disabled: disabled || a.translationLive != nil || !eligible, Run: func() { a.setSubtitleChecked(id, !a.subtitleChecked[a.subtitleTab][id]) }},
+		{Label: locales.RetranslateSelected(checked), Disabled: disabled || a.translationLive != nil || checked == 0, Run: a.openRetranslation},
+		{Label: locales.RetranslateCheckAll(), Disabled: disabled || a.translationLive != nil || len(targets) == 0, Run: a.checkAllSubtitles},
+		{Label: locales.RetranslateClear(), Disabled: disabled || checked == 0, Run: func() { a.subtitleChecked[a.subtitleTab] = nil }},
+		{Divider: true},
+		// Location is not an edit and never inherits click-to-play preferences.
+		{Label: locales.SubtitleLocateVideo(), Disabled: disabled || id == "" || !a.playbackAvailable(), Run: func() {
+			a.pendingClick, a.rowClick = nil, nil
+			a.list.StopScroll()
+			a.selectSubtitle(index, "seek-pause")
+		}},
+		{Divider: true},
+		{Label: locales.SubtitleInsertBefore(), Disabled: disabled, Run: func() { a.openSubtitleInsert(id, true) }},
+		{Label: locales.SubtitleInsertAfter(), Disabled: disabled, Run: func() { a.openSubtitleInsert(id, false) }},
+		{Label: locales.ReadingSplit(), Disabled: disabled || id == "" || protected, Run: func() { a.smartSplitSubtitle(id, false) }},
+		{Label: locales.ReadingSplitForced(), Disabled: disabled || id == "" || protected, Run: func() { a.smartSplitSubtitle(id, true) }},
+		{Divider: true},
+		{Label: locales.SubtitleMergePrevious(), Disabled: !canMerge(index - 1), Run: func() { a.mergeSubtitle(id, true) }},
+		{Label: locales.SubtitleMergeNext(), Disabled: !canMerge(index), Run: func() { a.mergeSubtitle(id, false) }},
+		{Divider: true},
+		{Label: locales.SubtitleDelete(), Hotkey: "delete", Disabled: disabled || id == "" || protected, Danger: true, Run: func() { a.deleteSubtitle(id) }},
 	}
-	if m.Item(locales.SubtitleMergeNext()).Disabled(!canMerge(index)).Chosen() {
-		a.mergeSubtitle(id, false)
-	}
-	m.Separator()
-	if m.Item(locales.SubtitleDelete()).Shortcut(0, ui.KeyDelete).Disabled(disabled || id == "" || protected).Chosen() {
-		a.deleteSubtitle(id)
-	}
+}
+
+func (a *NativeApp) subtitleContextMenu(c *ui.Context, target ui.Element, index, row int, selected *int) {
+	lobeContextMenu(c, target, func() []menuCommand {
+		a.noteBrowse(c.Now())
+		if index >= 0 && a.selected != index {
+			return nil
+		}
+		return a.subtitleStructureCommands(index)
+	}, func() {
+		a.pendingClick = nil
+		if index >= 0 && a.selected != index {
+			if !a.commitEdit(true) {
+				return
+			}
+			a.selected = index
+			if selected != nil {
+				*selected = row
+			}
+			a.loadDraft()
+			c.Invalidate()
+		}
+		a.list.Focus(c)
+	})
 }
 
 func (a *NativeApp) openSubtitleInsert(anchor string, before bool) {
@@ -210,21 +203,21 @@ func (a *NativeApp) insertSubtitleView(c *ui.Context) {
 		if format := a.activeDocument().Format; format == "ass" || format == "ssa" {
 			step = 0.01
 		}
-		ui.Grid(c).Columns(2).Gap(em(c, 24)).Children(func() {
+		ui.Row(c).Wrap().Gap(em(c, 24)).AlignItems(ui.Start).Children(func() {
 			timecodeField(c, locales.EditorStart(), &a.insertStart, step, false, nil)
 			timecodeField(c, locales.EditorEnd(), &a.insertEnd, step, false, nil)
 		})
 		ui.Field(c, locales.TabSource(), func() {
-			ui.TextArea(c, &a.insertSource).Height(em(c, 80)).Padding(em(c, 12)).Label(locales.TabSource()).AutoFocus()
+			lobeTextArea(c, &a.insertSource).Height(em(c, 80)).Padding(em(c, 12)).Label(locales.TabSource()).AutoFocus()
 		})
 		translation := ui.Field(c, locales.SubtitleTranslationOptional(), func() {
-			ui.TextArea(c, &a.insertTranslation).Height(em(c, 80)).Padding(em(c, 12)).Label(locales.SubtitleTranslationOptional())
+			lobeTextArea(c, &a.insertTranslation).Height(em(c, 80)).Padding(em(c, 12)).Label(locales.SubtitleTranslationOptional())
 		})
 		if a.subtitleTab == 0 {
 			translation.Invisible()
 		}
 	}, func() {
-		ui.Button(c, locales.ActionCancel()).OnClick(func() { a.insertOpen = false })
-		ui.PrimaryButton(c, locales.SubtitleInsertConfirm()).Disabled(strings.TrimSpace(a.insertSource) == "" || a.insertEnd <= a.insertStart).OnClick(a.insertSubtitle)
+		lobeButton(c, locales.ActionCancel()).OnClick(func() { a.insertOpen = false })
+		lobePrimaryButton(c, locales.SubtitleInsertConfirm()).Disabled(strings.TrimSpace(a.insertSource) == "" || a.insertEnd <= a.insertStart).OnClick(a.insertSubtitle)
 	})
 }

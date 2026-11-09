@@ -87,11 +87,11 @@ func (a *NativeApp) subtitleSearch(c *ui.Context, compact bool) {
 		label = locales.ListSearch()
 	}
 	width, _ := c.MeasureText(0, ui.Span{Text: label})
-	minimum := max(em(c, 140), width+c.Theme().Space(11))
+	minimum := max(em(c, 140), width+em(c, 64))
 	if compact {
-		minimum = width + c.Theme().Space(11)
+		minimum = width + em(c, 64)
 	}
-	if ui.SearchField(c, &a.query).Placeholder(label).Label(locales.ListSearch()).Tooltip(hint).Disabled(len(cues) == 0).MinWidth(minimum).Grow(1).Changed() {
+	lobeSearchField(c, &a.query, func() {
 		a.pendingClick = nil
 		a.list.StopScroll()
 		a.activeCue = -1
@@ -100,14 +100,11 @@ func (a *NativeApp) subtitleSearch(c *ui.Context, compact bool) {
 			a.translationLive.list.StopScroll()
 			a.translationLive.shown = -1
 		}
-	}
+	}, func(frame ui.Element) { frame.MinWidth(minimum).Grow(1).Disabled(len(cues) == 0) }).Placeholder(label).Label(locales.ListSearch()).Tooltip(hint)
 }
 
 func (a *NativeApp) subtitleSaveActions(c *ui.Context, compact, hasCues bool) {
 	ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Label(locales.A11ySubtitleFileActions()).Children(func() {
-		if !compact {
-			ui.Divider(c).Height(em(c, 20)).AlignSelf(ui.Center).Margin(0, em(c, 4))
-		}
 		unsaved := a.trackUnsaved(a.subtitleTab)
 		label := locales.ListSave()
 		if unsaved {

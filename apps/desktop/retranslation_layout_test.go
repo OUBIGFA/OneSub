@@ -78,7 +78,7 @@ func TestRetranslationLargeBatchUsesWorkingHeight(t *testing.T) {
 						if tt.HasText(locales.RetranslatePending()) {
 							t.Fatal("missing candidate must stay empty")
 						}
-						insideRedesign(t, tt, locales.RetranslateTitle(), locales.RetranslateList(), locales.RetranslateSearch(), locales.RetranslateCompare(), locales.RetranslateChecks(), locales.RetranslateOne(), locales.RetranslateApplyOne())
+						insideRedesign(t, tt, locales.RetranslateTitle(), locales.RetranslateList(), locales.RetranslateSearch(), locales.RetranslateCompare(), locales.RetranslateOne(), locales.RetranslateApplyOne())
 						list, _ := tt.Find(locales.RetranslateList())
 						compare, _ := tt.Find(locales.RetranslateCompare())
 						if list.X+list.W > compare.X || list.H < compare.H*.7 {

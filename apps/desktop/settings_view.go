@@ -1,22 +1,18 @@
 package main
 
 import (
-	"strconv"
-
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/models"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
+	lobeNav "github.com/lobehub/lobe-mygo/pkg/nav"
 )
 
 // Settings share the same native fieldset hierarchy as the workbench. The
 // section heading and spacing do the grouping; no nested cards or extra rules.
 func settingsGroup(c *ui.Context, title string, content func()) {
-	ui.Column(c).Gap(em(c, 16)).Children(func() {
-		ui.Text(c, title).FontSize(em(c, headingSize)).FontWeight(600)
-		content()
-	})
+	lobeGroup(c, title, nil, content)
 }
 
 // Settings are read as rows: a stable label edge and a stable control edge.
@@ -40,19 +36,22 @@ func (a *NativeApp) settingsView(c *ui.Context) {
 		// A viewport-relative floor gives sparse pages the same generous
 		// reading area; larger forms still determine the natural height.
 		ui.Row(c).MinHeight(height * .8).Gap(0).AlignItems(ui.Stretch).Children(func() {
-			selected := strconv.Itoa(a.settingsTab)
+			selected := 0
+			tabs := make([]lobeNav.TabItem, len(order))
+			for i, tab := range order {
+				tabs[i] = lobeNav.TabItem{Label: labels[tab], Icon: icons[pageIcons[tab]]}
+				if tab == a.settingsTab {
+					selected = i
+				}
+			}
 			navigationWidth := float32(0)
 			for _, label := range labels {
 				w, _ := c.MeasureText(0, ui.Span{Text: label})
 				navigationWidth = max(navigationWidth, w)
 			}
-			ui.Sidebar(c, &selected, func() {
-				for _, tab := range order {
-					ui.SidebarItem(c, strconv.Itoa(tab), icons[pageIcons[tab]], labels[tab])
-				}
-			}).Width(max(em(c, 200), navigationWidth+em(c, 88))).Padding(em(c, 16), em(c, 12)).Label(locales.A11ySettingsTabs()).OnChange(func() {
-				a.settingsTab, _ = strconv.Atoi(selected)
-			})
+			lobeNav.Tabs(c, &selected, lobeNav.TabsProps{Items: tabs, Vertical: true, Variant: lobeNav.TabsRounded}, nil).
+				Width(max(em(c, 200), navigationWidth+em(c, 88))).Padding(em(c, 16), em(c, 12)).
+				Label(locales.A11ySettingsTabs()).OnChange(func() { a.settingsTab = order[selected] })
 			separator(c)
 			// All pages occupy one native grid cell. Invisible pages still
 			// contribute their intrinsic size, but cannot paint or take focus.
@@ -127,7 +126,7 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 						return idSelect(c, field.value, subtitleActions()).Label(field.label).OnChange(a.saveSettings)
 					})
 				}
-				ui.Checkbox(c, &a.settings.FollowPlayback, locales.SettingsFollowPlayback()).Margin(em(c, 12), 0, 0, 0).OnChange(func() { a.activeCue = -1; a.saveSettings() })
+				lobeCheckbox(c, &a.settings.FollowPlayback, locales.SettingsFollowPlayback()).Margin(em(c, 12), 0, 0, 0).OnChange(func() { a.activeCue = -1; a.saveSettings() })
 			})
 		})
 	case 1:
@@ -141,10 +140,10 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 			settingsGroup(c, locales.SettingsAuxModels(), func() {
 				hotword, demucs := "SenseVoiceSmall", "htdemucs_ft"
 				a.recognitionModelField(c, locales.ModelKindDemucs(), "separation", &demucs)
-				ui.Checkbox(c, &a.settings.VocalSeparation, locales.SettingsVocalSeparation()).OnChange(a.saveSettings)
+				lobeCheckbox(c, &a.settings.VocalSeparation, locales.SettingsVocalSeparation()).OnChange(a.saveSettings)
 				a.recognitionModelField(c, locales.ModelKindHotword(), "hotword", &hotword)
 				ui.Field(c, locales.SettingsHotwords(), func() {
-					ui.TextInput(c, &a.settings.Hotwords).Placeholder(locales.SettingsHotwordsPlaceholder()).Label(locales.SettingsHotwords()).OnChange(a.saveSettings)
+					lobeTextInput(c, &a.settings.Hotwords).Placeholder(locales.SettingsHotwordsPlaceholder()).Label(locales.SettingsHotwords()).OnChange(a.saveSettings)
 				})
 			})
 		})
@@ -179,7 +178,7 @@ func (a *NativeApp) mcpSettingsView(c *ui.Context) {
 		config := mcpConfig()
 		muted(c, locales.SettingsMcpNote())
 		ui.Text(c, config).Font("monospace").Selectable().Label(locales.A11yMcpConfig())
-		ui.Button(c, locales.SettingsMcpCopy()).AlignSelf(ui.Start).OnClick(func() {
+		lobeButton(c, locales.SettingsMcpCopy()).AlignSelf(ui.Start).OnClick(func() {
 			mygo.Clipboard.WriteText(config)
 			a.status = locales.SettingsMcpCopied()
 		})
@@ -274,7 +273,7 @@ func (a *NativeApp) recognitionModelField(c *ui.Context, title, kind string, id 
 				// management action still opens the complete download catalog.
 				idSelect(c, id, options, locales.ModelNotDownloaded()).Label(locales.A11yModelOf(title)).Grow(1).Disabled(a.busy || len(options) == 0).OnChange(changed)
 			}
-			ui.Button(c, locales.ModelManage()).Label(locales.A11yManageModel(title)).OnClick(func() { a.modelSelection = *id; a.modelOpen = true })
+			lobeButton(c, locales.ModelManage()).Label(locales.A11yManageModel(title)).OnClick(func() { a.modelSelection = *id; a.modelOpen = true })
 		})
 		// The explanation is immediately below the selected model, before
 		// its folder. Native text wraps instead of hiding the useful hint.
@@ -311,17 +310,15 @@ func (a *NativeApp) modelManagerView(c *ui.Context) {
 	fixedDialog(c, &a.modelOpen, model.Label, 720, 0, func() {
 		settingsGroup(c, locales.ModelFiles(), func() {
 			ui.Row(c).Gap(em(c, 16)).Wrap().AlignItems(ui.Center).Children(func() {
-				ui.MenuButton(c, locales.ModelCatalog(), func(m *ui.Menu) {
-					for _, candidate := range models.Catalog() {
-						label := candidate.Label
-						if !candidate.FilesPresent(a.modelPath(candidate.ID)) {
-							label += " · " + locales.ModelNotDownloaded()
-						}
-						if m.Item(label).Checked(candidate.ID == model.ID).Chosen() {
-							a.modelSelection = candidate.ID
-						}
+				catalog := make([]menuCommand, 0, len(models.Catalog()))
+				for _, candidate := range models.Catalog() {
+					label := candidate.Label
+					if !candidate.FilesPresent(a.modelPath(candidate.ID)) {
+						label += " · " + locales.ModelNotDownloaded()
 					}
-				}).Disabled(a.busy)
+					catalog = append(catalog, menuCommand{Key: candidate.ID, Label: label, Checkable: true, Checked: candidate.ID == model.ID, Run: func() { a.modelSelection = candidate.ID }})
+				}
+				lobeMenuButton(c, locales.ModelCatalog(), "chevron-down", false, func() []menuCommand { return catalog }).Disabled(a.busy)
 				ui.Text(c, locales.ModelSize(float64(model.Size())/1e9))
 				ui.Spacer(c)
 				state := a.modelStates[model.ID]
@@ -330,17 +327,17 @@ func (a *NativeApp) modelManagerView(c *ui.Context) {
 				} else if downloaded && state == "" {
 					state = locales.ModelDownloaded()
 				}
-				ui.Badge(c, state).Label(locales.A11yModelState())
+				lobeBadge(c, state).Label(locales.A11yModelState())
 			})
 			path := a.modelPath(model.ID)
-			ui.TextInput(c, &path).ReadOnly(true).Label(locales.A11yModelFolder()).Tooltip(path)
+			lobeTextInput(c, &path).ReadOnly(true).Label(locales.A11yModelFolder()).Tooltip(path)
 		})
 	}, func() {
-		ui.Button(c, locales.ModelDelete()).TextColor(c.Theme().Danger).Disabled(a.busy || assetErr != nil || len(assets) == 0).OnClick(func() { a.modelRecycle = model.ID })
+		lobeButton(c, locales.ModelDelete()).TextColor(c.Theme().Danger).Disabled(a.busy || assetErr != nil || len(assets) == 0).OnClick(func() { a.modelRecycle = model.ID })
 		ui.Spacer(c)
-		ui.Button(c, locales.ModelChooseFolder()).Label(locales.A11yModelChooseFolder()).Disabled(a.busy).OnClick(func() { a.pickModelDir(model) })
-		ui.Button(c, locales.ModelVerify()).Disabled(a.busy).OnClick(func() { a.verifyModel(model) })
-		ui.Button(c, locales.ActionClose()).OnClick(func() { a.modelOpen = false })
+		lobeButton(c, locales.ModelChooseFolder()).Label(locales.A11yModelChooseFolder()).Disabled(a.busy).OnClick(func() { a.pickModelDir(model) })
+		lobeButton(c, locales.ModelVerify()).Disabled(a.busy).OnClick(func() { a.verifyModel(model) })
+		lobeButton(c, locales.ActionClose()).OnClick(func() { a.modelOpen = false })
 		downloadWidth, _ := c.MeasureText(0, ui.Span{Text: locales.ModelDownload()})
 		readyWidth, _ := c.MeasureText(0, ui.Span{Text: locales.ModelDownloaded()})
 		width := max(downloadWidth, readyWidth) + em(c, iconSize) + c.Theme().Space(8.5) + 2

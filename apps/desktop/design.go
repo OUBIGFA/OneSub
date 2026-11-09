@@ -4,6 +4,14 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	lobeAction "github.com/lobehub/lobe-mygo/pkg/action"
+	lobeChoice "github.com/lobehub/lobe-mygo/pkg/choice"
+	lobeDisplay "github.com/lobehub/lobe-mygo/pkg/display"
+	lobeFeedback "github.com/lobehub/lobe-mygo/pkg/feedback"
+	lobeField "github.com/lobehub/lobe-mygo/pkg/field"
+	lobeForm "github.com/lobehub/lobe-mygo/pkg/form"
+	lobeNav "github.com/lobehub/lobe-mygo/pkg/nav"
+	lobeTheme "github.com/lobehub/lobe-mygo/pkg/theme"
 )
 
 // Shared native typography: controls stay compact; subtitle content and the
@@ -25,27 +33,23 @@ type studio struct {
 	chrome, panel, hairline, selected, warningSoft ui.Color
 }
 
-// MyGo owns all widget behavior. The neutral dark ramp follows Fluent 2's
-// background/foreground roles; light retains the registered WinOne palette.
-// See third_party/ports/fluent-ui/README.md for the reference boundary.
-func studioTheme(base *ui.Theme, highContrast bool) (ui.Theme, studio) {
-	t := *base
-	t.FontSize = bodySize * base.FontSize / 14
-	if !base.Dark {
-		applyWinOneLightColors(&t, highContrast)
-	} else if !highContrast {
-		t.Background = ui.Hex("#1f1f1f")
-		t.Surface = ui.Hex("#292929")
-		t.SurfaceHover = ui.Hex("#3d3d3d")
-		t.SurfacePressed = ui.Hex("#383838")
-		t.Border = ui.Hex("#525252")
-		t.Text, t.TextMuted = ui.Hex("#efefef"), ui.Hex("#adadad")
-		primary := ui.LightTheme()
-		t.Accent, t.AccentHover, t.AccentPressed, t.AccentText = primary.Accent, primary.AccentHover, primary.AccentPressed, primary.AccentText
-		// Keep semantic text readable on both the canvas and the controls.
-		t.Danger = ui.Hex("#f87171")
+// Switch foregrounds and surfaces atomically. Lobe's color transitions would
+// otherwise paint the previous light fill underneath the new dark text until
+// their next animation frame. Ordinary hover and subtitle motion stay enabled.
+func applyStudioTheme(c *ui.Context) studio {
+	t, look := studioTheme(c.Theme(), c.Preferences().HighContrast)
+	type appearance struct{ dark, contrast bool }
+	now := appearance{t.Dark, c.Preferences().HighContrast}
+	previous := ui.Local(c.Root(), "studio-appearance", func() appearance { return now })
+	if *previous != now {
+		c.DisableAnimations()
+		*previous = now
 	}
-	return t, studio{chrome: t.Surface}
+	c.SetTheme(&t)
+	// Text-edit and table-header system commands stay native, but render in
+	// the same themed window rather than opening an unrelated Windows menu.
+	c.SetMenuPresentation(ui.PopoverMenus)
+	return look
 }
 
 // em scales a design size in DIPs with the theme's text size.
@@ -70,7 +74,7 @@ func icon(c *ui.Context, name string) ui.Element {
 // line boxes; raise the system font's visible ink by one DIP to align it with
 // the icon's center. This native transform scales with display DPI, not layout.
 func iconButton(c *ui.Context, label, name string) ui.Element {
-	return ui.Button(c, "").Label(label).Tooltip(label).Children(func() {
+	return lobeAction.Button(c, "", lobeAction.ButtonProps{}).Label(label).Tooltip(label).Children(func() {
 		icon(c, name).Label(locales.A11yIconOf(label))
 		ui.Text(c, label).SingleLine().Translate(0, -1)
 	})
@@ -78,7 +82,7 @@ func iconButton(c *ui.Context, label, name string) ui.Element {
 
 // primaryIconButton is iconButton in the accent color, one per area.
 func primaryIconButton(c *ui.Context, label, name string) ui.Element {
-	return ui.PrimaryButton(c, "").Label(label).Tooltip(label).Children(func() {
+	return lobeAction.Button(c, "", lobeAction.ButtonProps{Variant: lobeAction.Primary}).Label(label).Tooltip(label).Children(func() {
 		icon(c, name).Label(locales.A11yIconOf(label))
 		ui.Text(c, label).SingleLine().Translate(0, -1)
 	})
@@ -87,9 +91,100 @@ func primaryIconButton(c *ui.Context, label, name string) ui.Element {
 // toolIcon is an icon-only native button, square and with the icon in its
 // middle; the tooltip and the accessible name carry the action.
 func toolIcon(c *ui.Context, label, name string) ui.Element {
-	return ui.Button(c, "").Label(label).Tooltip(label).Padding(c.Theme().Space(2)).Justify(ui.Center).AlignItems(ui.Center).Children(func() {
-		icon(c, name).Label(locales.A11yIconOf(label))
-	})
+	return lobeAction.ActionIcon(c, icons[name], lobeAction.ActionIconProps{Size: lobeTheme.Middle, Title: label, IconLabel: locales.A11yIconOf(label)}).Label(label).Tooltip(label).Size(em(c, 32), em(c, 32))
+}
+
+// The wrappers keep the existing view code's event chains while replacing each
+// primitive with its Lobe MyGo counterpart. This is one migration seam, so
+// later upstream kit updates do not require editing every view.
+func lobeButton(c *ui.Context, label string) ui.Element {
+	return lobeAction.Button(c, label, lobeAction.ButtonProps{})
+}
+
+func lobePrimaryButton(c *ui.Context, label string) ui.Element {
+	return lobeAction.Button(c, label, lobeAction.ButtonProps{Variant: lobeAction.Primary})
+}
+
+func lobeTextInput(c *ui.Context, value *string) ui.Element {
+	return lobeField.Input(c, value, lobeField.InputProps{Variant: lobeField.InputOutlined})
+}
+
+func lobeTextArea(c *ui.Context, value *string) ui.Element {
+	return lobeField.TextArea(c, value, lobeField.TextAreaProps{Variant: lobeField.InputOutlined, Fixed: true})
+}
+
+func lobeSearchField(c *ui.Context, value *string, changed func(), frame ...func(ui.Element)) ui.Element {
+	props := lobeField.SearchBarProps{Variant: lobeField.InputOutlined, OnClear: changed, ClearLabel: locales.ActionClearInput()}
+	if len(frame) > 0 {
+		props.Frame = frame[0]
+	}
+	return lobeField.SearchBar(c, value, props).OnChange(changed)
+}
+
+func lobeNumberInput(c *ui.Context, value *float64, low, high, step float64, disabled bool, changed ...func()) ui.Element {
+	props := lobeField.InputNumberProps{Min: low, Max: high, Step: step, Variant: lobeField.InputOutlined, Disabled: disabled, IncreaseLabel: locales.ActionIncrease(), DecreaseLabel: locales.ActionDecrease()}
+	if len(changed) > 0 {
+		props.OnChange = func(float64) { changed[0]() }
+	}
+	return lobeField.InputNumber(c, value, props)
+}
+
+func lobeSelect(c *ui.Context, selected *string, options []string) ui.Element {
+	items := make([]lobeField.SelectOption, len(options))
+	for i, option := range options {
+		items[i] = lobeField.SelectOption{Value: option, Label: option}
+	}
+	return lobeField.Select(c, selected, lobeField.SelectProps{Options: items, Variant: lobeField.InputOutlined})
+}
+
+func lobeCombobox(c *ui.Context, selected *string, options []string, frame ...func(ui.Element)) ui.Element {
+	items := make([]lobeField.AutoCompleteOption, len(options))
+	for i, option := range options {
+		items[i] = lobeField.AutoCompleteOption{Value: option, Label: option}
+	}
+	props := lobeField.AutoCompleteProps{Options: items, Variant: lobeField.InputOutlined}
+	if len(frame) > 0 {
+		props.Frame = frame[0]
+	}
+	return lobeField.AutoComplete(c, selected, props)
+}
+
+func lobeCheckbox(c *ui.Context, checked *bool, label string) ui.Element {
+	return lobeChoice.Checkbox(c, checked, label, lobeChoice.CheckboxProps{})
+}
+
+func lobeToggle(c *ui.Context, checked *bool, label string) ui.Element {
+	variant := lobeAction.Default
+	if *checked {
+		variant = lobeAction.Filled
+	}
+	// StyleButton supports native button bases, including ToggleBase. Keep
+	// the toggle's bound value, keyboard behavior and change notifications.
+	return lobeAction.StyleButton(c, ui.ToggleBase(c, checked), label, lobeAction.ButtonProps{Variant: variant}).Label(label)
+}
+
+func lobeSlider(c *ui.Context, value *float64, low, high float64) ui.Element {
+	return lobeChoice.Slider(c, value, lobeChoice.SliderProps{Min: low, Max: high})
+}
+
+func lobeTabs(c *ui.Context, selected *int, labels ...string) ui.Element {
+	items := make([]lobeNav.TabItem, len(labels))
+	for i, label := range labels {
+		items[i] = lobeNav.TabItem{Label: label}
+	}
+	return lobeNav.Tabs(c, selected, lobeNav.TabsProps{Items: items, Variant: lobeNav.TabsSquare}, nil)
+}
+
+func lobeProgress(c *ui.Context, fraction float64) ui.Element {
+	return lobeFeedback.Progress(c, float32(fraction*100), lobeFeedback.ProgressProps{})
+}
+
+func lobeBadge(c *ui.Context, text string) ui.Element {
+	return lobeDisplay.Tag(c, text, lobeDisplay.TagProps{}).Height(em(c, 24)).Padding(em(c, 2), em(c, 8)).FontSize(em(c, captionSize)).AlignItems(ui.Center)
+}
+
+func lobeColorPicker(c *ui.Context, color *ui.Color) ui.Element {
+	return lobeChoice.ColorPicker(c, color, lobeChoice.ColorPickerProps{Trigger: lobeChoice.ColorTriggerField})
 }
 
 // panelHeader is the row every panel starts with, the same height in each,
@@ -133,10 +228,10 @@ func dialogTitle(c *ui.Context, text string) ui.Element {
 func fixedDialog(c *ui.Context, open *bool, title string, width, height float32, body, actions func()) {
 	vw, vh := c.Size()
 	look := studioColors(c)
-	ui.Modal(c, open, func() {
-		// Native measurement resolves the content and form-label widths in
-		// this frame. The shell itself never introduces a scrolling region.
-		shell := ui.Column(c).MinWidth(min(em(c, width+40), vw-em(c, 40))).MaxWidth(vw - em(c, 40)).Label(title)
+	lobeFeedback.Modal(c, open, lobeFeedback.ModalProps{Width: min(em(c, width+40), vw-em(c, 40)), NoFooter: true, Instant: true, Panel: func(panel ui.Element) {
+		// The Lobe modal sizes all fields in this frame, without wrapping the
+		// whole form in a scroll view or leaving a dismissing panel mounted.
+		shell := panel.Column().MinWidth(min(em(c, width+40), vw-em(c, 40))).MaxWidth(vw - em(c, 40)).Label(title)
 		if height > 0 {
 			shell.Height(min(em(c, height+40), vh-em(c, 40)))
 		}
@@ -144,7 +239,7 @@ func fixedDialog(c *ui.Context, open *bool, title string, width, height float32,
 			ui.Row(c).Padding(em(c, 16), em(c, 24)).Gap(em(c, 16)).AlignItems(ui.Center).Shrink(0).Children(func() {
 				ui.Text(c, title).FontSize(em(c, 20)).FontWeight(500).Grow(1)
 				if actions == nil {
-					ui.Button(c, locales.ActionClose()).OnClick(func() { *open = false })
+					lobeButton(c, locales.ActionClose()).OnClick(func() { *open = false })
 				}
 			})
 			separator(c)
@@ -161,7 +256,7 @@ func fixedDialog(c *ui.Context, open *bool, title string, width, height float32,
 				ui.Row(c).Padding(em(c, 14), em(c, 24)).Gap(em(c, 8)).Justify(ui.End).AlignItems(ui.Center).Shrink(0).Background(look.chrome).Radius(0, 0, c.Theme().Space(2.5), c.Theme().Space(2.5)).Children(actions)
 			}
 		})
-	}).Padding(0).Background(c.Theme().Background)
+	}}, nil)
 }
 
 // Confirmations use the same native modal chrome, but size to their message.
@@ -176,9 +271,9 @@ func confirmationDialog(c *ui.Context, open *bool, title, message string, button
 		ui.Text(c, message)
 	}, func() {
 		for i, label := range buttons {
-			button := ui.Button
+			button := lobeButton
 			if i == len(buttons)-1 {
-				button = ui.PrimaryButton
+				button = lobePrimaryButton
 			}
 			if button(c, label).Shrink(0).Clicked() {
 				chosen, *open = i, false
@@ -205,17 +300,15 @@ func separator(c *ui.Context) ui.Element {
 // A section heading leads one flat native settings panel. There are no
 // nested cards; optional management actions belong to the section heading.
 func parameterGroup(c *ui.Context, title string, action, fields func()) {
-	ui.Column(c).Gap(em(c, 16)).Children(func() {
-		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, title).FontSize(em(c, headingSize)).FontWeight(500)
-			ui.Spacer(c)
-			if action != nil {
-				action()
-			}
-		})
-		// Shared edges and heading spacing define the group. An extra card
-		// around every group crowds narrow panes and duplicates modal borders.
-		ui.Column(c).Gap(em(c, 16)).Children(fields)
+	lobeGroup(c, title, action, fields)
+}
+
+// Use Lobe's borderless form section, without introducing a second preference
+// store: the existing application remains the owner of values and validation.
+func lobeGroup(c *ui.Context, title string, action, fields func()) ui.Element {
+	var form lobeForm.Form[struct{}]
+	return lobeForm.Group(c, &form, lobeForm.GroupProps{Title: title, Extra: action, Fixed: true}, func() {
+		ui.Column(c).Gap(em(c, 16)).Padding(em(c, 16), 0, 0, 0).Children(fields)
 	})
 }
 

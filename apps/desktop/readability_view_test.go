@@ -323,7 +323,7 @@ func TestReadingNavigationRetainsCategoryAcrossTracksAndDisablesLiveProgress(t *
 	tt.Frame()
 	for _, label := range []string{locales.ReadingIssueType(), locales.ReadingPrevious(), locales.ReadingNext()} {
 		if err := tt.Click(label); err != nil || tt.Menu() != nil || tt.Focused(label) || a.query != "hidden" {
-			t.Fatal("reading navigation activated during live translation", label, err)
+			t.Fatal("reading navigation activated during live translation", label, err, "menu", tt.Menu(), "focused", tt.Focused(label), "query", a.query)
 		}
 	}
 }

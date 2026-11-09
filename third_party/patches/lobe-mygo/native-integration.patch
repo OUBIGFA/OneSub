@@ -1,0 +1,703 @@
+diff --git a/pkg/action/actionicon.go b/pkg/action/actionicon.go
+--- a/pkg/action/actionicon.go
++++ b/pkg/action/actionicon.go
+@@ -32,6 +32,8 @@
+ 	Danger bool
+ 	// Title names the button for assistive technology and shows as its tooltip.
+ 	Title string
++	// IconLabel optionally gives the icon a localized accessible name.
++	IconLabel string
+ }
+ 
+ func ActionIcon(c *ui.Context, svg *ui.SVG, p ActionIconProps) ui.Element {
+@@ -66,7 +68,10 @@
+ 	}
+ 	b.Background(bg).Border(1, border).TextColor(actionIconGlyphColor(tk, p.Danger, state))
+ 
+-	b.Children(func() { ui.Icon(c, svg).FontSize(glyph) })
++	b.Children(func() {
++		icon := ui.Icon(c, svg).FontSize(glyph)
++		if p.IconLabel != "" { icon.Label(p.IconLabel) }
++	})
+ 	return b
+ }
+ 
+diff --git a/pkg/action/button.go b/pkg/action/button.go
+--- a/pkg/action/button.go
++++ b/pkg/action/button.go
+@@ -46,11 +46,14 @@
+ 	tk := theme.TokensOf(c)
+ 	m, radius := buttonSize(tk, p.Size)
+ 
+-	b.Height(m.height).PaddingX(m.paddingX).Gap(6).Radius(radius).
+-		FontSize(m.fontSize).FontWeight(500).
++	b.MinHeight(m.height).Padding(4, m.paddingX).Gap(6).Radius(radius).
++		FontSize(tk.FontSize).FontWeight(500).
+ 		Cursor(ui.CursorPointer).Transition(buttonTransition)
+ 
+ 	bg, border, fg := buttonColors(tk, p.Variant, stateOf(b))
++	if p.Variant == Primary {
++		fg = c.Theme().AccentText
++	}
+ 	b.Background(bg).Border(1, border).TextColor(fg)
+ 	switch p.Variant {
+ 	case Dashed:
+@@ -60,7 +63,7 @@
+ 	}
+ 
+ 	if label != "" {
+-		b.Children(func() { ui.Text(c, label).SingleLine() })
++		b.Label(label).Children(func() { ui.Text(c, label).SingleLine() })
+ 	}
+ 	return b
+ }
+diff --git a/pkg/action/segmented.go b/pkg/action/segmented.go
+--- a/pkg/action/segmented.go
++++ b/pkg/action/segmented.go
+@@ -31,12 +31,12 @@
+ 
+ func Segmented(c *ui.Context, selected *int, options []string, p SegmentedProps) ui.Element {
+ 	tk := theme.TokensOf(c)
+-	height, padding, fontSize := float32(32), float32(12), float32(13)
++	height, padding := float32(32), float32(12)
+ 	switch p.Size {
+ 	case theme.Small:
+-		height, padding, fontSize = 26, 10, 12
++		height, padding = 26, 10
+ 	case theme.Large:
+-		height, padding, fontSize = 36, 16, 14
++		height, padding = 36, 16
+ 	}
+ 
+ 	indicator := tk.BgElevated
+@@ -56,8 +56,8 @@
+ 
+ 	track.Children(func() {
+ 		for i, option := range options {
+-			seg := parts.Segment(i).Height(height).PaddingX(padding).Radius(tk.BorderRadius).
+-				FontSize(fontSize).FontWeight(500).Cursor(ui.CursorPointer)
++			seg := parts.Segment(i).Label(option).MinHeight(height).Padding(4, padding).Radius(tk.BorderRadius).
++				FontSize(tk.FontSize).FontWeight(500).Cursor(ui.CursorPointer)
+ 			if p.Block {
+ 				seg.Grow(1).Basis(0)
+ 			}
+@@ -72,7 +72,7 @@
+ 			seg.TextColor(text).AnimatePose(pose, segmentPress)
+ 			seg.Children(func() {
+ 				if i == *selected {
+-					ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).
++					ui.Box(c).IgnoreInput(true).Absolute().Top(0).Left(0).Right(0).Bottom(0).
+ 						Radius(tk.BorderRadius).Background(indicator).ZIndex(-1).Transition(slide)
+ 				}
+ 				ui.Text(c, option).SingleLine()
+diff --git a/pkg/choice/checkbox.go b/pkg/choice/checkbox.go
+--- a/pkg/choice/checkbox.go
++++ b/pkg/choice/checkbox.go
+@@ -45,6 +45,9 @@
+ 		state = ui.CheckOn
+ 	}
+ 	row := ui.CheckboxStateBase(c, &state).Gap(8).Cursor(ui.CursorPointer)
++	if label != "" {
++		row.Label(label)
++	}
+ 	if row.Changed() {
+ 		*checked = state == ui.CheckOn
+ 	}
+@@ -66,7 +69,7 @@
+ 
+ 	row.Children(func() {
+ 		box := ui.Box(c).Size(size, size).Radius(radius).Border(1, border).Background(bg).
+-			TextColor(tk.BgLayout).Center().Transition(checkboxTransition)
++			TextColor(c.Theme().AccentText).Center().Transition(checkboxTransition)
+ 		box.Children(func() {
+ 			switch state {
+ 			case ui.CheckOn:
+diff --git a/pkg/feedback/modal.go b/pkg/feedback/modal.go
+--- a/pkg/feedback/modal.go
++++ b/pkg/feedback/modal.go
+@@ -22,6 +22,11 @@
+ 	CancelText string
+ 	// NoFooter hides both buttons.
+ 	NoFooter bool
++	// Panel builds a content-sized desktop form instead of the stock header,
++	// scrolling body and footer. Lobe still owns backdrop, surface and focus.
++	Panel func(panel ui.Element)
++	// Instant opens and dismisses immediately without a retained exit panel.
++	Instant bool
+ }
+ 
+ var dialogCloseTransition = ui.ElementTransition{Duration: 160 * time.Millisecond, Ease: motion.SoftEase, Colors: true}
+@@ -33,7 +38,7 @@
+ 	tk := theme.TokensOf(c)
+ 	m := motion.Modal()
+ 	ok := false
+-	present(c, open, motionOf(m), func(backdrop, panel ui.Element, shown, dim float32, closing bool) {
++	draw := func(backdrop, panel ui.Element, shown, dim float32, closing bool) {
+ 		backdrop.Padding(32, 16).Background(tk.BgContainer.Alpha(0.6 * dim))
+ 		width := p.Width
+ 		if width == 0 {
+@@ -44,10 +49,16 @@
+ 			from = m.Exit.Scale
+ 		}
+ 		scale := from + (1-from)*shown
+-		panel.Width(width).MaxWidthPercent(100).MaxHeightPercent(100).Radius(12).Clip().
++		panel.MaxWidthPercent(100).MaxHeightPercent(100).Radius(tk.BorderRadiusLG).Clip().
+ 			Background(tk.BgElevated).TextColor(tk.Text).FontSize(tk.FontSize).
+ 			Scale(scale, scale).Opacity(shown)
+ 		tk.Elevate(panel, theme.BoxShadow)
++		if p.Panel != nil {
++			panel.MinWidth(width)
++			p.Panel(panel)
++			return
++		}
++		panel.Width(width)
+ 		panel.Children(func() {
+ 			if p.Title != "" {
+ 				ui.Row(c).MinHeight(48).Padding(8, 56, 8, 16).Children(func() {
+@@ -75,7 +86,12 @@
+ 				*open = false
+ 			}
+ 		})
+-	})
++	}
++	if p.Instant {
++		ui.DialogBase(c, open, func(backdrop, panel ui.Element) { draw(backdrop, panel, 1, 1, false) })
++	} else {
++		present(c, open, motionOf(m), draw)
++	}
+ 	return ok
+ }
+ 
+diff --git a/pkg/feedback/progress.go b/pkg/feedback/progress.go
+--- a/pkg/feedback/progress.go
++++ b/pkg/feedback/progress.go
+@@ -66,6 +66,11 @@
+ // over 300 ms.
+ func Progress(c *ui.Context, percent float32, p ProgressProps) ui.Element {
+ 	tk := theme.TokensOf(c)
++	// Unknown-duration stages reuse MyGo's accessible indeterminate bar,
++	// with the same Lobe track and fill rather than showing a false 0%.
++	if percent < 0 {
++		return ui.Progress(c, -1).Height(4).Background(tk.FillTertiary).TextColor(tk.Primary)
++	}
+ 	pct := min(max(percent, 0), 100)
+ 	fill := p.Color
+ 	if fill == (ui.Color{}) {
+diff --git a/pkg/field/autocomplete.go b/pkg/field/autocomplete.go
+--- a/pkg/field/autocomplete.go
++++ b/pkg/field/autocomplete.go
+@@ -30,13 +30,16 @@
+ 	Variant InputVariant
+ 	// Size sets the height (24, 32 or 40), padding and font size, as Input's.
+ 	Size theme.Size
++	// Frame configures the whole field rather than only its inner editor.
++	Frame func(root ui.Element)
+ }
+ 
+ // AutoComplete is an Input that suggests p.Options below it as the user types, matching what was
+ // typed, and writes the one chosen into *value. It returns the text input.
+ func AutoComplete(c *ui.Context, value *string, p AutoCompleteProps) ui.Element {
+ 	tk := theme.TokensOf(c)
+-	root := fieldRow(c, tk, p.Size).Gap(8)
++	root := fieldRow(c, tk, p.Size).Gap(8).MinWidth(0)
++	if p.Frame != nil { p.Frame(root) }
+ 	var input ui.Element
+ 	root.Children(func() {
+ 		affix(c, tk, p.Prefix)
+@@ -50,7 +53,9 @@
+ 				shown = append(shown, o)
+ 			}
+ 		}
+-		if len(shown) > 0 || p.EmptyText != "" {
++		// Always visit Popup, including zero matches: it clears the previous
++		// option list so Enter cannot replace a custom value with a stale option.
++		{
+ 			field, at := root.Bounds(), input.Bounds()
+ 			cb.Popup(func(panel ui.Element) {
+ 				panel.Margin(8, 0, 0, field.X-at.X).Padding(4).Radius(tk.BorderRadius).MinWidth(field.W).MaxHeight(256).
+diff --git a/pkg/field/input.go b/pkg/field/input.go
+--- a/pkg/field/input.go
++++ b/pkg/field/input.go
+@@ -41,6 +41,8 @@
+ 	MinRows int
+ 	// MaxRows is how many lines it grows to before it scrolls; 0 is 8.
+ 	MaxRows int
++	// Fixed leaves height to the parent's layout instead of auto-growing rows.
++	Fixed bool
+ 	// Invalid draws the error border, and the error ring while focused.
+ 	Invalid bool
+ }
+@@ -49,6 +51,14 @@
+ 
+ func Input(c *ui.Context, value *string, p InputProps) ui.Element {
+ 	tk := theme.TokensOf(c)
++	// A plain field is its own layout root. Returning an inner editor from an
++	// extra row would make Width/Grow/Disabled style only half the component.
++	if p.Prefix == nil && p.Suffix == nil {
++		input := styleFieldRow(ui.TextInputBase(c, value), tk, p.Size).MinWidth(0).FocusRing(false).
++			Placeholder(p.Placeholder).PlaceholderColor(tk.TextPlaceholder)
++		styleField(input, tk, p.Variant, p.Invalid, input.Focused())
++		return input
++	}
+ 	root := fieldRow(c, tk, p.Size).Gap(8)
+ 	var input ui.Element
+ 	root.Children(func() {
+@@ -70,14 +80,13 @@
+ 	if maxRows <= 0 {
+ 		maxRows = 8
+ 	}
+-	root := ui.Column(c).PaddingX(12).PaddingY(8).Radius(tk.BorderRadius).
+-		FontSize(14).TextColor(tk.Text).Cursor(ui.CursorText).Transition(fieldTransition)
+-	var area ui.Element
+-	root.Children(func() {
+-		area = ui.TextAreaBase(c, value).Lines(minRows, maxRows).FocusRing(false).
+-			Placeholder(p.Placeholder).PlaceholderColor(tk.TextPlaceholder)
+-	})
+-	styleField(root, tk, p.Variant, p.Invalid, area.Focused())
++	area := ui.TextAreaBase(c, value).Padding(8, 12).Radius(tk.BorderRadius).
++		FontSize(tk.FontSize).TextColor(tk.Text).Cursor(ui.CursorText).Transition(fieldTransition).
++		FocusRing(false).Placeholder(p.Placeholder).PlaceholderColor(tk.TextPlaceholder)
++	if !p.Fixed {
++		area.Lines(minRows, maxRows)
++	}
++	styleField(area, tk, p.Variant, p.Invalid, area.Focused())
+ 	return area
+ }
+ 
+@@ -137,6 +146,7 @@
+ 	case theme.Large:
+ 		minHeight, fontSize, radius = 40, 16, tk.BorderRadiusLG
+ 	}
+-	return e.MinHeight(minHeight).PaddingX(padding).Radius(radius).AlignItems(ui.Center).
+-		FontSize(fontSize).TextColor(tk.Text).Cursor(ui.CursorText).Transition(fieldTransition)
++	scale := tk.FontSize / 14
++	return e.MinHeight(minHeight * scale).PaddingX(padding * scale).Radius(radius).AlignItems(ui.Center).
++		FontSize(fontSize * scale).TextColor(tk.Text).Cursor(ui.CursorText).Transition(fieldTransition)
+ }
+diff --git a/pkg/field/number.go b/pkg/field/number.go
+--- a/pkg/field/number.go
++++ b/pkg/field/number.go
+@@ -26,6 +26,12 @@
+ 	Variant InputVariant
+ 	// Size sets the height (24, 32 or 40), padding and font size, as Input's.
+ 	Size theme.Size
++	// Disabled disables the editor and both step controls together.
++	Disabled bool
++	// OnChange observes the committed number, never a partial text draft.
++	OnChange func(value float64)
++	// IncreaseLabel and DecreaseLabel localize the step controls.
++	IncreaseLabel, DecreaseLabel string
+ }
+ 
+ type numberDraft struct {
+@@ -58,9 +64,16 @@
+ 		}
+ 		return v
+ 	}
+-	set := func(v float64) { *value = clamp(v) }
++	set := func(v float64) {
++		if p.Disabled || math.IsNaN(v) || math.IsInf(v, 0) { return }
++		next := clamp(v)
++		if next != *value {
++			*value = next
++			if p.OnChange != nil { p.OnChange(next) }
++		}
++	}
+ 
+-	root := fieldRow(c, tk, p.Size).Gap(8)
++	root := fieldRow(c, tk, p.Size).Gap(8).MinWidth(0).Disabled(p.Disabled)
+ 	draft := ui.Local(root, "draft", func() numberDraft { return numberDraft{text: format(*value)} })
+ 	commit := func() {
+ 		if f, err := strconv.ParseFloat(strings.TrimSpace(draft.text), 64); err == nil {
+@@ -73,9 +86,16 @@
+ 	root.Children(func() {
+ 		input = ui.TextInputBase(c, &draft.text).Grow(1).MinWidth(0).FocusRing(false).
+ 			Placeholder(p.Placeholder).PlaceholderColor(tk.TextPlaceholder).FontFeatures("tnum")
++		// A modal can defer input until its whole subtree is constructed.
++		// Callbacks see the final draft in that same pass, including local bindings.
++		input.OnSubmit(commit).OnChange(func() {
++			if v, err := strconv.ParseFloat(strings.TrimSpace(draft.text), 64); err == nil && (p.Min == p.Max || v >= p.Min && v <= p.Max) {
++				set(v)
++			}
++		})
+ 		focused := input.Focused()
+ 		switch {
+-		case input.Submitted(), draft.focused && !focused:
++		case draft.focused && !focused:
+ 			commit()
+ 		case input.Shortcut(0, ui.KeyUp):
+ 			commit()
+@@ -90,12 +110,15 @@
+ 		}
+ 		draft.focused = focused
+ 		if !p.NoControls {
++			increase, decrease := p.IncreaseLabel, p.DecreaseLabel
++			if increase == "" { increase = l10n.Text(c, "numberIncrease") }
++			if decrease == "" { decrease = l10n.Text(c, "numberDecrease") }
+ 			ui.Column(c).Shrink(0).Margin(0, -6, 0, 0).Children(func() {
+-				if numberControl(c, tk, p.Size, lucide.ChevronUp(), l10n.Text(c, "numberIncrease")) {
++				if numberControl(c, tk, p.Size, lucide.ChevronUp(), increase) {
+ 					set(*value + step)
+ 					draft.text = format(*value)
+ 				}
+-				if numberControl(c, tk, p.Size, lucide.ChevronDown(), l10n.Text(c, "numberDecrease")) {
++				if numberControl(c, tk, p.Size, lucide.ChevronDown(), decrease) {
+ 					set(*value - step)
+ 					draft.text = format(*value)
+ 				}
+diff --git a/pkg/field/searchbar.go b/pkg/field/searchbar.go
+--- a/pkg/field/searchbar.go
++++ b/pkg/field/searchbar.go
+@@ -26,6 +26,12 @@
+ 	Size theme.Size
+ 	// OnSearch runs with the query when Enter is pressed.
+ 	OnSearch func(query string)
++	// Frame lays out the complete field, including both icons.
++	Frame func(root ui.Element)
++	// OnClear observes the clear button as the same edit as typing.
++	OnClear func()
++	// ClearLabel localizes the clear button's accessible name.
++	ClearLabel string
+ }
+ 
+ // SearchBar is an Input for a search query: a search icon before it, a button clearing the query,
+@@ -43,7 +49,8 @@
+ 		placeholder = l10n.Text(c, "searchPlaceholder")
+ 	}
+ 
+-	root := fieldRow(c, tk, p.Size).Gap(4)
++	root := fieldRow(c, tk, p.Size).Gap(4).MinWidth(0)
++	if p.Frame != nil { p.Frame(root) }
+ 	var input ui.Element
+ 	root.Children(func() {
+ 		icon := ui.Icon(c, lucide.Search()).TextColor(tk.TextPlaceholder).Shrink(0)
+@@ -67,7 +74,9 @@
+ 		}
+ 		switch {
+ 		case *query != "":
+-			clear := ui.ButtonBase(c).Label(l10n.Text(c, "clear")).Size(16, 16).Radius(8).Center().Shrink(0).
++			clearLabel := p.ClearLabel
++			if clearLabel == "" { clearLabel = l10n.Text(c, "clear") }
++			clear := ui.ButtonBase(c).Label(clearLabel).Size(16, 16).Radius(8).Center().Shrink(0).
+ 				Cursor(ui.CursorPointer).TextColor(tk.TextTertiary)
+ 			if clear.Hovered() {
+ 				clear.TextColor(tk.TextSecondary)
+@@ -75,6 +84,7 @@
+ 			if clear.Clicked() {
+ 				*query = ""
+ 				input.Focus()
++				if p.OnClear != nil { p.OnClear() }
+ 			}
+ 			clear.Children(func() { ui.Icon(c, lucide.CircleX()).FontSize(14) })
+ 		case p.ShortKey != "" && !input.Focused():
+diff --git a/pkg/field/select.go b/pkg/field/select.go
+--- a/pkg/field/select.go
++++ b/pkg/field/select.go
+@@ -31,6 +31,8 @@
+ 	Size theme.Size
+ 	// Disabled keeps the select from opening.
+ 	Disabled bool
++	// RenderLabel preserves richer native labels, such as language flags.
++	RenderLabel func(option SelectOption)
+ }
+ 
+ var (
+@@ -50,6 +52,8 @@
+ 	case theme.Large:
+ 		minHeight, fontSize, radius, padX, padY = 40, 16, tk.BorderRadiusLG, 12, 6
+ 	}
++	fontSize *= tk.FontSize / 14
++	minHeight = max(minHeight, fontSize+2*padY+2)
+ 	sel := ui.SelectBase(c, selected)
+ 	tr := sel.Trigger.MinHeight(minHeight).Padding(padY, padX).Gap(8).Radius(radius).FontSize(fontSize).
+ 		AlignItems(ui.Center).TextColor(tk.Text).Cursor(ui.CursorPointer).Unselectable().Transition(fieldTransition)
+@@ -64,10 +68,16 @@
+ 			current = &p.Options[i]
+ 		}
+ 	}
++	if current != nil && current.Disabled { tr.TextColor(tk.TextDisabled) }
++	if current != nil { tr.Tooltip(current.Label) }
+ 	tr.Children(func() {
+ 		ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
+ 			switch {
+ 			case current != nil:
++				if p.RenderLabel != nil {
++					p.RenderLabel(*current)
++					break
++				}
+ 				if current.Icon != nil {
+ 					ui.Icon(c, current.Icon).TextColor(tk.TextSecondary)
+ 				}
+@@ -91,16 +101,16 @@
+ 		tk.Elevate(panel, theme.BoxShadowSecondary)
+ 		panel.Children(func() {
+ 			for _, o := range p.Options {
+-				selectOption(c.Key(o.Value), tk, sel, o, o.Value == *selected)
++				selectOption(c.Key(o.Value), tk, sel, o, o.Value == *selected, p.RenderLabel)
+ 			}
+ 		})
+ 	})
+ 	return tr
+ }
+ 
+-func selectOption(c *ui.Context, tk *theme.Tokens, sel ui.SelectParts[string], o SelectOption, chosen bool) {
+-	item := sel.Item(o.Value).Disabled(o.Disabled).Padding(6, 12).MinHeight(32).Gap(8).AlignItems(ui.Center).
+-		Radius(tk.BorderRadiusSM).AlignSelf(ui.Stretch).FontSize(14).TextColor(tk.Text).Transition(optionTransition)
++func selectOption(c *ui.Context, tk *theme.Tokens, sel ui.SelectParts[string], o SelectOption, chosen bool, render func(SelectOption)) {
++	item := sel.Item(o.Value).Label(o.Label).Tooltip(o.Label).Disabled(o.Disabled).Padding(6, 12).MinHeight(32).Gap(8).AlignItems(ui.Center).
++		Radius(tk.BorderRadiusSM).AlignSelf(ui.Stretch).FontSize(tk.FontSize).TextColor(tk.Text).Transition(optionTransition)
+ 	switch {
+ 	case o.Disabled:
+ 		item.TextColor(tk.TextDisabled).Cursor(ui.CursorNotAllowed)
+@@ -113,7 +123,11 @@
+ 		if o.Icon != nil {
+ 			ui.Icon(c, o.Icon).FontSize(14).TextColor(tk.TextSecondary)
+ 		}
+-		ui.Text(c, o.Label).Grow(1).SingleLine()
++		if render != nil {
++			ui.Row(c).Grow(1).MinWidth(0).Children(func() { render(o) })
++		} else {
++			ui.Text(c, o.Label).Grow(1).SingleLine()
++		}
+ 		if chosen {
+ 			ui.Icon(c, lucide.Check()).FontSize(14).TextColor(tk.Primary).Margin(0, 0, 0, 8)
+ 		}
+diff --git a/pkg/form/group.go b/pkg/form/group.go
+--- a/pkg/form/group.go
++++ b/pkg/form/group.go
+@@ -104,7 +104,7 @@
+ 			if p.Icon != nil {
+ 				ui.Icon(c, p.Icon).FontSize(size).TextColor(tk.Text)
+ 			}
+-			ui.Text(c, p.Title).FontSize(size).FontWeight(700).TextColor(tk.Text)
++			ui.Text(c, p.Title).FontSize(size * tk.FontSize / 14).FontWeight(500).TextColor(tk.Text)
+ 		})
+ 		if p.Desc != "" {
+ 			ui.Text(c, p.Desc).FontSize(12).TextColor(tk.TextDescription)
+diff --git a/pkg/nav/tabs.go b/pkg/nav/tabs.go
+--- a/pkg/nav/tabs.go
++++ b/pkg/nav/tabs.go
+@@ -49,15 +49,15 @@
+ // the content of tab i; nil shows the tabs alone.
+ func Tabs(c *ui.Context, selected *int, p TabsProps, panel func(i int)) ui.Element {
+ 	tk := theme.TokensOf(c)
+-	height, padding, fontSize := float32(32), float32(12), float32(13)
++	height, padding, fontSize := float32(32), float32(12), tk.FontSize
+ 	switch p.Size {
+ 	case theme.Small:
+-		height, padding, fontSize = 26, 10, 12
++		height, padding = 26, 10
+ 	case theme.Large:
+-		height, padding, fontSize = 36, 16, 14
++		height, padding = 36, 16
+ 	}
+ 
+-	var root ui.Element
++	var root, control ui.Element
+ 	if p.Vertical {
+ 		root = ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Start)
+ 	} else {
+@@ -67,8 +67,9 @@
+ 	root.Children(func() {
+ 		tabs := ui.TabsBase(c, selected, len(p.Items))
+ 		list := tabs.List.Gap(2)
++		control = list
+ 		if p.Vertical {
+-			list.Column().AlignItems(ui.Stretch)
++			list.Column().AlignItems(ui.Stretch).FocusGroup(ui.Vertical).Orientation(ui.Vertical)
+ 		} else {
+ 			list.Row().AlignItems(ui.Center).AlignSelf(ui.Start)
+ 		}
+@@ -90,24 +91,30 @@
+ 			for i, it := range p.Items {
+ 				tab := tabs.Tab(i).Disabled(it.Disabled).Gap(6).AlignItems(ui.Center).Justify(ui.Center).
+ 					FontSize(fontSize).FontWeight(500).Shrink(0).Transition(ui.ElementTransition{Duration: 120 * time.Millisecond, Ease: motion.EaseOut, Colors: true})
++				if p.Vertical {
++					tab.Justify(ui.Start)
++				}
+ 				switch p.Variant {
+ 				case TabsSquare:
+ 					tab.PaddingY(8)
+ 				case TabsPoint:
+ 					tab.Padding(8, padding, 14, padding).Radius(tk.BorderRadius)
+ 				default:
+-					tab.Height(height).PaddingX(padding).Radius(tk.BorderRadius)
++					tab.MinHeight(height).Padding(4, padding).Radius(tk.BorderRadius)
+ 				}
+ 				fg := tk.TextSecondary
+ 				switch {
+ 				case it.Disabled:
+ 					fg = tk.TextDisabled
+ 					tab.Cursor(ui.CursorNotAllowed)
++				case i == *selected:
++					fg = tk.Primary
++					if p.Vertical && p.Variant == TabsRounded {
++						fg = c.Theme().AccentText
++					}
++					tab.Cursor(ui.CursorPointer)
+ 				case tab.Hovered():
+ 					fg = tk.Text
+-					tab.Cursor(ui.CursorPointer)
+-				case i == *selected:
+-					fg = tk.Primary
+ 					tab.Cursor(ui.CursorPointer)
+ 				default:
+ 					tab.Cursor(ui.CursorPointer)
+@@ -138,6 +145,11 @@
+ 			body.Children(func() { panel(*selected) })
+ 		}
+ 	})
++	// A tabs-only caller chains Changed/OnChange onto the tab list, not the
++	// decorative layout wrapper. Keep panels returning their layout root.
++	if panel == nil {
++		return control
++	}
+ 	return root
+ }
+ 
+@@ -154,7 +166,10 @@
+ 	case TabsPoint:
+ 		ind.Size(5, 5).Radius(2.5).Background(tk.Primary).Bottom(6).LeftPercent(50).Margin(0, 0, 0, -2.5)
+ 	default:
+-		ind.Top(0).Left(0).Right(0).Bottom(0).Radius(tk.BorderRadius).Background(tk.BgElevated)
+-		tk.Elevate(ind, theme.BoxShadowTertiary)
++		color := tk.PrimaryBg
++		if vertical {
++			color = tk.Primary
++		}
++		ind.Top(0).Left(0).Right(0).Bottom(0).Radius(tk.BorderRadius).Background(color)
+ 	}
+ }
+diff --git a/pkg/overlay/dropdown.go b/pkg/overlay/dropdown.go
+--- a/pkg/overlay/dropdown.go
++++ b/pkg/overlay/dropdown.go
+@@ -5,6 +5,7 @@
+ 
+ 	"github.com/egoist/mygo/ui"
+ 	"github.com/lobehub/lobe-mygo/pkg/display"
++	"github.com/lobehub/lobe-mygo/pkg/lucide"
+ 	"github.com/lobehub/lobe-mygo/pkg/motion"
+ 	"github.com/lobehub/lobe-mygo/pkg/theme"
+ )
+@@ -27,11 +28,19 @@
+ 	Disabled bool
+ 	// Divider makes the item a line between groups; its other fields are ignored.
+ 	Divider bool
++	// Checkable exposes the item's checked state to assistive technology.
++	Checkable, Checked bool
++	// Tooltip keeps complete user-provided labels available when elided.
++	Tooltip string
+ }
+ 
+ type DropdownMenuProps struct {
+ 	// Items are the menu's rows, in order.
+ 	Items []MenuItem
++	// ItemsFunc builds commands only while the popup is open.
++	ItemsFunc func() []MenuItem
++	// OnOpen prepares the command target once per opening.
++	OnOpen func()
+ }
+ 
+ var menuItemTransition = ui.ElementTransition{Duration: 150 * time.Millisecond, Ease: motion.EaseOut, Colors: true}
+@@ -44,20 +53,30 @@
+ 	tk := theme.TokensOf(c)
+ 	m := ui.MenuBase(c, open)
+ 	trigger(m.Trigger)
++	wasOpen := ui.Local(m.Trigger, "lobe-dropdown-open", func() bool { return false })
++	if m.Open() && !*wasOpen && p.OnOpen != nil { p.OnOpen() }
++	*wasOpen = m.Open()
+ 	chosen := ""
+ 	m.Popup(func(panel ui.Element) {
+ 		panel.Margin(6, 0, 0, 0).Padding(4).Radius(tk.BorderRadius).MinWidth(220).
+ 			Background(tk.BgElevated).Transition(motion.Popup()).AttachedOrigin()
+ 		tk.Elevate(panel, theme.BoxShadowSecondary)
+-		panel.Children(func() { menuRows(c, tk, m, p.Items, &chosen) })
++		panel.Children(func() { menuRows(c, tk, m, resolvedItems(p), &chosen) })
+ 	})
++	*wasOpen = m.Open()
+ 	return chosen
+ }
+ 
+ func menuItem(c *ui.Context, tk *theme.Tokens, m ui.MenuParts, it MenuItem) ui.Element {
+-	item := m.Item().Disabled(it.Disabled).
++	var item ui.Element
++	if it.Checkable {
++		item = m.CheckItem(it.Checked)
++	} else {
++		item = m.Item()
++	}
++	item.Disabled(it.Disabled).Label(it.Label).Tooltip(it.Tooltip).
+ 		PaddingY(6).PaddingX(12).MinHeight(32).Radius(tk.BorderRadiusSM).AlignSelf(ui.Stretch).
+-		FontSize(14).Transition(menuItemTransition)
++		FontSize(tk.FontSize).Transition(menuItemTransition)
+ 	fg, icon := tk.Text, tk.TextSecondary
+ 	if it.Danger {
+ 		fg, icon = tk.Error, tk.Error
+@@ -80,6 +99,9 @@
+ 				ui.Icon(c, it.Icon).FontSize(14).TextColor(icon).Margin(0, 12, 0, 0)
+ 			}
+ 			ui.Text(c, it.Label).Grow(1).SingleLine()
++			if it.Checkable && it.Checked {
++				ui.Icon(c, lucide.Check()).FontSize(tk.FontSize).TextColor(tk.Primary).Shrink(0)
++			}
+ 			if it.Extra != "" {
+ 				ui.Text(c, it.Extra).Font("monospace").FontSize(12).TextColor(tk.TextTertiary).Padding(0, 0, 0, 16).SingleLine()
+ 			}
+@@ -100,20 +122,29 @@
+ 	tk := theme.TokensOf(c)
+ 	open := ui.Local(target, "contextMenu", func() bool { return false })
+ 	m := ui.ContextMenuBase(c, target, open)
++	wasOpen := ui.Local(target, "lobe-context-open", func() bool { return false })
++	if m.Open() && !*wasOpen && p.OnOpen != nil { p.OnOpen() }
++	*wasOpen = m.Open()
+ 	chosen := ""
+ 	m.Popup(func(panel ui.Element) {
+ 		panel.Padding(4).Radius(tk.BorderRadius).MinWidth(220).
+ 			Background(tk.BgElevated).Transition(motion.Popup()).AttachedOrigin()
+ 		tk.Elevate(panel, theme.BoxShadowSecondary)
+-		panel.Children(func() { menuRows(c, tk, m, p.Items, &chosen) })
++		panel.Children(func() { menuRows(c, tk, m, resolvedItems(p), &chosen) })
+ 	})
++	*wasOpen = m.Open()
+ 	return chosen
++}
++
++func resolvedItems(p DropdownMenuProps) []MenuItem {
++	if p.ItemsFunc != nil { return p.ItemsFunc() }
++	return p.Items
+ }
+ 
+ func menuRows(c *ui.Context, tk *theme.Tokens, m ui.MenuParts, items []MenuItem, chosen *string) {
+ 	for i, it := range items {
+ 		if it.Divider {
+-			ui.Box(c.Key(i)).Height(1).Margin(4, 0).AlignSelf(ui.Stretch).Background(tk.Border)
++			ui.Box(c.Key(i)).Height(1).Margin(4, 0).AlignSelf(ui.Stretch).Background(tk.Border).Role(ui.RoleSeparator)
+ 			continue
+ 		}
+ 		if menuItem(c, tk, m, it).Clicked() && !it.Disabled {
+diff --git a/pkg/theme/apply.go b/pkg/theme/apply.go
+--- a/pkg/theme/apply.go
++++ b/pkg/theme/apply.go
+@@ -16,8 +16,20 @@
+ }
+ 
+ func TokensOf(c *ui.Context) *Tokens {
++	tk := Light()
+ 	if c.Theme().Dark {
+-		return Dark()
++		tk = Dark()
+ 	}
+-	return Light()
++	// Native typography and the explicit blue accent may be customized while
++	// Lobe's layout/container/elevation roles remain the kit's own palette.
++	native := c.Theme()
++	tk.BgLayout = native.Background
++	tk.FillTertiary, tk.FillSecondary, tk.Fill = native.Surface, native.SurfaceHover, native.SurfacePressed
++	tk.Border, tk.BorderSecondary = native.Border, native.Border
++	tk.Text, tk.TextSecondary, tk.TextDescription = native.Text, native.TextMuted, native.TextMuted
++	tk.Primary, tk.PrimaryHover, tk.PrimaryActive = native.Accent, native.AccentHover, native.AccentPressed
++	tk.PrimaryBg, tk.PrimaryBorder = native.Accent.Alpha(0.12), native.Accent.Alpha(0.4)
++	tk.Error, tk.Warning, tk.Success = native.Danger, native.Warning, native.Success
++	tk.FontSize = native.FontSize
++	return tk
+ }

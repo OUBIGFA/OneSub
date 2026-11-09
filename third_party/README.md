@@ -1,6 +1,6 @@
 # 第三方来源与许可规则
 
-深色界面的中性色阶与工具栏分组参考 MIT 的 Microsoft Fluent UI 固定修订，映射到 MyGo 原生主题，不引入 React 或另一套控件；边界与来源见 [设计参考登记](ports/fluent-ui/README.md)。
+工作台组件与主题使用 MIT 的 [Lobe MyGo](patches/lobe-mygo/README.md)，底层窗口、布局、虚拟表格与媒体承载使用 MyGo。旧版 WinOne 和 Fluent UI 设计来源记录保留用于追溯，不再作为当前界面的主题实现。
 
 当前已引入 MyGo、官方 MCP Go SDK、libse worker、SmartSub 样式模块、OneAsr 模型目录与开发运行时、完整字幕技能快照、Lucide 图标以及 JASSUB 播放渲染依赖。识别前的静音保护直接复用 OneAsr 固定的 FireRedVAD `v1.0.0` 模型与默认设置，见 [集成登记](ports/oneasr/README.md)。SenseVoice、Paraformer 与 Parakeet-TDT 由 Apache-2.0 的 sherpa-onnx `v2.0.1` 官方 CPU 运行时执行，模型由用户按固定修订下载，不随安装器分发，见 [集成登记](ports/sherpa-onnx/README.md)。精确记录位于 `manifests/`，移植边界位于 `ports/`。
 
@@ -14,9 +14,9 @@ TXT 文稿导出直接调用固定 libse 的 `HtmlUtil.RemoveHtmlTags`、`HtmlUt
 
 实际翻译协议与分段流程参考的固定上游修订、源码位置和适配边界见各组件的 `ports/` 登记。它们不是新增运行时依赖；完整字幕技能快照仍为质量规则来源。
 
-浅色主题直接复用 WinOne 固定修订的颜色值，来源、许可副本、哈希与有限适配边界见 [WinOne 配色登记](ports/winone/README.md)；没有引入其控件、绘制代码或运行时。
+旧版浅色主题的 WinOne 来源、许可副本、哈希与适配边界见 [历史配色登记](ports/winone/README.md)；当前浅深色主题均使用 Lobe MyGo 的主题令牌。
 
-MyGo 原生 UI 当前锁定为 `v0.8.3`；依赖、源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。已移除上游具备的复合输入占位转发与菜单附加宽度算法，直接复用对应原生能力。按项目工作约定持续关注并及时同步上游最新版本；升级时重新核对 API、补丁必要性、许可与相关原生验收，当前锁定修订只用于可复现构建。
+MyGo 原生 UI 当前锁定为 `v0.8.4-0.20261109145827-434ef0956afb`；依赖、源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。2026-11-09 核查时最新产品发布为 0.8.3；Lobe MyGo 依赖后续原生能力，因此使用核查时最新兼容主分支修订。升级时重新核对 API、补丁必要性、许可与相关原生验收，当前锁定修订只用于可复现构建。
 
 MyGo 的应用更新直接复用 `mygo.Updater.Check`／`Update.Install`，包括 HTTPS／系统代理、Ed25519 校验、解包与替换／回滚；没有引入另一套下载器或安装器。设置“关于”与任务协调由应用原生 UI 承担，产品版本保持 `0.0.1`，用数值第四段区分测试构建。归档与签名由 MyGo 构建器生成，只调整清单中的内部构建号与不可变 Release URL，见 [构建与更新说明](../build/README.md)。新增 GitHub 和“关于”图标继续直接复用同一固定 Lucide 修订，原字节、大小和哈希见 [图标清单](manifests/lucide.json)。
 

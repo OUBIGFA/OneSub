@@ -119,30 +119,30 @@ func (a *NativeApp) providerSelect(c *ui.Context) ui.Element {
 // drop-down. Autocomplete alone only offers suggestions after typing; it is
 // not a discoverable way to switch an already selected model.
 func (a *NativeApp) providerModelSelect(c *ui.Context) ui.Element {
-	row := ui.Row(c.Key(a.settings.ActiveProvider)).Gap(0).MinWidth(0).AlignItems(ui.Stretch)
+	row := ui.Row(c.Key(a.settings.ActiveProvider)).Gap(0).MinWidth(0).AlignItems(ui.Stretch).Disabled(a.settings.Provider() == nil)
 	if a.modelEdit.provider != a.settings.ActiveProvider || a.modelEdit.selected != a.settings.ProviderModel {
 		a.modelEdit = providerModelDraft{a.settings.ActiveProvider, a.settings.ProviderModel, a.settings.ProviderModel}
 	}
 	wasFocused := ui.Local(row, "model-was-focused", func() bool { return false })
 	names := a.providerModelNames()
 	row.Children(func() {
-		input := ui.Autocomplete(c, &a.modelEdit.text, names).Grow(1).MinWidth(0).
-			Radius(c.Theme().Radius, 0, 0, c.Theme().Radius).
-			Placeholder(locales.TranslationModelPlaceholder()).Label(locales.TranslationModel()).
-			Tooltip(a.modelEdit.text).Disabled(a.settings.Provider() == nil)
+		input := lobeCombobox(c, &a.modelEdit.text, names, func(frame ui.Element) {
+			frame.Grow(1).MinWidth(0).Radius(c.Theme().Radius, 0, 0, c.Theme().Radius)
+		}).Placeholder(locales.TranslationModelPlaceholder()).Label(locales.TranslationModel()).Tooltip(a.modelEdit.text)
 		// Only this input's blur commits it. The same model selector can
 		// also be mounted behind the settings modal without saving partial IDs.
-		if input.Submitted() || (*wasFocused && !input.Focused()) {
+		// Modal composites apply pending input after their children finish.
+		// Observe submission through its callback so Enter commits in that pass.
+		input.OnSubmit(a.commitProviderModelInput)
+		if *wasFocused && !input.Focused() {
 			a.commitProviderModelInput()
 		}
 		*wasFocused = input.Focused()
-		ui.MenuButton(c, "", func(m *ui.Menu) {
-			for _, id := range a.providerModelNames() {
-				if m.Item(id).Checked(id == a.settings.ProviderModel).Chosen() {
-					a.useProviderModel(id)
-				}
-			}
-		}).Padding(em(c, 8)).Radius(0, c.Theme().Radius, c.Theme().Radius, 0).
+		models := make([]menuCommand, len(names))
+		for i, id := range names {
+			models[i] = menuCommand{Key: id, Label: id, Checkable: true, Checked: id == a.settings.ProviderModel, Run: func() { a.useProviderModel(id) }}
+		}
+		lobeMenuButton(c, "", "chevron-down", true, func() []menuCommand { return models }).Padding(em(c, 8)).Radius(0, c.Theme().Radius, c.Theme().Radius, 0).
 			Label(locales.TranslationSwitchModel()).Tooltip(locales.TranslationSwitchModel()).
 			Disabled(len(names) == 0).Shrink(0)
 	})
@@ -323,7 +323,7 @@ func (a *NativeApp) providerModelsView(c *ui.Context) {
 			switch col {
 			case 0:
 				kept := p.KeepsModel(info.ID)
-				ui.Checkbox(c, &kept, "").Label(locales.TranslationKeepModel(info.ID)).Tooltip(locales.TranslationKeepModel(info.ID)).
+				lobeCheckbox(c, &kept, "").Label(locales.TranslationKeepModel(info.ID)).Tooltip(locales.TranslationKeepModel(info.ID)).
 					Disabled(a.settings.ProviderModel == info.ID).OnChange(func() {
 					if kept {
 						a.keepProviderModel(info.ID)
@@ -349,7 +349,7 @@ func (a *NativeApp) providerModelsView(c *ui.Context) {
 				}
 				// Every state uses the same native button geometry, including
 				// the current model; only unused models are disabled/muted.
-				ui.Button(c, label).Width(statusWidth).Shrink(0).Padding(em(c, 2), em(c, 8)).Disabled(!p.KeepsModel(info.ID)).
+				lobeButton(c, label).Width(statusWidth).Shrink(0).Padding(em(c, 2), em(c, 8)).Disabled(!p.KeepsModel(info.ID)).
 					Label(locales.TranslationUseModelNamed(info.ID)).OnClick(func() { a.useProviderModel(info.ID) })
 			}
 		}).Fill().Label(locales.TranslationModels())

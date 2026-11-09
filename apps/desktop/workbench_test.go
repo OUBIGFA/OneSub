@@ -85,6 +85,7 @@ func TestWorkbenchRegionsAndStyleSections(t *testing.T) {
 			t.Fatal("placement page missing margin", label)
 		}
 	}
+	captureRedesign(t, tt, "workbench-layout-before-text")
 	if err := tt.Click("文字"); err != nil {
 		t.Fatal(err)
 	}

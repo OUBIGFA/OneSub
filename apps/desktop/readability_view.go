@@ -105,14 +105,12 @@ func (a *NativeApp) readingTools(c *ui.Context, compact bool) {
 	ui.Row(c).Gap(em(c, 8)).Wrap().Shrink(1).AlignItems(ui.Center).Children(func() {
 		subtitleTool(c, locales.ReadingSplitCount(long), "scissors", compact).Disabled(a.busy || a.showsTranslationProgress() || long == 0).Tooltip(locales.ReadingSplitHint()).OnClick(a.smartSplitSubtitles)
 		ui.Row(c).Gap(em(c, 4)).Shrink(0).AlignItems(ui.Center).Children(func() {
-			picker := subtitleTool(c, selected.label, "triangle-alert", compact).Menu(func(m *ui.Menu) {
+			picker := lobeMenuButton(c, selected.label, "triangle-alert", compact, func() []menuCommand {
+				commands := make([]menuCommand, len(issues))
 				for i, issue := range issues {
-					if m.Item(issue.summary).Checked(i == a.readingIssue).Disabled(issue.count == 0).Chosen() {
-						// Choosing a category changes only the navigation target.
-						// The adjacent buttons perform explicit list selection.
-						a.readingIssue = i
-					}
+					commands[i] = menuCommand{Key: issue.kind, Label: issue.summary, Checkable: true, Checked: i == a.readingIssue, Disabled: issue.count == 0, Run: func() { a.readingIssue = i }}
 				}
+				return commands
 			}).Label(locales.ReadingIssueType()).Shrink(0).
 				Disabled(a.showsTranslationProgress() || long+fast+brief == 0).Tooltip(selected.summary + "\n" + locales.ReadingInspectHint())
 			if !compact {
@@ -132,24 +130,18 @@ func (a *NativeApp) readingTools(c *ui.Context, compact bool) {
 func (a *NativeApp) readingMenu(c *ui.Context) {
 	issues := a.readingIssues()
 	selected := issues[a.readingIssue]
-	toolIcon(c, locales.ReadingInspect(), "triangle-alert").Disabled(a.showsTranslationProgress()).Tooltip(locales.ReadingInspect() + "\n" + selected.summary).Menu(func(m *ui.Menu) {
+	lobeMenuButton(c, locales.ReadingInspect(), "triangle-alert", true, func() []menuCommand {
+		commands := make([]menuCommand, len(issues))
 		for i, issue := range issues {
-			if m.Item(issue.summary).Checked(i == a.readingIssue).Disabled(issue.count == 0).Chosen() {
-				a.readingIssue = i
-			}
+			commands[i] = menuCommand{Key: issue.kind, Label: issue.summary, Checkable: true, Checked: i == a.readingIssue, Disabled: issue.count == 0, Run: func() { a.readingIssue = i }}
 		}
-		m.Separator()
-		if m.Item(locales.ReadingPrevious()).Disabled(selected.count == 0).Chosen() {
-			a.locateReadingIssue(selected.kind, -1)
-		}
-		if m.Item(locales.ReadingNext()).Disabled(selected.count == 0).Chosen() {
-			a.locateReadingIssue(selected.kind, 1)
-		}
-		m.Separator()
-		if m.Item(locales.ReadingSplitCount(issues[0].count)).Disabled(a.busy || issues[0].count == 0).Chosen() {
-			a.smartSplitSubtitles()
-		}
-	})
+		return append(commands,
+			menuCommand{Divider: true},
+			menuCommand{Label: locales.ReadingPrevious(), Disabled: selected.count == 0, Run: func() { a.locateReadingIssue(selected.kind, -1) }},
+			menuCommand{Label: locales.ReadingNext(), Disabled: selected.count == 0, Run: func() { a.locateReadingIssue(selected.kind, 1) }},
+			menuCommand{Divider: true},
+			menuCommand{Label: locales.ReadingSplitCount(issues[0].count), Disabled: a.busy || issues[0].count == 0, Run: a.smartSplitSubtitles})
+	}).Disabled(a.showsTranslationProgress()).Tooltip(locales.ReadingInspect() + "\n" + selected.summary)
 }
 
 // Navigate in document order and wrap at either end, including cues hidden by

@@ -1,7 +1,7 @@
 diff --git a/ui/headless.go b/ui/headless.go
 --- a/ui/headless.go
 +++ b/ui/headless.go
-@@ -530,6 +530,17 @@
+@@ -533,6 +533,17 @@
  // Frame renders another frame, as when the view's state changed.
  func (t *Tester) Frame() { t.h.requested.Store(true); t.settle() }
  
@@ -19,7 +19,7 @@ diff --git a/ui/headless.go b/ui/headless.go
  // FramePending reports whether the view still asks for a frame, as one
  // that animates or never settles does after an input or Frame. The
  // frames of After and Painter.After wait for Advance to reach their
-@@ -655,6 +666,21 @@
+@@ -686,6 +697,21 @@
  			}
  		}
  	}
@@ -27,7 +27,7 @@ diff --git a/ui/headless.go b/ui/headless.go
 +	// In a Modal, receiver(named) is the backdrop, while the group's center
 +	// correctly hits its control. Accept only that control (or its delegated
 +	// input), not any descendant or a control covering the field.
-+	if !matches && slices.Contains(hit, n.id) {
++	if slices.Contains(hit, n.id) {
 +		for i := range t.rt.c.used {
 +			e := t.rt.nodeAt(uint32(i))
 +			if e.id == n.id && e.field != nil && e.field.control != nil {
@@ -41,11 +41,40 @@ diff --git a/ui/headless.go b/ui/headless.go
  	if !matches || len(named) == 0 || t.rt.states[n.id].ignoreInput {
  		return 0, 0, fmt.Errorf("ui: %q is not the input target at (%v, %v)", s, x, y)
  	}
+@@ -758,7 +784,7 @@
+ func (t *Tester) Menu() []string {
+ 	m, _ := t.currentMenu()
+ 	if m == nil {
+-		return nil
++		return t.baseMenuLabels()
+ 	}
+ 	out := []string{}
+ 	for _, it := range m.Items {
+@@ -776,7 +802,7 @@
+ func (t *Tester) ChooseMenuItem(path ...string) error {
+ 	m, choose := t.currentMenu()
+ 	if m == nil {
+-		return fmt.Errorf("ui: no context menu is shown")
++		return t.chooseBaseMenuItem(path)
+ 	}
+ 	if len(path) == 0 {
+ 		return fmt.Errorf("ui: no item to choose")
+@@ -812,6 +838,10 @@
+ 
+ // CloseMenu closes the context menu shown without choosing an item.
+ func (t *Tester) CloseMenu() {
++	if len(t.baseMenuItems()) > 0 && t.rt.menu.drawn == nil {
++		t.Key(0, KeyEscape)
++		return
++	}
+ 	if t.rt.menu.drawn != nil {
+ 		t.rt.menu.drawn = nil
+ 		t.settle()
 diff --git a/ui/onesub_layout_test.go b/ui/onesub_layout_test.go
 new file mode 100644
 --- /dev/null
 +++ b/ui/onesub_layout_test.go
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,126 @@
 +package ui
 +
 +import (
@@ -81,6 +110,60 @@ new file mode 100644
 +	tt.Type("ignored")
 +	if value != "after" || !open {
 +		t.Fatal("disabled field accepted input or dismissed the dialog", value, open)
++	}
++}
++
++// Base-menu tests use real pointer/keyboard actions, not command injection.
++func TestOneSubBaseMenuTesterUsesActualInput(t *testing.T) {
++	open, choice := false, ""
++	tt := NewTester(func(c *Context) {
++		m := MenuBase(c, &open)
++		m.Trigger.Label("Actions").Size(100, 32)
++		m.Popup(func(panel Element) {
++			panel.Width(200).Padding(4)
++			if m.Item().Label("First").Height(32).Clicked() {
++				choice = "First"
++			}
++			Box(c).Height(1).Role(RoleSeparator)
++			m.CheckItem(true).Label("Unavailable").Disabled(true).Height(32)
++			if m.Item().Label("Last").Height(32).Clicked() {
++				choice = "Last"
++			}
++		})
++	}, 400, 400)
++	if err := tt.Click("Actions"); err != nil {
++		t.Fatal(err)
++	}
++	labels := tt.Menu()
++	if len(labels) != 4 || labels[0] != "First" || labels[1] != "-" || labels[3] != "Last" {
++		t.Fatal(labels)
++	}
++	if err := tt.ChooseMenuItem("Unavailable"); err == nil || choice != "" || !open {
++		t.Fatal("disabled item ran", err, choice, open)
++	}
++	if err := tt.ChooseMenuItem("Last"); err != nil || choice != "Last" || open {
++		t.Fatal("keyboard menu selection failed", err, choice, open)
++	}
++	if err := tt.Click("Actions"); err != nil {
++		t.Fatal(err)
++	}
++	tt.CloseMenu()
++	if open || len(tt.Menu()) != 0 {
++		t.Fatal("Escape did not dismiss the menu")
++	}
++}
++
++// NoWrap is an explicit opt-out from paint-only elision. Timecode callers
++// separately reserve enough width for their full formatted value and padding.
++func TestOneSubNoWrapInputNeverBuildsEllipsis(t *testing.T) {
++	value := "100:23:45.678"
++	var input *node
++	tt := coreNewTester(func(c *context) {
++		input = coreTextInput(c, &value).NoWrap().Width(50)
++	}, 300, 100)
++	tt.Frame()
++	if input.st.editor.elidedLayout != nil || input.inputPaintLayout(20) != input.st.editor.layout {
++		t.Fatal("NoWrap timecode was elided")
 +	}
 +}
 +
@@ -121,8 +204,8 @@ new file mode 100644
 diff --git a/ui/webview.go b/ui/webview.go
 --- a/ui/webview.go
 +++ b/ui/webview.go
-@@ -45,6 +45,21 @@
- 	return e
+@@ -159,6 +159,21 @@
+ 	rt.platformViews = kept
  }
  
 +// webViewBox applies native containment to this frame's content box. A caller
@@ -143,7 +226,7 @@ diff --git a/ui/webview.go b/ui/webview.go
  // webPlace is where a frame shows a web view: size is the size its page
  // lays out at, which frame shows scaled, and radii its corners', in its
  // DIPs; hit is the index of its element's own hit, inert that it shows
-@@ -72,7 +87,7 @@
+@@ -186,7 +201,7 @@
  	if s <= 0 {
  		s = 1
  	}
@@ -152,7 +235,7 @@ diff --git a/ui/webview.go b/ui/webview.go
  	sx, sy, upright := scaling(e.world)
  	var b, page Rect
  	if upright && (sx != 1 || sy != 1) {
-@@ -312,7 +327,7 @@
+@@ -429,7 +444,7 @@
  // hole paints the hole showing the web view of e: its content box,
  // rounded as its border's inner edge less its padding.
  func (p *Painter) hole(e *node) {
@@ -161,3 +244,91 @@ diff --git a/ui/webview.go b/ui/webview.go
  	if b.W <= 0 || b.H <= 0 {
  		return
  	}
+diff --git a/ui/onesub_menu_tester.go b/ui/onesub_menu_tester.go
+new file mode 100644
+--- /dev/null
++++ b/ui/onesub_menu_tester.go
+@@ -0,0 +1,83 @@
++package ui
++
++import "fmt"
++
++// MenuBase-backed component kits do not create platform.Menu objects. Inspect
++// their real menu nodes and exercise their keyboard input, including scrolling,
++// instead of calling an application's command callbacks from the test driver.
++func (t *Tester) baseMenuItems() []*node {
++	var menu *node
++	var find func(*node)
++	find = func(n *node) {
++		if n == nil || menu != nil || n.flags&flagInert != 0 {
++			return
++		}
++		if n.role == RoleMenu && n.widget == "Menu" {
++			menu = n
++			return
++		}
++		for ch := n.first; ch != nil; ch = ch.next {
++			find(ch)
++		}
++	}
++	find(t.rt.c.overlay)
++	var items []*node
++	var walk func(*node)
++	walk = func(n *node) {
++		if n == nil || n.flags&flagInert != 0 {
++			return
++		}
++		switch n.role {
++		case RoleMenuItem, RoleMenuItemCheckBox, RoleMenuItemRadio, RoleSeparator:
++			items = append(items, n)
++			return
++		}
++		for ch := n.first; ch != nil; ch = ch.next {
++			walk(ch)
++		}
++	}
++	walk(menu)
++	return items
++}
++
++func (t *Tester) baseMenuLabels() []string {
++	items := t.baseMenuItems()
++	if len(items) == 0 {
++		return nil
++	}
++	labels := make([]string, len(items))
++	for i, item := range items {
++		labels[i] = menuItemName(item)
++		if item.role == RoleSeparator {
++			labels[i] = "-"
++		}
++	}
++	return labels
++}
++
++func (t *Tester) chooseBaseMenuItem(path []string) error {
++	if len(path) != 1 {
++		return fmt.Errorf("ui: a base menu needs one item label")
++	}
++	steps := 0
++	for _, item := range t.baseMenuItems() {
++		if item.role == RoleSeparator {
++			continue
++		}
++		if menuItemName(item) == path[0] {
++			if item.disabled() {
++				return fmt.Errorf("ui: the item %q is disabled", path[0])
++			}
++			t.Key(0, KeyHome)
++			for range steps {
++				t.Key(0, KeyDown)
++			}
++			t.Key(0, KeyEnter)
++			return nil
++		}
++		if !item.disabled() {
++			steps++
++		}
++	}
++	return fmt.Errorf("ui: the context menu has no item %q", path[0])
++}

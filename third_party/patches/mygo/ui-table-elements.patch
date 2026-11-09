@@ -1,0 +1,27 @@
+diff --git a/ui/list.go b/ui/list.go
+--- a/ui/list.go
++++ b/ui/list.go
+@@ -199,6 +199,10 @@
+ 	// title and the sort arrow, as a mark, and it may give the cell a
+ 	// tooltip or a card of its own. col is as HeaderMenu's.
+ 	HeaderCell func(cell Element, col int)
++	// CellElement decorates each complete data cell, including its padding.
++	// Component kits can attach ContextMenuBase without replacing the table's
++	// selection, virtualization, column sizing or keyboard behavior.
++	CellElement func(cell Element, row, col int)
+ 	// CellMenu, when set, gives a Table's cells a context menu, built as
+ 	// ContextMenu's is, over the whole cell with its padding: row and col
+ 	// are as the cell builder receives them. A menu built without items
+diff --git a/ui/table.go b/ui/table.go
+--- a/ui/table.go
++++ b/ui/table.go
+@@ -253,6 +253,9 @@
+ 					s.HeaderCell(wrapElement(box), j)
+ 				}
+ 			})
++			if s.CellElement != nil && role == RoleCell && c.row != nil {
++				s.CellElement(wrapElement(box), c.row.i, j)
++			}
+ 			if menu := s.CellMenu; menu != nil && role == RoleCell && c.row != nil {
+ 				row := c.row.i
+ 				box.ContextMenu(func(m *Menu) { menu(m, row, j) })

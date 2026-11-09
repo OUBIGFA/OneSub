@@ -90,7 +90,17 @@ func TestAboutUpdateStatesKeepTheFixedShell(t *testing.T) {
 				if button, _ := tt.Find(locales.ActionClose()); button != closeButton {
 					t.Fatal("update phase moved close action", phase)
 				}
-				insideRedesign(t, tt, locales.A11ySettingsContent(), locales.AboutCheckUpdates(), locales.AboutAutoUpdate(), locales.AboutUpdateStatus(), repositoryURL)
+				action := locales.AboutInstallUpdate()
+				if phase == updateInstalling || phase == updateInstalled {
+					action = locales.AboutCheckUpdates()
+				}
+				insideRedesign(t, tt, locales.A11ySettingsContent(), action, locales.AboutAutoUpdate(), locales.AboutUpdateStatus(), repositoryURL)
+				button, _ := tt.Find(action)
+				version, _ := tt.Find(locales.AboutVersion("0.0.1"))
+				if button.Y > version.Y+version.H || button.Y+button.H < version.Y {
+					t.Fatal("update action is detached from product version", button, version)
+				}
+				captureRedesign(t, tt, fmt.Sprintf("about-state-%s-%d", language, phase))
 				if phase == updateInstalling {
 					insideRedesign(t, tt, locales.A11ySettingsContent(), locales.AboutUpdateProgress())
 					if !tt.HasText(locales.Percent(32)) {

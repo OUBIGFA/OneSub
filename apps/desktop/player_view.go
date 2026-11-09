@@ -65,12 +65,12 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 	disabled := !a.playbackAvailable()
 	ui.Column(c).Padding(em(c, 4), em(c, 12), em(c, 8), em(c, 12)).Gap(em(c, 4)).Shrink(0).Background(c.Theme().Surface).Label(locales.A11yPlayerControls()).Children(func() {
 		value := a.position
-		ui.Slider(c, &value, 0, math.Max(a.duration, .001)).Label(locales.PlayerPosition()).Disabled(disabled).OnChange(func() { a.evalPlayer(fmt.Sprintf("video.currentTime = %f", value)) })
+		lobeSlider(c, &value, 0, math.Max(a.duration, .001)).Label(locales.PlayerPosition()).Disabled(disabled).OnChange(func() { a.evalPlayer(fmt.Sprintf("video.currentTime = %f", value)) })
 		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Justify(ui.SpaceBetween).Children(func() {
 			ui.Row(c).Gap(em(c, 6)).AlignItems(ui.Center).Shrink(0).Children(func() {
-				ui.Text(c, stamp(a.position)).FontSize(em(c, captionSize)).FontFeatures("tnum").SingleLine()
+				ui.Text(c, stamp(a.position)).FontSize(em(c, captionSize)).FontFeatures("tnum").NoWrap().Shrink(0)
 				muted(c, "/").SingleLine()
-				muted(c, stamp(a.duration)).FontSize(em(c, captionSize)).FontFeatures("tnum").SingleLine()
+				muted(c, stamp(a.duration)).FontSize(em(c, captionSize)).FontFeatures("tnum").NoWrap().Shrink(0)
 			})
 			ui.Toolbar(c, func() {
 				toolIcon(c, locales.PlayerStart(), "skip-back").Disabled(disabled).OnClick(a.seekStart)
@@ -84,14 +84,12 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 			}).Gap(em(c, 4)).Padding(0).AlignItems(ui.Center).Shrink(0)
 			ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
 				ui.Toolbar(c, func() {
-					ui.MenuButton(c, rateLabel(a.playbackRate()), func(m *ui.Menu) {
-						for _, rate := range playbackRates {
-							if m.Item(rateLabel(rate)).Checked(rate == a.playbackRate()).Chosen() {
-								a.setPlaybackRate(rate)
-							}
-						}
-					}).Label(locales.PlayerSpeed()).Tooltip(locales.PlayerSpeed()).Disabled(disabled).FontFeatures("tnum")
-					if ui.Toggle(c, &a.loop, "").Label(locales.PlayerLoop()).Tooltip(locales.PlayerLoop()).Padding(c.Theme().Space(2)).Disabled(disabled).Children(func() { icon(c, "repeat") }).Changed() {
+					rates := make([]menuCommand, len(playbackRates))
+					for i, rate := range playbackRates {
+						rates[i] = menuCommand{Label: rateLabel(rate), Checkable: true, Checked: rate == a.playbackRate(), Run: func() { a.setPlaybackRate(rate) }}
+					}
+					lobeMenuButton(c, rateLabel(a.playbackRate()), "", false, func() []menuCommand { return rates }).Label(locales.PlayerSpeed()).Tooltip(locales.PlayerSpeed()).Disabled(disabled).FontFeatures("tnum")
+					if lobeToggle(c, &a.loop, "").Label(locales.PlayerLoop()).Tooltip(locales.PlayerLoop()).Padding(c.Theme().Space(2)).Disabled(disabled).Children(func() { icon(c, "repeat") }).Changed() {
 						a.evalPlayer(a.rateScript())
 					}
 				}).Padding(0).Gap(em(c, 4))
@@ -102,7 +100,7 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Children(func() {
 					ui.Toolbar(c, func() { toolIcon(c, muteLabel, muteIcon).OnClick(func() { a.toggleMute(c.Now()) }) }).Padding(0)
 					volume := a.audibleVolume()
-					ui.Slider(c, &volume, 0, 100).Width(em(c, 88)).Label(locales.PlayerVolume()).Tooltip(locales.PlayerVolumeValue(int(math.Round(volume)))).OnChange(func() { a.setVolume(volume, false, c.Now()) })
+					lobeSlider(c, &volume, 0, 100).Width(em(c, 88)).Label(locales.PlayerVolume()).Tooltip(locales.PlayerVolumeValue(int(math.Round(volume)))).OnChange(func() { a.setVolume(volume, false, c.Now()) })
 				})
 			})
 		})
@@ -123,31 +121,24 @@ func (a *NativeApp) playerOverlay(c *ui.Context) {
 		})
 		return
 	}
-	layer.Label(locales.A11yVideo()).ContextMenu(func(m *ui.Menu) {
-		disabled := !a.playbackAvailable()
-		playLabel := locales.PlayerPlay()
-		if !a.paused {
-			playLabel = locales.PlayerPause()
-		}
-		if m.Item(playLabel).Disabled(disabled).Chosen() {
-			a.togglePlayback()
-		}
-		if m.Item(locales.PlayerStart()).Disabled(disabled).Chosen() {
-			a.seekStart()
-		}
-		if m.Item(locales.PlayerBack()).Disabled(disabled).Chosen() {
-			a.seekBy(-15)
-		}
-		if m.Item(locales.PlayerForward()).Disabled(disabled).Chosen() {
-			a.seekBy(15)
-		}
-		m.Separator()
-		muteLabel := locales.PlayerMute()
-		if a.settings.Muted || a.settings.Volume == 0 {
-			muteLabel = locales.PlayerUnmute()
-		}
-		if m.Item(muteLabel).Chosen() {
-			a.toggleMute(time.Now())
+	layer.Label(locales.A11yVideo())
+	disabled := !a.playbackAvailable()
+	playLabel := locales.PlayerPlay()
+	if !a.paused {
+		playLabel = locales.PlayerPause()
+	}
+	muteLabel := locales.PlayerMute()
+	if a.settings.Muted || a.settings.Volume == 0 {
+		muteLabel = locales.PlayerUnmute()
+	}
+	lobeContextMenu(c, layer, func() []menuCommand {
+		return []menuCommand{
+			{Label: playLabel, Disabled: disabled, Run: a.togglePlayback},
+			{Label: locales.PlayerStart(), Disabled: disabled, Run: a.seekStart},
+			{Label: locales.PlayerBack(), Disabled: disabled, Run: func() { a.seekBy(-15) }},
+			{Label: locales.PlayerForward(), Disabled: disabled, Run: func() { a.seekBy(15) }},
+			{Divider: true},
+			{Label: muteLabel, Run: func() { a.toggleMute(time.Now()) }},
 		}
 	})
 }

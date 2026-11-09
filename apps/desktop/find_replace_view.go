@@ -139,20 +139,20 @@ func (a *NativeApp) findReplaceView(c *ui.Context) {
 	f := &a.findReplace
 	fixedDialog(c, &f.open, locales.FindReplace(), 640, 0, func() {
 		ui.Field(c, locales.FindText(), func() {
-			ui.TextInput(c, &f.find).Label(locales.FindText()).AutoFocus().Disabled(a.busy).OnChange(func() { f.current = nil })
+			lobeTextInput(c, &f.find).Label(locales.FindText()).AutoFocus().Disabled(a.busy).OnChange(func() { f.current = nil })
 		})
-		ui.Field(c, locales.ReplaceWith(), func() { ui.TextInput(c, &f.replacement).Label(locales.ReplaceWith()).Disabled(a.busy) })
+		ui.Field(c, locales.ReplaceWith(), func() { lobeTextInput(c, &f.replacement).Label(locales.ReplaceWith()).Disabled(a.busy) })
 		ui.Row(c).Gap(em(c, 16)).AlignItems(ui.Center).Children(func() {
-			ui.Checkbox(c, &f.matchCase, locales.FindMatchCase()).Disabled(a.busy).OnChange(func() { f.current = nil })
-			if a.subtitleTab == 1 {
+			lobeCheckbox(c, &f.matchCase, locales.FindMatchCase()).Disabled(a.busy).OnChange(func() { f.current = nil })
+			stableVariants(c, a.subtitleTab, func() {
+				muted(c, locales.TabOriginal())
+			}, func() {
 				track := locales.TabTranslation()
 				if f.source {
 					track = locales.TabSource()
 				}
-				ui.Select(c, &track, []string{locales.TabSource(), locales.TabTranslation()}).Label(locales.FindScope()).MinWidth(em(c, 140)).Disabled(a.busy).OnChange(func() { f.source = track == locales.TabSource(); f.current = nil })
-			} else {
-				muted(c, locales.TabOriginal())
-			}
+				lobeSelect(c, &track, []string{locales.TabSource(), locales.TabTranslation()}).Label(locales.FindScope()).MinWidth(em(c, 140)).Disabled(a.busy).OnChange(func() { f.source = track == locales.TabSource(); f.current = nil })
+			})
 		})
 		matches := a.findMatches()
 		text := locales.FindCount(len(matches))
@@ -162,12 +162,12 @@ func (a *NativeApp) findReplaceView(c *ui.Context) {
 		ui.Text(c, text)
 		muted(c, locales.FindLiteralHint())
 	}, func() {
-		ui.Button(c, locales.ActionClose()).OnClick(func() { f.open = false })
+		lobeButton(c, locales.ActionClose()).OnClick(func() { f.open = false })
 		ui.Spacer(c)
 		disabled := a.busy || len(a.findMatches()) == 0
-		ui.Button(c, locales.FindNext()).Disabled(disabled).OnClick(a.findNextText)
-		ui.Button(c, locales.ReplaceOne()).Disabled(disabled).OnClick(func() { a.replaceListText(false) })
-		ui.PrimaryButton(c, locales.ReplaceAll()).Disabled(disabled).OnClick(func() { a.replaceListText(true) })
+		lobeButton(c, locales.FindNext()).Disabled(disabled).OnClick(a.findNextText)
+		lobeButton(c, locales.ReplaceOne()).Disabled(disabled).OnClick(func() { a.replaceListText(false) })
+		lobePrimaryButton(c, locales.ReplaceAll()).Disabled(disabled).OnClick(func() { a.replaceListText(true) })
 	})
 }
 
