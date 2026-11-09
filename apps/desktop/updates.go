@@ -12,6 +12,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
+	lobeChoice "github.com/lobehub/lobe-mygo/pkg/choice"
 	lobeDisplay "github.com/lobehub/lobe-mygo/pkg/display"
 )
 
@@ -241,55 +242,62 @@ var aboutLogo = sync.OnceValue(func() *ui.Bitmap {
 	return logo
 })
 
-// Follow Lobe's About/Version composition: identity and the update action share
-// one row. Status belongs to that row, followed by preferences and project links.
+// About follows the settings reference: restrained sections, full-width rows,
+// labels on the left and actions on the right. Update states share geometry.
 func (a *NativeApp) aboutSettingsView(c *ui.Context) {
-	ui.Column(c).WidthPercent(100).MaxWidth(em(c, 720)).AlignSelf(ui.Center).Gap(em(c, 24)).Padding(em(c, 24), 0).Children(func() {
+	ui.Column(c).WidthPercent(100).MaxWidth(em(c, 880)).AlignSelf(ui.Center).Gap(em(c, 32)).Padding(em(c, 24), 0).Children(func() {
 		version := a.updates.productVersion
 		if version == "" {
 			version = "0.0.1"
 		}
-		ui.Column(c).Gap(em(c, 16)).Children(func() {
-			ui.Row(c).Gap(em(c, 20)).Wrap().AlignItems(ui.Center).Children(func() {
-				ui.Row(c).Gap(em(c, 16)).Grow(1).AlignItems(ui.Center).Children(func() {
-					lobeDisplay.Image(c, aboutLogo(), lobeDisplay.ImageProps{Size: em(c, 64), Contain: true, Variant: lobeDisplay.ImageBorderless, NoPreview: true, Alt: "OneSub"})
-					ui.Column(c).Gap(em(c, 6)).Children(func() {
-						ui.Text(c, "OneSub").FontSize(em(c, 24)).FontWeight(500)
-						lobeBadge(c, locales.AboutVersion(version)).AlignSelf(ui.Start)
-						muted(c, locales.AboutBuild(BuildNumber)).FontSize(em(c, captionSize)).FontFeatures("tnum").Tooltip(BuildNumber)
-					})
+		ui.Row(c).Gap(em(c, 16)).AlignItems(ui.Center).Children(func() {
+			lobeDisplay.Image(c, aboutLogo(), lobeDisplay.ImageProps{Size: em(c, 48), Contain: true, Variant: lobeDisplay.ImageBorderless, NoPreview: true, Alt: "OneSub"})
+			ui.Column(c).Gap(em(c, 4)).Grow(1).Children(func() {
+				ui.Text(c, "OneSub").FontSize(em(c, 24)).FontWeight(500)
+				muted(c, locales.AboutVersion(version))
+			})
+			muted(c, locales.AboutBuild(BuildNumber)).FontSize(em(c, captionSize)).FontFeatures("tnum")
+		})
+		group := func(title string, content func()) {
+			ui.Column(c).Gap(em(c, 12)).Children(func() {
+				ui.Text(c, title).FontSize(em(c, headingSize)).FontWeight(500)
+				ui.Column(c).Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(c.Theme().Radius).Children(content)
+			})
+		}
+		group(locales.AboutUpdates(), func() {
+			ui.Row(c).Gap(em(c, 24)).Padding(em(c, 16)).AlignItems(ui.Center).Children(func() {
+				ui.Column(c).Grow(1).MinWidth(0).MinHeight(em(c, 52)).Gap(em(c, 10)).Justify(ui.Center).Label(locales.AboutUpdateStatus()).Children(func() {
+					muted(c, a.updateStatus()).Tooltip(a.updates.failure)
+					if a.updates.phase == updateInstalling && a.updates.total > 0 && a.updates.downloaded < a.updates.total {
+						ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+							fraction := float64(a.updates.downloaded) / float64(a.updates.total)
+							lobeProgress(c, fraction).Grow(1).Label(locales.AboutUpdateProgress())
+							ui.Text(c, locales.Percent(100*fraction)).FontFeatures("tnum").Shrink(0)
+						})
+					}
 				})
 				selected := 0
 				if a.updates.release != nil && a.updates.phase != updateInstalling && a.updates.phase != updateInstalled {
 					selected = 1
 				}
-				// Both states contribute their size now; the active action alone
-				// is shown, so no invisible button leaves a hole beside it.
 				stableVariants(c, selected, func() {
 					iconButton(c, locales.AboutCheckUpdates(), "rotate-cw").AlignSelf(ui.End).Disabled(!a.updates.enabled || a.settingsError || a.updates.phase == updateChecking || a.updates.phase == updateInstalling || a.updates.phase == updateInstalled).OnClick(a.checkUpdates)
 				}, func() {
 					primaryIconButton(c, locales.AboutInstallUpdate(), "download").AlignSelf(ui.End).Disabled(a.busy || a.settingsError).OnClick(func() { a.installUpdate(false) })
 				}).Shrink(0)
 			})
-			ui.Column(c).MinHeight(em(c, 52)).Gap(em(c, 10)).Label(locales.AboutUpdateStatus()).Children(func() {
-				muted(c, a.updateStatus()).Tooltip(a.updates.failure)
-				if a.updates.phase == updateInstalling && a.updates.total > 0 && a.updates.downloaded < a.updates.total {
-					ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-						fraction := float64(a.updates.downloaded) / float64(a.updates.total)
-						lobeProgress(c, fraction).Grow(1).Label(locales.AboutUpdateProgress())
-						ui.Text(c, locales.Percent(100*fraction)).FontFeatures("tnum").Shrink(0)
-					})
-				}
+			separator(c)
+			ui.Field(c, locales.AboutAutoUpdate(), func() {
+				lobeChoice.Switch(c, &a.settings.AutoUpdate, lobeChoice.SwitchProps{}).Label(locales.AboutAutoUpdate()).Disabled(a.settingsError).OnChange(a.automaticUpdatesChanged)
+			}).Row().Justify(ui.SpaceBetween).Gap(em(c, 24)).Padding(em(c, 16)).MinHeight(em(c, 64)).AlignItems(ui.Center)
+		})
+		group(locales.AboutProject(), func() {
+			ui.Row(c).Gap(em(c, 16)).Padding(em(c, 16)).MinHeight(em(c, 64)).AlignItems(ui.Center).Children(func() {
+				icon(c, "github").Shrink(0)
+				ui.Text(c, "GitHub").Shrink(0)
+				ui.Spacer(c)
+				ui.Link(c, repositoryURL, repositoryURL).SingleLine().MinWidth(0)
 			})
-		})
-		separator(c)
-		ui.Row(c).Padding(em(c, 4), 0).Children(func() {
-			lobeCheckbox(c, &a.settings.AutoUpdate, locales.AboutAutoUpdate()).Disabled(a.settingsError).OnChange(a.automaticUpdatesChanged)
-		})
-		separator(c)
-		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-			icon(c, "github").Shrink(0).Label("GitHub")
-			ui.Link(c, repositoryURL, repositoryURL).SingleLine().MinWidth(0).Tooltip(repositoryURL)
 		})
 	})
 }

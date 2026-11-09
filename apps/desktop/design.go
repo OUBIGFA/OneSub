@@ -74,7 +74,7 @@ func icon(c *ui.Context, name string) ui.Element {
 // line boxes; raise the system font's visible ink by one DIP to align it with
 // the icon's center. This native transform scales with display DPI, not layout.
 func iconButton(c *ui.Context, label, name string) ui.Element {
-	return lobeAction.Button(c, "", lobeAction.ButtonProps{}).Label(label).Tooltip(label).Children(func() {
+	return lobeAction.Button(c, "", lobeAction.ButtonProps{}).Label(label).Children(func() {
 		icon(c, name).Label(locales.A11yIconOf(label))
 		ui.Text(c, label).SingleLine().Translate(0, -1)
 	})
@@ -82,7 +82,7 @@ func iconButton(c *ui.Context, label, name string) ui.Element {
 
 // primaryIconButton is iconButton in the accent color, one per area.
 func primaryIconButton(c *ui.Context, label, name string) ui.Element {
-	return lobeAction.Button(c, "", lobeAction.ButtonProps{Variant: lobeAction.Primary}).Label(label).Tooltip(label).Children(func() {
+	return lobeAction.Button(c, "", lobeAction.ButtonProps{Variant: lobeAction.Primary}).Label(label).Children(func() {
 		icon(c, name).Label(locales.A11yIconOf(label))
 		ui.Text(c, label).SingleLine().Translate(0, -1)
 	})
@@ -91,7 +91,7 @@ func primaryIconButton(c *ui.Context, label, name string) ui.Element {
 // toolIcon is an icon-only native button, square and with the icon in its
 // middle; the tooltip and the accessible name carry the action.
 func toolIcon(c *ui.Context, label, name string) ui.Element {
-	return lobeAction.ActionIcon(c, icons[name], lobeAction.ActionIconProps{Size: lobeTheme.Middle, Title: label, IconLabel: locales.A11yIconOf(label)}).Label(label).Tooltip(label).Size(em(c, 32), em(c, 32))
+	return lobeAction.ActionIcon(c, icons[name], lobeAction.ActionIconProps{Size: lobeTheme.Middle, IconLabel: locales.A11yIconOf(label)}).Label(label).Tooltip(label).Size(em(c, 32), em(c, 32))
 }
 
 // The wrappers keep the existing view code's event chains while replacing each
@@ -111,6 +111,11 @@ func lobeTextInput(c *ui.Context, value *string) ui.Element {
 
 func lobeTextArea(c *ui.Context, value *string) ui.Element {
 	return lobeField.TextArea(c, value, lobeField.TextAreaProps{Variant: lobeField.InputOutlined, Fixed: true})
+}
+
+// Single-line content reveals its full value only when it has been elided.
+func elidedText(c *ui.Context, value string) ui.Element {
+	return lobeField.ChoiceLabel(c, value)
 }
 
 func lobeSearchField(c *ui.Context, value *string, changed func(), frame ...func(ui.Element)) ui.Element {
@@ -142,7 +147,7 @@ func lobeCombobox(c *ui.Context, selected *string, options []string, frame ...fu
 	for i, option := range options {
 		items[i] = lobeField.AutoCompleteOption{Value: option, Label: option}
 	}
-	props := lobeField.AutoCompleteProps{Options: items, Variant: lobeField.InputOutlined}
+	props := lobeField.AutoCompleteProps{Options: items, Variant: lobeField.InputOutlined, DropdownLabel: locales.ActionShowChoices()}
 	if len(frame) > 0 {
 		props.Frame = frame[0]
 	}
@@ -154,13 +159,21 @@ func lobeCheckbox(c *ui.Context, checked *bool, label string) ui.Element {
 }
 
 func lobeToggle(c *ui.Context, checked *bool, label string) ui.Element {
-	variant := lobeAction.Default
+	variant := lobeAction.Filled
 	if *checked {
-		variant = lobeAction.Filled
+		variant = lobeAction.Default
 	}
 	// StyleButton supports native button bases, including ToggleBase. Keep
 	// the toggle's bound value, keyboard behavior and change notifications.
-	return lobeAction.StyleButton(c, ui.ToggleBase(c, checked), label, lobeAction.ButtonProps{Variant: variant}).Label(label)
+	button := lobeAction.StyleButton(c, ui.ToggleBase(c, checked), label, lobeAction.ButtonProps{Variant: variant}).Label(label)
+	// Match Lobe's segmented selection: an elevated selected surface over a
+	// neutral track, independent of the containing page's background.
+	tokens := lobeTheme.TokensOf(c)
+	background := tokens.BgLayout
+	if *checked {
+		background = tokens.BgElevated
+	}
+	return button.Background(background)
 }
 
 func lobeSlider(c *ui.Context, value *float64, low, high float64) ui.Element {

@@ -186,12 +186,24 @@ diff --git a/pkg/feedback/progress.go b/pkg/feedback/progress.go
 diff --git a/pkg/field/autocomplete.go b/pkg/field/autocomplete.go
 --- a/pkg/field/autocomplete.go
 +++ b/pkg/field/autocomplete.go
-@@ -30,13 +30,16 @@
+@@ -4,6 +4,7 @@
+ 	"strings"
+ 
+ 	"github.com/egoist/mygo/ui"
++	"github.com/lobehub/lobe-mygo/pkg/lucide"
+ 	"github.com/lobehub/lobe-mygo/pkg/motion"
+ 	"github.com/lobehub/lobe-mygo/pkg/theme"
+ )
+@@ -30,19 +31,37 @@
  	Variant InputVariant
  	// Size sets the height (24, 32 or 40), padding and font size, as Input's.
  	Size theme.Size
 +	// Frame configures the whole field rather than only its inner editor.
 +	Frame func(root ui.Element)
++	// DropdownLabel enables a native arrow inside the same outlined field.
++	DropdownLabel string
++	// OnChoose commits a chosen suggestion without saving partial typed text.
++	OnChoose func(string)
  }
  
  // AutoComplete is an Input that suggests p.Options below it as the user types, matching what was
@@ -204,17 +216,63 @@ diff --git a/pkg/field/autocomplete.go b/pkg/field/autocomplete.go
  	var input ui.Element
  	root.Children(func() {
  		affix(c, tk, p.Prefix)
-@@ -50,7 +53,9 @@
+ 		cb := ui.ComboboxBase(c, value)
+ 		input = cb.Input.Grow(1).MinWidth(0).FocusRing(false).
+ 			Placeholder(p.Placeholder).PlaceholderColor(tk.TextPlaceholder)
++		if p.DropdownLabel != "" {
++			arrow := ui.ButtonBase(c).Label(p.DropdownLabel).Tooltip(p.DropdownLabel).
++				Size(16, 24).Padding(0).Shrink(0).Cursor(ui.CursorPointer).Disabled(len(p.Options) == 0)
++			arrow.Children(func() {
++				ui.Icon(c, lucide.ChevronDown()).FontSize(16).TextColor(tk.TextSecondary)
++			})
++			if arrow.Clicked() {
++				input.Focus()
++				cb.SetOpen(!cb.Open())
++			}
++		}
+ 		q := strings.ToLower(strings.TrimSpace(*value))
+ 		var shown []AutoCompleteOption
+ 		for _, o := range p.Options {
+@@ -50,24 +69,29 @@
  				shown = append(shown, o)
  			}
  		}
 -		if len(shown) > 0 || p.EmptyText != "" {
+-			field, at := root.Bounds(), input.Bounds()
 +		// Always visit Popup, including zero matches: it clears the previous
 +		// option list so Enter cannot replace a custom value with a stale option.
 +		{
- 			field, at := root.Bounds(), input.Bounds()
++			field := root.Bounds()
  			cb.Popup(func(panel ui.Element) {
- 				panel.Margin(8, 0, 0, field.X-at.X).Padding(4).Radius(tk.BorderRadius).MinWidth(field.W).MaxHeight(256).
+-				panel.Margin(8, 0, 0, field.X-at.X).Padding(4).Radius(tk.BorderRadius).MinWidth(field.W).MaxHeight(256).
++				panel.AttachTo(root, ui.AnchorBottomStart, ui.AnchorTopStart).Margin(4, 0, 0, 0).Padding(4).Radius(tk.BorderRadius).MinWidth(field.W).
+ 					Background(tk.BgElevated).Transition(motion.Popup()).AttachedOrigin()
+ 				tk.Elevate(panel, theme.BoxShadowSecondary)
+ 				panel.Children(func() {
++					ui.Scroll(c).MaxHeight(248).Children(func() {
+ 					if len(shown) == 0 {
+ 						ui.Text(c, p.EmptyText).FontSize(14).TextColor(tk.TextTertiary).Padding(6, 12)
+ 					}
+ 					for _, o := range shown {
+ 						completeOption(c.Key(o.Value), tk, cb, o)
+ 					}
++					})
+ 				})
+ 			})
+ 		}
+ 		if v, ok := cb.Chosen(); ok {
+ 			*value = v
++			if p.OnChoose != nil { p.OnChoose(v) }
+ 		}
+ 	})
+ 	styleField(root, tk, p.Variant, false, input.Focused())
+@@ -89,5 +113,5 @@
+ 	if label == "" {
+ 		label = o.Value
+ 	}
+-	item.Children(func() { ui.Text(c, label).Grow(1).SingleLine() })
++	item.Label(label).Children(func() { ChoiceLabel(c, label).Grow(1) })
+ }
 diff --git a/pkg/field/input.go b/pkg/field/input.go
 --- a/pkg/field/input.go
 +++ b/pkg/field/input.go
@@ -393,16 +451,18 @@ diff --git a/pkg/field/searchbar.go b/pkg/field/searchbar.go
 diff --git a/pkg/field/select.go b/pkg/field/select.go
 --- a/pkg/field/select.go
 +++ b/pkg/field/select.go
-@@ -31,6 +31,8 @@
+@@ -31,6 +31,10 @@
  	Size theme.Size
  	// Disabled keeps the select from opening.
  	Disabled bool
 +	// RenderLabel preserves richer native labels, such as language flags.
 +	RenderLabel func(option SelectOption)
++	// ShowAll lets finite catalogs use their full natural height without scrolling.
++	ShowAll bool
  }
  
  var (
-@@ -50,6 +52,8 @@
+@@ -50,6 +54,8 @@
  	case theme.Large:
  		minHeight, fontSize, radius, padX, padY = 40, 16, tk.BorderRadiusLG, 12, 6
  	}
@@ -411,12 +471,11 @@ diff --git a/pkg/field/select.go b/pkg/field/select.go
  	sel := ui.SelectBase(c, selected)
  	tr := sel.Trigger.MinHeight(minHeight).Padding(padY, padX).Gap(8).Radius(radius).FontSize(fontSize).
  		AlignItems(ui.Center).TextColor(tk.Text).Cursor(ui.CursorPointer).Unselectable().Transition(fieldTransition)
-@@ -64,10 +68,16 @@
+@@ -64,14 +70,19 @@
  			current = &p.Options[i]
  		}
  	}
 +	if current != nil && current.Disabled { tr.TextColor(tk.TextDisabled) }
-+	if current != nil { tr.Tooltip(current.Label) }
  	tr.Children(func() {
  		ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
  			switch {
@@ -428,12 +487,34 @@ diff --git a/pkg/field/select.go b/pkg/field/select.go
  				if current.Icon != nil {
  					ui.Icon(c, current.Icon).TextColor(tk.TextSecondary)
  				}
-@@ -91,16 +101,16 @@
+-				ui.Text(c, current.Label).SingleLine()
++				ChoiceLabel(c, current.Label).Grow(1)
+ 			default:
+ 				ui.Text(c, p.Placeholder).TextColor(tk.TextPlaceholder).SingleLine()
+ 			}
+@@ -84,23 +95,30 @@
+ 		arrow.Rotate(arrow.AnimateTo("turn", turn, arrowTurn))
+ 	})
+ 
+-	width := tr.Bounds().W
+ 	sel.Popup(func(panel ui.Element) {
+-		panel.Margin(4, 0, 0, 0).Padding(4).Radius(tk.BorderRadius).MinWidth(width).MaxHeight(256).
++		panel.Margin(4, 0, 0, 0).Padding(4).Radius(tk.BorderRadius).
+ 			Background(tk.BgElevated).Transition(motion.Popup()).AttachedOrigin()
  		tk.Elevate(panel, theme.BoxShadowSecondary)
  		panel.Children(func() {
- 			for _, o := range p.Options {
+-			for _, o := range p.Options {
 -				selectOption(c.Key(o.Value), tk, sel, o, o.Value == *selected)
-+				selectOption(c.Key(o.Value), tk, sel, o, o.Value == *selected, p.RenderLabel)
++			choices := func() {
++				for _, o := range p.Options {
++					selectOption(c.Key(o.Value), tk, sel, o, o.Value == *selected, p.RenderLabel)
++				}
++			}
++			if p.ShowAll {
++				choices()
++			} else {
++				// The native scroll container clips and exposes every long-list item.
++				ui.Scroll(c).MaxHeight(248).Children(choices)
  			}
  		})
  	})
@@ -444,12 +525,12 @@ diff --git a/pkg/field/select.go b/pkg/field/select.go
 -	item := sel.Item(o.Value).Disabled(o.Disabled).Padding(6, 12).MinHeight(32).Gap(8).AlignItems(ui.Center).
 -		Radius(tk.BorderRadiusSM).AlignSelf(ui.Stretch).FontSize(14).TextColor(tk.Text).Transition(optionTransition)
 +func selectOption(c *ui.Context, tk *theme.Tokens, sel ui.SelectParts[string], o SelectOption, chosen bool, render func(SelectOption)) {
-+	item := sel.Item(o.Value).Label(o.Label).Tooltip(o.Label).Disabled(o.Disabled).Padding(6, 12).MinHeight(32).Gap(8).AlignItems(ui.Center).
++	item := sel.Item(o.Value).Label(o.Label).Disabled(o.Disabled).Padding(6, 12).MinHeight(32).Gap(8).AlignItems(ui.Center).
 +		Radius(tk.BorderRadiusSM).AlignSelf(ui.Stretch).FontSize(tk.FontSize).TextColor(tk.Text).Transition(optionTransition)
  	switch {
  	case o.Disabled:
  		item.TextColor(tk.TextDisabled).Cursor(ui.CursorNotAllowed)
-@@ -113,7 +123,11 @@
+@@ -113,9 +131,22 @@
  		if o.Icon != nil {
  			ui.Icon(c, o.Icon).FontSize(14).TextColor(tk.TextSecondary)
  		}
@@ -457,11 +538,22 @@ diff --git a/pkg/field/select.go b/pkg/field/select.go
 +		if render != nil {
 +			ui.Row(c).Grow(1).MinWidth(0).Children(func() { render(o) })
 +		} else {
-+			ui.Text(c, o.Label).Grow(1).SingleLine()
++			ChoiceLabel(c, o.Label).Grow(1)
 +		}
  		if chosen {
  			ui.Icon(c, lucide.Check()).FontSize(14).TextColor(tk.Primary).Margin(0, 0, 0, 8)
  		}
+ 	})
+ }
++
++// ChoiceLabel shows a full value on hover only when its text is truncated.
++// Bounds only control hover help; they never change layout or schedule reflow.
++func ChoiceLabel(c *ui.Context, value string) ui.Element {
++    label := ui.Text(c, value).MinWidth(0).SingleLine()
++    width, _ := c.MeasureText(0, ui.Span{Text: value})
++    if available := label.Bounds().W; available > 0 && width > available+0.5 { label.Tooltip(value) }
++    return label
++}
 diff --git a/pkg/form/group.go b/pkg/form/group.go
 --- a/pkg/form/group.go
 +++ b/pkg/form/group.go

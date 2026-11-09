@@ -98,7 +98,7 @@ func timecodeField(c *ui.Context, label string, value *float64, step float64, di
 					width = float32(math.Ceil(float64(width + 2*padding + 4)))
 					input = lobeTextInput(c, &draft.text).Width(width).MinWidth(width).Shrink(0).
 						Padding(em(c, 6), padding).FontSize(fontSize).FontFeatures("tnum").NoWrap().
-						Tooltip(stamp(*value)).Disabled(disabled)
+						Disabled(disabled)
 					input.OnTextKey(func(k ui.TextKey) bool {
 						if disabled || k.Mods != 0 || (k.Key != ui.KeyUp && k.Key != ui.KeyDown) {
 							return false

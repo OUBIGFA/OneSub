@@ -1,4 +1,6 @@
 {
+  "actionShowChoices": "展开选项",
+  "aboutProject": "项目",
   "@@locale": "zh-Hans",
   "actionClearInput": "清除输入",
   "actionIncrease": "增加",

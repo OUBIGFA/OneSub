@@ -21,7 +21,7 @@ func (a *NativeApp) playerView(c *ui.Context) {
 			name = filepath.Base(a.snapshot.Manifest.MediaPath)
 		}
 		panelHeader(c, nil, func() {
-			muted(c, name).SingleLine().Shrink(1).MinWidth(0).Tooltip(name)
+			elidedText(c, name).TextColor(c.Theme().TextMuted).Shrink(1)
 		}, nil)
 		a.playerSurface(c)
 		a.transportBar(c)

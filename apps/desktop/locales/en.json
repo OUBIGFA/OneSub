@@ -1,4 +1,6 @@
 {
+  "actionShowChoices": "Show choices",
+  "aboutProject": "Project",
   "@@locale": "en",
   "actionClearInput": "Clear input",
   "actionIncrease": "Increase",

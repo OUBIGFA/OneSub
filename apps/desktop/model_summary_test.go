@@ -41,27 +41,33 @@ func TestModelSummariesCoverCatalogWithShortSentences(t *testing.T) {
 // A long model name may elide in the selector, but native hover must reveal
 // the full choice, including its precision, rather than only its field label.
 func TestModelChoiceHasFullNativeTooltip(t *testing.T) {
-	a := nativeForTest(t)
-	a.settings.AsrModel = "sherpa-parakeet-tdt-0.6b-v3-fp32"
-	tt := settled(func(c *ui.Context) {
-		theme, _ := studioTheme(c.Theme(), false)
-		c.SetTheme(&theme)
-		a.recognitionModelField(c, locales.ModelKindAsr(), "asr", &a.settings.AsrModel)
-	}, 320, 400)
-	selectBox, found := tt.Find(locales.A11yModelOf(locales.ModelKindAsr()))
-	if !found {
-		t.Fatal("model selector is missing")
-	}
-	tt.Move(selectBox.X+selectBox.W/2, selectBox.Y+selectBox.H/2)
-	tt.Advance(time.Second)
-	count := 0
-	for _, text := range tt.Texts() {
-		if text == "Parakeet-TDT 0.6B v3 FP32" {
-			count++
+	for _, width := range []int{220, 650} {
+		a := nativeForTest(t)
+		a.settings.AsrModel = "sherpa-parakeet-tdt-0.6b-v3-fp32"
+		tt := settled(func(c *ui.Context) {
+			theme, _ := studioTheme(c.Theme(), false)
+			c.SetTheme(&theme)
+			a.recognitionModelField(c, locales.ModelKindAsr(), "asr", &a.settings.AsrModel)
+		}, width, 400)
+		selectBox, found := tt.Find("Parakeet-TDT 0.6B v3 FP32")
+		if !found {
+			t.Fatal("model selector is missing")
 		}
-	}
-	if count < 2 {
-		t.Fatal("full model name is not shown in its native tooltip", tt.Texts())
+		tt.Move(selectBox.X+selectBox.W/2, selectBox.Y+selectBox.H/2)
+		tt.Advance(time.Second)
+		count := 0
+		for _, text := range tt.Texts() {
+			if text == "Parakeet-TDT 0.6B v3 FP32" {
+				count++
+			}
+		}
+		want := 1
+		if width == 220 {
+			want = 2
+		}
+		if count != want {
+			t.Fatalf("width=%d: full model tooltip count=%d, want %d", width, count, want)
+		}
 	}
 }
 

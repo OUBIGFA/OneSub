@@ -51,12 +51,21 @@ func TestModelDropDownSwitchesOnBothSurfaces(t *testing.T) {
 					if err := tt.Click(locales.TranslationSwitchModel()); err != nil {
 						t.Fatal(err)
 					}
-					if !slices.Equal(tt.Menu(), []string{"model-a", "model-b"}) {
-						t.Fatal("drop-down exposed an unchecked model or lost an enabled one", tt.Menu())
+					var choices []string
+					var optionBounds ui.Rect
+					for _, node := range tt.AccessAll() {
+						if node.Role == ui.RoleListItem {
+							choices = append(choices, node.Name)
+							if node.Name == "model-b" {
+								optionBounds = node.Bounds
+							}
+						}
 					}
-					if err := tt.ChooseMenuItem("model-b"); err != nil {
-						t.Fatal(err)
+					if !slices.Equal(choices, []string{"model-a", "model-b"}) {
+						t.Fatal("drop-down exposed an unchecked model or lost an enabled one", choices)
 					}
+					// The catalog contains the same ID; choose the popup's real item.
+					tt.ClickAt(optionBounds.X+optionBounds.W/2, optionBounds.Y+optionBounds.H/2)
 					loaded, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
 					if err != nil || loaded.ProviderModel != "model-b" || loaded.ModelInfo().ContextWindow != 128000 || len(loaded.Provider().Models) != 2 {
 						t.Fatal("native selection was not persisted with its limits", err, loaded.ProviderModel)

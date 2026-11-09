@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Exe, [Parameter(Mandatory=$true)][string]$Work, [switch]$VideoTools, [switch]$PresetReset, [switch]$Development)
+param([Parameter(Mandatory=$true)][string]$Exe, [Parameter(Mandatory=$true)][string]$Work, [switch]$VideoTools, [switch]$PresetReset, [switch]$ChoiceControls, [switch]$Development)
 $ErrorActionPreference = 'Stop'
 # The driver and every child inherit a non-input desktop. Never SwitchDesktop:
 # UIA and window messages exercise only the isolated application's own windows.
@@ -77,6 +77,7 @@ $command='& ([ScriptBlock]::Create([IO.File]::ReadAllText('+ $driver +',[Text.En
 if(-not $Development){$command+=' -Packaged'}
 if($VideoTools){$command+=' -VideoTools'}
 if($PresetReset){$command+=' -PresetReset'}
+if($ChoiceControls){$command+=' -ChoiceControls'}
 # Transcript captures native helper output without PowerShell 5.1 treating
 # normal stderr as a terminating NativeCommandError under stream redirection.
 $body='$ErrorActionPreference="Stop"; Start-Transcript -Path '+(Quote-Literal $log)+' | Out-Null; try { '+$command+'; exit 0 } catch { Write-Output $_; exit 1 } finally { Stop-Transcript | Out-Null }'

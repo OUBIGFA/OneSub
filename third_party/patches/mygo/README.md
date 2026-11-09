@@ -1,6 +1,6 @@
 # MyGo 原生 UI 与 Windows 层补丁
 
-上游：`egoist/mygo v0.8.4-0.20261109145827-434ef0956afb`，修订 `434ef0956afb08dee24c72409a3da6804eca9b93`，MIT，许可见 [mygo.txt](../../licenses/mygo.txt)，模块、源码 ZIP 与许可校验见 [运行时清单](../../manifests/runtimes.json)。工作台控件由 Lobe MyGo 提供；MyGo 保留布局、表格、媒体承载与系统菜单行为。
+上游：`egoist/mygo v0.8.4-0.20261109165344-5a2f9c65b92c`，修订 `5a2f9c65b92cea8e812b4348a254b05c43952854`，MIT，许可见 [mygo.txt](../../licenses/mygo.txt)，模块、源码 ZIP 与许可校验见 [运行时清单](../../manifests/runtimes.json)。工作台控件由 Lobe MyGo 提供；MyGo 保留布局、表格、媒体承载与系统菜单行为。
 
 ## 范围与原因
 
@@ -16,6 +16,7 @@
 `ui-interaction.patch` 复用固定版本已有的单行文字塑形和滚动动画，不引入另一套控件或绘图体系：
 
 - **长单行输入**：原生 `TextInput`、`Autocomplete` 等输入未聚焦时，仅绘制布局按可用宽度显示省略号。完整编辑布局、实际值、鼠标拖选、光标导航、IME 与辅助技术不变；密码继续掩码。绘制布局只缓存在对应编辑器，不放入全局文字缓存。单行占位文字也以省略号结束。
+- **输入内容提示**：与单行输入值完全相同的提示，仅在原生绘制布局确实省略内容时显示；聚焦编辑时不重复提示。附加操作说明和辅助技术描述保留，不影响布局。
 - **复合输入占位文字**：`v0.8.3` 的 `Placeholder` 已通过原生 `focusTo` 向 `SearchField`、`Combobox`、`TokenField` 内部输入转发。本轮移除 OneSub 的递归查找转发补丁，直接使用上游接口；保留中英文当前范围及清空搜索的行为回归。单行长占位文字仍通过有限布局补丁使用省略号，而非 `NoWrap` 后直接裁切。
 - **字幕邻近行平滑定位**：`ListState.ScrollToAnimated` 将已测量的可见行位置交给现有 `ScrollState.ScrollTo`，沿用原生缓动、用户滚动中断当前动画和系统减少动态效果设置；远距离或未测量目标仍由原生 `ScrollTo` 定位，不按估计高度长距离飞行。切换轨道和过滤会清掉旧动画；应用的后续播放跟随仍自动恢复。
 - **字幕首尾导航的缓出反馈**：官方 [List](https://mygo.egoist.dev/docs/ui/list) 的首尾定位没有动画参数；[Motion](https://mygo.egoist.dev/docs/ui/motion) 和 [Scroll view](https://mygo.egoist.dev/docs/ui/scroll) 已提供 `CubicBezier` 与 `ScrollState.ScrollTo`。有限扩展 `ListState.ScrollToEdgeAnimated` 先使用原生布局测量目标与最多一屏的落点走廊，再将这段滚动交给既有 `ScrollState`；远段直接跳过，不遍历整个列表的估计高度。应用采用 420 ms、`CubicBezier(0.22, 1, 0.36, 1)`，先快后慢、无回弹；末条超过一屏时仍定位到真实底部。用户滚动、反向导航和直接定位可中断，减少动态效果时直接到达。不修改普通播放跟随的 220 ms 节奏。
@@ -61,9 +62,13 @@
 
 设置侧栏现使用 Lobe Tabs 的原生布局和输入语义；未选中图标取次级文字色，蓝色标记当前分类。原 Sidebar 补丁仅保留供已有原生调用与兼容回归使用。
 
-## 2026-11-09 主分支复核
+## 2026-11-10 主分支复核
 
 升级至核查时最新 MyGo 主分支；复核新增的编辑器换行、编辑菜单、更新回调和悬停重绘变更；补丁涉及的 headless.go 与 webview.go 已改用上游 buildNext 调度，既有补丁保留该行为，无需覆盖。表格元素入口用于 Lobe 表头，命名字段的测试点击必须到达实际输入控件，不能接受外层空白；输入省略布局保留完整编辑值。Lobe 新增的本地化和表单描述布局继续保留。应用主题切换同时更新背景和文字，避免控件过渡残留浅色。
+
+构建前核查并同步 `5a2f9c65b92c`，更新 headless.go、surface.go、list.go 与 table.go 的原文件校验值；六个有限补丁仍可应用，保留上游首帧显示、分体按钮 API，以及布局阶段字段变更记录和恢复的行为。下拉内容越界来自 Lobe 选择器缺少内部滚动，修正在 Lobe 补丁中，不扩大 MyGo 补丁范围。
+
+首尾滚动补丁在布局结束时绑定原生滚动状态；按新版本要求，绑定前用上游 `journalKeepNode` 记录原节点，避免复用帧留下旧绑定。既有首尾滚动回归覆盖该兼容调整。
 
 ## 0.8.3 升级复核
 

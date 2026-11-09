@@ -13,6 +13,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/google/uuid"
+	lobeField "github.com/lobehub/lobe-mygo/pkg/field"
 )
 
 type providerModelDraft struct {
@@ -115,36 +116,30 @@ func (a *NativeApp) providerSelect(c *ui.Context) ui.Element {
 	return idSelect(c, &id, options).Label(locales.TranslationProvider()).OnChange(func() { a.providerSelectionChanged(id) })
 }
 
-// providerModelSelect pairs MyGo's editable input with an explicit native
-// drop-down. Autocomplete alone only offers suggestions after typing; it is
-// not a discoverable way to switch an already selected model.
+// Both surfaces share one editable Lobe field and its native dropdown.
+// Typed drafts commit on Enter/blur; choosing a model commits immediately.
 func (a *NativeApp) providerModelSelect(c *ui.Context) ui.Element {
-	row := ui.Row(c.Key(a.settings.ActiveProvider)).Gap(0).MinWidth(0).AlignItems(ui.Stretch).Disabled(a.settings.Provider() == nil)
+	row := ui.Row(c.Key(a.settings.ActiveProvider)).Gap(0).MinWidth(0).AlignItems(ui.Center).Disabled(a.settings.Provider() == nil)
 	if a.modelEdit.provider != a.settings.ActiveProvider || a.modelEdit.selected != a.settings.ProviderModel {
 		a.modelEdit = providerModelDraft{a.settings.ActiveProvider, a.settings.ProviderModel, a.settings.ProviderModel}
 	}
 	wasFocused := ui.Local(row, "model-was-focused", func() bool { return false })
 	names := a.providerModelNames()
 	row.Children(func() {
-		input := lobeCombobox(c, &a.modelEdit.text, names, func(frame ui.Element) {
-			frame.Grow(1).MinWidth(0).Radius(c.Theme().Radius, 0, 0, c.Theme().Radius)
+		items := make([]lobeField.AutoCompleteOption, len(names))
+		for i, name := range names {
+			items[i] = lobeField.AutoCompleteOption{Value: name, Label: name}
+		}
+		input := lobeField.AutoComplete(c, &a.modelEdit.text, lobeField.AutoCompleteProps{
+			Options: items, Variant: lobeField.InputOutlined,
+			Frame:         func(frame ui.Element) { frame.Grow(1).MinWidth(0) },
+			DropdownLabel: locales.TranslationSwitchModel(), OnChoose: a.useProviderModel,
 		}).Placeholder(locales.TranslationModelPlaceholder()).Label(locales.TranslationModel()).Tooltip(a.modelEdit.text)
-		// Only this input's blur commits it. The same model selector can
-		// also be mounted behind the settings modal without saving partial IDs.
-		// Modal composites apply pending input after their children finish.
-		// Observe submission through its callback so Enter commits in that pass.
 		input.OnSubmit(a.commitProviderModelInput)
 		if *wasFocused && !input.Focused() {
 			a.commitProviderModelInput()
 		}
 		*wasFocused = input.Focused()
-		models := make([]menuCommand, len(names))
-		for i, id := range names {
-			models[i] = menuCommand{Key: id, Label: id, Checkable: true, Checked: id == a.settings.ProviderModel, Run: func() { a.useProviderModel(id) }}
-		}
-		lobeMenuButton(c, "", "chevron-down", true, func() []menuCommand { return models }).Padding(em(c, 8)).Radius(0, c.Theme().Radius, c.Theme().Radius, 0).
-			Label(locales.TranslationSwitchModel()).Tooltip(locales.TranslationSwitchModel()).
-			Disabled(len(names) == 0).Shrink(0)
 	})
 	return row
 }
@@ -332,11 +327,10 @@ func (a *NativeApp) providerModelsView(c *ui.Context) {
 					}
 				})
 			case 1:
-				tip := info.ID
+				label := elidedText(c, info.ID)
 				if input, output, window := providerModelLimits(&info); input > 0 || output > 0 || window > 0 {
-					tip += "\n" + locales.TranslationModelLimits(strconv.Itoa(input), strconv.Itoa(output), strconv.Itoa(window))
+					label.Tooltip(info.ID + "\n" + locales.TranslationModelLimits(strconv.Itoa(input), strconv.Itoa(output), strconv.Itoa(window)))
 				}
-				label := ui.Text(c, info.ID).SingleLine().Tooltip(tip)
 				if !p.KeepsModel(info.ID) {
 					label.TextColor(c.Theme().TextMuted)
 				}

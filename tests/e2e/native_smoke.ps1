@@ -1,4 +1,4 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark', [switch]$PresetReset, [switch]$PrivateDesktop)
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark', [switch]$PresetReset, [switch]$PrivateDesktop, [switch]$ChoiceControls)
 $ErrorActionPreference = 'Stop'
 if(-not $PrivateDesktop){throw 'Run through private_native_smoke.ps1 to preserve the user desktop'}
 if(-not $UIAPlayback){throw 'Private desktop playback must use UIA, never global keyboard input'}
@@ -121,13 +121,7 @@ public static class SmokeNative {
   }
   public static bool PointerClick(IntPtr window, int pid, int x, int y, bool right, int hold=0) {
     // Send native pointer messages only to this test instance's MyGo surface.
-    IntPtr surface=IntPtr.Zero;
-    EnumChildWindows(window,(child,p)=>{
-      uint id;GetWindowThreadProcessId(child,out id);
-      var name=new System.Text.StringBuilder(128);GetClassName(child,name,128);
-      if(id==pid&&name.ToString()=="MyGoSurface"){surface=child;return false;}
-      return true;
-    },IntPtr.Zero);
+    IntPtr surface=TestSurface(window,pid);
     if(surface==IntPtr.Zero)return false;
     var point=new Point{X=x,Y=y};
     if(!ScreenToClient(surface,ref point))return false;
@@ -135,6 +129,24 @@ public static class SmokeNative {
     if(!PostMessage(surface,512,IntPtr.Zero,coords)||!PostMessage(surface,right?516u:513u,new IntPtr(right?2:1),coords))return false;
     if(hold>0)System.Threading.Thread.Sleep(hold);
     return PostMessage(surface,right?517u:514u,IntPtr.Zero,coords);
+  }
+  public static bool Wheel(IntPtr window,int pid,int x,int y,int delta) {
+    IntPtr surface=TestSurface(window,pid);
+    if(surface==IntPtr.Zero)return false;
+    // WM_MOUSEWHEEL takes screen coordinates and targets the native surface,
+    // exactly as MyGo's Windows test hook does. No global input is sent.
+    SendValue(surface,0x20a,new IntPtr(delta<<16),new IntPtr((y<<16)|(x&0xffff)));
+    return true;
+  }
+  static IntPtr TestSurface(IntPtr window,int pid) {
+    IntPtr surface=IntPtr.Zero;
+    EnumChildWindows(window,(child,p)=>{
+      uint id;GetWindowThreadProcessId(child,out id);
+      var name=new System.Text.StringBuilder(128);GetClassName(child,name,128);
+      if(id==pid&&name.ToString()=="MyGoSurface"){surface=child;return false;}
+      return true;
+    },IntPtr.Zero);
+    return surface;
   }
   public static bool Choose(int pid, string path) {
     bool done=false;
@@ -192,7 +204,7 @@ if($SubtitleClicks){
     }
     [IO.File]::WriteAllText($subtitle,$body.ToString(),[Text.UTF8Encoding]::new($false))
 }
-$fixture=if($SubtitleClicks){'testsrc2=size=320x180:rate=2:duration=170'}elseif($ComposeOutput){'testsrc2=size=1280x720:rate=30:duration=12'}elseif($VideoTools -or $PresetReset){'testsrc2=size=320x180:rate=10:duration=12'}else{'testsrc2=size=320x180:rate=10:duration=3'}
+$fixture=if($SubtitleClicks){'testsrc2=size=320x180:rate=2:duration=170'}elseif($ComposeOutput){'testsrc2=size=1280x720:rate=30:duration=12'}elseif($VideoTools -or $PresetReset -or $ChoiceControls){'testsrc2=size=320x180:rate=10:duration=12'}else{'testsrc2=size=320x180:rate=10:duration=3'}
 if($VideoTools){
     & ffmpeg -v error -f lavfi -i $fixture -f lavfi -i 'sine=frequency=440:duration=12' -c:v libx264 -pix_fmt yuv420p -c:a aac $video
 }else{
@@ -216,6 +228,12 @@ if ($ProviderCatalogEndpoint) {
     $prefs+=@{providerUrl=$ProviderCatalogEndpoint;providerModel='catalog-alpha';language='en';recognitionFormat='vtt';activeProvider=$providerId;providers=@(
         @{id=$providerId;name='本地目录 A';url=$ProviderCatalogEndpoint;api='chat-completions';model='catalog-alpha';models=@(@{id='catalog-alpha'});catalog=@(@{id='catalog-alpha'},@{id='catalog-cached'})},
         @{id=($providerId+'-other');name='本地目录 B';url=$ProviderCatalogEndpoint;api='chat-completions';model='catalog-other';models=@(@{id='catalog-other'});catalog=@(@{id='catalog-other'})}
+    )}
+}
+if ($ChoiceControls) {
+    $models=@(0..17 | ForEach-Object { @{id=('fixture-model-{0:d2}' -f $_)} })
+    $prefs+=@{providerUrl='https://example.invalid/v1';providerModel='fixture-model-00';activeProvider='choice-fixture';providers=@(
+        @{id='choice-fixture';name='Choices';url='https://example.invalid/v1';api='chat-completions';model='fixture-model-00';models=$models;catalog=$models}
     )}
 }
 [IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),($prefs|ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))
@@ -331,6 +349,26 @@ function Wait-SubtitleMenu {
         Start-Sleep -Milliseconds 100
     }
     throw 'Native subtitle menu did not appear'
+}
+function Wait-ModelChoices {
+    for($i=0;$i -lt 100;$i++) {
+        $root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
+        $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::ListItem)
+        $items=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition) | ForEach-Object { $_.Current.Name })
+        if($items.Count){return $items}
+        Start-Sleep -Milliseconds 100
+    }
+    throw 'Native model options did not appear'
+}
+function Select-Choice($label) {
+    # The model catalog can show the same text behind the popup. Only the
+    # actual popup item is a selection target.
+    $root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
+    $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::ListItem)
+    $item=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition) | Where-Object {$_.Current.Name -eq $label})[0]
+    if(-not $item -or $item.Current.IsOffscreen){throw "Visible choice unavailable: $label"}
+    Pointer-ClickRow $item.Current.BoundingRectangle
+    Start-Sleep -Milliseconds 200
 }
 function Choose-SubtitleMenu($label) {
     $items=Wait-SubtitleMenu
@@ -525,6 +563,12 @@ try {
         & $ScreenshotTool $p.Id (Join-Path $workPath 'style-restored.png')
         Write-Output 'PASS: built-in preset restored through its native three-dot menu and persisted'
     }
+    if($ChoiceControls){
+        . ([ScriptBlock]::Create([IO.File]::ReadAllText((Join-Path (Split-Path $ScreenshotTool) 'choice_controls.ps1'),[Text.Encoding]::UTF8)))
+        Test-ChoiceControls
+        return
+    }
+
     Click-UI '设置'
     & $ScreenshotTool $p.Id (Join-Path $workPath 'settings.png')
     if(Find-UI '设置分类'){
@@ -591,9 +635,9 @@ try {
         Click-UI '使用模型 catalog-beta'
         if((Read-Preferences).providerModel -ne 'catalog-beta'){throw 'Model use action did not persist'}
         Click-UI '切换模型'
-        $names=Wait-SubtitleMenu
+        $names=Wait-ModelChoices
         if($names.Count -ne 2 -or $names -notcontains 'catalog-alpha' -or $names -notcontains 'catalog-beta'){throw 'Model dropdown must contain only enabled models'}
-        Choose-SubtitleMenu 'catalog-beta'
+        Select-Choice 'catalog-beta'
         Start-Sleep -Milliseconds 400
         (Input-UI '搜索模型').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('alpha')
         Start-Sleep -Milliseconds 250
@@ -618,9 +662,9 @@ try {
     Click-UI '关闭'
     if($ProviderCatalogEndpoint) {
         Select-Tab '识别与翻译' 'AI 翻译'
-        Click-UI '切换模型';$names=Wait-SubtitleMenu
+        Click-UI '切换模型';$names=Wait-ModelChoices
         if($names.Count -ne 2 -or $names -notcontains 'catalog-beta'){throw 'Workbench dropdown did not use the same enabled model list'}
-        Choose-SubtitleMenu 'catalog-beta'
+        Select-Choice 'catalog-beta'
         Start-Sleep -Milliseconds 400
         $toggle=Find-UI '按意群重建时间轴'
         $original=(Read-Preferences).optimizeTimeline

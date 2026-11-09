@@ -462,7 +462,7 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 								}
 							})
 							text := subtitle.SourceText(row.cue)
-							ui.Text(c, text).SingleLine().Tooltip(text)
+							elidedText(c, text)
 						})
 					}).Grow(1).MinHeight(0).Gap(em(c, 2)).Label(locales.RetranslateList())
 					if list.Changed() && selected >= 0 && selected < len(rows) {

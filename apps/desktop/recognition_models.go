@@ -46,7 +46,7 @@ func (a *NativeApp) settingsAsrSelect(c *ui.Context) ui.Element {
 		Options: items, Disabled: a.busy, Placeholder: a.settings.AsrModel,
 		RenderLabel: func(option lobeField.SelectOption) {
 			ui.Row(c).Grow(1).MinWidth(0).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-				ui.Text(c, option.Label).SingleLine().Grow(1).MinWidth(0)
+				lobeField.ChoiceLabel(c, option.Label).Grow(1)
 				if option.Disabled {
 					muted(c, locales.ModelNotDownloaded()).FontSize(em(c, captionSize)).NoWrap().Shrink(0)
 				}

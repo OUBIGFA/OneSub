@@ -23,7 +23,7 @@ func menuProps(commands []menuCommand, onOpen []func()) lobeOverlay.DropdownMenu
 			key = command.Label
 		}
 		items[i] = lobeOverlay.MenuItem{
-			Key: key, Label: command.Label, Tooltip: command.Label, Icon: icons[command.Icon], Hotkey: command.Hotkey,
+			Key: key, Label: command.Label, Icon: icons[command.Icon], Hotkey: command.Hotkey,
 			Disabled: command.Disabled, Checkable: command.Checkable, Checked: command.Checked, Danger: command.Danger, Divider: command.Divider,
 		}
 	}

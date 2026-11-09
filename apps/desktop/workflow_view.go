@@ -12,7 +12,7 @@ func (a *NativeApp) workflowColumn(c *ui.Context) {
 	ui.Column(c).Fill().Label(locales.A11yWorkflowColumn()).Children(func() {
 		ui.Column(c).Shrink(0).Padding(em(c, 16), em(c, panelPad)).Background(c.Theme().Surface).Children(func() {
 			label := a.processingLabel()
-			lobePrimaryButton(c, "").Label(label).Tooltip(label).MinHeight(em(c, 44)).Padding(em(c, 10), em(c, 12)).Justify(ui.Center).
+			lobePrimaryButton(c, "").Label(label).MinHeight(em(c, 44)).Padding(em(c, 10), em(c, 12)).Justify(ui.Center).
 				Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(a.processMedia).Children(func() {
 				icon(c, "languages").Shrink(0)
 				ui.Text(c, label).MinWidth(0).TextAlign(ui.Center)
@@ -135,13 +135,13 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 		}, func() {
 			ui.Field(c, locales.SettingsChunk(), func() {
 				ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-					lobeNumberInput(c, &a.settings.ChunkSeconds, 30, 180, 1, !oneAsr, a.saveSettings).Label(locales.SettingsChunk()).Tooltip(locales.SettingsChunk())
+					lobeNumberInput(c, &a.settings.ChunkSeconds, 30, 180, 1, !oneAsr, a.saveSettings).Label(locales.SettingsChunk())
 					muted(c, locales.UnitSeconds())
 				})
 			})
 		}, func() {
 			ui.Field(c, locales.SettingsMaxTokens(), func() {
-				lobeNumberInput(c, &a.settings.MaxTokens, 1, 32768, 1, !oneAsr, a.saveSettings).Label(locales.SettingsMaxTokens()).Tooltip(locales.SettingsMaxTokens())
+				lobeNumberInput(c, &a.settings.MaxTokens, 1, 32768, 1, !oneAsr, a.saveSettings).Label(locales.SettingsMaxTokens())
 			})
 		})
 	})
@@ -244,7 +244,7 @@ func (a *NativeApp) timelineRebuildChoice(c *ui.Context) {
 }
 
 func startButton(c *ui.Context, label, name string, disabled bool, run func()) {
-	lobePrimaryButton(c, "").Label(label).Tooltip(label).MinHeight(em(c, 40)).Justify(ui.Center).Padding(em(c, 8), em(c, 16)).Disabled(disabled).OnClick(run).Children(func() {
+	lobePrimaryButton(c, "").Label(label).MinHeight(em(c, 40)).Justify(ui.Center).Padding(em(c, 8), em(c, 16)).Disabled(disabled).OnClick(run).Children(func() {
 		icon(c, name)
 		ui.Text(c, label).SingleLine()
 	})

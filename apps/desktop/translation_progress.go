@@ -126,12 +126,12 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 			note = locales.TranslationWaiting(int(time.Since(l.started).Seconds()))
 			c.After(time.Second)
 		}
-		text := muted(c, note).SingleLine().Tooltip(note)
+		text := elidedText(c, note).TextColor(c.Theme().TextMuted)
 		if l.retry != "" {
 			text.TextColor(c.Theme().Warning)
 		}
 		if l.model != "" {
-			muted(c, l.model).SingleLine().Tooltip(l.model)
+			elidedText(c, l.model).TextColor(c.Theme().TextMuted)
 		}
 		if l.stopped != "" {
 			ui.Text(c, l.stopped).TextColor(c.Theme().Warning)

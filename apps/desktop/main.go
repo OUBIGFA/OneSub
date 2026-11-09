@@ -337,17 +337,17 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 	// Secondary commands use their native icon buttons at minimum width.
 	command := func(label, name string) ui.Element {
 		if width < em(c, 1400) {
-			return toolIcon(c, label, name)
+			return toolIcon(c, label, name).Size(em(c, 40), em(c, 40))
 		}
-		return iconButton(c, label, name)
+		return iconButton(c, label, name).MinHeight(em(c, 40))
 	}
 	ui.Row(c).Children(func() {
 		ui.Row(c).Grow(1).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 				iconButton(c, locales.ActionAddFiles(), "folder-open").MinHeight(em(c, 40)).Disabled(a.busy).OnClick(a.pickFiles)
-				ui.Toolbar(c, func() {
-					command(locales.ActionClearWorkbench(), "eraser").Disabled(a.busy || a.snapshot == nil).OnClick(a.requestClear)
-				}).Padding(0)
+				// Clearing is a secondary action, with the same target height as Add.
+				clear := toolIcon(c, locales.ActionClearWorkbench(), "eraser").Size(em(c, 40), em(c, 40))
+				clear.Disabled(a.busy || a.snapshot == nil).OnClick(a.requestClear)
 			})
 			ui.Spacer(c)
 			ui.Row(c).Gap(em(c, 12)).Justify(ui.End).AlignItems(ui.Center).Children(func() {
@@ -418,10 +418,10 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 			if a.errorText != "" {
 				ui.Row(c).Grow(1).MinWidth(0).Gap(em(c, 4)).AlignItems(ui.Center).Children(func() {
 					icon(c, "triangle-alert").TextColor(c.Theme().Danger).Label(locales.A11yWarningIcon())
-					ui.Text(c, locales.StatusOwnerError()+a.errorText).TextColor(c.Theme().Danger).Grow(1).MinWidth(0).SingleLine().Tooltip(locales.StatusOwnerError() + a.errorText)
+					elidedText(c, locales.StatusOwnerError()+a.errorText).TextColor(c.Theme().Danger).Grow(1)
 				})
 			} else {
-				muted(c, locales.StatusOwnerStatus()+a.status).Grow(1).MinWidth(0).SingleLine().Tooltip(locales.StatusOwnerStatus() + a.status)
+				elidedText(c, locales.StatusOwnerStatus()+a.status).TextColor(c.Theme().TextMuted).Grow(1)
 			}
 		} else {
 			ui.Text(c, "").Grow(1)
@@ -449,7 +449,7 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 			}
 			group.Shrink(0).Children(func() {
 				for _, label := range counts {
-					muted(c, label).FontFeatures("tnum").LineHeight(1.1).SingleLine().Shrink(0).Tooltip(label)
+					muted(c, label).FontFeatures("tnum").LineHeight(1.1).SingleLine().Shrink(0)
 				}
 			})
 		}

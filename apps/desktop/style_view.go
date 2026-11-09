@@ -10,6 +10,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/google/uuid"
+	lobeField "github.com/lobehub/lobe-mygo/pkg/field"
 )
 
 // stylePanel keeps one shared heading above independently scrolling panes.
@@ -101,7 +102,7 @@ func (a *NativeApp) stylePanelAtWidth(c *ui.Context, width float32) {
 // or deleted.
 func (a *NativeApp) presetControls(c *ui.Context, layer int) {
 	style, preset := a.layerStyle(layer)
-	idSelect(c, preset, a.presetOptions(*preset)).Grow(1).MinWidth(0).Label(locales.StylePreset()).Tooltip(locales.StylePreset()).OnChange(func() {
+	idSelectWithProps(c, preset, a.presetOptions(*preset), lobeField.SelectProps{ShowAll: true}).Grow(1).MinWidth(0).Label(locales.StylePreset()).OnChange(func() {
 		if chosen, ok := a.presetStyle(*preset); ok {
 			*style = chosen
 		}
@@ -219,7 +220,7 @@ func (a *NativeApp) userPreset(id string) int {
 func colorWell(c *ui.Context, label string, value *string) ui.Element {
 	color := ui.Hex(*value)
 	before := color
-	picker := lobeColorPicker(c, &color).Label(label).Tooltip(label).AlignSelf(ui.Start)
+	picker := lobeColorPicker(c, &color).Label(label).AlignSelf(ui.Start)
 	if color != before {
 		*value = fmt.Sprintf("#%02X%02X%02X", color.R, color.G, color.B)
 	}
@@ -229,7 +230,7 @@ func colorWell(c *ui.Context, label string, value *string) ui.Element {
 // number is a native number input at its own size: a narrower one would
 // draw its step buttons over what follows.
 func number(c *ui.Context, label string, value *float64, low, high, step float64, changed ...func()) ui.Element {
-	return lobeNumberInput(c, value, low, high, step, false, changed...).Label(label).Tooltip(label)
+	return lobeNumberInput(c, value, low, high, step, false, changed...).Label(label)
 }
 
 // percent is a number input for an opacity, with its unit after it.

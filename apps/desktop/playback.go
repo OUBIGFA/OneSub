@@ -18,18 +18,21 @@ type option struct{ ID, Label string }
 // An optional placeholder is shown only when the stored choice is absent;
 // it is not added to the selectable items.
 func idSelect(c *ui.Context, value *string, options []option, placeholder ...string) ui.Element {
-	items := make([]lobeField.SelectOption, len(options))
-	chosen, hint := "", ""
+	hint := ""
 	if len(placeholder) > 0 {
 		hint = placeholder[0]
 	}
+	return idSelectWithProps(c, value, options, lobeField.SelectProps{Placeholder: hint})
+}
+
+// Keep ID-to-label conversion shared when a caller configures popup sizing.
+func idSelectWithProps(c *ui.Context, value *string, options []option, props lobeField.SelectProps) ui.Element {
+	items := make([]lobeField.SelectOption, len(options))
 	for i, option := range options {
 		items[i] = lobeField.SelectOption{Value: option.ID, Label: option.Label}
-		if option.ID == *value {
-			chosen = option.Label
-		}
 	}
-	return lobeField.Select(c, value, lobeField.SelectProps{Options: items, Placeholder: hint}).Tooltip(chosen)
+	props.Options = items
+	return lobeField.Select(c, value, props)
 }
 
 // Actions follow Subtitle Edit's separate single/double-click preferences.

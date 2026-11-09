@@ -1,3 +1,24 @@
+diff --git a/ui/tooltip.go b/ui/tooltip.go
+--- a/ui/tooltip.go
++++ b/ui/tooltip.go
+@@ -123,6 +123,17 @@
+ 	if s == "" {
+ 		return e
+ 	}
++	// A repeated input value adds no information while it is fully visible.
++	// Use the native paint layout, so padding, shaping and zoom stay exact.
++	// Supplemental instructions and accessibility descriptions are preserved.
++	if e.kind == kindInput {
++		ed := e.st.editor
++		if !ed.multiline && s == ed.String() {
++			if e.Focused() || ed.elidedLayout == nil || !ed.elidedLayout.Truncated {
++				return e
++			}
++		}
++	}
+ 	c := e.c
+ 	t := c.theme
+ 	fill, text := t.inverse()
 diff --git a/ui/editor.go b/ui/editor.go
 --- a/ui/editor.go
 +++ b/ui/editor.go
@@ -191,7 +212,7 @@ diff --git a/ui/list.go b/ui/list.go
  	for k := 0; k < listOverscan && hi < n-1 && ensure(hi+1); k++ {
  		yHi += ht(hi) + gap
  		hi++
-@@ -1607,6 +1681,22 @@
+@@ -1607,6 +1681,24 @@
  	st.scrollTo(st.scrollX, scroll)
  	s.inset = inset
  	s.remember(e, first, last, hi == n-1 && end()-glide <= H+0.5, scroll)
@@ -208,6 +229,8 @@ diff --git a/ui/list.go b/ui/list.go
 +			target = motion.MaxY
 +		}
 +		motion.ScrollTo(motion.X, target, *edgeAnimation)
++		// Preserve the late-bound scroll pointer when a frame is retained.
++		journalKeepNode(e)
 +		e.TrackScroll(motion)
 +		e.c.rt.requestFrame()
 +	}

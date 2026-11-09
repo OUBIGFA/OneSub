@@ -279,7 +279,7 @@ func (a *NativeApp) recognitionModelField(c *ui.Context, title, kind string, id 
 		// its folder. Native text wraps instead of hiding the useful hint.
 		muted(c, modelSummary(*id)).FontSize(em(c, captionSize)).MinWidth(0)
 		path := a.modelPath(*id)
-		muted(c, path).SingleLine().Tooltip(path).FontSize(em(c, captionSize)).MinWidth(0)
+		elidedText(c, path).TextColor(c.Theme().TextMuted).FontSize(em(c, captionSize))
 	}).Margin(0).Gap(em(c, 8))
 }
 

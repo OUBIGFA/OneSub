@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/models"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
@@ -69,6 +70,22 @@ func TestDownloadedModelSelectionDefaultsAutoAndKeepsOverride(t *testing.T) {
 	if err := tt.Click(locales.SettingsSourceLanguage()); err != nil {
 		t.Fatal(err)
 	}
+	tt.Advance(250 * time.Millisecond)
+	// Long choice lists now clip correctly; scroll the real popup before
+	// choosing an option outside its initial visible portion.
+	var languagePanel ui.Rect
+	for _, node := range tt.AccessAll() {
+		if node.Role == ui.RoleListBox {
+			languagePanel = node.Bounds
+		}
+	}
+	var choice ui.Rect
+	for _, node := range tt.AccessAll() {
+		if node.Role == ui.RoleOption && node.Name == locales.LanguageJapan()+"-JA" {
+			choice = node.Bounds
+		}
+	}
+	tt.Scroll(languagePanel.X+languagePanel.W/2, languagePanel.Y+languagePanel.H/2, 0, choice.Y-languagePanel.Y)
 	if err := tt.Click(locales.LanguageJapan() + "-JA"); err != nil {
 		t.Fatal(err)
 	}

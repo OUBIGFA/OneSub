@@ -96,9 +96,9 @@ func TestAboutUpdateStatesKeepTheFixedShell(t *testing.T) {
 				}
 				insideRedesign(t, tt, locales.A11ySettingsContent(), action, locales.AboutAutoUpdate(), locales.AboutUpdateStatus(), repositoryURL)
 				button, _ := tt.Find(action)
-				version, _ := tt.Find(locales.AboutVersion("0.0.1"))
-				if button.Y > version.Y+version.H || button.Y+button.H < version.Y {
-					t.Fatal("update action is detached from product version", button, version)
+				status, _ := tt.Find(locales.AboutUpdateStatus())
+				if button.Y > status.Y+status.H || button.Y+button.H < status.Y {
+					t.Fatal("update action is detached from its status row", button, status)
 				}
 				captureRedesign(t, tt, fmt.Sprintf("about-state-%s-%d", language, phase))
 				if phase == updateInstalling {
