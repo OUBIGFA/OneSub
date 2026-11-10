@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
@@ -11,6 +16,69 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/translator"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
+
+// A cleared workbench must request a new translation of the same source.
+// Reusing the persisted task before clearing still avoids duplicate requests.
+func TestClearWorkbenchTranslatesSameSubtitlesAgain(t *testing.T) {
+	a, _, _ := translationApp(t)
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/chat/completions" {
+			t.Errorf("unexpected translation route: %s", r.URL.Path)
+		}
+		text := "旧译文"
+		if requests.Add(1) > 1 {
+			text = "新译文"
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"content\":%q}}]}\n\n", fmt.Sprintf(`{"1":%q}`, text))
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+	}))
+	defer server.Close()
+	a.settings.ProviderURL, a.settings.ProviderModel = server.URL+"/v1", "local-test"
+	a.settings.OptimizeTimeline = false
+	source := a.snapshot.Document
+	config := a.translationConfig()
+	config.Key = "test-only"
+	first, err := translator.Translate(context.Background(), config, source)
+	if err != nil || first.Document.Cues[0].Text != "旧译文" || requests.Load() != 1 {
+		t.Fatalf("first translation: %v, requests=%d, result=%+v", err, requests.Load(), first)
+	}
+	task := &translationTask{ProjectPath: a.snapshot.Path, Config: config}
+	if err := a.rememberTranslationTask(task, newTranslationLive()); err != nil {
+		t.Fatal(err)
+	}
+	restored, _, _, _, err := readTranslationProgress(task.ProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored.Config.Key = config.Key
+	resumed, err := translator.Translate(context.Background(), restored.Config, source)
+	if err != nil || resumed.Document.Cues[0].Text != "旧译文" || requests.Load() != 1 {
+		t.Fatalf("restored task lost its cached result: %v, requests=%d", err, requests.Load())
+	}
+	a.clearWorkbench()
+	if a.snapshot != nil || a.settings.TranslationRecovery != "" {
+		t.Fatal("workbench or recovery reference was not cleared")
+	}
+	next, err := project.Create(filepath.Join(t.TempDir(), "reimport.onesub"), "", "", source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { next.Close() })
+	state, err := next.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.store = next
+	a.setSnapshot(state)
+	config = a.translationConfig()
+	config.Key = "test-only"
+	second, err := translator.Translate(context.Background(), config, source)
+	if err != nil || second.Document.Cues[0].Text != "新译文" || requests.Load() != 2 {
+		t.Fatalf("cleared workbench reused the old translation: %v, requests=%d, result=%+v", err, requests.Load(), second)
+	}
+}
 
 func TestNativeTranslationSettings(t *testing.T) {
 	a := nativeForTest(t)

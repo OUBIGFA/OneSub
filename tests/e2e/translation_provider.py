@@ -10,6 +10,7 @@ import time
 class Provider(BaseHTTPRequestHandler):
     requests = 0
     interrupt = False
+    clear_workbench = False
     unit_requests = []
     def do_GET(self):
         if self.path != "/v1/models":
@@ -32,6 +33,8 @@ class Provider(BaseHTTPRequestHandler):
         assert "# Operation: translate\n" in request["messages"][0]["content"]
         data = json.loads(request["messages"][1]["content"])
         content = {unit["id"]: ("早上好" if unit["id"] == "2" else "你好，世界") for unit in data["units"]}
+        if Provider.clear_workbench and Provider.requests:
+            content = {unit["id"]: "重新翻译的结果" for unit in data["units"]}
         Provider.requests += 1
         Provider.unit_requests.append([unit["id"] for unit in data["units"]])
         self.send_response(200)
@@ -62,11 +65,15 @@ if __name__ == "__main__":
     parser.add_argument("--screenshot-tool", required=True)
     parser.add_argument("--packaged", action="store_true")
     parser.add_argument("--interrupt", action="store_true")
+    parser.add_argument("--clear-workbench", action="store_true")
     parser.add_argument("--pipeline-models-root")
     parser.add_argument("--pipeline-model", default="Qwen3-ASR-1.7B-hf")
     parser.add_argument("--uia-playback", action="store_true", help="Use UI Automation on a locked desktop; does not test Space")
     args = parser.parse_args()
+    if args.clear_workbench and (args.interrupt or args.pipeline_models_root):
+        parser.error("--clear-workbench must run as a separate scenario")
     Provider.interrupt = args.interrupt
+    Provider.clear_workbench = args.clear_workbench
     server = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -75,26 +82,25 @@ if __name__ == "__main__":
         # Execute the repository's UTF-8 source explicitly without changing it.
         def literal(value):
             return "'" + str(value).replace("'", "''") + "'"
-        script = Path(__file__).with_name("process_media.ps1" if args.pipeline_models_root else "native_smoke.ps1").resolve()
+        script = Path(__file__).with_name("process_media.ps1" if args.pipeline_models_root else "private_native_smoke.ps1").resolve()
         invocation = (f"& ([scriptblock]::Create([IO.File]::ReadAllText({literal(script)}))) "
                       f"-Exe {literal(args.exe)} -Work {literal(args.work)} "
-                      f"-ScreenshotTool {literal(args.screenshot_tool)} "
                       f"-TranslationEndpoint 'http://127.0.0.1:{server.server_port}/v1'")
         if args.pipeline_models_root:
-            invocation += f" -ModelsRoot {literal(args.pipeline_models_root)} -AsrModel {literal(args.pipeline_model)}"
-        else:
-            invocation += " -OpenArgument"
-        if args.packaged:
-            invocation += " -Packaged"
+            invocation += f" -ScreenshotTool {literal(args.screenshot_tool)} -ModelsRoot {literal(args.pipeline_models_root)} -AsrModel {literal(args.pipeline_model)}"
+            if args.packaged:
+                invocation += " -Packaged"
+        elif not args.packaged:
+            invocation += " -Development"
         if args.interrupt:
             invocation += " -InterruptTranslation"
-        if args.uia_playback and not args.pipeline_models_root:
-            invocation += " -UIAPlayback"
+        if args.clear_workbench:
+            invocation += " -ClearTranslation"
         command = ["powershell", "-NoProfile", "-Command", invocation]
         result = subprocess.run(command)
         if result.returncode:
             raise SystemExit(result.returncode)
-        expected = 2 if args.interrupt else 1
+        expected = 2 if args.interrupt or args.clear_workbench else 1
         if args.pipeline_models_root:
             assert Provider.requests >= 1, Provider.requests
             expected = Provider.requests

@@ -1,4 +1,4 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark', [switch]$PresetReset, [switch]$PrivateDesktop, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$ScrollFollow)
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark', [switch]$PresetReset, [switch]$PrivateDesktop, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$ScrollFollow, [switch]$ClearTranslation)
 $ErrorActionPreference = 'Stop'
 if(-not $PrivateDesktop){throw 'Run through private_native_smoke.ps1 to preserve the user desktop'}
 if(-not $UIAPlayback){throw 'Private desktop playback must use UIA, never global keyboard input'}
@@ -897,6 +897,24 @@ try {
         if(-not (Find-UI '你好，世界')){throw 'Finished translation did not update the subtitle table'}
         Start-Sleep -Seconds 2
         & $ScreenshotTool $p.Id (Join-Path $workPath 'translation.png')
+        if($ClearTranslation){
+            $sourceHash=(Get-FileHash -LiteralPath $subtitle -Algorithm SHA256).Hash
+            $oldHash=(Get-FileHash -LiteralPath $translated -Algorithm SHA256).Hash
+            Click-UI '清空工作台';Click-UI '清空'
+            for($i=0;$i -lt 100;$i++){if(Find-UI '未加载字幕'){break};Start-Sleep -Milliseconds 100}
+            if(-not (Find-UI '未加载字幕')){throw 'Workbench did not clear its subtitles'}
+            Click-UI '添加文件';Choose-Path $subtitle
+            Wait-VisibleSubtitle $sourceText
+            Select-Tab '识别与翻译' 'AI 翻译'
+            Click-UI '开始翻译字幕'
+            $fresh=Join-Path $workPath 'test-zh-OneSub.srt'
+            for($i=0;$i -lt 300;$i++){if(Test-Path -LiteralPath $fresh){break};Start-Sleep -Milliseconds 100}
+            if(-not (Test-Path -LiteralPath $fresh) -or -not [IO.File]::ReadAllText($fresh).Contains('重新翻译的结果')){throw 'Cleared workbench reused the previous translation'}
+            Wait-VisibleSubtitle '重新翻译的结果'
+            if((Get-FileHash -LiteralPath $subtitle -Algorithm SHA256).Hash -ne $sourceHash -or (Get-FileHash -LiteralPath $translated -Algorithm SHA256).Hash -ne $oldHash){throw 'Retranslation overwrote the original or previous output'}
+            & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-after-clear.png')
+            Write-Output 'PASS: clear workbench, reimport identical subtitles, request fresh translation, display and save new result; previous files preserved'
+        }
         Click-UI '撤销'
         Select-Tab '字幕语言' '原始字幕'
         for($i=0;$i -lt 100;$i++){if(Find-UI $sourceText){break};Start-Sleep -Milliseconds 100}

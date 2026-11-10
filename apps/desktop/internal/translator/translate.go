@@ -48,6 +48,7 @@ type Config struct {
 	Concurrency      int          // requests at once; 2 when zero
 	BatchSize        int          // subtitles per translation request; 20 when zero
 	CacheDir         string       // validated results, for resuming; none when empty
+	CacheScope       string       // persisted task identity; fresh tasks must not reuse old answers
 	Client           *http.Client `json:"-"`
 	Observe          func(Event)  `json:"-"`
 	Resume           *ResumeState `json:"-"`
@@ -384,6 +385,11 @@ func Translate(ctx context.Context, config Config, document subtitle.Document) (
 		return result, errors.New(locales.ErrNothingToTranslate())
 	}
 	e.key = cacheKey(version, base, config.API, config.Model, config.TargetLanguage, profile.SHA256, profile.References, config.Glossary, langFile.SHA256, e.markup)
+	if config.CacheScope != "" {
+		// Keep legacy interrupted tasks readable; new task scopes isolate all
+		// cached phases, including analysis and timeline segmentation.
+		e.key = cacheKey(e.key, config.CacheScope)
+	}
 	if config.Resume != nil && config.Resume.InputHash != cacheKey(document) {
 		return result, errors.New(locales.TranslationResumeStale())
 	}

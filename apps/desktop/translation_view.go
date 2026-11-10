@@ -307,6 +307,9 @@ func (a *NativeApp) translationConfig() translator.Config {
 	prefs := a.settings
 	root, _ := a.skillTools()
 	config := translator.Config{Endpoint: prefs.ProviderURL, API: prefs.ProviderAPI, Model: prefs.ProviderModel, TargetLanguage: prefs.TargetLanguage, SkillRoot: root, Glossary: prefs.Glossary, Domain3D: prefs.Domain3D, ProfileID: prefs.TranslationProfile, ProfilesDir: filepath.Join(a.dataRoot, "translation-styles"), OptimizeTimeline: prefs.OptimizeTimeline, MaxRequests: int(prefs.MaxRequests), CacheDir: filepath.Join(a.dataRoot, "cache", "translation")}
+	// A new translation starts fresh, including after clearing the workbench.
+	// Continue/recovery retains the saved task config and its cache scope.
+	config.CacheScope = uuid.NewString()
 	config.Concurrency, config.BatchSize = prefs.TranslationConcurrency, prefs.TranslationBatchSize
 	config.Punctuation = prefs.TranslationPunctuation()
 	if info := prefs.ModelInfo(); info != nil {
