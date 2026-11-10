@@ -898,8 +898,8 @@ try {
         Start-Sleep -Seconds 2
         & $ScreenshotTool $p.Id (Join-Path $workPath 'translation.png')
         if($ClearTranslation){
-            $sourceHash=(Get-FileHash -LiteralPath $subtitle -Algorithm SHA256).Hash
-            $oldHash=(Get-FileHash -LiteralPath $translated -Algorithm SHA256).Hash
+            $sourceBytes=[Convert]::ToBase64String([IO.File]::ReadAllBytes($subtitle))
+            $oldBytes=[Convert]::ToBase64String([IO.File]::ReadAllBytes($translated))
             Click-UI '清空工作台';Click-UI '清空'
             for($i=0;$i -lt 100;$i++){if(Find-UI '未加载字幕'){break};Start-Sleep -Milliseconds 100}
             if(-not (Find-UI '未加载字幕')){throw 'Workbench did not clear its subtitles'}
@@ -911,7 +911,7 @@ try {
             for($i=0;$i -lt 300;$i++){if(Test-Path -LiteralPath $fresh){break};Start-Sleep -Milliseconds 100}
             if(-not (Test-Path -LiteralPath $fresh) -or -not [IO.File]::ReadAllText($fresh).Contains('重新翻译的结果')){throw 'Cleared workbench reused the previous translation'}
             Wait-VisibleSubtitle '重新翻译的结果'
-            if((Get-FileHash -LiteralPath $subtitle -Algorithm SHA256).Hash -ne $sourceHash -or (Get-FileHash -LiteralPath $translated -Algorithm SHA256).Hash -ne $oldHash){throw 'Retranslation overwrote the original or previous output'}
+            if([Convert]::ToBase64String([IO.File]::ReadAllBytes($subtitle)) -ne $sourceBytes -or [Convert]::ToBase64String([IO.File]::ReadAllBytes($translated)) -ne $oldBytes){throw 'Retranslation overwrote the original or previous output'}
             & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-after-clear.png')
             Write-Output 'PASS: clear workbench, reimport identical subtitles, request fresh translation, display and save new result; previous files preserved'
         }

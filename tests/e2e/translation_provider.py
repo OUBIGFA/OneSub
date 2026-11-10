@@ -83,7 +83,11 @@ if __name__ == "__main__":
         def literal(value):
             return "'" + str(value).replace("'", "''") + "'"
         script = Path(__file__).with_name("process_media.ps1" if args.pipeline_models_root else "private_native_smoke.ps1").resolve()
-        invocation = (f"& ([scriptblock]::Create([IO.File]::ReadAllText({literal(script)}))) "
+        # Retain the source filename so the private launcher can resolve its
+        # driver and screenshot helper through PowerShell's PSScriptRoot.
+        invocation = (f"$tokens=$null; $errors=$null; $script=[System.Management.Automation.Language.Parser]::ParseInput("
+                      f"[IO.File]::ReadAllText({literal(script)}), {literal(script)}, [ref]$tokens, [ref]$errors); "
+                      f"if($errors){{throw $errors}}; & $script.GetScriptBlock() "
                       f"-Exe {literal(args.exe)} -Work {literal(args.work)} "
                       f"-TranslationEndpoint 'http://127.0.0.1:{server.server_port}/v1'")
         if args.pipeline_models_root:
