@@ -138,8 +138,13 @@ func TestSubtitleSingleClickHoldRepeatAndPlayFollow(t *testing.T) {
 	tt.Frame()
 	tt.Advance(time.Second)
 	first, last := a.list.Visible()
-	if a.selected != 60 || first >= 60 || last <= 60 {
-		t.Fatal("play seek disabled later follow", a.selected, first, last)
+	if a.selected != 60 || first < 100 {
+		t.Fatal("play seek released the manual navigation hold", a.selected, first, last)
+	}
+	_ = tt.Click(locales.ListLocate())
+	tt.Advance(time.Second)
+	if first, last = a.list.Visible(); first >= 60 || last <= 60 {
+		t.Fatal("locate did not restore viewport following", first, last)
 	}
 	a.selectSubtitle(60, "none")
 	a.position = 80.2

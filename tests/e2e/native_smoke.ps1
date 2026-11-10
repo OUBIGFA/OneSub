@@ -1,4 +1,4 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark', [switch]$PresetReset, [switch]$PrivateDesktop, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading)
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark', [switch]$PresetReset, [switch]$PrivateDesktop, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$ScrollFollow)
 $ErrorActionPreference = 'Stop'
 if(-not $PrivateDesktop){throw 'Run through private_native_smoke.ps1 to preserve the user desktop'}
 if(-not $UIAPlayback){throw 'Private desktop playback must use UIA, never global keyboard input'}
@@ -195,7 +195,7 @@ if($LayoutNavigation){
     }
     [IO.File]::WriteAllText($subtitle,$body.ToString(),[Text.UTF8Encoding]::new($false))
 }
-if($SubtitleClicks){
+if($SubtitleClicks -or $ScrollFollow){
     $body=[Text.StringBuilder]::new()
     for($i=0;$i -lt 160;$i++){
         $start=[TimeSpan]::FromMilliseconds($i*1000).ToString('hh\:mm\:ss\,fff')
@@ -204,7 +204,7 @@ if($SubtitleClicks){
     }
     [IO.File]::WriteAllText($subtitle,$body.ToString(),[Text.UTF8Encoding]::new($false))
 }
-$fixture=if($SubtitleClicks){'testsrc2=size=320x180:rate=2:duration=170'}elseif($ComposeOutput){'testsrc2=size=1280x720:rate=30:duration=12'}elseif($VideoTools -or $PresetReset -or $ChoiceControls){'testsrc2=size=320x180:rate=10:duration=12'}else{'testsrc2=size=320x180:rate=10:duration=3'}
+$fixture=if($SubtitleClicks -or $ScrollFollow){'testsrc2=size=320x180:rate=2:duration=170'}elseif($ComposeOutput){'testsrc2=size=1280x720:rate=30:duration=12'}elseif($VideoTools -or $PresetReset -or $ChoiceControls){'testsrc2=size=320x180:rate=10:duration=12'}else{'testsrc2=size=320x180:rate=10:duration=3'}
 if($VideoTools){
     & ffmpeg -v error -f lavfi -i $fixture -f lavfi -i 'sine=frequency=440:duration=12' -c:v libx264 -pix_fmt yuv420p -c:a aac $video
 }else{
@@ -496,12 +496,13 @@ function Test-SubtitleClicks {
     if((Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne 'Click subtitle 156'){throw 'Playback resume released explicit selection hold'}
     Click-UI '回到当前字幕';Start-Sleep -Milliseconds 400
     if((Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'Click subtitle 156'){throw 'Locate command did not release follow hold'}
-    # Seek/play must work while the video is already playing, then keep following.
+    # Seek/play still works during manual browsing. Locate restores following.
     Click-UI '暂停';Set-SingleClickAction '定位并播放'
     Set-PlaybackPosition 60.2;Click-UI '播放';Wait-PlaybackStarted;Click-UI '返回底部'
     Pointer-ClickRow (Visible-ClickRow)
     Start-Sleep -Milliseconds $wait
     if(-not (Find-UI '暂停') -or (Read-PlaybackPosition) -lt 155 -or (Read-PlaybackPosition) -gt 158){throw 'Single seek/play did not work during playback'}
+    Click-UI '回到当前字幕'
     Set-PlaybackPosition 80.2;Start-Sleep -Milliseconds 300
     $selected=(Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
     if($selected -notmatch '^Click subtitle 08[1-3]$'){throw "Seek/play stopped later follow: $selected"}
@@ -526,6 +527,10 @@ try {
     }
     if($WorkbenchLayout){
         . ([ScriptBlock]::Create([IO.File]::ReadAllText((Join-Path (Split-Path $ScreenshotTool) 'workbench_layout.ps1'),[Text.Encoding]::UTF8)))
+        return
+    }
+    if($ScrollFollow){
+        . ([ScriptBlock]::Create([IO.File]::ReadAllText((Join-Path (Split-Path $ScreenshotTool) 'scroll_follow.ps1'),[Text.Encoding]::UTF8)))
         return
     }
     if($SubtitleClicks){Test-SubtitleClicks;return}

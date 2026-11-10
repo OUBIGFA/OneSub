@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Exe, [Parameter(Mandatory=$true)][string]$Work, [switch]$VideoTools, [switch]$PresetReset, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$Development, [ValidateSet('dark','light')][string]$Appearance = 'dark')
+param([Parameter(Mandatory=$true)][string]$Exe, [Parameter(Mandatory=$true)][string]$Work, [switch]$VideoTools, [switch]$PresetReset, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$Development, [switch]$ScrollFollow, [ValidateSet('dark','light')][string]$Appearance = 'dark')
 $ErrorActionPreference = 'Stop'
 # The driver and every child inherit a non-input desktop. Never SwitchDesktop:
 # UIA and window messages exercise only the isolated application's own windows.
@@ -79,6 +79,7 @@ if($VideoTools){$command+=' -VideoTools'}
 if($PresetReset){$command+=' -PresetReset'}
 if($ChoiceControls){$command+=' -ChoiceControls'}
 if($Proofreading){$command+=' -Proofreading'}
+if($ScrollFollow){$command+=' -ScrollFollow'}
 if($WorkbenchLayout){$command+=' -WorkbenchLayout'}
 $command+=' -Appearance '+(Quote-Literal $Appearance)
 # Transcript captures native helper output without PowerShell 5.1 treating

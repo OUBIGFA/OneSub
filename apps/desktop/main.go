@@ -110,6 +110,7 @@ type NativeApp struct {
 	activeCue                            int
 	locateCue                            int       // a cue to center, or -1
 	browseUntil                          time.Time // until when the user's browsing keeps the viewport
+	browseHeld                           bool      // manual scrolling persists until the locate button
 	followRow                            int       // the row the playback follow centered, or -1
 	followPending                        bool      // the follow owes the viewport a move back
 	followHeld                           bool      // explicit select-only holds selection until locate/seek
@@ -633,6 +634,7 @@ func (a *NativeApp) importFiles(ctx context.Context, paths []string, wordEvidenc
 			a.duration, a.frameAspect = float64(loaded.Media.DurationMs())/1000, loaded.Media.FrameAspect()
 			a.position, a.activeCue, a.paused = 0, -1, true
 			a.pendingClick, a.rowClick = nil, nil
+			a.browseHeld = false
 			a.resumeFollow()
 			a.loadVideo()
 			a.showImportResult(loaded)
@@ -722,6 +724,7 @@ func (a *NativeApp) replaceProject(next *project.Store, state project.Snapshot, 
 	a.activeCue = -1
 	a.paused = true
 	a.pendingClick, a.rowClick = nil, nil
+	a.browseHeld = false
 	a.resumeFollow()
 	a.loadVideo()
 }

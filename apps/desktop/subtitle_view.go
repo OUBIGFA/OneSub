@@ -21,26 +21,23 @@ const editCommitDelay = 600 * time.Millisecond
 // Reuse MyGo's native easing; no timers or row transforms in the workbench.
 var subtitleFollowAnimation = ui.Animation{Duration: 220 * time.Millisecond, Ease: ui.EaseOut}
 
-// browseGrace is how long the user's own browsing keeps the subtitle list
-// where they left it. The playback keeps choosing the cue at the playhead,
-// but the list does not move under the reader; after this pause the follow
-// takes the list back, so nothing stops following for good.
+// browseGrace protects transient clicks and search input. Manual scrolling
+// has a separate persistent hold and never resumes on this timeout.
 const browseGrace = 4 * time.Second
 
-// noteBrowse says the user took the list somewhere themselves: the wheel, the
-// scroll bar, the first and last buttons, or the keys that move the choice.
-// The viewport stays theirs until the grace is over.
+// noteBrowse protects transient pointer/search interaction and live translation
+// progress. Playback-list scrolling instead uses the persistent browseHeld flag.
 func (a *NativeApp) noteBrowse(now time.Time) {
 	a.browseUntil = now.Add(browseGrace)
 }
 
 // browsing says the user's own browsing still holds the viewport.
 func (a *NativeApp) browsing(now time.Time) bool {
-	return !a.browseUntil.IsZero() && now.Before(a.browseUntil)
+	return a.browseHeld || (!a.browseUntil.IsZero() && now.Before(a.browseUntil))
 }
 
-// resumeFollow gives the viewport back to the playback at once, as the
-// locate button and a new playback do.
+// resumeFollow releases selection and transient input holds. It deliberately
+// preserves manual scrolling across playback, seeks and track changes.
 func (a *NativeApp) resumeFollow() {
 	a.browseUntil = time.Time{}
 	a.followHeld = false
@@ -213,9 +210,9 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		}, func(bool) {
 			// Navigation changes only the viewport. The playback still
 			// chooses the cue at the playhead; the list stays where the
-			// reader put it until the grace is over.
+			// reader put it until the locate button is pressed.
 			a.pendingClick = nil
-			a.noteBrowse(c.Now())
+			a.browseHeld = true
 			a.locateCue = -1
 		}, func(row int, target ui.Element) {
 			a.subtitleContextMenu(c, target, rows[row], row, &selected)
@@ -223,12 +220,11 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		// Blank space keeps the current selection; a cell prepares its own cue.
 		a.subtitleContextMenu(c, table, a.selected, rowOf(a.selected), &selected)
 		// The wheel and the touchpad scroll the list by the user's own hand.
-		// The scroll still happens; the playback's follow waits for the
-		// reading to be over.
+		// Only the locate button may return the viewport to playback.
 		table.HandleInput(func(ev ui.InputEvent) bool {
 			if ev.Kind == ui.InputScroll {
 				a.pendingClick = nil
-				a.noteBrowse(ev.Time)
+				a.browseHeld = true
 			} else if ev.Kind == ui.InputPointerDown {
 				// Stop following as soon as the first press begins, not just
 				// after release: the target row must stay under the pointer.
@@ -264,9 +260,9 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		// Dragging the scroll bar moves the followed row out of view, which
 		// the wheel's notches do too. The rows in view are those of the last
 		// frame, so this comes before this frame asks to scroll.
-		if !a.paused && a.followRow >= 0 && !a.followHeld && a.pendingClick == nil && !locatedThisFrame {
+		if a.followRow >= 0 && !a.followHeld && a.pendingClick == nil && !locatedThisFrame {
 			if first, last := a.list.Visible(); last >= first && (a.followRow < first || a.followRow > last) {
-				a.noteBrowse(c.Now())
+				a.browseHeld = true
 				a.followPending = true
 			}
 		}
@@ -284,10 +280,8 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 					}
 				}
 				if row := rowOf(active); row >= 0 {
-					// The user's own browsing keeps the viewport for a
-					// while: the cue at the playhead is still chosen, but
-					// the list is not pulled away from the reader. The
-					// grace ends and the follow takes it back.
+					// Keep choosing the cue at the playhead without moving
+					// the reader's viewport until they explicitly locate it.
 					if a.browsing(c.Now()) {
 						a.followPending = true
 						a.followRow = -1
@@ -299,9 +293,9 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 				}
 			}
 		}
-		// The grace ends on its own: the frame that follows takes the list
-		// back to the cue at the playhead.
-		if a.browsing(c.Now()) {
+		// Only transient input holds need a timer. A manual scroll has no
+		// scheduled return and must not queue a past-due frame repeatedly.
+		if !a.browseHeld && a.browsing(c.Now()) {
 			c.After(a.browseUntil.Sub(c.Now()))
 		}
 	})
@@ -323,6 +317,7 @@ func (a *NativeApp) locateCurrent() {
 		a.query = ""
 	}
 	a.list.StopScroll()
+	a.browseHeld = false
 	a.resumeFollow()
 	a.activeCue = index
 	if !a.editing && !a.composing && index != a.selected {

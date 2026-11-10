@@ -232,10 +232,10 @@ func TestLeavingCueCommitsOrRestores(t *testing.T) {
 }
 
 // Playback follows the cue at the playhead, but a hand scroll keeps the
-// viewport where the reader left it. The follow takes the list back when the
-// reading is over, and the locate button takes it back at once.
-func TestPlaybackFollowsAfterManualScrollingAndFocusChange(t *testing.T) {
+// viewport where the reader left it until the locate button is pressed.
+func TestPlaybackKeepsManualScrollUntilLocate(t *testing.T) {
 	a := storeApp(t, navigationCues(160)...)
+	a.mediaURL = "http://127.0.0.1/fixture"
 	tt := settled(a.view, 1400, 900)
 	centered := func(row int) bool {
 		first, last := a.list.Visible()
@@ -273,20 +273,26 @@ func TestPlaybackFollowsAfterManualScrollingAndFocusChange(t *testing.T) {
 	if a.query != "Subtitle" {
 		t.Fatal("following stole focus from the search input", a.query)
 	}
-	// The grace ends: the follow takes the list back, without a command.
-	tt.Advance(browseGrace + time.Second)
+	// Waiting past the old timeout must never take the viewport back.
+	tt.Advance(time.Minute)
 	tt.Frame()
 	tt.Advance(time.Second)
 	if a.selected != 81 {
-		t.Fatal("the follow did not resume after the reading", a.selected)
+		t.Fatal("playback stopped choosing its current cue", a.selected)
 	}
-	if !centered(81) {
-		first, last := a.list.Visible()
-		t.Fatal("the list did not come back to the cue at the playhead", first, last)
+	if afterFirst, afterLast := a.list.Visible(); afterFirst != first || afterLast != last {
+		t.Fatal("waiting moved the manually scrolled viewport", first, last, afterFirst, afterLast)
 	}
-	// The locate button takes the viewport back at once.
-	tt.Scroll(list.X+list.W/2, list.Y+list.H/2, 0, -600)
-	tt.Advance(time.Second)
+	// Track changes and explicit playback actions must not release a scroll
+	// hold. They may locate their requested cue, but cannot restart following.
+	a.changeSubtitleTab(0)
+	a.selectSubtitle(81, "seek-pause")
+	a.paused, a.position = false, 90.2
+	tt.Advance(time.Minute)
+	if afterFirst, afterLast := a.list.Visible(); afterFirst != first || afterLast != last {
+		t.Fatal("another action resumed scrolling without locate", first, last, afterFirst, afterLast)
+	}
+	// The locate button takes the viewport back and restores later following.
 	if err := tt.Click("回到当前字幕"); err != nil {
 		t.Fatal(err)
 	}
@@ -294,6 +300,12 @@ func TestPlaybackFollowsAfterManualScrollingAndFocusChange(t *testing.T) {
 	tt.Advance(time.Second)
 	if !centered(a.selected) {
 		t.Fatal("the locate button did not center the cue at the playhead", a.selected)
+	}
+	a.position = 110.2
+	tt.Frame()
+	tt.Advance(time.Second)
+	if a.selected != 110 || !centered(110) {
+		t.Fatal("locate did not restore following for later cues", a.selected)
 	}
 	a.paused = true
 	if err := tt.Click("返回顶部"); err != nil {
@@ -304,6 +316,46 @@ func TestPlaybackFollowsAfterManualScrollingAndFocusChange(t *testing.T) {
 	tt.Advance(time.Second)
 	if first, _ := a.list.Visible(); first != 0 {
 		t.Fatal("a paused video moved the viewport", first)
+	}
+}
+
+// Manual browsing on either track also stays put when playback starts after
+// the scroll. Current-cue selection keeps updating independently of scrolling.
+func TestManualScrollHoldOnBothSubtitleTracks(t *testing.T) {
+	for _, track := range []int{0, 1} {
+		for _, paused := range []bool{false, true} {
+			t.Run(fmt.Sprintf("track=%d/paused=%t", track, paused), func(t *testing.T) {
+				cues := navigationCues(160)
+				for i := range cues {
+					cues[i].Translated, cues[i].TranslationSource = true, cues[i].Text
+				}
+				a := storeApp(t, cues...)
+				a.subtitleTab, a.position, a.paused = track, 80.2, false
+				tt := settled(a.subtitlesView, 900, 500)
+				tt.Advance(time.Second)
+				a.paused = paused
+				list, _ := tt.Find("字幕列表")
+				tt.Scroll(list.X+list.W/2, list.Y+list.H/2, 0, -600)
+				tt.Advance(time.Second)
+				first, last := a.list.Visible()
+				if first <= 80 && last >= 80 {
+					t.Fatal("scroll did not leave the current cue", first, last)
+				}
+				a.paused, a.position = false, 110.2
+				tt.Frame()
+				tt.Advance(time.Minute)
+				if afterFirst, afterLast := a.list.Visible(); afterFirst != first || afterLast != last || a.selected != 110 {
+					t.Fatal("playback moved the manual viewport or lost current selection", first, last, afterFirst, afterLast, a.selected)
+				}
+				if err := tt.Click("回到当前字幕"); err != nil {
+					t.Fatal(err)
+				}
+				tt.Advance(time.Second)
+				if first, last = a.list.Visible(); first >= 110 || last <= 110 {
+					t.Fatal("locate did not show the current cue", first, last)
+				}
+			})
+		}
 	}
 }
 
