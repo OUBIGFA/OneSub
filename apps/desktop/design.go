@@ -186,19 +186,23 @@ func lobeTabs(c *ui.Context, selected *int, labels ...string) ui.Element {
 		items[i] = lobeNav.TabItem{Label: label}
 	}
 	tabs := lobeNav.Tabs(c, selected, lobeNav.TabsProps{Items: items, Variant: lobeNav.TabsSquare}, nil)
-	if c.Theme().Dark {
-		tabs.InsetShadow(0, -1, 0, 0, darkTabBorder(c))
-	}
+	tabs.InsetShadow(0, -1, 0, 0, tabBorder(c))
 	return tabs
 }
 
-// Navigation tabs and segmented property tabs share the same visible dark
-// boundary. Keep the native one-DIP outline and selection styling in both.
-func darkTabBorder(c *ui.Context) ui.Color {
+// Navigation tabs and segmented property tabs share the stronger native
+// boundary in both appearances, with a one-DIP line and unchanged selection.
+func tabBorder(c *ui.Context) ui.Color {
 	if c.Preferences().HighContrast {
 		return c.Theme().Border
 	}
-	return lobeTheme.Dark().FillBorderStrong()
+	if c.Theme().Dark {
+		return lobeTheme.Dark().FillBorderStrong()
+	}
+	// The full strong token is too prominent on the light canvas. Blend
+	// with its normal border to keep the shared outline visible but quiet.
+	tokens := lobeTheme.Light()
+	return lobeTheme.Mix(tokens.FillBorder(), tokens.FillBorderStrong(), 0.2)
 }
 
 func lobeProgress(c *ui.Context, fraction float64) ui.Element {

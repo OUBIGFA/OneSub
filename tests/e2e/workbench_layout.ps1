@@ -56,7 +56,7 @@ foreach($panel in @('字幕样式面板','字幕编辑面板')) {
 }
 $wide=(Find-UI '回到当前字幕').Current.BoundingRectangle
 if($wide.Width -le 1.5*$wide.Height){throw 'Wide second row hid labels too soon'}
-Capture-Navigation 'toolbar-wide-dark.png'
+Capture-Navigation ('toolbar-wide-'+$Appearance+'.png')
 # A narrower workbench spends whitespace while keeping the icon and label.
 if(-not [LayoutNative]::SetWindowPos($window,[IntPtr]::Zero,0,0,3200,1000,0x14)){throw 'Private resize failed'}
 Start-Sleep -Milliseconds 600
@@ -67,20 +67,20 @@ foreach($label in @('查找替换','智能拆分 · 0 条长字幕','检查结�
     $rect=(Find-UI $label).Current.BoundingRectangle
     if([Math]::Abs($rect.Y+$rect.Height/2-$edit.Y-$edit.Height/2) -gt 2){throw "Second toolbar row wrapped: $label"}
 }
-Capture-Navigation 'toolbar-tight-dark.png'
+Capture-Navigation ('toolbar-tight-'+$Appearance+'.png')
 if(-not [LayoutNative]::SetWindowPos($window,[IntPtr]::Zero,0,0,1760,900,0x14)){throw 'Private resize failed'}
 Start-Sleep -Milliseconds 600
 foreach($label in @('回到当前字幕','查找替换')) {
     $normal=(Find-UI $label).Current.BoundingRectangle
     if($normal.Width -le 1.5*$normal.Height){throw "Normal-width toolbar hid primary label: $label"}
 }
-Capture-Navigation 'toolbar-normal-dark.png'
+Capture-Navigation ('toolbar-normal-'+$Appearance+'.png')
 foreach($tab in @('文字','外观','布局')) {
     Select-Tab '样式属性' $tab
-    Capture-Navigation ('style-'+$tab+'-dark.png')
+    Capture-Navigation ('style-'+$tab+'-'+$Appearance+'.png')
 }
 Select-Tab '识别对象' '文件队列'
-Capture-Navigation 'recognition-queue-dark.png'
+Capture-Navigation ('recognition-queue-'+$Appearance+'.png')
 Select-Tab '识别对象' '当前文件'
 # At the minimum window the middle pane is only about 390 DIPs. Keep its
 # highest-priority label; fitting both full labels would overflow that pane.
@@ -90,5 +90,5 @@ $narrow=(Find-UI '回到当前字幕').Current.BoundingRectangle
 if($narrow.Width -le 1.5*$narrow.Height){throw 'Minimum-window toolbar hid its primary label too early'}
 Click-UI '字幕列表操作'
 if(-not (Find-UI '查找替换')){throw 'Narrow edit menu lost find/replace'}
-Capture-Navigation 'toolbar-narrow-dark.png'
-Write-Output 'PASS: both inspectors fold and restore; primary toolbar labels remain at normal width; dark style and recognition switches remain operable'
+Capture-Navigation ('toolbar-narrow-'+$Appearance+'.png')
+Write-Output 'PASS: both inspectors fold and restore; primary toolbar labels remain at normal width; style and recognition switches remain operable'

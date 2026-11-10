@@ -10,8 +10,6 @@ import (
 // selected surface; blue is reserved for navigation, lists and primary actions.
 func segmentedFill(c *ui.Context, selected *int, labels ...string) ui.Element {
 	track := lobeAction.Segmented(c, selected, labels, lobeAction.SegmentedProps{Block: true})
-	if c.Theme().Dark {
-		track.Border(1, darkTabBorder(c))
-	}
+	track.Border(1, tabBorder(c))
 	return track
 }
