@@ -187,15 +187,18 @@ func lobeTabs(c *ui.Context, selected *int, labels ...string) ui.Element {
 	}
 	tabs := lobeNav.Tabs(c, selected, lobeNav.TabsProps{Items: items, Variant: lobeNav.TabsSquare}, nil)
 	if c.Theme().Dark {
-		// The kit's stronger border lifts just this one-DIP tab baseline;
-		// leave selection and the rest of the workbench palette unchanged.
-		border := lobeTheme.Dark().FillBorderStrong()
-		if c.Preferences().HighContrast {
-			border = c.Theme().Border
-		}
-		tabs.InsetShadow(0, -1, 0, 0, border)
+		tabs.InsetShadow(0, -1, 0, 0, darkTabBorder(c))
 	}
 	return tabs
+}
+
+// Navigation tabs and segmented property tabs share the same visible dark
+// boundary. Keep the native one-DIP outline and selection styling in both.
+func darkTabBorder(c *ui.Context) ui.Color {
+	if c.Preferences().HighContrast {
+		return c.Theme().Border
+	}
+	return lobeTheme.Dark().FillBorderStrong()
 }
 
 func lobeProgress(c *ui.Context, fraction float64) ui.Element {

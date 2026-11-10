@@ -9,5 +9,9 @@ import (
 // keyboard navigation and accessibility. Peer options use Lobe's neutral
 // selected surface; blue is reserved for navigation, lists and primary actions.
 func segmentedFill(c *ui.Context, selected *int, labels ...string) ui.Element {
-	return lobeAction.Segmented(c, selected, labels, lobeAction.SegmentedProps{Block: true})
+	track := lobeAction.Segmented(c, selected, labels, lobeAction.SegmentedProps{Block: true})
+	if c.Theme().Dark {
+		track.Border(1, darkTabBorder(c))
+	}
+	return track
 }

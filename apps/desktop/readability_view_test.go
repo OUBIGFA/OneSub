@@ -612,10 +612,11 @@ func TestReadingToolbarNarrowPane(t *testing.T) {
 				locate, _ := tt.Find(locales.ListLocate())
 				periods, _ := tt.Find(locales.TextReplacePeriods())
 				trailing, _ := tt.Find(locales.TextStripTrailing())
-				if periods.X <= locate.X+locate.W || trailing.X < periods.X+periods.W || periods.Y != locate.Y || trailing.Y != locate.Y {
+				// Mixed icon/text controls have different native heights but share a center.
+				if periods.X <= locate.X+locate.W || trailing.X < periods.X+periods.W || math.Abs(float64(periods.Y+periods.H/2-locate.Y-locate.H/2)) > 1 || math.Abs(float64(trailing.Y+trailing.H/2-locate.Y-locate.H/2)) > 1 {
 					t.Fatal("punctuation is not grouped after navigation", locate, periods, trailing)
 				}
-				if replace.X < trailing.X+trailing.W || replace.X-trailing.X-trailing.W > 8 || replace.Y != trailing.Y {
+				if replace.X < trailing.X+trailing.W || replace.X-trailing.X-trailing.W > 8 || math.Abs(float64(replace.Y+replace.H/2-trailing.Y-trailing.H/2)) > 1 {
 					t.Fatal("find/replace is not immediately right of trailing punctuation", trailing, replace)
 				}
 				if width == 900 && replace.Y < search.Y+search.H {

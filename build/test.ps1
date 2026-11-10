@@ -45,7 +45,9 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'MyGo input and scrolling tests failed' }
         # UI review can select a focused behavior/render pass through the same
         # setup and patched-framework checks as the complete test entry.
-        $testArguments = @('-count=1')
+        # The complete native render/media suite can exceed Go's default ten
+        # minutes on Windows. Keep one bounded full run without skipping tests.
+        $testArguments = @('-count=1', '-timeout=20m')
         if ($TestName) { $testArguments += @('-run', $TestName) }
         & go test @Packages @testArguments
         if ($LASTEXITCODE -ne 0) { throw 'Go tests failed' }

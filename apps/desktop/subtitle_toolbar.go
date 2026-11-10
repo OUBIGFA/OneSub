@@ -11,38 +11,7 @@ import (
 // and review. Narrow panes keep the same order through native compact menus.
 func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) {
 	compact := width < em(c, 680)
-	// Measure this frame's actual labels at the native button's weight.
-	// Spend horizontal padding and gaps before giving up icon + text.
-	labels := []string{locales.SubtitleActionsMenu(), locales.ListLocate(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.FindReplace(), locales.RetranslateCheckAll(), locales.TranslationResults()}
-	if count := len(a.checkedRetranslationIDs()); count > 0 {
-		labels = append(labels, locales.RetranslateSelected(count), locales.RetranslateClear())
-	} else {
-		labels = append(labels, locales.RetranslateSelect())
-	}
-	if a.retranslation != nil {
-		labels = append(labels, locales.RetranslateReopen())
-	}
-	issues := a.readingIssues()
-	labels = append(labels, locales.ReadingSplitCount(issues[0].count))
-	var textWidth, issueWidth float32
-	for _, label := range labels {
-		w, _ := c.MeasureText(0, ui.Span{Text: label, Weight: 500})
-		textWidth += float32(math.Ceil(float64(w)))
-	}
-	for _, issue := range issues {
-		w, _ := c.MeasureText(0, ui.Span{Text: issue.label, Weight: 500})
-		issueWidth = max(issueWidth, float32(math.Ceil(float64(w))))
-	}
-	// Each labelled button has an icon, a border and an inner gap. Two
-	// navigation buttons remain square; all neighbouring controls share a gap.
-	count := float32(len(labels) + 1)
-	fixed := textWidth + issueWidth + count*(em(c, iconSize)+2) + em(c, 24+2*32)
-	minimum := fixed + count*em(c, 12) + (count+1)*em(c, 4)
-	comfortable := fixed + count*em(c, 34) + (count+1)*em(c, 8)
-	layout := subtitleToolbarLayout{
-		compact:   width < minimum,
-		tightness: min(1, max(0, (comfortable-width)/(comfortable-minimum))),
-	}
+	layout := a.subtitleToolbarDensity(c, width, compact)
 	ui.Column(c).Padding(em(c, 8), em(c, 12)).Gap(em(c, 8)).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
 		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
 			if compact {
@@ -67,7 +36,7 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 				a.retranslationActions(c, layout)
 			}).Padding(0).Gap(layout.spacing(c)).Shrink(0)
 			if compact {
-				a.readingMenu(c)
+				a.readingMenu(c, layout)
 			} else {
 				a.readingTools(c, layout)
 			}
@@ -76,27 +45,84 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 	})
 }
 
+// Fit this frame's visible controls, not the full set hidden by narrow-pane
+// menus. Once whitespace is exhausted, review/cleanup labels yield one at a
+// time; locating and finding subtitles retain icon + text for longest.
+func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow bool) subtitleToolbarLayout {
+	labels := []string{}
+	if a.retranslation != nil {
+		labels = append(labels, locales.RetranslateReopen())
+	}
+	labels = append(labels, locales.TranslationResults())
+	var issueWidth float32
+	navigation := float32(0)
+	if !narrow {
+		issues := a.readingIssues()
+		labels = append(labels, locales.TextStripTrailing(), locales.TextReplacePeriods(), locales.ReadingSplitCount(issues[0].count), locales.ReadingIssueType())
+		for _, issue := range issues {
+			w, _ := c.MeasureText(0, ui.Span{Text: issue.label, Weight: 500})
+			issueWidth = max(issueWidth, float32(math.Ceil(float64(w))))
+		}
+		navigation = 2
+	}
+	if count := len(a.checkedRetranslationIDs()); count > 0 {
+		labels = append(labels, locales.RetranslateClear(), locales.RetranslateCheckAll(), locales.RetranslateSelected(count))
+	} else {
+		labels = append(labels, locales.RetranslateCheckAll(), locales.RetranslateSelect())
+	}
+	if narrow {
+		labels = append(labels, locales.ReadingInspect())
+	}
+	labels = append(labels, locales.SubtitleActionsMenu(), locales.FindReplace(), locales.ListLocate())
+	widths := make([]float32, len(labels))
+	minimum := em(c, 24+navigation*32+(float32(len(labels))+navigation-1)*4)
+	for i, label := range labels {
+		w, _ := c.MeasureText(0, ui.Span{Text: label, Weight: 500})
+		if label == locales.ReadingIssueType() {
+			w = issueWidth
+		}
+		widths[i] = float32(math.Ceil(float64(w))) + em(c, iconSize+12) + 2
+		minimum += widths[i]
+	}
+	comfortable := minimum + em(c, float32(len(labels))*22+(float32(len(labels))+navigation-1)*4)
+	layout := subtitleToolbarLayout{tightness: min(1, max(0, (comfortable-width)/(comfortable-minimum)))}
+	if width < minimum {
+		layout.icons = make(map[string]bool)
+		for i, label := range labels {
+			if minimum <= width {
+				break
+			}
+			layout.icons[label] = true
+			minimum -= widths[i] - em(c, 32)
+		}
+	}
+	return layout
+}
+
 // Horizontal density changes only whitespace. Text, icons and hit-target
 // height keep their normal size, and every presentation retains its tooltip.
 type subtitleToolbarLayout struct {
 	compact   bool
 	tightness float32
+	icons     map[string]bool
 }
+
+func (l subtitleToolbarLayout) iconOnly(label string) bool { return l.compact || l.icons[label] }
 
 func (l subtitleToolbarLayout) spacing(c *ui.Context) float32 { return em(c, 8-4*l.tightness) }
 
-func (l subtitleToolbarLayout) button(c *ui.Context, button ui.Element) ui.Element {
-	if !l.compact {
+func (l subtitleToolbarLayout) button(c *ui.Context, label string, button ui.Element) ui.Element {
+	if !l.iconOnly(label) {
 		button.PaddingX(em(c, 14-10*l.tightness)).Gap(em(c, 6-2*l.tightness))
 	}
 	return button.Shrink(0)
 }
 
 func subtitleTool(c *ui.Context, label, name string, layout subtitleToolbarLayout) ui.Element {
-	if layout.compact {
+	if layout.iconOnly(label) {
 		return toolIcon(c, label, name)
 	}
-	return layout.button(c, iconButton(c, label, name)).Tooltip(label)
+	return layout.button(c, label, iconButton(c, label, name)).Tooltip(label)
 }
 
 func (a *NativeApp) subtitleSearch(c *ui.Context, compact bool) {

@@ -129,7 +129,7 @@ func TestSubtitleToolbarShowsLabelsWithIconsExceptNavigation(t *testing.T) {
 				}
 			}
 			captureRedesign(t, tt, "subtitle-tools-wide-"+language)
-			tt.SetSize(640, 800)
+			tt.SetSize(320, 800)
 			tt.Frame()
 			for _, label := range []string{locales.SubtitleActionsMenu(), locales.ListLocate(), locales.FindReplace(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.TranslationResults()} {
 				if box, ok := tt.Find(label); !ok || box.W > box.H+2 {
@@ -137,6 +137,54 @@ func TestSubtitleToolbarShowsLabelsWithIconsExceptNavigation(t *testing.T) {
 				}
 			}
 			captureRedesign(t, tt, "subtitle-tools-narrow-"+language)
+		})
+	}
+}
+
+// A normal middle pane must retain the most-used labels even when review
+// and punctuation actions no longer fit with text. Check rendered geometry,
+// because an icon's accessible name alone does not prove its label is visible.
+func TestSubtitleToolbarKeepsPrimaryLabelsInNormalPanes(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			for _, scale := range []float32{1, 1.5, 2} {
+				for _, checked := range []bool{false, true} {
+					for _, width := range []int{640, 900, 1100} {
+						t.Run(fmt.Sprintf("%s/%g/%t/%d", language, scale, checked, width), func(t *testing.T) {
+							a := draftApp(t)
+							if checked {
+								a.checkAllSubtitles()
+								a.retranslation = &retranslationState{}
+							}
+							tt := ui.NewTester(func(c *ui.Context) {
+								applyStudioTheme(c)
+								cw, _ := c.Size()
+								a.subtitleToolbar(c, cw, true)
+							}, int(float32(width)*scale), int(180*scale))
+							tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
+							tt.SetDark(true)
+							firstFrameSettled(t, tt, "toolbar-normal", func() {})
+							for _, label := range []string{locales.ListLocate(), locales.FindReplace()} {
+								box, ok := tt.Find(label)
+								if !ok || box.W <= 32*scale {
+									t.Fatal("primary action became icon-only too early", label, box)
+								}
+								if _, ok := tt.Find(locales.A11yIconOf(label)); !ok {
+									t.Fatal("primary action lost its icon", label)
+								}
+							}
+							edit, _ := tt.Find(locales.SubtitleActionsMenu())
+							for _, control := range auditControls(tt) {
+								r := control.Bounds
+								if r.X < 0 || r.X+r.W > float32(width)*scale+.5 || r.Y+r.H/2 > edit.Y+edit.H/2+1 {
+									t.Fatal("toolbar wrapped or clipped", control.Name, r, edit)
+								}
+							}
+							captureRedesign(t, tt, fmt.Sprintf("toolbar-normal-%s-%g-%t-%d", language, scale, checked, width))
+						})
+					}
+				}
+			}
 		})
 	}
 }
@@ -165,8 +213,7 @@ func TestSubtitleToolbarKeepsLabelsWhileTightening(t *testing.T) {
 						var previousWidth float32
 						for _, w := range []int{width + 350, width} {
 							tt := ui.NewTester(func(c *ui.Context) {
-								theme, _ := studioTheme(c.Theme(), false)
-								c.SetTheme(&theme)
+								applyStudioTheme(c)
 								cw, _ := c.Size()
 								a.subtitleToolbar(c, cw, true)
 							}, int(float32(w)*scale), int(180*scale))

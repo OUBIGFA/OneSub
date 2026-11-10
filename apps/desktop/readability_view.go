@@ -107,7 +107,7 @@ func (a *NativeApp) readingTools(c *ui.Context, layout subtitleToolbarLayout) {
 	ui.Row(c).Gap(layout.spacing(c)).Shrink(0).AlignItems(ui.Center).Children(func() {
 		subtitleTool(c, locales.ReadingSplitCount(long), "scissors", layout).Disabled(a.busy || a.showsTranslationProgress() || long == 0).Tooltip(locales.ReadingSplitHint()).OnClick(a.smartSplitSubtitles)
 		ui.Row(c).Gap(layout.spacing(c)).Shrink(0).AlignItems(ui.Center).Children(func() {
-			picker := lobeMenuButton(c, selected.label, "triangle-alert", layout.compact, func() []menuCommand {
+			picker := lobeMenuButton(c, selected.label, "triangle-alert", layout.iconOnly(locales.ReadingIssueType()), func() []menuCommand {
 				commands := make([]menuCommand, len(issues))
 				for i, issue := range issues {
 					commands[i] = menuCommand{Key: issue.kind, Label: issue.summary, Checkable: true, Checked: i == a.readingIssue, Disabled: issue.count == 0, Run: func() { a.readingIssue = i }}
@@ -115,8 +115,8 @@ func (a *NativeApp) readingTools(c *ui.Context, layout subtitleToolbarLayout) {
 				return commands
 			}).Label(locales.ReadingIssueType()).Shrink(0).
 				Disabled(a.showsTranslationProgress() || long+fast+brief == 0).Tooltip(selected.summary + "\n" + locales.ReadingInspectHint())
-			if !layout.compact {
-				layout.button(c, picker).Width(labelWidth + em(c, iconSize+34-22*layout.tightness) + 2)
+			if !layout.iconOnly(locales.ReadingIssueType()) {
+				layout.button(c, locales.ReadingIssueType(), picker).Width(labelWidth + em(c, iconSize+34-22*layout.tightness) + 2)
 			}
 			disabled := a.showsTranslationProgress() || selected.count == 0
 			toolIcon(c, locales.ReadingPrevious(), "chevron-left").Shrink(0).
@@ -129,10 +129,10 @@ func (a *NativeApp) readingTools(c *ui.Context, layout subtitleToolbarLayout) {
 
 // Keep review and splitting reachable without sacrificing the subtitle rows
 // to three extra toolbar lines. Both presentations use the same issue counts.
-func (a *NativeApp) readingMenu(c *ui.Context) {
+func (a *NativeApp) readingMenu(c *ui.Context, layout subtitleToolbarLayout) {
 	issues := a.readingIssues()
 	selected := issues[a.readingIssue]
-	lobeMenuButton(c, locales.ReadingInspect(), "triangle-alert", true, func() []menuCommand {
+	button := lobeMenuButton(c, locales.ReadingInspect(), "triangle-alert", layout.iconOnly(locales.ReadingInspect()), func() []menuCommand {
 		commands := make([]menuCommand, len(issues))
 		for i, issue := range issues {
 			commands[i] = menuCommand{Key: issue.kind, Label: issue.summary, Checkable: true, Checked: i == a.readingIssue, Disabled: issue.count == 0, Run: func() { a.readingIssue = i }}
@@ -144,6 +144,7 @@ func (a *NativeApp) readingMenu(c *ui.Context) {
 			menuCommand{Divider: true},
 			menuCommand{Label: locales.ReadingSplitCount(issues[0].count), Disabled: a.busy || issues[0].count == 0, Run: a.smartSplitSubtitles})
 	}).Disabled(a.showsTranslationProgress()).Tooltip(locales.ReadingInspect() + "\n" + selected.summary)
+	layout.button(c, locales.ReadingInspect(), button)
 }
 
 // Navigate in document order and wrap at either end, including cues hidden by
