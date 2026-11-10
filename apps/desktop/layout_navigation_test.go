@@ -328,7 +328,7 @@ func TestSubtitleNavigationUsesFilteredLongList(t *testing.T) {
 	}
 }
 
-func TestSubtitleNavigationButtonsCenteredAndStayFixed(t *testing.T) {
+func TestSubtitleNavigationButtonsAtBottomAndStayFixed(t *testing.T) {
 	for language, labels := range map[string][]string{"zh-Hans": {"返回顶部", "返回底部"}, "en": {"Back to top", "Go to bottom"}} {
 		for _, width := range []int{320, 640} {
 			for _, scale := range []float32{1, 1.5, 2} {
@@ -354,8 +354,12 @@ func TestSubtitleNavigationButtonsCenteredAndStayFixed(t *testing.T) {
 						if before[0].Y+before[0].H > before[1].Y || before[0].X != before[1].X {
 							t.Fatal("floating buttons are not a vertical group", before)
 						}
-						if math.Abs(float64((before[0].Y+before[1].Y+before[1].H)/2-list.Y-list.H/2)) > 1 {
-							t.Fatal("floating buttons are not vertically centered in the list", before, list)
+						// When the viewport barely fits both buttons, native flex
+						// layout keeps them visible and spends only spare space on the inset.
+						groupHeight := before[1].Y + before[1].H - before[0].Y
+						inset := min(8*scale, max(0, list.H-groupHeight))
+						if math.Abs(float64(list.Y+list.H-before[1].Y-before[1].H-inset)) > 1 {
+							t.Fatal("floating buttons are not inset from the list bottom", before, list)
 						}
 						if err := tt.Click(labels[1]); err != nil {
 							t.Fatal(err)
@@ -366,14 +370,14 @@ func TestSubtitleNavigationButtonsCenteredAndStayFixed(t *testing.T) {
 								t.Fatal("floating button moved with list rows", label, before[i], after)
 							}
 						}
-						// Resizing the viewport must recenter the group, not retain
+						// Resizing the viewport must anchor the group to the bottom, not retain
 						// a fixed vertical offset from the previous layout.
 						tt.SetSize(width, 1000)
 						list, _ = tt.Find(locales.A11ySubtitleList())
 						top, _ := tt.Find(labels[0])
 						bottom, _ := tt.Find(labels[1])
-						if math.Abs(float64((top.Y+bottom.Y+bottom.H)/2-list.Y-list.H/2)) > 1 {
-							t.Fatal("floating buttons did not recenter after resizing", top, bottom, list)
+						if math.Abs(float64(list.Y+list.H-bottom.Y-bottom.H-8*scale)) > 1 {
+							t.Fatal("floating buttons did not follow the bottom after resizing", top, bottom, list)
 						}
 					})
 				})
@@ -394,8 +398,8 @@ func TestTranslationProgressNavigation(t *testing.T) {
 	list, _ := tt.Find(locales.TranslationLive())
 	top, _ := tt.Find(locales.ListTop())
 	bottom, _ := tt.Find(locales.ListBottom())
-	if math.Abs(float64((top.Y+bottom.Y+bottom.H)/2-list.Y-list.H/2)) > 1 {
-		t.Fatal("live translation navigation is not vertically centered", top, bottom, list)
+	if math.Abs(float64(list.Y+list.H-bottom.Y-bottom.H-8)) > 1 {
+		t.Fatal("live translation navigation is not inset from the list bottom", top, bottom, list)
 	}
 	if err := tt.Click("返回顶部"); err != nil {
 		t.Fatal(err)

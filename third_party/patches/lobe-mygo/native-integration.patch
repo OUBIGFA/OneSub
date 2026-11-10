@@ -87,7 +87,8 @@ diff --git a/pkg/action/segmented.go b/pkg/action/segmented.go
  				if i == *selected {
 -					ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).
 +					ui.Box(c).IgnoreInput(true).Absolute().Top(0).Left(0).Right(0).Bottom(0).
- 						Radius(tk.BorderRadius).Background(indicator).ZIndex(-1).Transition(slide)
+-						Radius(tk.BorderRadius).Background(indicator).ZIndex(-1).Transition(slide)
++						Radius(tk.BorderRadius).Background(indicator).Border(1, tk.Border).ZIndex(-1).Transition(slide)
  				}
  				ui.Text(c, option).SingleLine()
 diff --git a/pkg/choice/checkbox.go b/pkg/choice/checkbox.go

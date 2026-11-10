@@ -190,8 +190,7 @@ func lobeTabs(c *ui.Context, selected *int, labels ...string) ui.Element {
 	return tabs
 }
 
-// Navigation tabs and segmented property tabs share the stronger native
-// boundary in both appearances, with a one-DIP line and unchanged selection.
+// Underlined navigation tabs retain a quiet one-DIP baseline in both appearances.
 func tabBorder(c *ui.Context) ui.Color {
 	if c.Preferences().HighContrast {
 		return c.Theme().Border

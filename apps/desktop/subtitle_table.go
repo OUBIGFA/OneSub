@@ -56,8 +56,8 @@ func subtitleTable(c *ui.Context, state *ui.ListState, columns []ui.TableColumn,
 				cell(row, col)
 			}
 		}).Grow(1).MinWidth(0)
-		ui.Column(c).Absolute().Top(0).Bottom(0).Right(0).Width(railWidth).Padding(0, em(c, 8), 0, 0).
-			Justify(ui.Center).Gap(em(c, 8)).KeepFocus().PassThrough().Children(func() {
+		ui.Column(c).Absolute().Top(0).Bottom(0).Right(0).Width(railWidth).Padding(0, em(c, 8), em(c, 8), 0).
+			Justify(ui.End).Gap(em(c, 8)).KeepFocus().PassThrough().Children(func() {
 			toolIcon(c, locales.ListTop(), "arrow-up-to-line").Size(em(c, 32), em(c, 32)).Disabled(count == 0).OnClick(func() {
 				onNavigate(false)
 				state.ScrollToEdgeAnimated(false, subtitleNavigationAnimation)
