@@ -13,7 +13,8 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 	compact := width < em(c, 680)
 	layout := a.subtitleToolbarDensity(c, width, compact)
 	ui.Column(c).Padding(em(c, 8), em(c, 12)).Gap(em(c, 8)).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
-		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
+			a.proofreadingButton(c, compact)
 			if compact {
 				toolIcon(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
 			} else {
@@ -154,7 +155,7 @@ func (a *NativeApp) subtitleSearch(c *ui.Context, compact bool) {
 
 func (a *NativeApp) subtitleSaveActions(c *ui.Context, compact, hasCues bool) {
 	ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Label(locales.A11ySubtitleFileActions()).Children(func() {
-		unsaved := a.trackUnsaved(a.subtitleTab)
+		unsaved := a.trackUnsaved(a.subtitleTab) || a.subtitleTab == 1 && a.trackUnsaved(2)
 		label := locales.ListSave()
 		if unsaved {
 			label = locales.ListUnsaved()
@@ -173,6 +174,6 @@ func (a *NativeApp) subtitleSaveActions(c *ui.Context, compact, hasCues bool) {
 		} else {
 			saveAs = iconButton(c, locales.ListSaveAs(), "file-down")
 		}
-		saveAs.Disabled(a.busy || a.showsTranslationProgress() || !hasCues || !a.trackHasContent(a.subtitleTab)).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
+		saveAs.Disabled(a.busy || a.showsTranslationProgress() || !hasCues || !(a.trackHasContent(a.subtitleTab) || a.proofreading && a.trackHasContent(2))).OnClick(func() { a.saveTrack(a.subtitleTab, true) })
 	})
 }

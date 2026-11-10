@@ -36,6 +36,13 @@ func subtitleTable(c *ui.Context, state *ui.ListState, columns []ui.TableColumn,
 		columns[i].MinWidth = max(columns[i].MinWidth, width+c.Theme().Space(5))
 	}
 	contentColumns := len(columns)
+	// Header alignment is independent of body cells; retain their existing
+	// reading alignment and center only the list's non-subtitle headings.
+	state.HeaderCell = func(header ui.Element, col int) {
+		if col < contentColumns && columns[col].Title != locales.ListColumnText() {
+			header.Justify(ui.Center)
+		}
+	}
 	railWidth := em(c, subtitleNavigationRailSize)
 	columns = append(columns, ui.TableColumn{ID: "navigation-gutter", Width: railWidth, MinWidth: railWidth, Fixed: true})
 	state.CellElement = nil

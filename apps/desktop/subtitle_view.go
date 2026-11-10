@@ -66,6 +66,11 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		// Keep the track switch centered; all list commands live in the
 		// wrapping toolbar below, so narrow headers never crowd the tabs.
 		panelHeader(c, nil, func() {
+			if a.proofreading {
+				tab := 0
+				lobeTabs(c, &tab, locales.TabProofreading()).Label(locales.A11ySubtitleTabs())
+				return
+			}
 			tab := a.subtitleTab
 			if lobeTabs(c, &tab, locales.TabOriginal(), locales.TabRebuilt()).Label(locales.A11ySubtitleTabs()).Changed() {
 				a.changeSubtitleTab(tab)
@@ -74,13 +79,14 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		separator(c)
 		// An empty track has one useful next action. Avoid presenting a wall
 		// of disabled editing commands before there is anything to edit.
-		if !hasCues && !a.showsTranslationProgress() {
+		if !hasCues && !a.showsTranslationProgress() && !a.proofreading {
 			label := locales.ListEmpty()
 			if a.subtitleTab == 1 {
 				label = locales.ListRebuiltEmpty()
 			}
 			empty := ui.Column(c).Grow(1).Center().Gap(em(c, 12)).Children(func() {
 				muted(c, label)
+				a.proofreadingButton(c, false)
 				iconButton(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
 			})
 			a.subtitleContextMenu(c, empty, -1, -1, nil)
@@ -521,7 +527,7 @@ func (a *NativeApp) undo(redo bool) {
 	}
 	a.clearError("edit")
 	a.setSnapshot(state)
-	if a.subtitleTab == 1 {
+	if a.subtitleTab == 1 && !a.proofreading {
 		hasTranslation := false
 		for _, cue := range state.Document.Cues {
 			if cue.Translated {
@@ -537,6 +543,9 @@ func (a *NativeApp) undo(redo bool) {
 	a.loadDraft()
 }
 func (a *NativeApp) changeSubtitleTab(tab int) {
+	if a.proofreading {
+		tab = 1
+	}
 	a.pendingClick = nil
 	if !a.commitEdit(true) {
 		return

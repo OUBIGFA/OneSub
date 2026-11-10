@@ -22,7 +22,7 @@ import (
 func TestSaveTracksKeepsCompletedSaveWhenLaterTrackFails(t *testing.T) {
 	a := draftApp(t)
 	a.worker = subtitle.Client{Executable: os.Getenv("ONESUB_SUBTITLE_WORKER"), Scratch: t.TempDir()}
-	a.savedPath = [2]string{filepath.Join(t.TempDir(), "original.srt"), filepath.Join(t.TempDir(), "translation.srt")}
+	a.savedPath = [3]string{filepath.Join(t.TempDir(), "original.srt"), filepath.Join(t.TempDir(), "translation.srt")}
 	a.draft = "已修改原文"
 	a.changed(time.Now())
 	if !a.commitEdit(true) || !a.unsaved[0] {
@@ -270,7 +270,7 @@ func TestTranslationSavesOnlyTranslatedText(t *testing.T) {
 func TestDefaultSaveNamesFollowTheSubtitleOrVideo(t *testing.T) {
 	a := draftApp(t)
 	a.snapshot.Manifest.SubtitlePath = filepath.Join("videos", "lesson.srt")
-	a.savedPath = [2]string{}
+	a.savedPath = [3]string{}
 	a.settings.TargetLanguage = "zh-CN"
 	if got := a.defaultTrackPath(1); got != filepath.Join("videos", "lesson-zh.srt") {
 		t.Fatal(got)

@@ -91,6 +91,7 @@ func (a *NativeApp) restoreProcessing() {
 			a.replaceProject(store, state, url)
 			a.settings.Processing = pending
 			a.savedHash, a.savedPath = pending.SavedHash, pending.SavedPath
+			a.proofreadingSourceTracked = pending.SavedHash[2] != "" || pending.SavedPath[2] != ""
 			a.refreshUnsaved()
 			a.saveSettings()
 			a.status = locales.ProcessingInterrupted()

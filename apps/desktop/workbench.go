@@ -44,7 +44,7 @@ func (a *NativeApp) activeDocument() subtitle.Document {
 		return subtitle.Document{}
 	}
 	document := a.snapshot.TrackDocument(a.subtitleTab)
-	if a.subtitleTab == 1 && !a.hasRebuiltSubtitles() {
+	if a.subtitleTab == 1 && !a.proofreading && !a.hasRebuiltSubtitles() {
 		// The store mirrors original cues until a working track exists. That
 		// implementation detail is not an optimized result to show or edit.
 		document.Cues = nil

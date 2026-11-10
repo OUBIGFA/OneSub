@@ -31,8 +31,8 @@ type translationTask struct {
 	ProviderName    string            `json:"providerName"`
 	Target          string            `json:"target"`
 	Format          string            `json:"format"`
-	SavedHash       [2]string         `json:"savedHash"`
-	SavedPath       [2]string         `json:"savedPath"`
+	SavedHash       [3]string         `json:"savedHash"`
+	SavedPath       [3]string         `json:"savedPath"`
 }
 
 // Small appended events keep every displayed fragment durable without
@@ -210,6 +210,7 @@ func (a *NativeApp) restoreTranslationProgress() {
 		return func() {
 			a.replaceProject(store, state, url)
 			a.savedHash, a.savedPath = task.SavedHash, task.SavedPath
+			a.proofreadingSourceTracked = task.SavedHash[2] != "" || task.SavedPath[2] != ""
 			a.refreshUnsaved()
 			a.subtitleTab = 1
 			a.loadDraft()

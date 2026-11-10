@@ -92,8 +92,8 @@ type NativeApp struct {
 	start, end                           float64
 	editPending, composing, editing      bool
 	editDue                              time.Time
-	savedHash, savedPath                 [2]string
-	unsaved                              [2]bool
+	savedHash, savedPath                 [3]string // original, translation, proofreading source
+	unsaved                              [3]bool
 	savePromptOpen, clearOpen, skipGuard bool
 	afterSave                            func()
 	position, duration                   float64
@@ -152,6 +152,11 @@ type NativeApp struct {
 	presetDialogLayer                    int
 	presetName                           string
 	subtitleTab                          int
+	proofreading                         bool
+	proofreadingSourceTracked            bool
+	proofreadingPreviousTab              int
+	proofreadingImport                   *proofreadingImport
+	proofreadingFiles                    [3]*proofreadingFile
 	editRebuiltSource                    bool
 	insertOpen                           bool
 	insertPosition                       int
@@ -228,6 +233,7 @@ func (a *NativeApp) view(c *ui.Context) {
 	a.modelManagerView(c)
 	a.modelRecycleView(c)
 	a.candidatesView(c)
+	a.proofreadingImportView(c)
 	a.exportView(c)
 	a.composeView(c)
 	a.compressView(c)
@@ -551,6 +557,9 @@ func (a *NativeApp) pickFiles() {
 
 // importPaths is the shared entry of drops, launches and associations.
 func (a *NativeApp) importPaths(paths []string) {
+	if a.proofreading && a.requestProofreadingImport(paths) {
+		return
+	}
 	if a.guardUnsaved(func() { a.importPaths(paths) }) {
 		return
 	}
@@ -560,6 +569,11 @@ func (a *NativeApp) importFiles(ctx context.Context, paths []string, wordEvidenc
 	selection, err := importing.Discover(paths)
 	if err != nil {
 		return nil, err
+	}
+	if a.proofreading && selection.Media != "" && selection.Automatic == "subtitle" {
+		// The proofreading entry already asked about this sidecar. Attaching
+		// its media must not reread it and replace the paired working track.
+		selection.Subtitle, selection.Automatic, selection.Match = "", "", nil
 	}
 	// A ranked match or ambiguous candidates take precedence. Only a
 	// standalone subtitle without either uses the current workbench's media.
@@ -681,6 +695,12 @@ func (a *NativeApp) replaceProject(next *project.Store, state project.Snapshot, 
 	}
 	a.store = next
 	a.subtitleTab = 0
+	a.proofreadingSourceTracked = false
+	a.proofreadingFiles = [3]*proofreadingFile{}
+	a.savedHash[2], a.savedPath[2], a.unsaved[2] = "", "", false
+	if a.proofreading {
+		a.subtitleTab = 1
+	}
 	// A newly imported subtitle is directly usable, including a standalone
 	// translated file. Do not inherit a missing bilingual/translation track.
 	a.settings.SubtitleOutput.Mode, a.settings.SubtitleOutput.SourceTrack = "source", "original"

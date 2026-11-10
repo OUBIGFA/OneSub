@@ -1,4 +1,8 @@
 {
+  "proofreadingEnter": "Proofread",
+  "proofreadingExit": "Exit proofreading",
+  "tabProofreading": "Proofreading subtitles",
+  "proofreadingImportTitle": "Choose subtitle role",
   "actionShowChoices": "Show choices",
   "aboutProject": "Project",
   "@@locale": "en",

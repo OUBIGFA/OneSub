@@ -1,4 +1,8 @@
 {
+  "proofreadingEnter": "校对模式",
+  "proofreadingExit": "退出校对",
+  "tabProofreading": "校对字幕",
+  "proofreadingImportTitle": "选择字幕属性",
   "actionShowChoices": "展开选项",
   "aboutProject": "项目",
   "@@locale": "zh-Hans",

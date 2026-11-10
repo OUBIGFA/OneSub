@@ -66,7 +66,11 @@ func (a *NativeApp) setSnapshot(state project.Snapshot) {
 }
 func (a *NativeApp) refreshUnsaved() {
 	for track := range a.unsaved {
-		a.unsaved[track] = a.snapshot != nil && (track == 0 || a.trackHasContent(1)) && trackHash(a.snapshot.TrackDocument(track), track) != a.savedHash[track]
+		if track == 2 && !a.proofreadingSourceTracked {
+			a.unsaved[track] = false
+			continue
+		}
+		a.unsaved[track] = a.snapshot != nil && (track == 0 || a.trackHasContent(track)) && trackHash(a.snapshot.TrackDocument(track), track) != a.savedHash[track]
 	}
 }
 func (a *NativeApp) markSaved(track int, path string) {
@@ -77,19 +81,32 @@ func (a *NativeApp) markSaved(track int, path string) {
 	}
 	// Subtitles without a file of their own, as recognition results, stay
 	// unsaved until written somewhere.
-	if track == 0 && path == "" && a.snapshot != nil && len(a.snapshot.Document.Cues) > 0 {
+	if track == 0 && path == "" && a.snapshot != nil && len(a.snapshot.TrackDocument(0).Cues) > 0 {
 		a.savedHash[track] = ""
 	}
 	a.refreshUnsaved()
 }
 func (a *NativeApp) trackUnsaved(track int) bool {
-	return a.unsaved[track] || a.editPending && track == a.subtitleTab
+	editing := a.subtitleTab
+	if a.proofreadingSourceTracked && a.subtitleTab == 1 && a.editRebuiltSource {
+		editing = 2
+	}
+	return a.unsaved[track] || a.editPending && track == editing
 }
 func (a *NativeApp) trackHasContent(track int) bool {
 	if a.snapshot == nil {
 		return false
 	}
+	if track == 0 {
+		return len(a.snapshot.TrackDocument(0).Cues) > 0
+	}
 	for _, cue := range a.snapshot.Document.Cues {
+		if track == 2 {
+			if strings.TrimSpace(subtitle.SourceText(cue)) != "" {
+				return true
+			}
+			continue
+		}
 		if track == 0 || cue.Translated {
 			return true
 		}
@@ -122,6 +139,18 @@ func (a *NativeApp) trackFormats() []string {
 	return formats
 }
 
+func (a *NativeApp) trackFileFormats(track int) []string {
+	if file := a.proofreadingFiles[track]; file != nil {
+		if file.document.Format == "ass" || file.document.Format == "ssa" {
+			return []string{file.document.Format, "srt", "vtt"}
+		}
+		if file.document.Format == "vtt" {
+			return []string{"vtt", "srt"}
+		}
+	}
+	return a.trackFormats()
+}
+
 // defaultTrackPath proposes a name next to the subtitle or the video:
 // lesson.srt for the source, lesson-zh.srt for the translation, in the
 // folder chosen for translations if there is one.
@@ -143,11 +172,26 @@ func (a *NativeApp) defaultTrackPath(track int) string {
 			base = filepath.Join(a.settings.TranslationDir, filepath.Base(base))
 		}
 	}
-	return base + "." + a.trackFormats()[0]
+	if track == 2 {
+		base += "-source"
+	}
+	return base + "." + a.trackFileFormats(track)[0]
 }
 
 func (a *NativeApp) saveTrack(track int, saveAs bool) {
 	if track == 1 && a.showsTranslationProgress() {
+		return
+	}
+	if a.proofreading || a.subtitleTab == 1 && a.proofreadingSourceTracked {
+		tracks := []int{}
+		for _, side := range []int{2, 1} {
+			if a.trackHasContent(side) && (saveAs || a.trackUnsaved(side)) {
+				tracks = append(tracks, side)
+			}
+		}
+		if len(tracks) > 0 {
+			a.saveTracks(tracks, saveAs, nil)
+		}
 		return
 	}
 	a.saveTracks([]int{track}, saveAs, nil)
@@ -166,8 +210,8 @@ func (a *NativeApp) saveTracks(tracks []int, saveAs bool, next func()) {
 // tracks whose files were actually replaced.
 func (a *NativeApp) saveTracksWork(tracks []int, saveAs bool, next func()) func(context.Context) (func(), error) {
 	state := *a.snapshot
-	formats := a.trackFormats()
-	paths := [2]string{a.defaultTrackPath(0), a.defaultTrackPath(1)}
+	formatsByTrack := [3][]string{a.trackFileFormats(0), a.trackFileFormats(1), a.trackFileFormats(2)}
+	paths := [3]string{a.defaultTrackPath(0), a.defaultTrackPath(1), a.defaultTrackPath(2)}
 	known := a.savedPath
 	return func(ctx context.Context) (func(), error) {
 		written := map[int]string{}
@@ -193,6 +237,7 @@ func (a *NativeApp) saveTracksWork(tracks []int, saveAs bool, next func()) func(
 			}
 		}
 		for _, track := range tracks {
+			formats := formatsByTrack[track]
 			path := known[track]
 			if saveAs || path == "" {
 				filters := []mygo.FileFilter{}
@@ -239,6 +284,24 @@ func (a *NativeApp) saveTracksWork(tracks []int, saveAs bool, next func()) func(
 // encodeTrack writes one track in a subtitle format through libse. A
 // translation with untranslated cues is refused, never filled with source.
 func (a *NativeApp) encodeTrack(ctx context.Context, doc subtitle.Document, track int, format string) ([]byte, error) {
+	if a.proofreadingSourceTracked && track != 0 {
+		// A standalone language file contains its available rows only. The
+		// absent side remains visibly blank in the bilingual workbench.
+		cues := []subtitle.Cue{}
+		for _, cue := range doc.Cues {
+			text := subtitle.SourceText(cue)
+			if track == 1 {
+				text = ""
+				if cue.Translated {
+					text = cue.Text
+				}
+			}
+			if strings.TrimSpace(text) != "" {
+				cues = append(cues, cue)
+			}
+		}
+		doc.Cues = cues
+	}
 	mode := "source"
 	if track == 1 {
 		mode = "translation"
@@ -248,6 +311,14 @@ func (a *NativeApp) encodeTrack(ctx context.Context, doc subtitle.Document, trac
 		return nil, err
 	}
 	document.TargetFormat = format
+	if file := a.proofreadingFiles[track]; file != nil {
+		document.Format, document.Original = file.document.Format, file.document.Original
+		for i := range document.Cues {
+			if id, ok := file.ids[document.Cues[i].ID]; ok {
+				document.Cues[i].ID = id
+			}
+		}
+	}
 	return a.worker.Write(ctx, document)
 }
 
@@ -261,7 +332,7 @@ func (a *NativeApp) guardUnsaved(next func()) bool {
 		a.skipGuard = false
 		return false
 	}
-	if !a.unsaved[0] && !a.unsaved[1] {
+	if !a.unsaved[0] && !a.unsaved[1] && !a.unsaved[2] {
 		return false
 	}
 	if !a.savePromptOpen {
@@ -301,6 +372,9 @@ func (a *NativeApp) unsavedText() string {
 			continue
 		}
 		name := locales.TabOriginal()
+		if track == 2 {
+			name = locales.TabSource()
+		}
 		if track == 1 {
 			name = translationOutputLabel(a.snapshot.Document)
 		}
@@ -371,7 +445,7 @@ func (a *NativeApp) clearView(c *ui.Context) {
 	if !a.clearOpen {
 		return
 	}
-	if !a.unsaved[0] && !a.unsaved[1] {
+	if !a.unsaved[0] && !a.unsaved[1] && !a.unsaved[2] {
 		if confirmationDialog(c, &a.clearOpen, locales.ClearTitle(), locales.ClearBody(), locales.ActionCancel(), locales.ClearConfirm()) == 1 {
 			a.clearWorkbench()
 		}
@@ -412,8 +486,13 @@ func (a *NativeApp) clearWorkbench() {
 	a.settings.TranslationRecovery = ""
 	a.settings.Processing = nil
 	a.saveSettings()
-	a.savedHash, a.savedPath, a.unsaved = [2]string{}, [2]string{}, [2]bool{}
+	a.savedHash, a.savedPath, a.unsaved = [3]string{}, [3]string{}, [3]bool{}
+	a.proofreadingSourceTracked = false
+	a.proofreadingFiles = [3]*proofreadingFile{}
 	a.subtitleTab = 0
+	if a.proofreading {
+		a.subtitleTab = 1
+	}
 	a.query = ""
 	// Keep the footer action only while its output belongs to the workbench.
 	a.lastOutput = ""

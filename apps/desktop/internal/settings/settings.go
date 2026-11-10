@@ -27,8 +27,8 @@ type PendingProcessing struct {
 	ProjectPath string    `json:"projectPath"`
 	Stage       string    `json:"stage"` // recognize, save-recognition, translate
 	Translate   bool      `json:"translate"`
-	SavedHash   [2]string `json:"savedHash"`
-	SavedPath   [2]string `json:"savedPath"`
+	SavedHash   [3]string `json:"savedHash"`
+	SavedPath   [3]string `json:"savedPath"`
 }
 
 type Settings struct {
