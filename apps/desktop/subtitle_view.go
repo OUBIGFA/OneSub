@@ -367,14 +367,13 @@ func (a *NativeApp) editorView(c *ui.Context) {
 				muted(c, locales.EditorSeconds(math.Max(0, a.end-a.start))).Label(locales.EditorDuration()).FontFeatures("tnum").NoWrap().Shrink(0)
 			})
 			timeFocused, timeComposing := false, false
-			ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Justify(ui.Center).Shrink(0).Label(locales.EditorTiming()).Children(func() {
+			// Start and end are peer fields. No connector sits between them: it
+			// pushed the pair past the pane width and stayed behind after a wrap.
+			ui.Row(c).GapX(em(c, 16)).GapY(em(c, 8)).Wrap().AlignItems(ui.Center).Justify(ui.Center).Shrink(0).Label(locales.EditorTiming()).Children(func() {
 				for i, field := range []struct {
 					label string
 					value *float64
 				}{{locales.EditorStart(), &a.start}, {locales.EditorEnd(), &a.end}} {
-					if i == 1 {
-						separator(c).Width(em(c, 16)).Height(1).AlignSelf(ui.Center)
-					}
 					ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Shrink(0).Children(func() {
 						input := timecodeField(c.Key(cue.ID), field.label, field.value, .001, fixedTiming, func() { a.changed(c.Now()) })
 						timeFocused = timeFocused || input.Focused()
@@ -403,7 +402,9 @@ func (a *NativeApp) editorView(c *ui.Context) {
 					a.loadDraft()
 				}
 			}
-			area := lobeTextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(0).Padding(em(c, 16)).FontSize(em(c, editSize)).LineHeight(1.5).Background(studioColors(c).panel).ReadOnly(readonly).Label(locales.A11yCueText())
+			// One full line of reading text always shows: line box plus the
+			// field's own padding. Extra lines scroll inside the native field.
+			area := lobeTextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(em(c, editSize*1.5+24)).Padding(em(c, 12), em(c, 16)).FontSize(em(c, editSize)).LineHeight(1.5).Background(studioColors(c).panel).ReadOnly(readonly).Label(locales.A11yCueText())
 			a.composing = area.Composing() || timeComposing
 			a.editing = area.Focused() || timeFocused
 			if area.Changed() {

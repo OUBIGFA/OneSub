@@ -578,10 +578,13 @@ try {
             if($tab -eq '关于') {
                 $check=Find-UI '检查更新'
                 $version=Find-UI '版本 0.0.1'
-                if(-not $check -or -not $version -or -not (Find-UI 'https://github.com/OUBIGFA/OneSub')){throw 'About lost its version, update action or project link'}
+                $status=Find-UI '更新状态'
+                if(-not $check -or -not $version -or -not $status -or -not (Find-UI 'https://github.com/OUBIGFA/OneSub')){throw 'About lost its version, update status, action or project link'}
                 $button=$check.Current.BoundingRectangle
-                $badge=$version.Current.BoundingRectangle
-                if($button.Top -gt $badge.Bottom -or $button.Bottom -lt $badge.Top){throw 'About update action is detached from version information'}
+                # The version identifies the app; update actions share their
+                # own status row across checking, downloading and idle states.
+                $statusRow=$status.Current.BoundingRectangle
+                if($button.Top -gt $statusRow.Bottom -or $button.Bottom -lt $statusRow.Top){throw 'About update action is detached from its status row'}
             }
             & $ScreenshotTool $p.Id (Join-Path $workPath ("settings-"+$tab+'.png'))
         }

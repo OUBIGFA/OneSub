@@ -203,14 +203,17 @@ func (a *NativeApp) toggleProviderKey() {
 // Language rules are independent of service credentials. Giving them their own
 // settings page leaves room to actually edit a glossary without crowding keys.
 func (a *NativeApp) translationRulesView(c *ui.Context) {
-	ui.Column(c).Fill().Gap(em(c, 24)).Children(func() {
+	// The page opens with the same flat group heading as the other pages.
+	settingsGroup(c, locales.SettingsTranslationRules(), func() {
 		ui.Column(c).Gap(em(c, 24)).Children(func() {
 			ui.Field(c, locales.TranslationStyle(), func() {
-				ui.Row(c).Gap(em(c, 8)).Children(func() {
-					a.styleSelect(c).Grow(1).MinWidth(0)
-					ui.Toolbar(c, func() {
-						toolIcon(c, locales.TranslationReloadStyles(), "rotate-cw").OnClick(a.reloadTranslationProfiles)
-						toolIcon(c, locales.TranslationStyleFolder(), "folder-open").OnClick(func() {
+				// Both actions carry their name: two bare icons beside an
+				// empty select did not say what they act on.
+				ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
+					a.styleSelect(c).Grow(1).Basis(em(c, 240)).MinWidth(0)
+					ui.Row(c).Gap(em(c, 8)).Shrink(0).Children(func() {
+						iconButton(c, locales.TranslationReloadStyles(), "rotate-cw").OnClick(a.reloadTranslationProfiles)
+						iconButton(c, locales.TranslationStyleFolder(), "folder-open").OnClick(func() {
 							path := filepath.Join(a.dataRoot, "translation-styles")
 							if err := os.MkdirAll(path, 0700); err != nil {
 								a.showError("style-folder", err.Error())
@@ -222,7 +225,7 @@ func (a *NativeApp) translationRulesView(c *ui.Context) {
 								a.clearError("style-folder")
 							}
 						})
-					}).Padding(0)
+					})
 				})
 			}).Error(a.profilesError)
 			ui.Field(c, locales.TranslationGlossary(), func() {

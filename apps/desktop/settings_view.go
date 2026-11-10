@@ -30,7 +30,8 @@ func (a *NativeApp) settingsView(c *ui.Context) {
 	_, height := c.Size()
 	// Pages keep their numbers; models by language (5) follows recognition.
 	labels := []string{locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsTranslation(), locales.SettingsTranslationRules(), locales.SettingsMcp(), locales.SettingsLanguageRoutes(), locales.SettingsAbout()}
-	pageIcons := []string{"settings", "audio-lines", "languages", "file-down", "settings", "text-search", "info"}
+	// One distinct icon per category, so the sidebar can be scanned by shape.
+	pageIcons := []string{"sliders-horizontal", "audio-lines", "languages", "scroll-text", "server", "route", "info"}
 	order := []int{0, 1, 5, 2, 3, 4, 6}
 	fixedDialog(c, &a.settingsOpen, locales.SettingsTitle(), 1280, 0, func() {
 		// A viewport-relative floor gives sparse pages the same generous
@@ -49,8 +50,10 @@ func (a *NativeApp) settingsView(c *ui.Context) {
 				w, _ := c.MeasureText(0, ui.Span{Text: label})
 				navigationWidth = max(navigationWidth, w)
 			}
+			// The sidebar meets the header and divider edge to edge. The modal
+			// clips its outer corners; a second radius would leave gaps inside.
 			lobeNav.Tabs(c, &selected, lobeNav.TabsProps{Items: tabs, Vertical: true, Variant: lobeNav.TabsRounded}, nil).
-				Width(max(em(c, 200), navigationWidth+em(c, 88))).Padding(em(c, 16), em(c, 12)).
+				Width(max(em(c, 200), navigationWidth+em(c, 88))).Padding(em(c, 16), em(c, 12)).Radius(0).
 				Label(locales.A11ySettingsTabs()).OnChange(func() { a.settingsTab = order[selected] })
 			separator(c)
 			// All pages occupy one native grid cell. Invisible pages still
@@ -254,33 +257,37 @@ func modelSummary(id string) string {
 // Kind and IDs are consumed from OneAsr's catalog; auxiliary models cannot be
 // selected as the ASR engine or forced aligner. Management stays beside the use.
 func (a *NativeApp) recognitionModelField(c *ui.Context, title, kind string, id *string) {
-	ui.Fieldset(c, title, func() {
-		ui.Row(c).Gap(em(c, 12)).Children(func() {
-			options := []option{}
-			for _, m := range models.Catalog() {
-				if m.Kind == kind && (kind != "lid" || m.FilesPresent(a.modelPath(m.ID))) {
-					options = append(options, option{m.ID, m.Label})
+	// A plain field label, as on every other settings page. The group
+	// heading above names the section; a second bold legend competed with it.
+	ui.Field(c, title, func() {
+		ui.Column(c).Gap(em(c, 8)).Children(func() {
+			ui.Row(c).Gap(em(c, 12)).Children(func() {
+				options := []option{}
+				for _, m := range models.Catalog() {
+					if m.Kind == kind && (kind != "lid" || m.FilesPresent(a.modelPath(m.ID))) {
+						options = append(options, option{m.ID, m.Label})
+					}
 				}
-			}
-			changed := a.saveSettings
-			if kind == "asr" {
-				changed = a.asrModelChanged
-			}
-			if kind == "asr" {
-				a.settingsAsrSelect(c).Label(locales.A11yModelOf(title)).Grow(1)
-			} else {
-				// The language detector shares the downloaded-only rule. Its
-				// management action still opens the complete download catalog.
-				idSelect(c, id, options, locales.ModelNotDownloaded()).Label(locales.A11yModelOf(title)).Grow(1).Disabled(a.busy || len(options) == 0).OnChange(changed)
-			}
-			lobeButton(c, locales.ModelManage()).Label(locales.A11yManageModel(title)).OnClick(func() { a.modelSelection = *id; a.modelOpen = true })
+				changed := a.saveSettings
+				if kind == "asr" {
+					changed = a.asrModelChanged
+				}
+				if kind == "asr" {
+					a.settingsAsrSelect(c).Label(locales.A11yModelOf(title)).Grow(1)
+				} else {
+					// The language detector shares the downloaded-only rule. Its
+					// management action still opens the complete download catalog.
+					idSelect(c, id, options, locales.ModelNotDownloaded()).Label(locales.A11yModelOf(title)).Grow(1).Disabled(a.busy || len(options) == 0).OnChange(changed)
+				}
+				lobeButton(c, locales.ModelManage()).Label(locales.A11yManageModel(title)).OnClick(func() { a.modelSelection = *id; a.modelOpen = true })
+			})
+			// The explanation is immediately below the selected model, before
+			// its folder. Native text wraps instead of hiding the useful hint.
+			muted(c, modelSummary(*id)).FontSize(em(c, captionSize)).MinWidth(0)
+			path := a.modelPath(*id)
+			elidedText(c, path).TextColor(c.Theme().TextMuted).FontSize(em(c, captionSize))
 		})
-		// The explanation is immediately below the selected model, before
-		// its folder. Native text wraps instead of hiding the useful hint.
-		muted(c, modelSummary(*id)).FontSize(em(c, captionSize)).MinWidth(0)
-		path := a.modelPath(*id)
-		elidedText(c, path).TextColor(c.Theme().TextMuted).FontSize(em(c, captionSize))
-	}).Margin(0).Gap(em(c, 8))
+	})
 }
 
 // modelStageLabel says the download stages of package models.

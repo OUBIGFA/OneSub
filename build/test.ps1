@@ -41,7 +41,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Message catalog generation failed' }
         & go test github.com/egoist/mygo/internal/windows -run 'Test(Menu|OneSub(Popup|NativeSurface))' -count=1
         if ($LASTEXITCODE -ne 0) { throw 'MyGo native Windows tests failed' }
-        & go test github.com/egoist/mygo/ui -run 'Test(OneSub|WebView|Tester|Field|Label)' -count=1
+        & go test github.com/egoist/mygo/ui -run 'Test(OneSub|WebView|Tester|Field|Label|TextArea|GridView)' -count=1
         if ($LASTEXITCODE -ne 0) { throw 'MyGo input and scrolling tests failed' }
         # UI review can select a focused behavior/render pass through the same
         # setup and patched-framework checks as the complete test entry.

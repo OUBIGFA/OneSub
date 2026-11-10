@@ -1,6 +1,6 @@
 # MyGo 原生 UI 与 Windows 层补丁
 
-上游：`egoist/mygo v0.8.4-0.20261109165344-5a2f9c65b92c`，修订 `5a2f9c65b92cea8e812b4348a254b05c43952854`，MIT，许可见 [mygo.txt](../../licenses/mygo.txt)，模块、源码 ZIP 与许可校验见 [运行时清单](../../manifests/runtimes.json)。工作台控件由 Lobe MyGo 提供；MyGo 保留布局、表格、媒体承载与系统菜单行为。
+上游：`egoist/mygo v0.8.4-0.20261110032703-93f50772f850`，修订 `93f50772f850004198beaa494a32ad4e27a99f61`，MIT，许可见 [mygo.txt](../../licenses/mygo.txt)，模块、源码 ZIP 与许可校验见 [运行时清单](../../manifests/runtimes.json)。工作台控件由 Lobe MyGo 提供；MyGo 保留布局、表格、媒体承载与系统菜单行为。
 
 ## 范围与原因
 
@@ -69,6 +69,10 @@
 构建前核查并同步 `5a2f9c65b92c`，更新 headless.go、surface.go、list.go 与 table.go 的原文件校验值；六个有限补丁仍可应用，保留上游首帧显示、分体按钮 API，以及布局阶段字段变更记录和恢复的行为。下拉内容越界来自 Lobe 选择器缺少内部滚动，修正在 Lobe 补丁中，不扩大 MyGo 补丁范围。
 
 首尾滚动补丁在布局结束时绑定原生滚动状态；按新版本要求，绑定前用上游 `journalKeepNode` 记录原节点，避免复用帧留下旧绑定。既有首尾滚动回归覆盖该兼容调整。
+
+同日核查的主分支修订为 `93f50772f850`。纳入布局盒提前返回、拉伸行高度、富文本光标矩形、退出取消通知、macOS 区域变更通知与 `mygo dev -background`，以及拖选期间文本缩短的越界修复、最小化窗口及时构建帧的修复、网格数据减少后连续选择的越界修复。后者仅修改 `ui/gridview.go` 及其测试，不影响既有补丁。
+
+既有补丁仍负责菜单 DPI、媒体组合呈现、输入与列表等未被上游替代的行为。上游修改了 `internal/windows/surface.go` 的 `RequestFrame` 与 `drawHidden`；它们与 OneSub 的 `viaComposition`、背景擦除和尺寸变化补丁不重叠。同步该文件校验值，其他受校验文件内容不变；六个有限补丁继续应用。
 
 ## 0.8.3 升级复核
 

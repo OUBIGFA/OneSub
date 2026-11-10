@@ -599,7 +599,7 @@
   "reviewAll": "All · {count}",
   "@reviewAll": {"placeholders":{"count":{"type":"int"}}},
   "reviewSearchFindings": "Search errors or warnings",
-  "reviewFindingsVisible": "Showing {visible} / {total} issues",
+  "reviewFindingsVisible": "Showing {visible}/{total} issues",
   "@reviewFindingsVisible": {"placeholders":{"visible":{"type":"int"},"total":{"type":"int"}}},
   "reviewFindingsList": "Errors and warnings list",
   "reviewSeverity": "Severity",

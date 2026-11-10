@@ -510,7 +510,7 @@
   "reviewAll": "全部 · {count}",
   "@reviewAll": {"placeholders":{"count":{"type":"int"}}},
   "reviewSearchFindings": "搜索错误或警告信息",
-  "reviewFindingsVisible": "显示 {visible} / {total} 项问题",
+  "reviewFindingsVisible": "显示 {visible}/{total} 项问题",
   "@reviewFindingsVisible": {"placeholders":{"visible":{"type":"int"},"total":{"type":"int"}}},
   "reviewFindingsList": "错误与警告列表",
   "reviewSeverity": "级别",

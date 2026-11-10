@@ -266,7 +266,9 @@ func fixedDialog(c *ui.Context, open *bool, title string, width, height float32,
 			content.Children(body)
 			if actions != nil {
 				separator(c)
-				ui.Row(c).Padding(em(c, 14), em(c, 24)).Gap(em(c, 8)).Justify(ui.End).AlignItems(ui.Center).Shrink(0).Background(look.chrome).Radius(0, 0, c.Theme().Space(2.5), c.Theme().Space(2.5)).Children(actions)
+				// Flush surfaces inherit the modal's outer clipping, so their
+				// corners cannot disagree with its border or the divider above.
+				ui.Row(c).Padding(em(c, 14), em(c, 24)).Gap(em(c, 8)).Justify(ui.End).AlignItems(ui.Center).Shrink(0).Background(look.chrome).Children(actions)
 			}
 		})
 	}}, nil)

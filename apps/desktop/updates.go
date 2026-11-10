@@ -242,10 +242,11 @@ var aboutLogo = sync.OnceValue(func() *ui.Bitmap {
 	return logo
 })
 
-// About follows the settings reference: restrained sections, full-width rows,
-// labels on the left and actions on the right. Update states share geometry.
+// About uses the flat groups and full-width rows of every other settings
+// page: labels on the left, actions on the right, hairlines between rows and
+// no bordered cards. Update states share geometry.
 func (a *NativeApp) aboutSettingsView(c *ui.Context) {
-	ui.Column(c).WidthPercent(100).MaxWidth(em(c, 880)).AlignSelf(ui.Center).Gap(em(c, 32)).Padding(em(c, 24), 0).Children(func() {
+	ui.Column(c).Gap(em(c, 28)).Children(func() {
 		version := a.updates.productVersion
 		if version == "" {
 			version = "0.0.1"
@@ -259,13 +260,10 @@ func (a *NativeApp) aboutSettingsView(c *ui.Context) {
 			muted(c, locales.AboutBuild(BuildNumber)).FontSize(em(c, captionSize)).FontFeatures("tnum")
 		})
 		group := func(title string, content func()) {
-			ui.Column(c).Gap(em(c, 12)).Children(func() {
-				ui.Text(c, title).FontSize(em(c, headingSize)).FontWeight(500)
-				ui.Column(c).Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(c.Theme().Radius).Children(content)
-			})
+			settingsGroup(c, title, func() { ui.Column(c).Children(content) })
 		}
 		group(locales.AboutUpdates(), func() {
-			ui.Row(c).Gap(em(c, 24)).Padding(em(c, 16)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(em(c, 24)).Padding(em(c, 10), 0).AlignItems(ui.Center).Children(func() {
 				ui.Column(c).Grow(1).MinWidth(0).MinHeight(em(c, 52)).Gap(em(c, 10)).Justify(ui.Center).Label(locales.AboutUpdateStatus()).Children(func() {
 					muted(c, a.updateStatus()).Tooltip(a.updates.failure)
 					if a.updates.phase == updateInstalling && a.updates.total > 0 && a.updates.downloaded < a.updates.total {
@@ -289,15 +287,17 @@ func (a *NativeApp) aboutSettingsView(c *ui.Context) {
 			separator(c)
 			ui.Field(c, locales.AboutAutoUpdate(), func() {
 				lobeChoice.Switch(c, &a.settings.AutoUpdate, lobeChoice.SwitchProps{}).Label(locales.AboutAutoUpdate()).Disabled(a.settingsError).OnChange(a.automaticUpdatesChanged)
-			}).Row().Justify(ui.SpaceBetween).Gap(em(c, 24)).Padding(em(c, 16)).MinHeight(em(c, 64)).AlignItems(ui.Center)
+			}).Row().Justify(ui.SpaceBetween).Gap(em(c, 24)).Padding(em(c, 10), 0).MinHeight(em(c, 52)).AlignItems(ui.Center)
+			separator(c)
 		})
 		group(locales.AboutProject(), func() {
-			ui.Row(c).Gap(em(c, 16)).Padding(em(c, 16)).MinHeight(em(c, 64)).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(em(c, 12)).Padding(em(c, 10), 0).MinHeight(em(c, 52)).AlignItems(ui.Center).Children(func() {
 				icon(c, "github").Shrink(0)
 				ui.Text(c, "GitHub").Shrink(0)
 				ui.Spacer(c)
 				ui.Link(c, repositoryURL, repositoryURL).SingleLine().MinWidth(0)
 			})
+			separator(c)
 		})
 	})
 }

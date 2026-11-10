@@ -155,10 +155,10 @@ func folderField(c *ui.Context, dir, fallback string, busy bool, choose, reset f
 			} else {
 				lobeTextInput(c, &dir).ReadOnly(true).Grow(1).Basis(em(c, 180)).MinWidth(0).Label(locales.RecognitionDirectory()).Tooltip(dir)
 			}
-			ui.Row(c).Gap(em(c, 8)).Shrink(0).Children(func() {
-				lobeButton(c, locales.RecognitionChooseFolder()).Disabled(busy).OnClick(choose)
-				lobeButton(c, locales.RecognitionResetFolder()).Disabled(busy || dir == "").OnClick(reset)
-			})
+			// The actions are direct items of the wrapping row: in a narrow
+			// pane each long translated label takes its own line; neither is cut.
+			lobeButton(c, locales.RecognitionChooseFolder()).Shrink(0).Disabled(busy).OnClick(choose)
+			lobeButton(c, locales.RecognitionResetFolder()).Shrink(0).Disabled(busy || dir == "").OnClick(reset)
 		})
 	})
 }
@@ -190,7 +190,8 @@ func (a *NativeApp) translateTab(c *ui.Context) {
 	parameterGroup(c, locales.WorkflowTranslationAdvanced(), nil, func() {
 		// Scheduling is a pair of peer fields. Punctuation has its own
 		// group, with the exception field indented under its controlling check.
-		ui.Column(c).Gap(em(c, 16)).Padding(em(c, 16)).Background(c.Theme().Surface).Radius(c.Theme().Radius).Children(func() {
+		// The fields sit flat in the group, as in the other groups: no card.
+		ui.Column(c).Gap(em(c, 16)).Children(func() {
 			cells := []func(){}
 			for _, field := range []struct {
 				label string
