@@ -21,6 +21,11 @@ func (a *NativeApp) stylePanel(c *ui.Context) {
 }
 
 func (a *NativeApp) stylePanelAtWidth(c *ui.Context, width float32) {
+	_, height := c.Size()
+	a.stylePanelAtSize(c, width, height)
+}
+
+func (a *NativeApp) stylePanelAtSize(c *ui.Context, width, height float32) {
 	hasCues := a.snapshot != nil && len(a.snapshot.Document.Cues) > 0
 	ready := hasCues && len(a.styleCatalog.Presets) > 0
 	ass := a.snapshot != nil && (a.snapshot.Document.Format == "ass" || a.snapshot.Document.Format == "ssa")
@@ -45,6 +50,9 @@ func (a *NativeApp) stylePanelAtWidth(c *ui.Context, width float32) {
 	panel.Children(func() {
 		panelHeader(c, nil, func() { panelTitle(c, locales.StyleTitle()) }, nil)
 		separator(c)
+		if height <= em(c, headerSize)+1.01 {
+			return
+		}
 		switch {
 		case !hasCues:
 			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.ListEmpty()) })

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"testing"
 	"time"
 
@@ -121,6 +122,58 @@ func TestPaneRatiosSurviveWindowResize(t *testing.T) {
 		if err != nil || prefs.PlayerWidth != float64(got[0]) || prefs.EditorWidth != float64(got[1]) || prefs.TopHeight != float64(got[2]) || prefs.SubtitleHeight != float64(got[3]) {
 			t.Fatal("native divider drag was not persisted", got, prefs, err)
 		}
+	}
+}
+
+// A downward divider drag can fold either inspector to its header. Growing
+// it back must restore the same draft, style and saved divider preference.
+func TestInspectorsFoldToTitleAndRestore(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			for _, scale := range []float32{1, 1.5, 2} {
+				for _, panel := range []string{locales.A11yStylePanel(), locales.A11yEditorPanel()} {
+					t.Run(fmt.Sprintf("%s/%g/%s", language, scale, panel), func(t *testing.T) {
+						a := withStyleCatalog(t)
+						draft, style := a.draft, a.currentStyle
+						tt := settled(a.view, int(1800*scale), int(1000*scale))
+						tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
+						tt.Frame()
+						before, _ := tt.Find(panel)
+						x, y := before.X+before.W/2, before.Y-.5
+						tt.Press(x, y)
+						tt.Move(x, y+2000*scale)
+						tt.Release(x, y+2000*scale)
+						folded, _ := tt.Find(panel)
+						if math.Abs(float64(folded.H-(headerSize*scale+1))) > 1 {
+							t.Fatal("inspector cannot fold to its title", folded)
+						}
+						content := locales.OutputContent()
+						if panel == locales.A11yEditorPanel() {
+							content = locales.A11yCueText()
+						}
+						if _, shown := tt.Find(content); shown {
+							t.Fatal("folded inspector still exposes hidden controls", content)
+						}
+						tt.Advance(time.Second)
+						prefs, err := settings.Load(a.dataRoot + "/settings.json")
+						if err != nil || float32(prefs.TopHeight) != a.splitY || float32(prefs.SubtitleHeight) != a.subtitleSplit {
+							t.Fatal("folded height was lost on reload", prefs.TopHeight, prefs.SubtitleHeight, err)
+						}
+						firstFrameSettled(t, tt, "folded-inspector", func() {})
+						captureRedesign(t, tt, fmt.Sprintf("folded-%s-%s-%g", panel, language, scale))
+						tt.Press(x, folded.Y-.5)
+						tt.Move(x, before.Y-.5)
+						tt.Release(x, before.Y-.5)
+						if restored, _ := tt.Find(panel); math.Abs(float64(restored.H-before.H)) > 1 || a.draft != draft || !reflect.DeepEqual(a.currentStyle, style) {
+							t.Fatal("expanding changed inspector content or height", before, restored)
+						}
+						if _, shown := tt.Find(content); !shown {
+							t.Fatal("expanding did not restore inspector controls", content)
+						}
+					})
+				}
+			}
+		})
 	}
 }
 

@@ -91,7 +91,7 @@ func (a *NativeApp) readingIssues() []subtitleReadingIssue {
 	}
 }
 
-func (a *NativeApp) readingTools(c *ui.Context, compact bool) {
+func (a *NativeApp) readingTools(c *ui.Context, layout subtitleToolbarLayout) {
 	issues := a.readingIssues()
 	long, fast, brief := issues[0].count, issues[1].count, issues[2].count
 	selected := issues[a.readingIssue]
@@ -99,13 +99,15 @@ func (a *NativeApp) readingTools(c *ui.Context, compact bool) {
 	// and both navigation buttons stay together without moving when it changes.
 	var labelWidth float32
 	for _, issue := range issues {
-		width, _ := c.MeasureText(0, ui.Span{Text: issue.label})
+		width, _ := c.MeasureText(0, ui.Span{Text: issue.label, Weight: 500})
 		labelWidth = max(labelWidth, width)
 	}
-	ui.Row(c).Gap(em(c, 8)).Wrap().Shrink(1).AlignItems(ui.Center).Children(func() {
-		subtitleTool(c, locales.ReadingSplitCount(long), "scissors", compact).Disabled(a.busy || a.showsTranslationProgress() || long == 0).Tooltip(locales.ReadingSplitHint()).OnClick(a.smartSplitSubtitles)
-		ui.Row(c).Gap(em(c, 4)).Shrink(0).AlignItems(ui.Center).Children(func() {
-			picker := lobeMenuButton(c, selected.label, "triangle-alert", compact, func() []menuCommand {
+	// This is one toolbar group. Wrapping inside it hides the width needed
+	// by the parent row and stacks controls even while labels still fit.
+	ui.Row(c).Gap(layout.spacing(c)).Shrink(0).AlignItems(ui.Center).Children(func() {
+		subtitleTool(c, locales.ReadingSplitCount(long), "scissors", layout).Disabled(a.busy || a.showsTranslationProgress() || long == 0).Tooltip(locales.ReadingSplitHint()).OnClick(a.smartSplitSubtitles)
+		ui.Row(c).Gap(layout.spacing(c)).Shrink(0).AlignItems(ui.Center).Children(func() {
+			picker := lobeMenuButton(c, selected.label, "triangle-alert", layout.compact, func() []menuCommand {
 				commands := make([]menuCommand, len(issues))
 				for i, issue := range issues {
 					commands[i] = menuCommand{Key: issue.kind, Label: issue.summary, Checkable: true, Checked: i == a.readingIssue, Disabled: issue.count == 0, Run: func() { a.readingIssue = i }}
@@ -113,8 +115,8 @@ func (a *NativeApp) readingTools(c *ui.Context, compact bool) {
 				return commands
 			}).Label(locales.ReadingIssueType()).Shrink(0).
 				Disabled(a.showsTranslationProgress() || long+fast+brief == 0).Tooltip(selected.summary + "\n" + locales.ReadingInspectHint())
-			if !compact {
-				picker.Width(labelWidth + em(c, iconSize) + c.Theme().Space(11) + 2)
+			if !layout.compact {
+				layout.button(c, picker).Width(labelWidth + em(c, iconSize+34-22*layout.tightness) + 2)
 			}
 			disabled := a.showsTranslationProgress() || selected.count == 0
 			toolIcon(c, locales.ReadingPrevious(), "chevron-left").Shrink(0).

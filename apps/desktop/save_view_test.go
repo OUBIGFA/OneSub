@@ -331,9 +331,10 @@ func TestSubtitleSaveAsIconWithoutFileSeparator(t *testing.T) {
 			group, found := tt.Find(locales.A11ySubtitleFileActions())
 			save, _ := tt.Find(locales.ListSave())
 			saveAs, _ := tt.Find(locales.ListSaveAs())
-			next, _ := tt.Find(locales.ReadingNext())
 			fileIcon, hasIcon := tt.Find(locales.A11yIconOf(locales.ListSaveAs()))
-			if !found || group.X <= next.X+next.W || save.X != group.X || !hasIcon || fileIcon.W <= 0 || fileIcon.X < saveAs.X || fileIcon.X+fileIcon.W > saveAs.X+saveAs.W {
+			// Editing is on a separate row; its adaptive width must not
+			// constrain the horizontal position of these file actions.
+			if !found || save.X != group.X || saveAs.X < save.X+save.W || !hasIcon || fileIcon.W <= 0 || fileIcon.X < saveAs.X || fileIcon.X+fileIcon.W > saveAs.X+saveAs.W {
 				t.Fatal("save group retains a leading separator or lost Save As icon", group, save, saveAs, fileIcon)
 			}
 			captureRedesign(t, tt, "subtitle-toolbar-"+language)

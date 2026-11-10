@@ -188,10 +188,11 @@ func stamp(seconds float64) string {
 func (a *NativeApp) view(c *ui.Context) {
 	look := applyStudioTheme(c)
 	x, y, subtitles, editor := a.paneSizes(c)
-	width, _ := c.Size()
+	width, height := c.Size()
 	// The split percentage and viewport are known in this frame; the list
 	// can choose its compact controls without measuring an earlier layout.
 	subtitleWidth := ((width-1)*(100-x)/100 - 1) * editor / 100
+	paneHeight := height - em(c, toolbarSize+32) - 3
 	surface := ui.Column(c).Fill()
 	surface.Children(func() {
 		a.topBar(c, look)
@@ -199,13 +200,13 @@ func (a *NativeApp) view(c *ui.Context) {
 		// Three independent columns: preview/style, subtitles/editor, workflow.
 		// Native splitters retain pointer, keyboard and same-frame layout.
 		ui.SplitPercent(c, &x, func() {
-			ui.SplitVerticalPercent(c, &y, func() { a.playerView(c) }, func() { a.stylePanelAtWidth(c, (width-1)*x/100) }).Fill().OnChange(func() {
+			ui.SplitVerticalPercent(c, &y, func() { a.playerView(c) }, func() { a.stylePanelAtSize(c, (width-1)*x/100, paneHeight*(100-y)/100) }).Fill().OnChange(func() {
 				a.splitY = y
 				_, a.splitY, _, _ = a.paneSizes(c)
 			})
 		}, func() {
 			ui.SplitPercent(c, &editor, func() {
-				ui.SplitVerticalPercent(c, &subtitles, func() { a.subtitlesViewAtWidth(c, subtitleWidth) }, func() { a.editorView(c) }).Fill().OnChange(func() {
+				ui.SplitVerticalPercent(c, &subtitles, func() { a.subtitlesViewAtWidth(c, subtitleWidth) }, func() { a.editorViewAtHeight(c, paneHeight*(100-subtitles)/100) }).Fill().OnChange(func() {
 					a.subtitleSplit = subtitles
 					_, _, a.subtitleSplit, _ = a.paneSizes(c)
 				})
@@ -324,8 +325,10 @@ func (a *NativeApp) paneSizes(c *ui.Context) (player, top, subtitles, editor flo
 	keep(&player, width-1, playerMinimum, otherMinimum)
 	// Content must scroll inside a deliberately shortened pane, never
 	// override a user's drag with its measured natural height.
-	keep(&top, height, em(c, 240), em(c, 180))
-	keep(&subtitles, height, em(c, 240), em(c, 220))
+	// Inspectors can fold to their native title bar and its separator.
+	// Content visibility uses this same frame's allocation, never old bounds.
+	keep(&top, height, em(c, 240), em(c, headerSize)+1)
+	keep(&subtitles, height, em(c, 240), em(c, headerSize)+1)
 	keep(&editor, (width-1)*(100-player)/100-1, em(c, 356), workflowMinimum)
 	return
 }

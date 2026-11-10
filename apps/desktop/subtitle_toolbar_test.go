@@ -140,3 +140,58 @@ func TestSubtitleToolbarShowsLabelsWithIconsExceptNavigation(t *testing.T) {
 		})
 	}
 }
+
+// The same production toolbar must spend its spare padding before hiding
+// labels, including after selection adds controls and at larger text scales.
+func TestSubtitleToolbarKeepsLabelsWhileTightening(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			for _, scale := range []float32{1, 1.5, 2} {
+				for _, checked := range []bool{false, true} {
+					t.Run(fmt.Sprintf("%s/%g/checked=%t", language, scale, checked), func(t *testing.T) {
+						a := draftApp(t)
+						if checked {
+							a.checkAllSubtitles()
+							a.retranslation = &retranslationState{}
+						}
+						labels := []string{locales.ListLocate(), locales.FindReplace(), locales.TranslationResults(), locales.ReadingSplitCount(0), locales.ReadingIssueType()}
+						width := 1320
+						if language == "en" {
+							width = 1720
+						}
+						if checked {
+							width += 300
+						}
+						var previousWidth float32
+						for _, w := range []int{width + 350, width} {
+							tt := ui.NewTester(func(c *ui.Context) {
+								theme, _ := studioTheme(c.Theme(), false)
+								c.SetTheme(&theme)
+								cw, _ := c.Size()
+								a.subtitleToolbar(c, cw, true)
+							}, int(float32(w)*scale), int(180*scale))
+							tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
+							firstFrameSettled(t, tt, "toolbar", func() {})
+							edit, _ := tt.Find(locales.SubtitleActionsMenu())
+							for _, label := range labels {
+								r, ok := tt.Find(label)
+								if !ok || r.W <= 32*scale {
+									t.Fatalf("hid %q before using compact spacing at width %d", label, w)
+								}
+								if !ok || r.X+r.W > float32(w)*scale || r.Y != edit.Y {
+									t.Fatal("second row wrapped or clipped", label, r, edit)
+								}
+							}
+							locate, _ := tt.Find(locales.ListLocate())
+							if previousWidth != 0 && locate.W >= previousWidth {
+								t.Fatal("buttons did not tighten before hiding labels", previousWidth, locate.W)
+							}
+							previousWidth = locate.W
+							captureRedesign(t, tt, fmt.Sprintf("toolbar-%s-%d-%g-%t", language, w, scale, checked))
+						}
+					})
+				}
+			}
+		})
+	}
+}

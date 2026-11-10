@@ -300,7 +300,7 @@ func TestReadingNavigationRetainsCategoryAcrossTracksAndDisablesLiveProgress(t *
 		t.Fatal(err)
 	}
 	a.setSnapshot(state)
-	tt := settled(func(c *ui.Context) { a.readingTools(c, false) }, 500, 200)
+	tt := settled(func(c *ui.Context) { a.readingTools(c, subtitleToolbarLayout{}) }, 500, 200)
 	if err := tt.Click(locales.ReadingIssueType()); err != nil {
 		t.Fatal(err)
 	}
@@ -381,7 +381,7 @@ func BenchmarkReadingToolbar20000(b *testing.B) {
 		cues[i] = subtitle.Cue{ID: fmt.Sprint(i), Position: i, Text: "A readable subtitle", TranslationSource: "A readable source", Translated: true, StartMs: int64(i) * 5000, EndMs: int64(i)*5000 + 4000}
 	}
 	a := NativeApp{snapshot: &project.Snapshot{Document: subtitle.Document{Cues: cues}, SourceDocument: subtitle.Document{Cues: cues}}, subtitleTab: 1, selected: -1}
-	tt := ui.NewTester(func(c *ui.Context) { a.readingTools(c, false) }, 700, 100)
+	tt := ui.NewTester(func(c *ui.Context) { a.readingTools(c, subtitleToolbarLayout{}) }, 700, 100)
 	tt.Frame()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -415,7 +415,7 @@ func TestReadingToolbarCountMatchesSplitAndCategoryNavigation(t *testing.T) {
 					var danger ui.Color
 					tt := settled(func(c *ui.Context) {
 						danger = c.Theme().Danger
-						a.readingTools(c, false)
+						a.readingTools(c, subtitleToolbarLayout{})
 					}, 800, 200)
 					split, found := tt.Find(locales.ReadingSplitCount(1))
 					if !found || tt.HasText(locales.A11yWarningIcon()) {
@@ -484,7 +484,7 @@ func TestReadingToolbarDraftCountAndTimingOnlyIssues(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := storeApp(t, subtitle.Cue{ID: "normal", Text: "Short", StartMs: 0, EndMs: 4000})
-			tt := settled(func(c *ui.Context) { a.readingTools(c, false) }, 800, 200)
+			tt := settled(func(c *ui.Context) { a.readingTools(c, subtitleToolbarLayout{}) }, 800, 200)
 			if !tt.HasText(locales.ReadingSplitCount(0)) || tt.HasText(locales.A11yWarningIcon()) {
 				t.Fatal("zero split targets are not shown without a warning", tt.Texts())
 			}

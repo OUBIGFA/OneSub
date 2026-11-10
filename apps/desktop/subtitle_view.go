@@ -341,16 +341,29 @@ func timeColumn(c *ui.Context, title string, maximum ...int64) ui.TableColumn {
 }
 
 func (a *NativeApp) editorView(c *ui.Context) {
+	_, height := c.Size()
+	a.editorViewAtHeight(c, height)
+}
+
+func (a *NativeApp) editorViewAtHeight(c *ui.Context, height float32) {
+	folded := height <= em(c, headerSize)+1.01
 	cues := a.activeDocument().Cues
 	valid := !a.showsTranslationProgress() && a.snapshot != nil && a.selected >= 0 && a.selected < len(cues)
 	ui.Column(c).Fill().Label(locales.A11yEditorPanel()).Children(func() {
 		panelHeader(c, nil, func() { panelTitle(c, locales.EditorTitle()) }, func() {
+			if folded {
+				return
+			}
 			ui.Toolbar(c, func() {
 				toolIcon(c, locales.EditorUndo(), "undo-2").Disabled(a.busy || a.snapshot == nil || !(a.snapshot.CanUndo || a.editPending)).OnClick(func() { a.undo(false) })
 				toolIcon(c, locales.EditorRedo(), "redo-2").Disabled(a.busy || a.snapshot == nil || !a.snapshot.CanRedo).OnClick(func() { a.undo(true) })
 			}).Padding(0).Gap(em(c, 2))
 		})
 		separator(c)
+		if folded {
+			a.editing, a.composing = false, false
+			return
+		}
 		if !valid {
 			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.EditorNone()) })
 			return

@@ -56,11 +56,11 @@ func listTargetText(cue subtitle.Cue, track string) (string, bool) {
 	return subtitle.SourceText(cue), true
 }
 
-func (a *NativeApp) listPunctuationTools(c *ui.Context, compact bool) {
+func (a *NativeApp) listPunctuationTools(c *ui.Context, layout subtitleToolbarLayout) {
 	disabled := a.busy || a.showsTranslationProgress() || len(a.activeDocument().Cues) == 0
 	hint := locales.TextProcessScope(a.textTargetLabel(a.editRebuiltSource))
-	subtitleTool(c, locales.TextReplacePeriods(), "quote", compact).Disabled(disabled).Tooltip(locales.TextReplacePeriods() + "\n" + locales.TextPeriodProtectionHint() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(false) })
-	subtitleTool(c, locales.TextStripTrailing(), "eraser", compact).Disabled(disabled).Tooltip(locales.TextStripTrailing() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(true) })
+	subtitleTool(c, locales.TextReplacePeriods(), "quote", layout).Disabled(disabled).Tooltip(locales.TextReplacePeriods() + "\n" + locales.TextPeriodProtectionHint() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(false) })
+	subtitleTool(c, locales.TextStripTrailing(), "eraser", layout).Disabled(disabled).Tooltip(locales.TextStripTrailing() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(true) })
 }
 
 func (a *NativeApp) openFindReplace() {

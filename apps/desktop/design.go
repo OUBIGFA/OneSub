@@ -185,7 +185,17 @@ func lobeTabs(c *ui.Context, selected *int, labels ...string) ui.Element {
 	for i, label := range labels {
 		items[i] = lobeNav.TabItem{Label: label}
 	}
-	return lobeNav.Tabs(c, selected, lobeNav.TabsProps{Items: items, Variant: lobeNav.TabsSquare}, nil)
+	tabs := lobeNav.Tabs(c, selected, lobeNav.TabsProps{Items: items, Variant: lobeNav.TabsSquare}, nil)
+	if c.Theme().Dark {
+		// The kit's stronger border lifts just this one-DIP tab baseline;
+		// leave selection and the rest of the workbench palette unchanged.
+		border := lobeTheme.Dark().FillBorderStrong()
+		if c.Preferences().HighContrast {
+			border = c.Theme().Border
+		}
+		tabs.InsetShadow(0, -1, 0, 0, border)
+	}
+	return tabs
 }
 
 func lobeProgress(c *ui.Context, fraction float64) ui.Element {

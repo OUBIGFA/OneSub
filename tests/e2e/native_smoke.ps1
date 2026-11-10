@@ -1,4 +1,4 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark', [switch]$PresetReset, [switch]$PrivateDesktop, [switch]$ChoiceControls)
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark', [switch]$PresetReset, [switch]$PrivateDesktop, [switch]$WorkbenchLayout, [switch]$ChoiceControls)
 $ErrorActionPreference = 'Stop'
 if(-not $PrivateDesktop){throw 'Run through private_native_smoke.ps1 to preserve the user desktop'}
 if(-not $UIAPlayback){throw 'Private desktop playback must use UIA, never global keyboard input'}
@@ -519,6 +519,10 @@ try {
         $p.Refresh();$root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
         $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {$_.Current.Name}
         throw 'Same-name subtitle was not loaded'
+    }
+    if($WorkbenchLayout){
+        . ([ScriptBlock]::Create([IO.File]::ReadAllText((Join-Path (Split-Path $ScreenshotTool) 'workbench_layout.ps1'),[Text.Encoding]::UTF8)))
+        return
     }
     if($SubtitleClicks){Test-SubtitleClicks;return}
     if($WorkflowLayout){[void][SmokeNative]::ShowWindow(([SmokeNative]::TestWindow($p.Id)),3);Start-Sleep -Milliseconds 800}

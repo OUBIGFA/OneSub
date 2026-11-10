@@ -189,8 +189,15 @@ func Load(path string) (Settings, error) {
 	s.Volume = max(0, min(100, s.Volume))
 	// A pane is never made too small to show or to drag back.
 	d := Default()
-	for _, pane := range []struct{ value, fallback *float64 }{{&s.PlayerWidth, &d.PlayerWidth}, {&s.TopHeight, &d.TopHeight}, {&s.EditorWidth, &d.EditorWidth}, {&s.SubtitleHeight, &d.SubtitleHeight}, {&s.StyleContentWidth, &d.StyleContentWidth}} {
+	for _, pane := range []struct{ value, fallback *float64 }{{&s.PlayerWidth, &d.PlayerWidth}, {&s.EditorWidth, &d.EditorWidth}, {&s.StyleContentWidth, &d.StyleContentWidth}} {
 		if !(*pane.value >= 10 && *pane.value <= 90) {
+			*pane.value = *pane.fallback
+		}
+	}
+	// Vertical inspectors may retain only a title bar (less than 10% of a
+	// tall window). The live layout enforces their measured title height.
+	for _, pane := range []struct{ value, fallback *float64 }{{&s.TopHeight, &d.TopHeight}, {&s.SubtitleHeight, &d.SubtitleHeight}} {
+		if !(*pane.value > 0 && *pane.value < 100) {
 			*pane.value = *pane.fallback
 		}
 	}

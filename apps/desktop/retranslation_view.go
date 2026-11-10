@@ -95,14 +95,14 @@ func (a *NativeApp) checkAllSubtitles() {
 
 func (a *NativeApp) subtitleSelectionTools(c *ui.Context) {
 	width, _ := c.Size()
-	a.subtitleSelectionActions(c, width < em(c, 1100))
+	a.subtitleSelectionActions(c, subtitleToolbarLayout{compact: width < em(c, 1100)})
 }
 
-func (a *NativeApp) subtitleSelectionActions(c *ui.Context, compact bool) {
+func (a *NativeApp) subtitleSelectionActions(c *ui.Context, layout subtitleToolbarLayout) {
 	count := len(a.checkedRetranslationIDs())
 	disabled := a.busy || a.translationLive != nil
 	if count > 0 {
-		if compact {
+		if layout.compact {
 			// Narrow workbenches use the same named actions as icon buttons;
 			// retaining full text here would hide the rows being selected.
 			toolIcon(c, locales.RetranslateSelected(count), "rotate-cw").Disabled(disabled).OnClick(a.openRetranslation)
@@ -119,28 +119,28 @@ func (a *NativeApp) subtitleSelectionActions(c *ui.Context, compact bool) {
 	_, eligible := a.retranslationTargets()[id]
 	// Start by checking the current cue, so there is never an empty checkbox
 	// mode. These compact actions sit before Search, beside the editing tools.
-	subtitleTool(c, locales.RetranslateSelect(), "list-checks", compact).Disabled(disabled || !eligible).OnClick(func() { a.setSubtitleChecked(id, true) })
-	subtitleTool(c, locales.RetranslateCheckAll(), "copy-check", compact).Tooltip(locales.RetranslateAllHint()).Disabled(disabled || len(a.retranslationTargets()) == 0).OnClick(a.checkAllSubtitles)
+	subtitleTool(c, locales.RetranslateSelect(), "list-checks", layout).Disabled(disabled || !eligible).OnClick(func() { a.setSubtitleChecked(id, true) })
+	subtitleTool(c, locales.RetranslateCheckAll(), "copy-check", layout).Tooltip(locales.RetranslateAllHint()).Disabled(disabled || len(a.retranslationTargets()) == 0).OnClick(a.checkAllSubtitles)
 }
 
 func (a *NativeApp) retranslationTools(c *ui.Context) {
 	width, _ := c.Size()
-	a.retranslationActions(c, width < em(c, 1100))
+	a.retranslationActions(c, subtitleToolbarLayout{compact: width < em(c, 1100)})
 }
 
-func (a *NativeApp) retranslationActions(c *ui.Context, compact bool) {
+func (a *NativeApp) retranslationActions(c *ui.Context, layout subtitleToolbarLayout) {
 	count := len(a.checkedRetranslationIDs())
 	disabled := a.busy || a.translationLive != nil
-	if count > 0 && !compact {
-		iconButton(c, locales.RetranslateSelected(count), "rotate-cw").Disabled(disabled).OnClick(a.openRetranslation)
-		iconButton(c, locales.RetranslateCheckAll(), "copy-check").Tooltip(locales.RetranslateAllHint()).Disabled(disabled).OnClick(a.checkAllSubtitles)
-		iconButton(c, locales.RetranslateClear(), "eraser").Disabled(disabled).OnClick(func() { a.subtitleChecked[a.subtitleTab] = nil })
+	if count > 0 && !layout.compact {
+		subtitleTool(c, locales.RetranslateSelected(count), "rotate-cw", layout).Disabled(disabled).OnClick(a.openRetranslation)
+		subtitleTool(c, locales.RetranslateCheckAll(), "copy-check", layout).Tooltip(locales.RetranslateAllHint()).Disabled(disabled).OnClick(a.checkAllSubtitles)
+		subtitleTool(c, locales.RetranslateClear(), "eraser", layout).Disabled(disabled).OnClick(func() { a.subtitleChecked[a.subtitleTab] = nil })
 	}
 	if a.retranslation != nil {
-		if compact {
+		if layout.compact {
 			toolIcon(c, locales.RetranslateReopen(), "eye").OnClick(a.reopenRetranslation)
 		} else {
-			iconButton(c, locales.RetranslateReopen(), "eye").OnClick(a.reopenRetranslation)
+			subtitleTool(c, locales.RetranslateReopen(), "eye", layout).OnClick(a.reopenRetranslation)
 		}
 	}
 }
