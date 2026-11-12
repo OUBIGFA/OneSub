@@ -4,11 +4,11 @@ go 1.27.3
 
 require (
 	github.com/agnivade/levenshtein v1.2.1
-	github.com/egoist/mygo v0.8.4-0.20261110173329-8c7d7ba9cb25
+	github.com/egoist/mygo v0.9.1-0.20261111182651-0d644f4aca24
 	github.com/go-text/typesetting v0.3.5
 	github.com/google/uuid v1.6.0
 	github.com/jdkato/prose/v3 v3.2.3
-	github.com/lobehub/lobe-mygo v0.0.0-20261109101238-5b3ecde8b184
+	github.com/lobehub/lobe-mygo v0.0.0-20261110162706-5e5fea5ef9e2
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	golang.org/x/image v0.46.0
 	golang.org/x/sys v0.49.0

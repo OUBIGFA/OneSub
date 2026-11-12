@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Exe, [Parameter(Mandatory=$true)][string]$Work, [switch]$VideoTools, [switch]$PresetReset, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$Development, [switch]$ScrollFollow, [ValidateSet('dark','light')][string]$Appearance = 'dark', [string]$TranslationEndpoint, [switch]$InterruptTranslation, [switch]$ClearTranslation)
+param([Parameter(Mandatory=$true)][string]$Exe, [Parameter(Mandatory=$true)][string]$Work, [switch]$VideoTools, [switch]$PresetReset, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$Development, [switch]$ScrollFollow, [ValidateSet('dark','light')][string]$Appearance = 'dark', [string]$TranslationEndpoint, [switch]$InterruptTranslation, [switch]$ClearTranslation, [switch]$ComposeOutput)
 $ErrorActionPreference = 'Stop'
 # The driver and every child inherit a non-input desktop. Never SwitchDesktop:
 # UIA and window messages exercise only the isolated application's own windows.
@@ -84,6 +84,7 @@ if($WorkbenchLayout){$command+=' -WorkbenchLayout'}
 if($TranslationEndpoint){$command+=' -TranslationEndpoint '+(Quote-Literal $TranslationEndpoint)}
 if($InterruptTranslation){$command+=' -InterruptTranslation'}
 if($ClearTranslation){$command+=' -ClearTranslation'}
+if($ComposeOutput){$command+=' -ComposeOutput'}
 $command+=' -Appearance '+(Quote-Literal $Appearance)
 # Transcript captures native helper output without PowerShell 5.1 treating
 # normal stderr as a terminating NativeCommandError under stream redirection.

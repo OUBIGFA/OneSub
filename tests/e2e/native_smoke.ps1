@@ -204,7 +204,7 @@ if($SubtitleClicks -or $ScrollFollow){
     }
     [IO.File]::WriteAllText($subtitle,$body.ToString(),[Text.UTF8Encoding]::new($false))
 }
-$fixture=if($SubtitleClicks -or $ScrollFollow){'testsrc2=size=320x180:rate=2:duration=170'}elseif($ComposeOutput){'testsrc2=size=1280x720:rate=30:duration=12'}elseif($VideoTools -or $PresetReset -or $ChoiceControls){'testsrc2=size=320x180:rate=10:duration=12'}else{'testsrc2=size=320x180:rate=10:duration=3'}
+$fixture=if($SubtitleClicks -or $ScrollFollow){'testsrc2=size=320x180:rate=2:duration=170'}elseif($ComposeOutput){'testsrc2=size=1920x1080:rate=30:duration=60'}elseif($VideoTools -or $PresetReset -or $ChoiceControls){'testsrc2=size=320x180:rate=10:duration=12'}else{'testsrc2=size=320x180:rate=10:duration=3'}
 if($VideoTools){
     & ffmpeg -v error -f lavfi -i $fixture -f lavfi -i 'sine=frequency=440:duration=12' -c:v libx264 -pix_fmt yuv420p -c:a aac $video
 }else{
@@ -963,13 +963,17 @@ try {
     }
     if($ComposeOutput) {
         Click-UI '合成视频';Click-UI '开始合成'
+        Click-UI '后台合成'
+        Click-UI '播放'
+        Click-UI '暂停'
+        & $ScreenshotTool $p.Id (Join-Path $workPath 'compose-background-playing.png')
         $output=Join-Path $workPath 'test-OneSub.mp4'
-        for($i=0;$i -lt 600;$i++){if(Test-Path -LiteralPath $output){break};Start-Sleep -Milliseconds 100}
+        for($i=0;$i -lt 1800;$i++){if(Test-Path -LiteralPath $output){break};Start-Sleep -Milliseconds 100}
         if(-not (Test-Path -LiteralPath $output)){throw 'Automatic export did not write beside source'}
         if(Test-Path -LiteralPath ($output+'.onesub.json')){throw 'Video directory contains a report sidecar'}
         Start-Sleep -Milliseconds 300
         & $ScreenshotTool $p.Id (Join-Path $workPath 'compose-result.png')
-        Write-Output 'PASS: automatic composition beside source; no report sidecar'
+        Write-Output 'PASS: background composition kept the native player playable; automatic composition beside source; no report sidecar'
     }
     $inputMode=if($UIAPlayback){'UIA (keyboard not exercised)'}else{'Space'}
     Write-Output "PASS: import (argument=$OpenArgument), same-name subtitle, playback/pause=$inputMode, settings, translation=$([bool]$TranslationEndpoint), upper/lower export=$BilingualExport, subtitle merge/menu=$SubtitleMenus"

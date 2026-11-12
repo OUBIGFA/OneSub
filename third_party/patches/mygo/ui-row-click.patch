@@ -1,9 +1,11 @@
 diff --git a/ui/list.go b/ui/list.go
 --- a/ui/list.go
 +++ b/ui/list.go
-@@ -77,6 +77,14 @@
- 	// app that shows another set of rows in the same list can start it
- 	// afresh (list = ListState{}), which forgets the item chosen before.
+@@ -79,6 +79,14 @@
+ 	// app that chooses another item at the row the choice had, as rows
+ 	// change, chooses it with Choose. An app that shows another set of rows
+ 	// in the same list can start it afresh (list = ListState{}), which
+ 	// forgets the item chosen before.
  	Selected *int
 +	// OnRowClick observes native row activation, including another click on
 +	// the selected row. Double clicks are reported at the second press, not

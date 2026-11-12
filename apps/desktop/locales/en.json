@@ -667,6 +667,8 @@
   "composeStart": "Start export",
   "composeRunning": "Exporting video",
   "composeCancel": "Cancel export",
+  "composeBackground": "Run in background",
+  "composeShowProgress": "View export progress",
   "composeStageChooseOutput": "Choosing the output file",
   "composeStagePrepare": "Preparing subtitles and fonts",
   "composeStageVerifyInput": "Checking the source file",

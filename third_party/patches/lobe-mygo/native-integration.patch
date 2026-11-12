@@ -108,7 +108,7 @@ diff --git a/pkg/choice/checkbox.go b/pkg/choice/checkbox.go
  
  	row.Children(func() {
  		box := ui.Box(c).Size(size, size).Radius(radius).Border(1, border).Background(bg).
--			TextColor(tk.BgLayout).Center().Transition(checkboxTransition)
+-			TextColor(tk.PrimaryForeground).Center().Transition(checkboxTransition)
 +			TextColor(c.Theme().AccentText).Center().Transition(checkboxTransition)
  		box.Children(func() {
  			switch state {
@@ -771,16 +771,21 @@ diff --git a/pkg/overlay/dropdown.go b/pkg/overlay/dropdown.go
 diff --git a/pkg/theme/apply.go b/pkg/theme/apply.go
 --- a/pkg/theme/apply.go
 +++ b/pkg/theme/apply.go
-@@ -16,8 +16,20 @@
- }
- 
+@@ -69,11 +69,22 @@
+ // TokensOf returns a copy of the tokens of the theme the widgets being built
+ // take: those of the Config that made it, or Lobe UI's light or dark tokens
+ // for any other theme.
  func TokensOf(c *ui.Context) *Tokens {
-+	tk := Light()
- 	if c.Theme().Dark {
--		return Dark()
-+		tk = Dark()
+-	th := c.Theme()
+-	if tk, ok := configs.Load(th); ok {
+-		t := *tk.(*Tokens)
+-		return &t
++	tk := defaults.Tokens(c.Theme().Dark)
++	if configured, ok := configs.Load(c.Theme()); ok {
++		copy := *configured.(*Tokens)
++		tk = &copy
  	}
--	return Light()
+-	return defaults.Tokens(th.Dark)
 +	// Native typography and the explicit blue accent may be customized while
 +	// Lobe's layout/container/elevation roles remain the kit's own palette.
 +	native := c.Theme()

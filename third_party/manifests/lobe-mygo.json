@@ -1,13 +1,13 @@
 {
   "module": "github.com/lobehub/lobe-mygo",
-  "version": "v0.0.0-20261109101238-5b3ecde8b184",
-  "revision": "5b3ecde8b184a2ab9d9aa2c8cac2ca3e6266a42b",
+  "version": "v0.0.0-20261110162706-5e5fea5ef9e2",
+  "revision": "5e5fea5ef9e225f79564770ef18f6d293a2e5d4a",
   "repository": "https://github.com/lobehub/lobe-mygo",
-  "checkedAt": "2026-11-10",
-  "download": "https://proxy.golang.org/github.com/lobehub/lobe-mygo/@v/v0.0.0-20261109101238-5b3ecde8b184.zip",
-  "archiveBytes": 7696429,
-  "archiveSha256": "531f5911059648fc622b4682dd94a793082aa7bb184fc0e13799182a7f118a61",
-  "moduleSum": "h1:2HdRJW0IEO8xJK66g8zcRla07pTmO22qKH68R9x6EE4=",
+  "checkedAt": "2026-11-11",
+  "download": "https://proxy.golang.org/github.com/lobehub/lobe-mygo/@v/v0.0.0-20261110162706-5e5fea5ef9e2.zip",
+  "archiveBytes": 7700638,
+  "archiveSha256": "0abf421e9071526395d2af43030a14567b484c864331bfb50bdd2c945040d331",
+  "moduleSum": "h1:bQP4VH/kneeRoK6pmBx5V2pbt3yw7cJ2eNoVFQGVs+s=",
   "goModSum": "h1:hHlyBWw2a7l8ToxyVSQbrjZ5ghPZSItBs5uYRDTIzZY=",
   "spdx": "MIT",
   "copyright": "Copyright (c) 2026 LobeHub",
@@ -18,9 +18,9 @@
   "patch": "third_party/patches/lobe-mygo/native-integration.patch",
   "sourceHashes": {
     "pkg/action/actionicon.go": "0bc298cd1275b1238fdfba1efb0ab15ba16e02078051d7fca898836220b8c3d7",
-    "pkg/action/button.go": "f457fb54d4ab0a453f28f83e2f5762dbdb9b3bd83d4fbc319acb38440a242b0b",
+    "pkg/action/button.go": "0c38f5040b1c7c3277a791c3962998c2df4d75aab48900d699ce162c804a36d1",
     "pkg/action/segmented.go": "83bcc87f2d55ce8a6bd26fee0de9c234905cc3f46e77b3c497023e6cf734d492",
-    "pkg/choice/checkbox.go": "9f291af32e0909ebde3add04dc2a4e6ee7675ac8bb75b159f3c2583700353702",
+    "pkg/choice/checkbox.go": "0604ba2747fd098a148a0dd83e278a2c0278d1c6f6dff39177135ded3a93b90f",
     "pkg/feedback/modal.go": "d3ed105a5ab9e1e9695718df3fefe25ad854a2dcef0bf135e3fafa07f0312b70",
     "pkg/feedback/progress.go": "0ad60e3710cffcc5c5fdc645684375d89ae99d046b2ce568e66d6db870691ace",
     "pkg/field/autocomplete.go": "08a3b39c850dd1a7e30d821b7cfa8f8681144996fd6e7bfd8c542fde52623585",
@@ -31,7 +31,7 @@
     "pkg/form/group.go": "42244c160155e9043036144794882c271924024c5cd1ae1c6ecc0a4dfc845004",
     "pkg/nav/tabs.go": "f1fa8aed504b056cfb8ee2627bb7b9a57c0be0adddd12db9b71d00c304db1b51",
     "pkg/overlay/dropdown.go": "e3a38b50a196c0d01a4d0f1a1c52d062021313eecffac59f620065324bb2d9e3",
-    "pkg/theme/apply.go": "4723ca571a5638ba0eabb31c9a7512edbaca00c6a99c05ec22f9f0800b3c3b39"
+    "pkg/theme/apply.go": "2d1afc9d3cd97fbc0b91f7ad386ee72665c852f316e09af924de9d86278c5ed7"
   },
   "addedFiles": []
 }

@@ -131,6 +131,7 @@ type NativeApp struct {
 	compressRunning                      bool
 	audioExtractRunning                  bool
 	composeRunning                       bool
+	composeInBackground                  bool // video composition keeps running while the player is available
 	recognitionRunning                   bool
 	recognitionStarted                   time.Time
 	recognitionStep                      recognitionStep
@@ -363,7 +364,16 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 			ui.Row(c).Gap(em(c, 12)).Justify(ui.End).AlignItems(ui.Center).Children(func() {
 				command(locales.MenuExportSubtitles(), "file-down").Disabled(a.busy || a.snapshot == nil || len(a.snapshot.Document.Cues) == 0).OnClick(a.requestExport)
 				command(locales.ActionCompress(), "file-video").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(func() { a.compressOpen = true })
-				command(locales.ActionCompose(), "clapperboard").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" || len(a.snapshot.Document.Cues) == 0).OnClick(a.compose)
+				composeLabel := locales.ActionCompose()
+				composeDisabled := a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" || len(a.snapshot.Document.Cues) == 0
+				composeClick := a.compose
+				// Keep a background export reachable from the persistent top bar.
+				if a.composeRunning && a.composeInBackground && !a.compressRunning && !a.audioExtractRunning {
+					composeLabel = locales.ComposeShowProgress()
+					composeDisabled = false
+					composeClick = a.showComposeProgress
+				}
+				command(composeLabel, "clapperboard").Disabled(composeDisabled).OnClick(composeClick)
 				ui.Toolbar(c, func() {
 					toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
 				}).Padding(0)
@@ -437,7 +447,7 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 			ui.Text(c, "").Grow(1)
 		}
 
-		canCancel := a.busy && a.cancel != nil && !a.choosingFile && !a.composeRunning && !a.recognitionRunning && !a.translationRunning
+		canCancel := a.busy && a.cancel != nil && !a.choosingFile && (!a.composeRunning || a.composeInBackground) && !a.recognitionRunning && !a.translationRunning
 		canOpenOutput := a.lastOutput != "" && !a.busy
 		if (readingHint || hasStatus) && (canCancel || canOpenOutput || len(counts) > 0) {
 			separator(c).Height(em(c, 16)).AlignSelf(ui.Center)
@@ -508,7 +518,7 @@ func (a *NativeApp) run(label string, work func(context.Context) (func(), error)
 // finishTask reconciles worker results on the UI thread before exit or update.
 func (a *NativeApp) finishTask(label string, apply func(), err error) {
 	a.busy = false
-	a.composeRunning, a.compressRunning, a.audioExtractRunning = false, false, false
+	a.composeRunning, a.composeInBackground, a.compressRunning, a.audioExtractRunning = false, false, false, false
 	a.recognitionRunning = false
 	if a.translationRunning && err != nil && a.translationLive != nil {
 		a.translationLive.stopped = err.Error()

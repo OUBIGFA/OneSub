@@ -49,7 +49,7 @@ func (a *NativeApp) playerSurface(c *ui.Context) {
 			switch {
 			case a.recognitionRunning:
 				ui.Column(c).Fill().Background(c.Theme().Background).Children(func() { a.recognitionProgressView(c) })
-			case a.composeRunning:
+			case a.composeRunning && !a.composeInBackground:
 				ui.Column(c).Fill().Background(c.Theme().Background).Children(func() { a.composeProgressView(c) })
 			default:
 				a.playerOverlay(c)
@@ -146,7 +146,7 @@ func (a *NativeApp) playerOverlay(c *ui.Context) {
 // Progress owns the player's interaction until the task ends. All native
 // playback entry points share this gate; unrelated busy operations do not.
 func (a *NativeApp) playbackAvailable() bool {
-	return a.mediaURL != "" && !a.composeRunning && !a.recognitionRunning && !a.translationRunning
+	return a.mediaURL != "" && (!a.composeRunning || a.composeInBackground) && !a.recognitionRunning && !a.translationRunning
 }
 
 func (a *NativeApp) togglePlayback() {

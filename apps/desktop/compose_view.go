@@ -100,12 +100,34 @@ func (a *NativeApp) composeProgressView(c *ui.Context) {
 		if a.composeProgress.Fraction >= 0 {
 			ui.Text(c, locales.Percent(100*a.composeProgress.Fraction)).FontSize(em(c, 28)).FontWeight(600).FontFeatures("tnum")
 		}
-		lobeButton(c, cancel).Disabled(a.cancel == nil).OnClick(func() {
-			if a.cancel != nil {
-				a.cancel()
+		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+			if a.composeRunning && !a.compressRunning && !a.audioExtractRunning {
+				iconButton(c, locales.ComposeBackground(), "arrow-down-to-line").Disabled(a.cancel == nil).OnClick(a.runComposeInBackground)
 			}
+			lobeButton(c, cancel).Disabled(a.cancel == nil).OnClick(func() {
+				if a.cancel != nil {
+					a.cancel()
+				}
+			})
 		})
 	})
+}
+
+// runComposeInBackground releases only the player surface. The same context,
+// frozen export options and cancellation handle continue on the worker.
+func (a *NativeApp) runComposeInBackground() {
+	if !a.composeRunning || a.compressRunning || a.audioExtractRunning || a.cancel == nil {
+		return
+	}
+	a.composeInBackground = true
+}
+
+// showComposeProgress is the return path for a video export that continues
+// after its player overlay was dismissed.
+func (a *NativeApp) showComposeProgress() {
+	if a.composeRunning && a.composeInBackground && !a.compressRunning && !a.audioExtractRunning {
+		a.composeInBackground = false
+	}
 }
 
 // composeStageLabel says media.Compose's stage IDs in the app's language.
@@ -172,6 +194,7 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 	outputDir, askPath := a.settings.OutputDir, a.settings.ComposeAskPath
 	a.composeRunning, a.compressRunning = true, compress
 	a.audioExtractRunning = audio
+	a.composeInBackground = false
 	a.composeProgress = media.ComposeProgress{Stage: media.StageChooseOutput, Fraction: -1}
 	a.evalPlayer("video.pause()")
 	a.run(title, func(ctx context.Context) (func(), error) {

@@ -110,12 +110,19 @@ func TestSubtitleToolbarFindReplaceBecomesAvailable(t *testing.T) {
 	}
 }
 
-func TestSubtitleToolbarShowsLabelsWithIconsExceptNavigation(t *testing.T) {
+func TestSubtitleToolbarActionsMenuIsIconOnly(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := storeApp(t, subtitle.Cue{ID: "a", Text: "First subtitle", StartMs: 0, EndMs: 3000})
 			tt := settled(a.subtitlesView, 1800, 800)
-			for _, label := range []string{locales.SubtitleActionsMenu(), locales.ListLocate(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.FindReplace(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.ReadingSplitCount(0), locales.ReadingLongCues(), locales.TranslationResults()} {
+			menu, ok := tt.Find(locales.SubtitleActionsMenu())
+			if !ok || menu.W > menu.H+2 {
+				t.Fatal("subtitle actions menu still shows its label", menu)
+			}
+			if _, ok := tt.Find(locales.A11yIconOf(locales.SubtitleActionsMenu())); !ok {
+				t.Fatal("subtitle actions menu has no icon")
+			}
+			for _, label := range []string{locales.ListLocate(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.FindReplace(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.ReadingSplitCount(0), locales.ReadingLongCues(), locales.TranslationResults()} {
 				if box, ok := tt.Find(label); !ok || box.W < box.H*1.5 {
 					t.Fatal("wide toolbar does not allocate space for the label", label, box)
 				}
@@ -225,7 +232,7 @@ func TestSubtitleToolbarKeepsLabelsWhileTightening(t *testing.T) {
 								if !ok || r.W <= 32*scale {
 									t.Fatalf("hid %q before using compact spacing at width %d", label, w)
 								}
-								if !ok || r.X+r.W > float32(w)*scale || r.Y != edit.Y {
+								if !ok || r.X+r.W > float32(w)*scale || math.Abs(float64(r.Y+r.H/2-edit.Y-edit.H/2)) > 1 {
 									t.Fatal("second row wrapped or clipped", label, r, edit)
 								}
 							}

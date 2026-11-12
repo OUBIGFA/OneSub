@@ -14,7 +14,7 @@ import (
 )
 
 func (a *NativeApp) subtitleActionsMenu(c *ui.Context, layout subtitleToolbarLayout) {
-	layout.button(c, locales.SubtitleActionsMenu(), lobeMenuButton(c, locales.SubtitleActionsMenu(), "ellipsis", layout.iconOnly(locales.SubtitleActionsMenu()), func() []menuCommand {
+	layout.button(c, locales.SubtitleActionsMenu(), lobeMenuButton(c, locales.SubtitleActionsMenu(), "ellipsis", true, func() []menuCommand {
 		return append(a.subtitleStructureCommands(a.selected),
 			menuCommand{Divider: true},
 			menuCommand{Label: locales.FindReplace(), Hotkey: "mod+h", Run: a.openFindReplace},

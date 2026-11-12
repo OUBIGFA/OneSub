@@ -9,6 +9,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/media"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
+	"github.com/egoist/mygo/ui"
 )
 
 func TestComposeDestinationAndDialogPreferences(t *testing.T) {
@@ -46,6 +47,60 @@ func TestComposeDestinationAndDialogPreferences(t *testing.T) {
 			prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
 			if err != nil || !prefs.ComposeAskPath {
 				t.Fatal("output prompt not saved", err)
+			}
+		})
+	}
+}
+
+func TestBackgroundComposeReturnsPlaybackToPlayer(t *testing.T) {
+	a := nativeForTest(t)
+	a.mediaURL = "local-test-video"
+	a.busy, a.composeRunning = true, true
+	a.cancel = func() {}
+	a.composeProgress = media.ComposeProgress{Stage: media.StageEncode, Fraction: .42}
+	tt := settled(a.playerView, 900, 600)
+	if !tt.HasText(locales.ComposeBackground()) || !tt.HasText(locales.ComposeCancel()) {
+		t.Fatal(tt.Texts())
+	}
+	if a.playbackAvailable() {
+		t.Fatal("foreground playback was available before moving composition to the background")
+	}
+	if err := tt.Click(locales.ComposeBackground()); err != nil {
+		t.Fatal(err)
+	}
+	if !a.composeInBackground || !a.playbackAvailable() {
+		t.Fatal("background composition did not release the player", a.composeInBackground, a.playbackAvailable())
+	}
+	tt.Frame()
+	if _, ok := tt.Find(locales.A11yComposeProgressArea()); ok {
+		t.Fatal("the composition overlay still owns the player after moving to the background")
+	}
+	if _, ok := tt.Find(locales.A11yPlayerControls()); !ok {
+		t.Fatal("native player controls did not return")
+	}
+}
+
+func TestBackgroundComposeCanReturnFromTopBar(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			a := draftApp(t)
+			a.snapshot.Manifest.MediaPath = "source.mp4"
+			a.mediaURL = "local-test-video"
+			a.busy, a.composeRunning, a.composeInBackground = true, true, true
+			a.composeProgress = media.ComposeProgress{Stage: media.StageEncode, Fraction: .42}
+			tt := settled(func(c *ui.Context) { a.topBar(c, applyStudioTheme(c)) }, 1800, 100)
+			if !tt.HasText(locales.ComposeShowProgress()) || tt.HasText(locales.ActionCompose()) {
+				t.Fatal(tt.Texts())
+			}
+			if err := tt.Click(locales.ComposeShowProgress()); err != nil {
+				t.Fatal(err)
+			}
+			if a.composeInBackground {
+				t.Fatal("top bar did not return to composition progress")
+			}
+			progress := settled(a.playerView, 900, 600)
+			if !progress.HasText(locales.A11yComposeProgressArea()) {
+				t.Fatal("composition progress overlay did not return", progress.Texts())
 			}
 		})
 	}

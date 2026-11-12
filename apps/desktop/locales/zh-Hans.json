@@ -577,6 +577,8 @@
   "composeStart": "开始合成",
   "composeRunning": "正在合成视频",
   "composeCancel": "取消合成",
+  "composeBackground": "后台合成",
+  "composeShowProgress": "查看合成进度",
   "composeStageChooseOutput": "选择输出文件",
   "composeStagePrepare": "准备字幕与字体",
   "composeStageVerifyInput": "校验输入文件",

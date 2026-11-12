@@ -7,13 +7,13 @@
     "onnxruntime 1.28.2 ThirdPartyNotices for the bundled sherpa-onnx runtime"
   ],
   "mygo": {
-    "version": "v0.8.4-0.20261110173329-8c7d7ba9cb25",
+    "version": "v0.9.1-0.20261111182651-0d644f4aca24",
     "repository": "https://github.com/egoist/mygo",
-    "revision": "8c7d7ba9cb25bb8660c1992cab7f33f9f06d19d7",
-    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.8.4-0.20261110173329-8c7d7ba9cb25.zip",
-    "archiveBytes": 14303327,
-    "archiveSha256": "61e45a19db0b55e4c93b35d703593e417c893a9461ae3a1a9b25675c01e27762",
-    "moduleSum": "h1:+IamebJqdaKJwaTSvypK/pBNOpliggQDXfJja3ttQVg=",
+    "revision": "0d644f4aca24be8208d1b7d364d7c928fc2cb890",
+    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261111182651-0d644f4aca24.zip",
+    "archiveBytes": 15168807,
+    "archiveSha256": "3c8797a2f2a285d0c5ec752dc8fcca7b92f42537ea38312b03894951a4a1c143",
+    "moduleSum": "h1:2JMUFNye7Pf8zwdHJU2kYq+BgY+qknqbsVQlj3G+C/I=",
     "goModSum": "h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=",
     "spdx": "MIT",
     "license": "third_party/licenses/mygo.txt",
@@ -21,7 +21,7 @@
     "usage": "Native desktop controls, layout, themes, menus and embedded media WebView",
     "modifications": "Six reviewed native/UI patches; see third_party/patches/mygo/README.md",
     "checkedAt": "2026-11-11",
-    "latestRelease": "v0.8.3"
+    "latestRelease": "v0.9.0"
   },
   "mcpGoSdk": {
     "module": "github.com/modelcontextprotocol/go-sdk",
@@ -192,7 +192,7 @@
   "fontRedistribution": "No system font files are copied into the installer. Runtime preview uses the user's installed fonts through local capability URLs.",
   "lobeMygo": {
     "module": "github.com/lobehub/lobe-mygo",
-    "version": "v0.0.0-20261109101238-5b3ecde8b184",
+    "version": "v0.0.0-20261110162706-5e5fea5ef9e2",
     "manifest": "third_party/manifests/lobe-mygo.json",
     "license": "third_party/licenses/lobe-mygo.txt",
     "spdx": "MIT",
