@@ -23,6 +23,7 @@ type retranslationRow struct {
 	cue     subtitle.Cue
 	result  *retranslationResult
 	applied bool
+	ignored bool
 }
 type retranslationState struct {
 	open, running       bool
@@ -73,6 +74,10 @@ func (a *NativeApp) checkedRetranslationIDs() []string {
 	return ids
 }
 
+func (a *NativeApp) subtitleSelectionMode() bool {
+	return len(a.checkedRetranslationIDs()) > 0
+}
+
 func (a *NativeApp) setSubtitleChecked(id string, checked bool) {
 	if a.subtitleChecked[a.subtitleTab] == nil {
 		a.subtitleChecked[a.subtitleTab] = map[string]bool{}
@@ -102,13 +107,11 @@ func (a *NativeApp) subtitleSelectionActions(c *ui.Context, layout subtitleToolb
 	count := len(a.checkedRetranslationIDs())
 	disabled := a.busy || a.translationLive != nil
 	if count > 0 {
-		if layout.compact {
-			// Narrow workbenches use the same named actions as icon buttons;
-			// retaining full text here would hide the rows being selected.
-			toolIcon(c, locales.RetranslateSelected(count), "rotate-cw").Disabled(disabled).OnClick(a.openRetranslation)
-			toolIcon(c, locales.RetranslateCheckAll(), "copy-check").Tooltip(locales.RetranslateAllHint()).Disabled(disabled).OnClick(a.checkAllSubtitles)
-			toolIcon(c, locales.RetranslateClear(), "eraser").Disabled(disabled).OnClick(func() { a.subtitleChecked[a.subtitleTab] = nil })
-		}
+		// Keep every selection action together before Locate. Wide and narrow
+		// toolbars use the same actions; only their presentation changes.
+		subtitleTool(c, locales.RetranslateSelected(count), "rotate-cw", layout).Disabled(disabled).OnClick(a.openRetranslation)
+		subtitleTool(c, locales.RetranslateCheckAll(), "copy-check", layout).Tooltip(locales.RetranslateAllHint()).Disabled(disabled).OnClick(a.checkAllSubtitles)
+		subtitleTool(c, locales.RetranslateClear(), "list-x", layout).Disabled(disabled).OnClick(func() { a.subtitleChecked[a.subtitleTab] = nil })
 		return
 	}
 	cues := a.activeDocument().Cues
@@ -118,7 +121,7 @@ func (a *NativeApp) subtitleSelectionActions(c *ui.Context, layout subtitleToolb
 	}
 	_, eligible := a.retranslationTargets()[id]
 	// Start by checking the current cue, so there is never an empty checkbox
-	// mode. These compact actions sit before Search, beside the editing tools.
+	// mode. These actions sit before Locate, beside the editing tools.
 	subtitleTool(c, locales.RetranslateSelect(), "list-checks", layout).Disabled(disabled || !eligible).OnClick(func() { a.setSubtitleChecked(id, true) })
 	subtitleTool(c, locales.RetranslateCheckAll(), "copy-check", layout).Tooltip(locales.RetranslateAllHint()).Disabled(disabled || len(a.retranslationTargets()) == 0).OnClick(a.checkAllSubtitles)
 }
@@ -129,13 +132,6 @@ func (a *NativeApp) retranslationTools(c *ui.Context) {
 }
 
 func (a *NativeApp) retranslationActions(c *ui.Context, layout subtitleToolbarLayout) {
-	count := len(a.checkedRetranslationIDs())
-	disabled := a.busy || a.translationLive != nil
-	if count > 0 && !layout.compact {
-		subtitleTool(c, locales.RetranslateSelected(count), "rotate-cw", layout).Disabled(disabled).OnClick(a.openRetranslation)
-		subtitleTool(c, locales.RetranslateCheckAll(), "copy-check", layout).Tooltip(locales.RetranslateAllHint()).Disabled(disabled).OnClick(a.checkAllSubtitles)
-		subtitleTool(c, locales.RetranslateClear(), "eraser", layout).Disabled(disabled).OnClick(func() { a.subtitleChecked[a.subtitleTab] = nil })
-	}
 	if a.retranslation != nil {
 		if layout.compact {
 			toolIcon(c, locales.RetranslateReopen(), "eye").OnClick(a.reopenRetranslation)
@@ -254,6 +250,7 @@ func (a *NativeApp) retranslationWork(r *retranslationState, ids []string, confi
 					row.cue = baselines[row.cue.ID]
 					row.result = &retranslationResult{text, details, len(checks.Errors) == 0}
 					row.applied = false
+					row.ignored = false
 				}
 			}
 		}, nil
@@ -302,18 +299,38 @@ func (a *NativeApp) startRetranslation(current bool) {
 }
 
 func (r *retranslationState) replacementEdits(current bool) []project.Edit {
+	if current {
+		return r.replacementEditsFor(r.selected)
+	}
 	edits := []project.Edit{}
-	for i, row := range r.rows {
-		if current && i != r.selected || row.applied || row.result == nil {
-			continue
-		}
-		result := row.result
-		if !result.valid || row.cue.Translated && result.text == row.cue.Text {
-			continue
-		}
-		edits = append(edits, project.Edit{ID: row.cue.ID, Text: result.text, StartMs: row.cue.StartMs, EndMs: row.cue.EndMs, Track: "translation"})
+	for i := range r.rows {
+		edits = append(edits, r.replacementEditsFor(i)...)
 	}
 	return edits
+}
+
+func (r *retranslationState) replacementEditsFor(index int) []project.Edit {
+	if index < 0 || index >= len(r.rows) {
+		return nil
+	}
+	row := r.rows[index]
+	if row.applied || row.ignored || row.result == nil {
+		return nil
+	}
+	result := row.result
+	if !result.valid || row.cue.Translated && result.text == row.cue.Text {
+		return nil
+	}
+	return []project.Edit{{ID: row.cue.ID, Text: result.text, StartMs: row.cue.StartMs, EndMs: row.cue.EndMs, Track: "translation"}}
+}
+
+func (a *NativeApp) toggleRetranslationIgnore(index int) {
+	r := a.retranslation
+	if r == nil || index < 0 || index >= len(r.rows) || r.rows[index].result == nil || r.rows[index].applied || a.busy || a.retranslationStale(r) {
+		return
+	}
+	r.rows[index].ignored = !r.rows[index].ignored
+	r.errorText = ""
 }
 
 func (a *NativeApp) acceptRetranslation(current bool) {
@@ -373,6 +390,9 @@ func (row *retranslationRow) status() string {
 	if row.applied {
 		return locales.RetranslateApplied()
 	}
+	if row.ignored {
+		return locales.RetranslateIgnored()
+	}
 	if row.result == nil {
 		return ""
 	}
@@ -422,8 +442,8 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 		return
 	}
 	stale := a.retranslationStale(r)
-	// The batch stays fixed while a narrow directory selects one sentence for
-	// the continuous reader. Content length never resizes this modal shell.
+	// The frozen batch remains one internally scrolling list. Each row keeps
+	// the source, candidate and old translation together beside its actions.
 	fixedDialog(c, &r.open, locales.RetranslateTitle(), 1600, 1000, func() {
 		ui.Column(c).Fill().MinHeight(0).Gap(em(c, 16)).Children(func() {
 			service := r.provider + " · " + r.config.Model + " · " + r.config.TargetLanguage
@@ -435,86 +455,77 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 				progress := r.progress
 				muted(c, progress).FontSize(em(c, captionSize)).Shrink(0)
 			})
-			width, _ := c.Size()
-			directoryWidth := min(em(c, 340), max(em(c, 240), (width-em(c, 88))*.28))
-			ui.Row(c).Grow(1).Basis(0).MinHeight(0).Gap(em(c, 20)).AlignItems(ui.Stretch).Children(func() {
-				ui.Column(c).Width(directoryWidth).Shrink(0).MinHeight(0).Gap(em(c, 12)).Children(func() {
-					lobeSearchField(c, &r.query, func() { r.list.ScrollTo(0, ui.Start) }).Label(locales.RetranslateSearch()).Placeholder(locales.RetranslateSearch())
-					rows := r.filteredRows()
-					selected := slices.Index(rows, r.selected)
-					r.list.Selected = &selected
-					r.list.Key = func(i int) any { return r.rows[rows[i]].cue.ID }
-					ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Children(func() {
-						muted(c, locales.RetranslateVisible(len(rows), len(r.rows))).FontSize(em(c, captionSize)).Grow(1).Tooltip(locales.RetranslateFilterScope())
-						ui.Toolbar(c, func() {
-							toolIcon(c, locales.ListTop(), "arrow-up-to-line").Disabled(len(rows) == 0).OnClick(func() { r.list.ScrollTo(0, ui.Start) })
-							toolIcon(c, locales.ListBottom(), "arrow-down-to-line").Disabled(len(rows) == 0).OnClick(r.list.ScrollToEnd)
-						}).Padding(0)
-					})
-					list := ui.List(c, &r.list, len(rows), func(i int) {
-						row := &r.rows[rows[i]]
-						ui.Column(c).Padding(em(c, 4), em(c, 12)).Gap(em(c, 2)).Children(func() {
-							ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-								ui.Text(c, fmt.Sprintf("# %d", row.cue.Position+1)).FontSize(em(c, captionSize)).FontFeatures("tnum").Grow(1)
-								status := ui.Text(c, row.status()).FontSize(em(c, captionSize)).SingleLine()
-								if rows[i] != r.selected {
-									status.TextColor(c.Theme().TextMuted)
-								}
-							})
-							text := subtitle.SourceText(row.cue)
-							elidedText(c, text)
-						})
-					}).Grow(1).MinHeight(0).Gap(em(c, 2)).Label(locales.RetranslateList())
-					if list.Changed() && selected >= 0 && selected < len(rows) {
-						r.selected = rows[selected]
-					}
-				})
-				ui.Divider(c).Background(studioColors(c).hairline)
-				ui.Column(c).Grow(1).MinWidth(0).MinHeight(0).Gap(em(c, 12)).Label(locales.RetranslateCompare()).Children(func() {
-					if r.selected < 0 || r.selected >= len(r.rows) {
-						return
-					}
-					row := &r.rows[r.selected]
-					ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Wrap().Shrink(0).Children(func() {
-						ui.Text(c, fmt.Sprintf("# %d", row.cue.Position+1)).FontSize(em(c, headingSize)).FontWeight(500)
-						ui.Row(c).Wrap().Gap(em(c, 4)).Children(func() {
-							muted(c, stamp(float64(row.cue.StartMs)/1000)).FontFeatures("tnum").FontSize(em(c, captionSize)).NoWrap().Shrink(0)
-							muted(c, "–").FontSize(em(c, captionSize))
-							muted(c, stamp(float64(row.cue.EndMs)/1000)).FontFeatures("tnum").FontSize(em(c, captionSize)).NoWrap().Shrink(0)
-						})
-						ui.Spacer(c)
-						muted(c, row.status()).FontSize(em(c, captionSize))
-					})
-					// One reader flows from source through old to new translation.
-					// Natural text height avoids allocating a large empty third to
-					// a short sentence. Native selection and scrolling keep every
-					// character available without making the comparison editable.
-					ui.Scroll(c.Key(row.cue.ID)).Grow(1).Basis(0).MinHeight(0).Background(studioColors(c).panel).Children(func() {
-						ui.Column(c).Padding(em(c, 20)).Gap(em(c, 24)).Children(func() {
-							result := ""
-							if row.result != nil {
-								result = row.result.text
-							}
-							for i, field := range []struct{ label, text string }{{locales.TabSource(), subtitle.SourceText(row.cue)}, {locales.RetranslateExisting(), cueDisplayText(row.cue, 1)}, {locales.RetranslateCandidate(), result}} {
-								if i > 0 {
-									ui.Divider(c).Background(studioColors(c).hairline)
-								}
-								ui.Column(c).Gap(em(c, 8)).Children(func() {
-									ui.Text(c, field.label).FontSize(em(c, captionSize)).TextColor(c.Theme().TextMuted)
-									if field.text != "" {
-										ui.Text(c, field.text).Selectable().FontSize(em(c, 17)).LineHeight(1.5)
-									} else if i != 2 {
-										muted(c, locales.RetranslateNoExisting())
+			lobeSearchField(c, &r.query, func() { r.list.ScrollTo(0, ui.Start) }).Label(locales.RetranslateSearch()).Placeholder(locales.RetranslateSearch())
+			rows := r.filteredRows()
+			selected := slices.Index(rows, r.selected)
+			r.list.Selected = &selected
+			r.list.Key = func(i int) any { return r.rows[rows[i]].cue.ID }
+			r.list.OnRowClick = func(i int, _ bool) {
+				if i >= 0 && i < len(rows) {
+					r.selected = rows[i]
+					selected = i
+				}
+			}
+			ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Children(func() {
+				muted(c, locales.RetranslateVisible(len(rows), len(r.rows))).FontSize(em(c, captionSize)).Grow(1).Tooltip(locales.RetranslateFilterScope())
+				ui.Toolbar(c, func() {
+					toolIcon(c, locales.ListTop(), "arrow-up-to-line").Disabled(len(rows) == 0).OnClick(func() { r.list.ScrollTo(0, ui.Start) })
+					toolIcon(c, locales.ListBottom(), "arrow-down-to-line").Disabled(len(rows) == 0).OnClick(r.list.ScrollToEnd)
+				}).Padding(0)
+			})
+			ui.Column(c).Grow(1).Basis(0).MinHeight(0).Gap(em(c, 8)).Label(locales.RetranslateCompare()).Children(func() {
+				list := ui.List(c, &r.list, len(rows), func(i int) {
+					index := rows[i]
+					row := &r.rows[index]
+					ui.Column(c).Padding(em(c, 12), em(c, 16)).Gap(em(c, 10)).Children(func() {
+						ui.Row(c).Gap(em(c, 16)).AlignItems(ui.Start).Children(func() {
+							ui.Column(c).Grow(1).MinWidth(0).Gap(em(c, 8)).Children(func() {
+								ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Children(func() {
+									ui.Text(c, fmt.Sprintf("# %d", row.cue.Position+1)).FontSize(em(c, captionSize)).FontFeatures("tnum").Grow(1)
+									muted(c, stamp(float64(row.cue.StartMs)/1000)+" – "+stamp(float64(row.cue.EndMs)/1000)).FontFeatures("tnum").FontSize(em(c, captionSize)).NoWrap().Shrink(0)
+									status := muted(c, row.status()).FontSize(em(c, captionSize)).SingleLine().Shrink(0)
+									if index == r.selected {
+										status.TextColor(c.Theme().Text)
 									}
 								})
-							}
+								ui.Text(c, locales.TabSource()).FontSize(em(c, captionSize)).TextColor(c.Theme().TextMuted).Shrink(0)
+								ui.Text(c, subtitle.SourceText(row.cue)).FontSize(em(c, captionSize)).LineHeight(1.45)
+								ui.Text(c, locales.RetranslateCandidate()).FontSize(em(c, captionSize)).TextColor(c.Theme().TextMuted).Shrink(0)
+								if row.result != nil && row.result.text != "" {
+									ui.Text(c, row.result.text).Selectable().FontSize(em(c, subtitleSize)).LineHeight(1.5)
+								} else {
+									muted(c, "")
+								}
+								ui.Text(c, locales.RetranslateExisting()).FontSize(em(c, captionSize)).TextColor(c.Theme().TextMuted).Shrink(0)
+								existing := cueDisplayText(row.cue, 1)
+								if existing != "" {
+									muted(c, existing).Selectable().FontSize(em(c, bodySize)).LineHeight(1.45)
+								} else {
+									muted(c, locales.RetranslateNoExisting())
+								}
+							})
+							ui.Column(c).Shrink(0).Gap(em(c, 8)).Children(func() {
+								lobeButton(c, locales.RetranslateOne()).Disabled(a.busy || stale).OnClick(func() {
+									r.selected = index
+									a.startRetranslation(true)
+								})
+								lobeButton(c, locales.RetranslateApplyOne()).Disabled(a.busy || stale || len(r.replacementEditsFor(index)) == 0).OnClick(func() {
+									r.selected = index
+									a.acceptRetranslation(true)
+								})
+								ignore := locales.RetranslateIgnore()
+								if row.ignored {
+									ignore = locales.RetranslateUnignore()
+								}
+								lobeButton(c, ignore).Disabled(a.busy || stale || row.result == nil || !row.result.valid || row.applied).OnClick(func() { a.toggleRetranslationIgnore(index) })
+							})
 						})
+						ui.Divider(c).Background(studioColors(c).hairline)
 					})
-					ui.Row(c).Gap(em(c, 8)).Justify(ui.End).Shrink(0).Children(func() {
-						lobeButton(c, locales.RetranslateOne()).Disabled(a.busy || stale).OnClick(func() { a.startRetranslation(true) })
-						lobeButton(c, locales.RetranslateApplyOne()).Disabled(a.busy || stale || len(r.replacementEdits(true)) == 0).OnClick(func() { a.acceptRetranslation(true) })
-					})
-				})
+				}).Grow(1).MinHeight(0).Gap(0).Label(locales.RetranslateList())
+				if list.Changed() && selected >= 0 && selected < len(rows) {
+					r.selected = rows[selected]
+				}
 			})
 			note := ""
 			if r.selected >= 0 && r.selected < len(r.rows) {

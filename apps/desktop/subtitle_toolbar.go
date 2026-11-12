@@ -24,16 +24,17 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 			a.subtitleSaveActions(c, compact, hasCues)
 		})
 		ui.Row(c).Gap(layout.spacing(c)).Wrap().AlignItems(ui.Center).Children(func() {
+			selectionMode := a.subtitleSelectionMode()
 			ui.Toolbar(c, func() {
 				a.subtitleActionsMenu(c, layout)
-				subtitleTool(c, locales.ListLocate(), "locate-fixed", layout).Disabled(!hasCues).OnClick(a.locateCurrent)
+				a.subtitleSelectionActions(c, layout)
+				subtitleTool(c, locales.ListLocate(), "locate-fixed", layout).Disabled(!hasCues || selectionMode).OnClick(a.locateCurrent)
 				if !compact {
 					a.listPunctuationTools(c, layout)
 				}
-				subtitleTool(c, locales.FindReplace(), "text-search", layout).Disabled(!hasCues || a.busy || a.showsTranslationProgress()).OnClick(a.openFindReplace)
+				subtitleTool(c, locales.FindReplace(), "text-search", layout).Disabled(!hasCues || a.busy || a.showsTranslationProgress() || selectionMode).OnClick(a.openFindReplace)
 			}).Padding(0).Gap(layout.spacing(c)).Shrink(0)
 			ui.Toolbar(c, func() {
-				a.subtitleSelectionActions(c, layout)
 				a.retranslationActions(c, layout)
 			}).Padding(0).Gap(layout.spacing(c)).Shrink(0)
 			if compact {
@@ -41,7 +42,7 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 			} else {
 				a.readingTools(c, layout)
 			}
-			subtitleTool(c, locales.TranslationResults(), "file-warning", layout).Disabled(a.translationCandidate == nil).OnClick(func() { a.translationReview = true })
+			subtitleTool(c, locales.TranslationResults(), "file-warning", layout).Disabled(a.translationCandidate == nil || selectionMode).OnClick(func() { a.translationReview = true })
 		})
 	})
 }
@@ -95,6 +96,19 @@ func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow 
 			}
 			layout.icons[label] = true
 			minimum -= widths[i] - em(c, 32)
+		}
+	}
+	// At the smallest supported pane, keep every second-row action square so
+	// the shortened Locate label cannot consume the row needed by the list.
+	if width < em(c, 400) {
+		if layout.icons == nil {
+			layout.icons = make(map[string]bool)
+		}
+		for _, label := range []string{locales.SubtitleActionsMenu(), locales.ListLocate(), locales.FindReplace(), locales.TranslationResults(), locales.ReadingInspect(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.RetranslateClear()} {
+			layout.icons[label] = true
+		}
+		if count := len(a.checkedRetranslationIDs()); count > 0 {
+			layout.icons[locales.RetranslateSelected(count)] = true
 		}
 	}
 	return layout

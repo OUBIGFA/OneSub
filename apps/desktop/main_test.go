@@ -12,6 +12,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 )
@@ -293,7 +294,7 @@ func TestPlaybackKeepsManualScrollUntilLocate(t *testing.T) {
 		t.Fatal("another action resumed scrolling without locate", first, last, afterFirst, afterLast)
 	}
 	// The locate button takes the viewport back and restores later following.
-	if err := tt.Click("回到当前字幕"); err != nil {
+	if err := tt.Click(locales.ListLocate()); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -347,7 +348,7 @@ func TestManualScrollHoldOnBothSubtitleTracks(t *testing.T) {
 				if afterFirst, afterLast := a.list.Visible(); afterFirst != first || afterLast != last || a.selected != 110 {
 					t.Fatal("playback moved the manual viewport or lost current selection", first, last, afterFirst, afterLast, a.selected)
 				}
-				if err := tt.Click("回到当前字幕"); err != nil {
+				if err := tt.Click(locales.ListLocate()); err != nil {
 					t.Fatal(err)
 				}
 				tt.Advance(time.Second)
@@ -366,7 +367,7 @@ func TestLocateFindsTheCueAtThePlayhead(t *testing.T) {
 	tt := settled(a.view, 1400, 900)
 	a.position = 3.5
 	tt.Frame()
-	if err := tt.Click("回到当前字幕"); err != nil {
+	if err := tt.Click(locales.ListLocate()); err != nil {
 		t.Fatal(err)
 	}
 	if a.selected != 1 {

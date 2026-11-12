@@ -116,7 +116,14 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		a.list.Key = func(i int) any { return cues[rows[i]].ID }
 		a.list.KeepClickPosition = true
 		a.list.OnRowClick = func(row int, double bool) {
-			a.rowClick = &subtitleRowClick{index: rows[row], double: double}
+			index := rows[row]
+			if a.subtitleSelectionMode() {
+				// Selection mode treats the whole row as the hit target. Keep
+				// batch checks independent from the editing row and playback.
+				a.setSubtitleChecked(cues[index].ID, !a.subtitleChecked[a.subtitleTab][cues[index].ID])
+				return
+			}
+			a.rowClick = &subtitleRowClick{index: index, double: double}
 		}
 		maximum := 1
 		maximumTime := int64(math.Max(a.start, a.end) * 1000)
@@ -235,7 +242,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		if click := a.rowClick; click != nil {
 			a.rowClick = nil
 			a.clickSubtitle(click.index, click.double, c.Now())
-		} else if (table.Changed() || table.Submitted()) && selected >= 0 && selected < len(rows) {
+		} else if !showChecks && (table.Changed() || table.Submitted()) && selected >= 0 && selected < len(rows) {
 			// Keyboard navigation selects without a mouse delay; Enter uses
 			// the explicit double-click action, as native lists activate rows.
 			a.pendingClick = nil
@@ -304,6 +311,9 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 // locateCurrent chooses the cue at the playhead, shows it in the middle of
 // the list and follows playback again. A search hiding it is cleared.
 func (a *NativeApp) locateCurrent() {
+	if a.subtitleSelectionMode() {
+		return
+	}
 	if a.snapshot == nil {
 		return
 	}

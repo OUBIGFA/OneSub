@@ -20,7 +20,7 @@ func (a *NativeApp) subtitleActionsMenu(c *ui.Context, layout subtitleToolbarLay
 			menuCommand{Label: locales.FindReplace(), Hotkey: "mod+h", Run: a.openFindReplace},
 			menuCommand{Label: locales.TextReplacePeriods(), Run: func() { a.cleanListPunctuation(false) }},
 			menuCommand{Label: locales.TextStripTrailing(), Run: func() { a.cleanListPunctuation(true) }})
-	}, func() { a.pendingClick = nil })).Disabled(a.busy || len(a.activeDocument().Cues) == 0 || a.showsTranslationProgress())
+	}, func() { a.pendingClick = nil })).Disabled(a.busy || a.subtitleSelectionMode() || len(a.activeDocument().Cues) == 0 || a.showsTranslationProgress())
 }
 
 // Both Lobe menu presentations use these same permissions and commands. Build

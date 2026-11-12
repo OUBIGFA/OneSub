@@ -67,6 +67,29 @@ func TestRetranslationChecksDoNotSelectOrSeekAndSurviveFiltering(t *testing.T) {
 	}
 }
 
+// Manual subtitle selection uses the whole row as a target. It must remain
+// independent from playback and the editing selection.
+func TestSubtitleSelectionTogglesFromRowBody(t *testing.T) {
+	a := storeApp(t, subtitle.Cue{ID: "a", Text: "First source", StartMs: 0, EndMs: 4000}, subtitle.Cue{ID: "b", Text: "Second source", StartMs: 5000, EndMs: 9000})
+	a.subtitleChecked[0] = nil
+	selected, position := a.selected, a.position
+	tt := settled(a.subtitlesView, 900, 640)
+	if err := tt.Click(locales.RetranslateSelect()); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("Second source"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(a.checkedRetranslationIDs(), []string{"a", "b"}) || a.selected != selected || a.position != position || a.pendingClick != nil {
+		t.Fatal("row selection changed playback or the editing selection", a.checkedRetranslationIDs(), a.selected, a.position)
+	}
+	if err := tt.Click("First source"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(a.checkedRetranslationIDs(), []string{"b"}) {
+		t.Fatal("clicking a selected row did not clear its check", a.checkedRetranslationIDs())
+	}
+}
 func TestRetranslationAcceptSubsetLocksUndoAndStaleProtection(t *testing.T) {
 	a := checkedReviewApp(t)
 	r := a.retranslation

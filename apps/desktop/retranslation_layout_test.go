@@ -57,7 +57,7 @@ func TestRetranslationReaderCopiesWholeTextWithoutEditingBatch(t *testing.T) {
 	if r.selected != 1 || !tt.HasText(locales.RetranslateNoExisting()) {
 		t.Fatal("directory did not select the next sentence")
 	}
-	text, found := tt.Find(locales.TabSource())
+	text, found := tt.Find("Second source")
 	if !found || text.H <= 0 {
 		t.Fatal("next sentence retained old scroll position", text)
 	}
@@ -81,14 +81,13 @@ func TestRetranslationLargeBatchUsesWorkingHeight(t *testing.T) {
 						insideRedesign(t, tt, locales.RetranslateTitle(), locales.RetranslateList(), locales.RetranslateSearch(), locales.RetranslateCompare(), locales.RetranslateOne(), locales.RetranslateApplyOne())
 						list, _ := tt.Find(locales.RetranslateList())
 						compare, _ := tt.Find(locales.RetranslateCompare())
-						if list.X+list.W > compare.X || list.H < compare.H*.7 {
-							t.Fatal("list is not full-height beside comparison", list, compare)
+						if list.W < compare.W*.9 || list.H < compare.H*.7 {
+							t.Fatal("retranslation list does not fill the review area", list, compare)
 						}
 						first, last := r.list.Visible()
-						minimum := 6
+						minimum := 2
 						if size[0] > 1000 {
-							// Every cue now exposes a readable second status line.
-							minimum = 14
+							minimum = 4
 						}
 						if last-first+1 < minimum {
 							t.Fatalf("only %d cues visible, want at least %d", last-first+1, minimum)

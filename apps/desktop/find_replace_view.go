@@ -57,13 +57,16 @@ func listTargetText(cue subtitle.Cue, track string) (string, bool) {
 }
 
 func (a *NativeApp) listPunctuationTools(c *ui.Context, layout subtitleToolbarLayout) {
-	disabled := a.busy || a.showsTranslationProgress() || len(a.activeDocument().Cues) == 0
+	disabled := a.busy || a.showsTranslationProgress() || len(a.activeDocument().Cues) == 0 || a.subtitleSelectionMode()
 	hint := locales.TextProcessScope(a.textTargetLabel(a.editRebuiltSource))
 	subtitleTool(c, locales.TextReplacePeriods(), "quote", layout).Disabled(disabled).Tooltip(locales.TextReplacePeriods() + "\n" + locales.TextPeriodProtectionHint() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(false) })
 	subtitleTool(c, locales.TextStripTrailing(), "eraser", layout).Disabled(disabled).Tooltip(locales.TextStripTrailing() + "\n" + hint).OnClick(func() { a.cleanListPunctuation(true) })
 }
 
 func (a *NativeApp) openFindReplace() {
+	if a.subtitleSelectionMode() {
+		return
+	}
 	if a.busy || len(a.activeDocument().Cues) == 0 || a.showsTranslationProgress() || !a.commitEdit(true) {
 		return
 	}
@@ -313,6 +316,9 @@ func (a *NativeApp) punctuationEdits(strip bool) []project.Edit {
 }
 
 func (a *NativeApp) cleanListPunctuation(strip bool) {
+	if a.subtitleSelectionMode() {
+		return
+	}
 	if a.busy || a.snapshot == nil || a.showsTranslationProgress() || !a.commitEdit(true) {
 		return
 	}

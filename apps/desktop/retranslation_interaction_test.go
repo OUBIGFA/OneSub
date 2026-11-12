@@ -181,6 +181,31 @@ func TestRetranslationPendingDraftDisablesOldResults(t *testing.T) {
 	}
 }
 
+func TestRetranslationIgnoreKeepsOriginalOnReplaceAll(t *testing.T) {
+	a := checkedReviewApp(t)
+	r := a.retranslation
+	r.rows[0].result = &retranslationResult{text: "忽略的新译文", valid: true}
+	r.rows[1].result = &retranslationResult{text: "保留的第二条", valid: true}
+	before := *a.snapshot
+	a.toggleRetranslationIgnore(0)
+	edits := r.replacementEdits(false)
+	if len(edits) != 1 || edits[0].ID != "b" || !r.rows[0].ignored {
+		t.Fatal("ignored result stayed in replace all", edits, r.rows[0].ignored)
+	}
+	apply, err := a.retranslationAcceptWork(r, edits)(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply()
+	if r.rows[0].applied || !r.rows[1].applied || !reflect.DeepEqual(a.snapshot.Document.Cues[0], before.Document.Cues[0]) {
+		t.Fatal("replace all changed an ignored result", r.rows, a.snapshot.Document.Cues[0], before.Document.Cues[0])
+	}
+	a.toggleRetranslationIgnore(0)
+	edits = r.replacementEdits(false)
+	if len(edits) != 1 || edits[0].ID != "a" {
+		t.Fatal("unignore did not restore the remaining candidate", edits)
+	}
+}
 func TestRetranslationReplaceAllIsOneUndo(t *testing.T) {
 	a := checkedReviewApp(t)
 	r := a.retranslation

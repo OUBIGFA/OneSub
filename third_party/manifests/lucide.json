@@ -51,6 +51,12 @@
       "bytes": 336
     },
     {
+      "path": "apps/desktop/icons/list-x.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/list-x.svg",
+      "sha256": "c4429a758e5e476c33b17ad000ca45f170e43c821917552c8dd76b2b97e18a64",
+      "bytes": 331
+    },
+    {
       "path": "apps/desktop/icons/copy-check.svg",
       "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/copy-check.svg",
       "sha256": "43cbf371628e30e66841ce076ec21531111023672d36e47473589bdfc09789f5",

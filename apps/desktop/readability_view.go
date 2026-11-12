@@ -105,7 +105,7 @@ func (a *NativeApp) readingTools(c *ui.Context, layout subtitleToolbarLayout) {
 	// This is one toolbar group. Wrapping inside it hides the width needed
 	// by the parent row and stacks controls even while labels still fit.
 	ui.Row(c).Gap(layout.spacing(c)).Shrink(0).AlignItems(ui.Center).Children(func() {
-		subtitleTool(c, locales.ReadingSplitCount(long), "scissors", layout).Disabled(a.busy || a.showsTranslationProgress() || long == 0).Tooltip(locales.ReadingSplitHint()).OnClick(a.smartSplitSubtitles)
+		subtitleTool(c, locales.ReadingSplitCount(long), "scissors", layout).Disabled(a.busy || a.showsTranslationProgress() || a.subtitleSelectionMode() || long == 0).Tooltip(locales.ReadingSplitHint()).OnClick(a.smartSplitSubtitles)
 		ui.Row(c).Gap(layout.spacing(c)).Shrink(0).AlignItems(ui.Center).Children(func() {
 			picker := lobeMenuButton(c, selected.label, "triangle-alert", layout.iconOnly(locales.ReadingIssueType()), func() []menuCommand {
 				commands := make([]menuCommand, len(issues))
@@ -114,11 +114,11 @@ func (a *NativeApp) readingTools(c *ui.Context, layout subtitleToolbarLayout) {
 				}
 				return commands
 			}).Label(locales.ReadingIssueType()).Shrink(0).
-				Disabled(a.showsTranslationProgress() || long+fast+brief == 0).Tooltip(selected.summary + "\n" + locales.ReadingInspectHint())
+				Disabled(a.showsTranslationProgress() || a.subtitleSelectionMode() || long+fast+brief == 0).Tooltip(selected.summary + "\n" + locales.ReadingInspectHint())
 			if !layout.iconOnly(locales.ReadingIssueType()) {
 				layout.button(c, locales.ReadingIssueType(), picker).Width(labelWidth + em(c, iconSize+34-22*layout.tightness) + 2)
 			}
-			disabled := a.showsTranslationProgress() || selected.count == 0
+			disabled := a.showsTranslationProgress() || a.subtitleSelectionMode() || selected.count == 0
 			toolIcon(c, locales.ReadingPrevious(), "chevron-left").Shrink(0).
 				Disabled(disabled).Tooltip(locales.ReadingPreviousHint()).OnClick(func() { a.locateReadingIssue(selected.kind, -1) })
 			toolIcon(c, locales.ReadingNext(), "chevron-right").Shrink(0).
@@ -143,13 +143,16 @@ func (a *NativeApp) readingMenu(c *ui.Context, layout subtitleToolbarLayout) {
 			menuCommand{Label: locales.ReadingNext(), Disabled: selected.count == 0, Run: func() { a.locateReadingIssue(selected.kind, 1) }},
 			menuCommand{Divider: true},
 			menuCommand{Label: locales.ReadingSplitCount(issues[0].count), Disabled: a.busy || issues[0].count == 0, Run: a.smartSplitSubtitles})
-	}).Disabled(a.showsTranslationProgress()).Tooltip(locales.ReadingInspect() + "\n" + selected.summary)
+	}).Disabled(a.showsTranslationProgress() || a.subtitleSelectionMode()).Tooltip(locales.ReadingInspect() + "\n" + selected.summary)
 	layout.button(c, locales.ReadingInspect(), button)
 }
 
 // Navigate in document order and wrap at either end, including cues hidden by
 // search. With no selection, forward starts at the first and backward at the last.
 func (a *NativeApp) locateReadingIssue(kind string, direction int) {
+	if a.subtitleSelectionMode() {
+		return
+	}
 	if a.snapshot == nil || a.showsTranslationProgress() || !a.commitEdit(true) {
 		return
 	}
@@ -231,6 +234,9 @@ func (a *NativeApp) readingLabel(cue subtitle.Cue, load subtitle.CueReadingLoad)
 func (a *NativeApp) smartSplitSubtitles() { a.smartSplitSubtitle("", false) }
 
 func (a *NativeApp) smartSplitSubtitle(id string, force bool) {
+	if a.subtitleSelectionMode() {
+		return
+	}
 	if a.busy || a.snapshot == nil || a.store == nil || a.showsTranslationProgress() || !a.commitEdit(true) {
 		return
 	}
