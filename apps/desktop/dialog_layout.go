@@ -53,5 +53,5 @@ func (a *NativeApp) outputNoteVariants(notes ...string) []string {
 	if a.snapshot != nil {
 		count = len(a.snapshot.Document.Cues)
 	}
-	return append(notes, locales.ErrOutputMode(), locales.ErrOutputPrimary(), locales.ErrOutputAssBilingual(), locales.ErrOutputMissing(count))
+	return append(notes, locales.ErrOutputMode(), locales.ErrOutputPrimary(), locales.ErrOutputAssBilingual(), locales.ErrOutputMissing(count), locales.TranslationSkipped(count)+"\n"+locales.TranslationSkipNote())
 }

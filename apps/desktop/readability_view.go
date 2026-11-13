@@ -240,7 +240,7 @@ func (a *NativeApp) smartSplitSubtitle(id string, force bool) {
 	if a.busy || a.snapshot == nil || a.store == nil || a.showsTranslationProgress() || !a.commitEdit(true) {
 		return
 	}
-	a.run(locales.ReadingSplit(), a.smartSplitWork(id, force))
+	a.runTimed(timingSubtitle, false, locales.ReadingSplit(), a.smartSplitWork(id, force))
 }
 
 // Freeze the track, target and revision before the task starts. The toolbar

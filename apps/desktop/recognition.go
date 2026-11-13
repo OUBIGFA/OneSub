@@ -187,6 +187,9 @@ func (a *NativeApp) recognitionProgressView(c *ui.Context) {
 		}
 		lobeProgress(c, fraction).Width(em(c, 400)).Label(label)
 		seconds := max(0, int(c.Now().Sub(a.recognitionStarted).Seconds()))
+		if clock := a.taskTimes[timingRecognition]; clock != nil {
+			seconds = int(clock.duration(c.Now()).Seconds())
+		}
 		muted(c, locales.RecognitionElapsed(seconds)).FontFeatures("tnum")
 		c.After(time.Second)
 		lobeButton(c, locales.ActionCancelTask()).Disabled(a.cancel == nil).OnClick(func() {

@@ -102,7 +102,9 @@ func TestStatusBarCountsFitBeforeOutputInBothThemes(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			for _, dark := range []bool{false, true} {
-				for _, width := range []int{320, 640, 900} {
+				// Timings, both counts and output share one row at the supported
+				// workbench minimum; the retired stacked 320-DIP footer is not used.
+				for _, width := range []int{1360, 1600, 2200} {
 					for _, scale := range []float32{1, 1.5, 2} {
 						t.Run(fmt.Sprintf("%s/dark%t/%d/%g", language, dark, width, scale), func(t *testing.T) {
 							a := nativeForTest(t)

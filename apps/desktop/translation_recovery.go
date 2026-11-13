@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
@@ -43,6 +44,7 @@ type translationRecord struct {
 	Result   *translator.Result `json:"result,omitempty"`
 	Error    string             `json:"error,omitempty"`
 	Finished bool               `json:"finished,omitempty"`
+	Elapsed  *time.Duration     `json:"elapsed,omitempty"`
 }
 
 func translationProgressPath(path string) string {
@@ -110,6 +112,9 @@ func readTranslationProgress(path string) (*translationTask, *translationLive, *
 		if record.Error != "" {
 			live.stopped = record.Error
 		}
+		if record.Elapsed != nil {
+			live.elapsed = max(0, *record.Elapsed)
+		}
 		finished = record.Finished
 	}
 	if task == nil {
@@ -138,6 +143,10 @@ func (a *NativeApp) retryTranslation() {
 		return
 	}
 	task := *a.translationTask
+	if a.taskTimes[timingTranslation] == nil {
+		a.taskTimes[timingTranslation] = &taskTiming{elapsed: a.translationLive.elapsed, finished: true}
+	}
+	a.translationLive.elapsed = a.taskTimes[timingTranslation].duration(time.Now())
 	if task.ProjectID != a.snapshot.Manifest.ID || task.Revision != a.snapshot.Revision {
 		a.showError(locales.ActionTranslate(), locales.TranslationResumeStale())
 		return
@@ -209,6 +218,7 @@ func (a *NativeApp) restoreTranslationProgress() {
 		url, previewErr := a.preview.Register(state.Manifest.MediaPath)
 		return func() {
 			a.replaceProject(store, state, url)
+			a.taskTimes[timingTranslation] = &taskTiming{elapsed: live.elapsed, finished: true}
 			a.savedHash, a.savedPath = task.SavedHash, task.SavedPath
 			a.proofreadingSourceTracked = task.SavedHash[2] != "" || task.SavedPath[2] != ""
 			a.refreshUnsaved()
@@ -236,7 +246,7 @@ func (a *NativeApp) rememberTranslationTask(task *translationTask, live *transla
 		return errors.New(locales.ErrSettingsNeedRepair())
 	}
 	event := live.checkpointEvent()
-	if err := writeTranslationRecord(task.ProjectPath, translationRecord{Task: task, Event: &event}, true); err != nil {
+	if err := writeTranslationRecord(task.ProjectPath, translationRecord{Task: task, Event: &event, Elapsed: &live.elapsed}, true); err != nil {
 		return errors.New(locales.TranslationProgressWriteError(err.Error()))
 	}
 	a.settings.TranslationRecovery = task.ProjectPath

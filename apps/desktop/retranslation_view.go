@@ -282,7 +282,7 @@ func (a *NativeApp) startRetranslation(current bool) {
 	r.progress = locales.RetranslateProgress(0, len(r.ids(current)))
 	a.translationRunning = true
 	work := a.retranslationWork(r, r.ids(current), config)
-	a.run(locales.RetranslateTitle(), func(ctx context.Context) (func(), error) {
+	a.runTimed(timingTranslation, false, locales.RetranslateTitle(), func(ctx context.Context) (func(), error) {
 		apply, err := work(ctx)
 		if err != nil {
 			a.win.Update(func() {
@@ -347,7 +347,7 @@ func (a *NativeApp) acceptRetranslation(current bool) {
 		return
 	}
 	work := a.retranslationAcceptWork(r, edits)
-	a.run(locales.RetranslateApply(), func(ctx context.Context) (func(), error) {
+	a.runTimed(timingSubtitle, false, locales.RetranslateApply(), func(ctx context.Context) (func(), error) {
 		apply, err := work(ctx)
 		if err != nil {
 			a.win.Update(func() { r.errorText = err.Error() })

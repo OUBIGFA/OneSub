@@ -43,7 +43,9 @@ func composeQualities() []option {
 func (a *NativeApp) composeView(c *ui.Context) {
 	var outputErr error
 	if a.composeOpen && a.snapshot != nil {
-		_, outputErr = subtitle.SelectOutput(a.snapshot.OutputDocument(a.settings.SubtitleOutput), a.settings.SubtitleOutput)
+		options := a.settings.SubtitleOutput
+		options.SkipMissing = a.composeSkipMissing
+		_, outputErr = subtitle.SelectOutput(a.snapshot.OutputDocument(options), options)
 	}
 	fixedDialog(c, &a.composeOpen, locales.ActionCompose(), 740, 0, func() {
 		hard := strings.HasPrefix(a.settings.ComposeMode, "hard")
@@ -65,12 +67,15 @@ func (a *NativeApp) composeView(c *ui.Context) {
 		switch {
 		case outputErr != nil:
 			note, warning = outputErr.Error(), true
+		case a.composeSkipMissing && a.snapshot != nil && a.settings.SubtitleOutput.Normalized().Mode != "source":
+			note, warning = locales.TranslationSkipped(subtitle.MissingTranslations(a.snapshot.Document))+"\n"+locales.TranslationSkipNote(), true
 		case a.settings.ComposeMode == "soft-mp4":
 			note, warning = locales.ComposeMovTextNote(), true
 		case !hard:
 			note = locales.ComposeSoftNote()
 		}
 		stableDialogNote(c, note, warning, a.outputNoteVariants(crfNote, locales.ComposeMovTextNote(), locales.ComposeSoftNote())...)
+		a.outputMissingActions(c, &a.composeSkipMissing, func() { a.composeOpen = false })
 		separator(c)
 		ui.Column(c).Gap(em(c, 12)).Children(func() {
 			folderField(c, a.settings.OutputDir, locales.RecognitionBesideMedia(), a.busy, a.pickComposeDir, func() { a.settings.OutputDir = ""; a.saveSettings() })
@@ -172,6 +177,7 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 	}
 	state, style, mode, aspect := *a.snapshot, a.currentStyle, a.settings.ComposeMode, a.frameAspect
 	secondary, outputOptions := a.secondaryStyle, a.settings.SubtitleOutput
+	outputOptions.SkipMissing = a.composeSkipMissing
 	language := a.settings.TargetLanguage
 	if outputOptions.Normalized().Mode == "source" {
 		// Smart routing does not keep the language it detected.
@@ -197,7 +203,11 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 	a.composeInBackground = false
 	a.composeProgress = media.ComposeProgress{Stage: media.StageChooseOutput, Fraction: -1}
 	a.evalPlayer("video.pause()")
-	a.run(title, func(ctx context.Context) (func(), error) {
+	module := timingCompose
+	if compress {
+		module = timingMedia
+	}
+	a.runTimed(module, false, title, func(ctx context.Context) (func(), error) {
 		extension := "mp4"
 		if strings.HasSuffix(mode, "mkv") {
 			extension = "mkv"
@@ -216,7 +226,9 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 			return nil, err
 		}
 		if askPath {
+			resumeTiming := pauseTaskTiming(ctx)
 			output, err = a.saveDialog(mygo.SaveDialogOptions{Parent: a.win, Title: title, DefaultPath: output, Filters: []mygo.FileFilter{{Name: strings.ToUpper(extension), Extensions: []string{extension}}}})
+			resumeTiming()
 			if err != nil || output == "" {
 				return nil, err
 			}

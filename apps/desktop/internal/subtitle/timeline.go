@@ -171,7 +171,7 @@ func Resegment(doc Document, ranges []SourceRange) (Document, []string, error) {
 
 // ValidateTranslation repeats provenance/locks against the current store, not
 // against a report supplied by a model or a stale review window.
-func ValidateTranslation(base, candidate Document) error {
+func ValidateTranslation(base, candidate Document, allowMissing ...bool) error {
 	if base.Format != candidate.Format || base.Original != candidate.Original {
 		return errors.New(locales.ErrTranslationFormat())
 	}
@@ -210,6 +210,15 @@ func ValidateTranslation(base, candidate Document) error {
 			want.Position = got.Position
 			if !reflect.DeepEqual(want, got) {
 				return errors.New(locales.ErrTranslationLocked())
+			}
+			continue
+		}
+		// Explicit skipping accepts an unchanged source gap, not a modified
+		// source disguised as an incomplete translation. Coverage and locks
+		// above are still checked against the full document.
+		if len(allowMissing) > 0 && allowMissing[0] && got.MissingTranslation() {
+			if !reflect.DeepEqual(want, got) {
+				return errors.New(locales.ErrTranslationMetadata())
 			}
 			continue
 		}

@@ -10,7 +10,7 @@ import (
 // ApplyTranslationDocument commits a reviewed timeline and translations as one
 // reversible gesture. The transaction rechecks the live revision and provenance;
 // rejected or stale candidates never touch cues/history.
-func (s *Store) ApplyTranslationDocument(commandID string, expected int64, candidate subtitle.Document) (int64, error) {
+func (s *Store) ApplyTranslationDocument(commandID string, expected int64, candidate subtitle.Document, allowMissing ...bool) (int64, error) {
 	return s.mutate(commandID, expected, func(tx *sql.Tx, cursor int64) (int64, error) {
 		var base subtitle.Document
 		if err := tx.QueryRow("SELECT format,original FROM state WHERE singleton=1").Scan(&base.Format, &base.Original); err != nil {
@@ -37,7 +37,7 @@ func (s *Store) ApplyTranslationDocument(commandID string, expected int64, candi
 		if err != nil {
 			return cursor, err
 		}
-		if err = subtitle.ValidateTranslation(base, candidate); err != nil {
+		if err = subtitle.ValidateTranslation(base, candidate, allowMissing...); err != nil {
 			return cursor, err
 		}
 		return recordHistory(tx, cursor, base.Cues, candidate.Cues)

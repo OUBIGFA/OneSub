@@ -14,6 +14,7 @@ type OutputOptions struct {
 	Primary     string `json:"primary"`
 	SourceFirst bool   `json:"sourceFirst"`
 	SourceTrack string `json:"sourceTrack,omitempty"` // "original" selects the independent original timeline
+	SkipMissing bool   `json:"-"`                     // explicit choice for this output only, never a saved default
 }
 
 func (o OutputOptions) Normalized() OutputOptions {
@@ -35,14 +36,23 @@ func SourceText(c Cue) string {
 	return c.Text
 }
 
-func MissingTranslations(doc Document) int {
-	missing := 0
-	for _, c := range doc.Cues {
-		if !c.ReadOnly && (!c.Translated || strings.TrimSpace(c.Text) == "") {
-			missing++
+func (c Cue) MissingTranslation() bool {
+	return !c.ReadOnly && (!c.Translated || strings.TrimSpace(c.Text) == "")
+}
+
+// Positions come from the cue state, never from a localized error message.
+func MissingTranslationIndices(doc Document) []int {
+	var missing []int
+	for i, cue := range doc.Cues {
+		if cue.MissingTranslation() {
+			missing = append(missing, i)
 		}
 	}
 	return missing
+}
+
+func MissingTranslations(doc Document) int {
+	return len(MissingTranslationIndices(doc))
 }
 
 // SelectOutput copies the frozen document and refuses incomplete translation
@@ -61,13 +71,21 @@ func SelectOutput(doc Document, options OutputOptions) (Document, error) {
 		return Document{}, errors.New(locales.ErrOutputAssBilingual())
 	}
 	if o.Mode != "source" {
-		if missing := MissingTranslations(doc); missing > 0 {
+		if missing := MissingTranslations(doc); missing > 0 && !o.SkipMissing {
 			return Document{}, errors.New(locales.ErrOutputMissing(missing))
 		}
 	}
 	result := doc
-	result.Cues = append([]Cue{}, doc.Cues...)
-	for i, cue := range result.Cues {
+	result.Cues = make([]Cue, 0, len(doc.Cues))
+	for _, cue := range doc.Cues {
+		if o.Mode != "source" && o.SkipMissing && cue.MissingTranslation() {
+			continue
+		}
+		if o.Mode != "source" && o.SkipMissing {
+			cue.Position = len(result.Cues)
+		}
+		result.Cues = append(result.Cues, cue)
+		i := len(result.Cues) - 1
 		if cue.ReadOnly {
 			continue
 		}

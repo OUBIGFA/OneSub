@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Exe, [Parameter(Mandatory=$true)][string]$Work, [switch]$VideoTools, [switch]$PresetReset, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$Development, [switch]$ScrollFollow, [ValidateSet('dark','light')][string]$Appearance = 'dark', [string]$TranslationEndpoint, [switch]$InterruptTranslation, [switch]$ClearTranslation, [switch]$ComposeOutput)
+param([Parameter(Mandatory=$true)][string]$Exe, [Parameter(Mandatory=$true)][string]$Work, [switch]$VideoTools, [switch]$PresetReset, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$Development, [switch]$ScrollFollow, [ValidateSet('dark','light')][string]$Appearance = 'dark', [string]$TranslationEndpoint, [switch]$InterruptTranslation, [switch]$ClearTranslation, [switch]$ComposeOutput, [switch]$SkipTranslation, [switch]$TaskTimings, [switch]$LengthGuide, [string]$PipelineModelsRoot, [string]$AsrModel='Qwen3-ASR-1.7B-hf')
 $ErrorActionPreference = 'Stop'
 # The driver and every child inherit a non-input desktop. Never SwitchDesktop:
 # UIA and window messages exercise only the isolated application's own windows.
@@ -85,11 +85,37 @@ if($TranslationEndpoint){$command+=' -TranslationEndpoint '+(Quote-Literal $Tran
 if($InterruptTranslation){$command+=' -InterruptTranslation'}
 if($ClearTranslation){$command+=' -ClearTranslation'}
 if($ComposeOutput){$command+=' -ComposeOutput'}
+if($SkipTranslation){$command+=' -SkipTranslation'}
+if($TaskTimings){$command+=' -TaskTimings'}
+if($LengthGuide){$command+=' -LengthGuide'}
 $command+=' -Appearance '+(Quote-Literal $Appearance)
+if($PipelineModelsRoot){
+    $bootstrap='$nativeBootstrap=[IO.File]::ReadAllText('+ $driver +',[Text.Encoding]::UTF8); & ([ScriptBlock]::Create($nativeBootstrap.Substring(0,$nativeBootstrap.IndexOf(''$workPath = '')))) -PrivateDesktop -UIAPlayback; '
+    $pipeline=Quote-Literal (Join-Path $PSScriptRoot 'process_media.ps1')
+    $command=$bootstrap+'& ([ScriptBlock]::Create([IO.File]::ReadAllText('+ $pipeline +',[Text.Encoding]::UTF8))) -Exe '+(Quote-Literal $exePath)+' -Work '+(Quote-Literal $workPath)+' -ScreenshotTool '+$capture+' -TranslationEndpoint '+(Quote-Literal $TranslationEndpoint)+' -ModelsRoot '+(Quote-Literal ([IO.Path]::GetFullPath($PipelineModelsRoot)))+' -AsrModel '+(Quote-Literal $AsrModel)
+    if(-not $Development){$command+=' -Packaged'}
+}
+if($Development){
+    $repoRoot=Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+    $runtimeOverrides=@{
+        ONESUB_SUBTITLE_WORKER='build/output/subtitle-core/OneSub.SubtitleCore.exe'
+        ONESUB_STYLE_WORKER='build/output/style-core/OneSub.StyleCore.exe'
+        ONESUB_SKILL_WORKER='build/output/skill-tools/OneSub.SkillTools.exe'
+        ONESUB_SKILL_ROOT='third_party/skills/srt-subtitle-translator'
+        ONESUB_ONEASR_ROOT='build/output/oneasr'
+        ONESUB_SHERPA_ROOT='build/output/sherpa-onnx'
+    }
+    $setup=''
+    foreach($name in $runtimeOverrides.Keys){$setup+='$env:'+ $name +'='+ (Quote-Literal (Join-Path $repoRoot $runtimeOverrides[$name]))+'; '}
+    $command=$setup+$command
+}
 # Transcript captures native helper output without PowerShell 5.1 treating
 # normal stderr as a terminating NativeCommandError under stream redirection.
-$body='$ErrorActionPreference="Stop"; Start-Transcript -Path '+(Quote-Literal $log)+' | Out-Null; try { '+$command+'; exit 0 } catch { Write-Output $_; exit 1 } finally { Stop-Transcript | Out-Null }'
+$body='$ErrorActionPreference="Stop"; $env:PSModulePath=(Join-Path $PSHOME "Modules")+";"+$env:PSModulePath; Start-Transcript -Path '+(Quote-Literal $log)+' | Out-Null; try { '+$command+'; exit 0 } catch { Write-Output $_; exit 1 } finally { Stop-Transcript | Out-Null }'
 $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($body))
-$code=[PrivateSmoke]::Run((Join-Path $PSHOME 'powershell.exe'),$encoded,(Get-Location).Path)
+# The UIA driver uses Windows PowerShell's in-box desktop assemblies. Resolve
+# that executable explicitly, including when the launcher is called from pwsh.
+$testShell=Join-Path $env:WINDIR 'System32/WindowsPowerShell/v1.0/powershell.exe'
+$code=[PrivateSmoke]::Run($testShell,$encoded,(Get-Location).Path)
 Get-Content -LiteralPath $log -Encoding UTF8 | Where-Object {$_ -notmatch '^主机应用程序:|^-EncodedCommand|^Host Application:'} | Select-Object -Last 20
 if($code -ne 0){throw "Private desktop smoke failed; see $log"}

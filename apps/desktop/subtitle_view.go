@@ -93,7 +93,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		// The toolbar boundary spans the whole pane, including the gutter.
 		separator(c)
 		if a.showsTranslationProgress() {
-			a.translationProgressView(c)
+			a.translationProgressViewAtWidth(c, width)
 			return
 		}
 		cues := a.activeDocument().Cues
@@ -148,7 +148,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			endIndex = -1
 		}
 		loads := a.readingLoads()
-		table := subtitleTable(c, &a.list, cols, len(rows), func(row, col int) {
+		table := subtitleTableWithGuide(c, &a.list, cols, len(rows), func(row, col int) {
 			index := rows[row]
 			cue := cues[index]
 			// The row being edited shows the draft, so typing updates the
@@ -221,7 +221,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			a.pendingClick = nil
 			a.browseHeld = true
 			a.locateCue = -1
-		}, func(row int, target ui.Element) {
+		}, &a.subtitleGuide, width, func(row int, target ui.Element) {
 			a.subtitleContextMenu(c, target, rows[row], row, &selected)
 		}).Label(locales.A11ySubtitleList())
 		// Blank space keeps the current selection; a cell prepares its own cue.

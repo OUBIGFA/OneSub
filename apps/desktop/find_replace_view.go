@@ -280,7 +280,7 @@ func (a *NativeApp) replaceListText(all bool) {
 	edits, count, next := a.replacementEdits(all)
 	f := &a.findReplace
 	work := a.listTextEditWork(edits)
-	a.run(locales.FindReplace(), func(ctx context.Context) (func(), error) {
+	a.runTimed(timingSubtitle, false, locales.FindReplace(), func(ctx context.Context) (func(), error) {
 		apply, err := work(ctx)
 		if err != nil {
 			return nil, err
@@ -328,7 +328,7 @@ func (a *NativeApp) cleanListPunctuation(strip bool) {
 		label = locales.TextStripTrailing()
 	}
 	work := a.listTextEditWork(edits)
-	a.run(label, func(ctx context.Context) (func(), error) {
+	a.runTimed(timingSubtitle, false, label, func(ctx context.Context) (func(), error) {
 		apply, err := work(ctx)
 		if err != nil {
 			return nil, err

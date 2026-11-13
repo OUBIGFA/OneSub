@@ -66,6 +66,8 @@ type NativeApp struct {
 	rate                                 float64   // the playback speed; 0 is normal
 	loop                                 bool      // the video starts again at its end
 	busy                                 bool
+	taskTimes                            [timingCount]*taskTiming
+	activeTaskTiming                     *taskTiming
 	choosingFile                         bool
 	cancel                               context.CancelFunc
 	pending                              *importing.Loaded
@@ -77,6 +79,7 @@ type NativeApp struct {
 	recognitionMode                      int // 0 current media, 1 file queue; both use settings
 	workflowScroll, styleScroll          ui.ScrollState
 	list                                 ui.ListState
+	subtitleGuide                        subtitleLengthGuide
 	selected                             int
 	query                                string
 	subtitleChecked                      [2]map[string]bool // batch checks are independent of the editing row
@@ -127,6 +130,10 @@ type NativeApp struct {
 	exportLines                          string // all, upper or lower; export-only projection
 	quitAfterTask                        bool
 	composeOpen                          bool
+	composeSkipMissing                   bool
+	exportSkipMissing                    bool
+	missingSaveOpen                      bool
+	missingSaveNext                      func()
 	compressOpen                         bool
 	compressRunning                      bool
 	audioExtractRunning                  bool
@@ -240,6 +247,7 @@ func (a *NativeApp) view(c *ui.Context) {
 	a.composeView(c)
 	a.compressView(c)
 	a.translationView(c)
+	a.missingSaveView(c)
 	a.retranslationView(c)
 	a.providerDeleteView(c)
 	a.savePromptView(c)
@@ -404,7 +412,7 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 		}
 	}
 	width, _ := c.Size()
-	compact := width < em(c, 680)
+	compact := width < em(c, 680) || a.lastOutput != "" && width < em(c, 1600)
 	original, optimized := a.subtitleCounts()
 	counts := []string{}
 	if original > 0 {
@@ -413,7 +421,7 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 	if optimized > 0 {
 		counts = append(counts, locales.StatusOptimizedCount(optimized))
 	}
-	ui.Row(c).Height(em(c, 32)).Padding(0, em(c, 12)).Gap(em(c, 12)).AlignItems(ui.Center).Background(look.chrome).FontSize(em(c, captionSize)).Label(locales.A11yStatusBar()).Children(func() {
+	ui.Row(c).Height(em(c, 32)).Shrink(0).Padding(0, em(c, 12)).Gap(em(c, 12)).AlignItems(ui.Center).Background(look.chrome).FontSize(em(c, captionSize)).Label(locales.A11yStatusBar()).Children(func() {
 		// Reading warnings and transient results stay on the left. Track counts
 		// have a separate stable slot immediately before the output action.
 		readingHint := false
@@ -446,6 +454,7 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 		} else {
 			ui.Text(c, "").Grow(1)
 		}
+		a.moduleTimesView(c)
 
 		canCancel := a.busy && a.cancel != nil && !a.choosingFile && (!a.composeRunning || a.composeInBackground) && !a.recognitionRunning && !a.translationRunning
 		canOpenOutput := a.lastOutput != "" && !a.busy
@@ -459,15 +468,7 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 			separator(c).Height(em(c, 16)).AlignSelf(ui.Center)
 		}
 		if len(counts) > 0 {
-			// Two compact lines retain both complete labels in a narrow footer,
-			// without changing its height or reducing the shared caption size.
-			var group ui.Element
-			if compact && len(counts) > 1 {
-				group = ui.Column(c).Gap(0).Justify(ui.Center)
-			} else {
-				group = ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center)
-			}
-			group.Shrink(0).Children(func() {
+			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Shrink(0).Children(func() {
 				for _, label := range counts {
 					muted(c, label).FontFeatures("tnum").LineHeight(1.1).SingleLine().Shrink(0)
 				}
@@ -497,6 +498,12 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 // run owns one cancellable operation. Closing to tray does not end this context.
 // Callers that replace the workbench ask about unsaved subtitle files first.
 func (a *NativeApp) run(label string, work func(context.Context) (func(), error)) {
+	a.runTimed(timingNone, false, label, work)
+}
+
+// A new operation replaces its module's previous result. Explicit continuation
+// adds only a new execution interval, leaving every other module unchanged.
+func (a *NativeApp) runTimed(module taskModule, continuing bool, label string, work func(context.Context) (func(), error)) {
 	if a.busy {
 		return
 	}
@@ -508,8 +515,21 @@ func (a *NativeApp) run(label string, work func(context.Context) (func(), error)
 	a.status = label
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancel = cancel
+	var clock *taskTiming
+	if module != timingNone {
+		var previous time.Duration
+		if continuing && a.taskTimes[module] != nil {
+			previous = a.taskTimes[module].duration(time.Now())
+		}
+		clock = &taskTiming{started: time.Now(), elapsed: previous}
+		a.taskTimes[module], a.activeTaskTiming = clock, clock
+		ctx = context.WithValue(ctx, taskTimingKey{}, clock)
+	}
 	go func() {
 		apply, err := work(ctx)
+		if clock != nil {
+			clock.stop(time.Now())
+		}
 		cancel()
 		a.win.Update(func() { a.finishTask(label, apply, err) })
 	}()
@@ -517,6 +537,12 @@ func (a *NativeApp) run(label string, work func(context.Context) (func(), error)
 
 // finishTask reconciles worker results on the UI thread before exit or update.
 func (a *NativeApp) finishTask(label string, apply func(), err error) {
+	// Finalize before apply: recognition may start translation from this
+	// callback, and the next module must not extend the completed ASR clock.
+	if a.activeTaskTiming != nil {
+		a.activeTaskTiming.stop(time.Now())
+		a.activeTaskTiming = nil
+	}
 	a.busy = false
 	a.composeRunning, a.composeInBackground, a.compressRunning, a.audioExtractRunning = false, false, false, false
 	a.recognitionRunning = false

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,10 +29,12 @@ type translationLive struct {
 	started                 time.Time
 	stopped, model          string
 	resume                  *translator.ResumeState
+	selected, locate        int
+	elapsed                 time.Duration // last durable execution interval; excludes interruption wait
 }
 
 func newTranslationLive() *translationLive {
-	return &translationLive{texts: map[int]string{}, final: map[int]bool{}, latest: -1, shown: -1, started: time.Now()}
+	return &translationLive{texts: map[int]string{}, final: map[int]bool{}, latest: -1, shown: -1, selected: -1, locate: -1, started: time.Now()}
 }
 
 func (l *translationLive) apply(ev translator.Event) {
@@ -87,6 +90,11 @@ func (l *translationLive) label() string {
 // project's subtitles are left alone until the whole file is translated and
 // checked.
 func (a *NativeApp) translationProgressView(c *ui.Context) {
+	width, _ := c.Size()
+	a.translationProgressViewAtWidth(c, width)
+}
+
+func (a *NativeApp) translationProgressViewAtWidth(c *ui.Context, width float32) {
 	l := a.translationLive
 	label := l.label()
 	if l.stopped != "" {
@@ -98,6 +106,11 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 			muted(c, locales.TranslationUsage(l.requests, l.input, l.output)).FontFeatures("tnum")
 			if l.stopped != "" {
 				lobeButton(c, locales.TranslationResume()).Disabled(a.busy).OnClick(a.retryTranslation)
+				if missing := len(l.missingIndices()); missing > 0 {
+					ui.Text(c, locales.TranslationMissingCount(missing)).FontFeatures("tnum")
+					lobeButton(c, locales.TranslationLocateMissing()).OnClick(a.locateMissingTranslation)
+					lobeButton(c, locales.TranslationSkipMissing()).Disabled(a.busy || l.resume == nil).Tooltip(locales.TranslationSkipNote()).OnClick(a.skipTranslation)
+				}
 			} else {
 				lobeButton(c, locales.ActionCancelTask()).Disabled(a.cancel == nil).OnClick(func() {
 					if a.cancel != nil {
@@ -151,7 +164,10 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 		}
 	}
 	cols := []ui.TableColumn{numberColumn(c, len(l.units)), timeColumn(c, locales.ListColumnStart(), maximumTime), {Title: locales.TabSource(), Fixed: true}, {Title: locales.TabTranslation(), Fixed: true}}
-	table := subtitleTable(c, &l.list, cols, len(rows), func(row, col int) {
+	selected := slices.Index(rows, l.selected)
+	l.list.Selected = &selected
+	l.list.Key = func(i int) any { return l.units[rows[i]].ID }
+	table := subtitleTableWithGuide(c, &l.list, cols, len(rows), func(row, col int) {
 		row = rows[row]
 		cue := l.units[row]
 		switch col {
@@ -174,7 +190,15 @@ func (a *NativeApp) translationProgressView(c *ui.Context) {
 				muted(c, l.texts[row])
 			}
 		}
-	}, func(bool) { a.noteBrowse(c.Now()) }).Label(locales.TranslationLive())
+	}, func(bool) { a.noteBrowse(c.Now()) }, &a.subtitleGuide, width).Label(locales.TranslationLive())
+	if table.Changed() && selected >= 0 && selected < len(rows) {
+		l.selected = rows[selected]
+		a.followHeld = true
+	}
+	if row := slices.Index(rows, l.locate); row >= 0 {
+		l.list.ScrollTo(row, ui.Center)
+		l.locate = -1
+	}
 	// The live list follows the playback like the subtitle list does, and
 	// yields the viewport the same way: the reader's own scrolling keeps
 	// the list where they left it until the grace is over.

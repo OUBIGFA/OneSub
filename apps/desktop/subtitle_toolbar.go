@@ -11,7 +11,7 @@ import (
 // and review. Narrow panes keep the same order through native compact menus.
 func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) {
 	compact := width < em(c, 680)
-	layout := a.subtitleToolbarDensity(c, width, compact)
+	layout := a.subtitleToolbarDensity(c, width-em(c, 32+8), compact)
 	ui.Column(c).Padding(em(c, 8), em(c, 12)).Gap(em(c, 8)).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
 		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
 			a.proofreadingButton(c, compact)
@@ -43,6 +43,11 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 				a.readingTools(c, layout)
 			}
 			subtitleTool(c, locales.TranslationResults(), "file-warning", layout).Disabled(a.translationCandidate == nil || selectionMode).OnClick(func() { a.translationReview = true })
+			ui.Spacer(c)
+			guide := toolIcon(c, locales.SubtitleLengthGuideToggle(), "ruler").Shrink(0).OnClick(func() { a.subtitleGuide.visible = !a.subtitleGuide.visible })
+			if a.subtitleGuide.visible {
+				guide.Background(c.Theme().Accent).TextColor(c.Theme().AccentText)
+			}
 		})
 	})
 }

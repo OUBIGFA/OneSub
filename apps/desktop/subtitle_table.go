@@ -29,6 +29,10 @@ func subtitleSelectionColumn(c *ui.Context) ui.TableColumn {
 // and selected-row background reach the pane edge. Fixed buttons occupy only
 // that empty column and leave the native scrollbar accessible at the edge.
 func subtitleTable(c *ui.Context, state *ui.ListState, columns []ui.TableColumn, count int, cell func(int, int), onNavigate func(toEnd bool), cellMenu ...func(row int, target ui.Element)) ui.Element {
+	return subtitleTableWithGuide(c, state, columns, count, cell, onNavigate, nil, 0, cellMenu...)
+}
+
+func subtitleTableWithGuide(c *ui.Context, state *ui.ListState, columns []ui.TableColumn, count int, cell func(int, int), onNavigate func(toEnd bool), guide *subtitleLengthGuide, width float32, cellMenu ...func(row int, target ui.Element)) ui.Element {
 	// Keep every header whole even when that leaves little room for text:
 	// MyGo scrolls the table horizontally instead of ellipsizing labels.
 	for i := range columns {
@@ -56,6 +60,9 @@ func subtitleTable(c *ui.Context, state *ui.ListState, columns []ui.TableColumn,
 				cell(row, col)
 			}
 		}).Grow(1).MinWidth(0)
+		if guide != nil {
+			guide.view(c, width)
+		}
 		ui.Column(c).Absolute().Top(0).Bottom(0).Right(0).Width(railWidth).Padding(0, em(c, 8), em(c, 8), 0).
 			Justify(ui.End).Gap(em(c, 8)).KeepFocus().PassThrough().Children(func() {
 			toolIcon(c, locales.ListTop(), "arrow-up-to-line").Size(em(c, 32), em(c, 32)).Disabled(count == 0).OnClick(func() {

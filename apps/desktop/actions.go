@@ -16,7 +16,7 @@ func (a *NativeApp) recognize() {
 	a.recognizeWithTranslation(false)
 }
 
-func (a *NativeApp) recognizeWithTranslation(translate bool) {
+func (a *NativeApp) recognizeWithTranslation(translate bool, continuing ...bool) {
 	if a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" {
 		return
 	}
@@ -49,7 +49,7 @@ func (a *NativeApp) recognizeWithTranslation(translate bool) {
 	a.recognitionStarted = time.Now()
 	a.recognitionStep, a.recognitionRoute = recognitionStep{Stage: "verify"}, recognitionRoute{}
 	a.evalPlayer("video.pause()")
-	a.run(locales.ActionRecognize(), func(ctx context.Context) (func(), error) {
+	a.runTimed(timingRecognition, len(continuing) > 0 && continuing[0], locales.ActionRecognize(), func(ctx context.Context) (func(), error) {
 		srt, words, cleanup, err := t.recognize(ctx, prefs, source, a.recognitionStepChanged)
 		if err != nil {
 			return nil, err
@@ -91,4 +91,5 @@ func (a *NativeApp) compose() {
 		return
 	}
 	a.composeOpen = true
+	a.composeSkipMissing = false
 }

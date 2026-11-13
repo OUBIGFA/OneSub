@@ -71,6 +71,9 @@ func (a *NativeApp) refreshSubtitles() {
 	}
 	state, style, version, aspect := *a.snapshot, a.currentStyle, a.previewRevision, a.frameAspect
 	secondary, options := a.secondaryStyle, a.settings.SubtitleOutput
+	// A partial translation previews its completed rows without filling gaps
+	// with source text. File output still requires the explicit skip choice.
+	options.SkipMissing = options.Normalized().Mode != "source" && subtitle.MissingTranslations(state.Document) > 0
 	a.previewPending, a.previewRunning = false, true
 	ctx, cancel := context.WithCancel(context.Background())
 	a.previewCancel = cancel

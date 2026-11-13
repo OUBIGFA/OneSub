@@ -101,14 +101,17 @@ func (c Client) BuildOutput(ctx context.Context, doc subtitle.Document, style, s
 		subtitle.Cue
 		SecondaryText string `json:"secondaryText"`
 	}
-	cues := make([]bilingualCue, len(doc.Cues))
-	for i, cue := range doc.Cues {
+	cues := make([]bilingualCue, 0, len(selected.Cues))
+	for _, cue := range doc.Cues {
+		if o.SkipMissing && cue.MissingTranslation() {
+			continue
+		}
 		primary, second := cue.Text, subtitle.SourceText(cue)
 		if o.Primary == "source" {
 			primary, second = second, primary
 		}
 		cue.Text = primary
-		cues[i] = bilingualCue{cue, second}
+		cues = append(cues, bilingualCue{cue, second})
 	}
 	var result Document
 	err = c.call(ctx, "build", map[string]any{"cues": cues, "style": style, "frameAspect": frameAspect, "bilingual": map[string]any{"secondaryStyle": secondary, "secondaryFirst": o.SourceFirst != (o.Primary == "source")}}, &result)

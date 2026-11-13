@@ -43,6 +43,7 @@ type Config struct {
 	// before translating (see segment.go).
 	Punctuation      *subtitle.PunctuationOptions // local output only; never sent to the service
 	OptimizeTimeline bool
+	OnlyMissing      bool         // explicit continuation of an accepted partial track
 	MaxRequests      int          // requests a run may send, retries included
 	MaxOutputTokens  int          // the selected provider's advertised output cap; zero: unspecified
 	Concurrency      int          // requests at once; 2 when zero
@@ -376,8 +377,10 @@ func Translate(ctx context.Context, config Config, document subtitle.Document) (
 		if cue.ReadOnly || cue.TextLocked {
 			continue
 		}
-		writable = true
-		cue.Text = subtitle.SourceText(*cue)
+		writable = writable || !config.OnlyMissing || cue.MissingTranslation()
+		if !config.OnlyMissing || cue.MissingTranslation() {
+			cue.Text = subtitle.SourceText(*cue)
+		}
 		size += len(cue.Text)
 		e.markup = e.markup || markupTags.MatchString(cue.Text)
 	}
@@ -419,7 +422,7 @@ func Translate(ctx context.Context, config Config, document subtitle.Document) (
 				ranges = append(ranges, one...)
 			}
 		}
-	} else if config.OptimizeTimeline && doc.Format == "srt" {
+	} else if config.OptimizeTimeline && !config.OnlyMissing && doc.Format == "srt" {
 		var read any
 		if summary != nil {
 			read = summary
@@ -448,7 +451,7 @@ func Translate(ctx context.Context, config Config, document subtitle.Document) (
 	// 3. The translation, in batches with their context.
 	todo := []int{}
 	for i, cue := range units.Cues {
-		if cue.ReadOnly || cue.TextLocked {
+		if cue.ReadOnly || cue.TextLocked || config.OnlyMissing && !cue.MissingTranslation() {
 			e.report.Skipped = append(e.report.Skipped, cue.ID)
 		} else {
 			todo = append(todo, i)

@@ -1,5 +1,6 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark', [switch]$PresetReset, [switch]$PrivateDesktop, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$ScrollFollow, [switch]$ClearTranslation)
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark', [switch]$PresetReset, [switch]$PrivateDesktop, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$ScrollFollow, [switch]$ClearTranslation, [switch]$SkipTranslation, [switch]$TaskTimings, [switch]$LengthGuide)
 $ErrorActionPreference = 'Stop'
+$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 if(-not $PrivateDesktop){throw 'Run through private_native_smoke.ps1 to preserve the user desktop'}
 if(-not $UIAPlayback){throw 'Private desktop playback must use UIA, never global keyboard input'}
 if($SubtitleMenus -and ($TranslationEndpoint -or $InterruptTranslation -or $BilingualExport)){throw 'Run subtitle menu presentation as a separate scenario'}
@@ -130,6 +131,24 @@ public static class SmokeNative {
     if(hold>0)System.Threading.Thread.Sleep(hold);
     return PostMessage(surface,right?517u:514u,IntPtr.Zero,coords);
   }
+  public static bool DragReference(IntPtr window,int pid,int x,int y,int dx) {
+    IntPtr surface=TestSurface(window,pid);
+    if(surface==IntPtr.Zero)return false;
+    var point=new Point{X=x,Y=y};
+    if(!ScreenToClient(surface,ref point))return false;
+    var coords=new IntPtr((point.Y<<16)|(point.X&0xffff));
+    // Use the framework's synchronous native drag messages. Let the real
+    // renderer observe the held press before moving and releasing it.
+    SendValue(surface,512,IntPtr.Zero,coords);
+    System.Threading.Thread.Sleep(70);
+    SendValue(surface,513,new IntPtr(1),coords);
+    System.Threading.Thread.Sleep(100);
+    coords=new IntPtr((point.Y<<16)|((point.X+dx)&0xffff));
+    SendValue(surface,512,new IntPtr(1),coords);
+    System.Threading.Thread.Sleep(100);
+    SendValue(surface,514,IntPtr.Zero,coords);
+    return true;
+  }
   public static bool Wheel(IntPtr window,int pid,int x,int y,int delta) {
     IntPtr surface=TestSurface(window,pid);
     if(surface==IntPtr.Zero)return false;
@@ -184,9 +203,9 @@ $video = Join-Path $workPath 'test.mp4'
 $subtitle = Join-Path $workPath 'test.srt'
 $sourceText = if ($TranslationEndpoint) { 'Hello, world' } elseif ($BilingualExport) { "Upper subtitle`n下行字幕" } else { '测试字幕' }
 [IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:02,900`n$sourceText`n",[Text.UTF8Encoding]::new($false))
-if($InterruptTranslation){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:01,400`n$sourceText`n`n2`n00:00:01,500 --> 00:00:02,900`nGood morning`n",[Text.UTF8Encoding]::new($false))}
+if($InterruptTranslation -or $SkipTranslation){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:01,400`n$sourceText`n`n2`n00:00:01,500 --> 00:00:02,900`nGood morning`n",[Text.UTF8Encoding]::new($false))}
 if($SubtitleMenus){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:00,900`nFirst subtitle.`n`n2`n00:00:01,000 --> 00:00:01,900`nSecond subtitle.`n`n3`n00:00:02,000 --> 00:00:02,500`n第一段字幕。`n`n4`n00:00:02,500 --> 00:00:02,900`n，第二段字幕。`n",[Text.UTF8Encoding]::new($false))}
-if($LayoutNavigation){
+if($LayoutNavigation -or $LengthGuide){
     $body=[Text.StringBuilder]::new()
     for($i=0;$i -lt 120;$i++){
         $start=[TimeSpan]::FromMilliseconds($i*20).ToString('hh\:mm\:ss\,fff')
@@ -212,6 +231,7 @@ if($VideoTools){
 }
 if($LASTEXITCODE -ne 0){throw 'Fixture creation failed'}
 $env:ONESUB_DATA_ROOT = Join-Path $workPath 'data'
+$env:AGENT_DESKTOP_HOME = Join-Path $workPath 'agent-desktop'
 New-Item -ItemType Directory $env:ONESUB_DATA_ROOT | Out-Null
 # Controls are found by their Chinese names; pin the interface language.
 # This scenario verifies normal teardown, not tray behavior (covered by
@@ -264,6 +284,56 @@ function Find-UI($name) {
     $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name)
     return $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$condition)
 }
+
+function Read-ModuleTime([string]$name) {
+    $root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
+    $bar=$root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,'状态栏'))
+    if(-not $bar){throw 'Persistent status bar is missing'}
+    $nodes=$bar.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)
+    foreach($node in $nodes) {
+        $label=$node.Current.Name
+        if($label -match ('^'+[Regex]::Escape($name)+' (?:(\d+) 小时 )?(?:(\d+) 分 )?(\d+(?:\.\d+)?) 秒$')) {
+            return 3600*[double]$Matches[1]+60*[double]$Matches[2]+[double]$Matches[3]
+        }
+    }
+    throw "Module time is missing: $name"
+}
+
+function Read-AgentSnapshot([string]$name) {
+    $window=[SmokeNative]::TestWindow($p.Id)
+    if($window -eq [IntPtr]::Zero){throw 'Private test window is missing'}
+    $inventoryRaw=(& agent-desktop list-windows --app 'OneSub.exe') -join "`n"
+    $inventory=$inventoryRaw | ConvertFrom-Json
+    if($LASTEXITCODE -ne 0 -or -not $inventory.ok){throw "Private window inventory failed: $inventoryRaw"}
+    $target=@($inventory.data | Where-Object {$_.pid -eq $p.Id -and $_.id -eq ('w-'+$window.ToInt64())})
+    if($target.Count -ne 1){throw 'The isolated test window identity is not unique'}
+    $raw=(& agent-desktop snapshot --window-id $target[0].id --include-bounds --max-depth 18 --timeout-ms 15000) -join "`n"
+    if($LASTEXITCODE -ne 0){throw "Private agent-desktop read failed: $raw"}
+    $snapshot=$raw | ConvertFrom-Json
+    if(-not $snapshot.ok){throw "Private agent-desktop read refused: $raw"}
+    [IO.File]::WriteAllText((Join-Path $workPath ($name+'.json')),$raw,[Text.UTF8Encoding]::new($false))
+    return $snapshot
+}
+
+function Find-AgentControl($value,[string]$name) {
+    if($value -is [System.Collections.IEnumerable] -and $value -isnot [string] -and $value -isnot [System.Management.Automation.PSCustomObject]) {
+        foreach($item in $value){$found=Find-AgentControl $item $name;if($found){return $found}}
+    } elseif($value -is [System.Management.Automation.PSCustomObject]) {
+        if($value.ref_id -and $value.name -eq $name){return $value}
+        foreach($property in $value.PSObject.Properties){$found=Find-AgentControl $property.Value $name;if($found){return $found}}
+    }
+    return $null
+}
+
+function Click-AgentControl([string]$name) {
+    $snapshot=Read-AgentSnapshot ('before-'+$name)
+    $target=Find-AgentControl $snapshot $name
+    if(-not $target){throw "Private agent-desktop control is missing: $name"}
+    $raw=(& agent-desktop click $target.ref_id) -join "`n"
+    $result=$raw | ConvertFrom-Json
+    if($LASTEXITCODE -ne 0 -or -not $result.ok){throw "Private agent-desktop action failed: $raw"}
+    $null=Read-AgentSnapshot ('after-'+$name)
+}
 function Click-UI($name) {
     for($i=0;$i -lt 100;$i++) {
         try {
@@ -291,6 +361,17 @@ function Input-UI($name) {
         if($item.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern,[ref]$pattern)){return $item}
     }
     throw "Input unavailable: $name"
+}
+function Start-TimedUI([string]$name) {
+    # Resolve the control before measuring, then deliver the same window-local
+    # pointer messages as MyGo's native hook. UIA Invoke includes COM dispatch
+    # wait in this driver, which is not the operation's execution interval.
+    $node=Find-UI $name
+    if(-not $node -or -not $node.Current.IsEnabled){throw "Timed action is unavailable: $name"}
+    $rect=$node.Current.BoundingRectangle
+    $watch=[Diagnostics.Stopwatch]::StartNew()
+    if(-not [SmokeNative]::PointerClick(([SmokeNative]::TestWindow($p.Id)),$p.Id,[int]($rect.X+$rect.Width/2),[int]($rect.Y+$rect.Height/2),$false)){throw 'Private timed pointer delivery failed'}
+    return $watch
 }
 function Read-Preferences { return ([IO.File]::ReadAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'))|ConvertFrom-Json) }
 function Scroll-PanelEnd($name) {
@@ -533,6 +614,10 @@ try {
         . ([ScriptBlock]::Create([IO.File]::ReadAllText((Join-Path (Split-Path $ScreenshotTool) 'scroll_follow.ps1'),[Text.Encoding]::UTF8)))
         return
     }
+    if($LengthGuide){
+        . ([ScriptBlock]::Create([IO.File]::ReadAllText((Join-Path (Split-Path $ScreenshotTool) 'subtitle_length_guide.ps1'),[Text.Encoding]::UTF8)))
+        return
+    }
     if($SubtitleClicks){Test-SubtitleClicks;return}
     if($WorkflowLayout){[void][SmokeNative]::ShowWindow(([SmokeNative]::TestWindow($p.Id)),3);Start-Sleep -Milliseconds 800}
     # Playback is exercised through UIA on the private desktop. This does not
@@ -766,10 +851,14 @@ try {
         Click-UI '保存'
         for($i=0;$i -lt 100;$i++){if([IO.File]::ReadAllText($external).Contains('Reviewed translation')){break};Start-Sleep -Milliseconds 100}
         if(-not [IO.File]::ReadAllText($external).Contains('Reviewed translation') -or (Get-FileHash $subtitle -Algorithm SHA256).Hash -ne $originalSubtitleHash){throw 'Independent import/save modified the wrong subtitle file'}
-        Click-UI '合成视频';Click-UI '开始合成'
+        Click-UI '合成视频';$composeWatch=Start-TimedUI '开始合成'
         $burned=Join-Path $workPath 'test-OneSub.mp4'
         for($i=0;$i -lt 600;$i++){if(Test-Path $burned){break};Start-Sleep -Milliseconds 100}
         if(-not (Test-Path $burned)){throw 'Nonmatching subtitle did not compose with the current video'}
+        if($TaskTimings){
+            $composeWatch.Stop();$measured=Read-ModuleTime '视频合成'
+            if($measured -le 0 -or [Math]::Abs($measured-$composeWatch.Elapsed.TotalSeconds) -gt 2){throw "Composition time differs from the actual operation: displayed=$measured observed=$($composeWatch.Elapsed.TotalSeconds)"}
+        }
         # Standalone media now retains current subtitles when no same-name
         # match exists. Clear through the confirmed UI action to test a new,
         # genuinely subtitle-free workbench rather than a media reassociation.
@@ -781,20 +870,32 @@ try {
         if(-not (Find-UI '未加载字幕')){throw 'Subtitle-free import was not empty'}
         Click-UI '音视频处理'
         if(Find-UI '字幕内容'){throw 'Compression exposes subtitle output options'}
-        Click-UI '开始压缩'
+        $compressWatch=Start-TimedUI '开始压缩'
         $compressed=Join-Path $workPath 'test-OneSub-compressed.mp4'
         for($i=0;$i -lt 600;$i++){if(Test-Path $compressed){break};Start-Sleep -Milliseconds 100}
         if(-not (Test-Path $compressed)){throw 'Subtitle-free compression did not publish a video'}
+        if($TaskTimings){
+            $compressWatch.Stop();$compressionTime=Read-ModuleTime '音视频处理'
+            if($compressionTime -le 0 -or [Math]::Abs($compressionTime-$compressWatch.Elapsed.TotalSeconds) -gt 2){throw "Compression time differs from the actual operation: displayed=$compressionTime observed=$($compressWatch.Elapsed.TotalSeconds)"}
+            Start-Sleep -Seconds 2
+            if((Read-ModuleTime '音视频处理') -ne $compressionTime){throw 'Completed compression timer keeps increasing'}
+        }
         $streams=(& ffprobe -v error -show_streams -of json $compressed | Out-String | ConvertFrom-Json).streams
         if($LASTEXITCODE -ne 0 -or @($streams|Where-Object codec_type -eq 'video').Count -ne 1 -or @($streams|Where-Object codec_type -eq 'subtitle').Count -ne 0){throw 'Compression added subtitles or lost video'}
         Click-UI '音视频处理'
         Select-NativeOption '处理方式' '提取音频'
         if((Read-Preferences).audioFormat -ne 'mp3' -or (Find-UI '编码质量')){throw 'Audio mode did not default to MP3 or still shows video quality'}
         & $ScreenshotTool $p.Id (Join-Path $workPath 'audio-tools.png')
-        Click-UI '开始提取'
+        $audioWatch=Start-TimedUI '开始提取'
         $audio=Join-Path $workPath 'test-OneSub-audio.mp3'
         for($i=0;$i -lt 600;$i++){if(Test-Path $audio){break};Start-Sleep -Milliseconds 100}
         if(-not (Test-Path $audio)){throw 'Audio extraction did not publish MP3'}
+        if($TaskTimings){
+            $audioWatch.Stop();$audioTime=Read-ModuleTime '音视频处理'
+            if($audioTime -le 0 -or [Math]::Abs($audioTime-$audioWatch.Elapsed.TotalSeconds) -gt 2){throw "Audio extraction time differs from the actual operation: displayed=$audioTime observed=$($audioWatch.Elapsed.TotalSeconds)"}
+            Start-Sleep -Seconds 2
+            if((Read-ModuleTime '音视频处理') -ne $audioTime){throw 'Completed audio extraction timer keeps increasing'}
+        }
         $streams=(& ffprobe -v error -show_streams -of json $audio | Out-String | ConvertFrom-Json).streams
         if($LASTEXITCODE -ne 0 -or @($streams).Count -ne 1 -or $streams[0].codec_type -ne 'audio' -or $streams[0].codec_name -ne 'mp3'){throw 'Audio extraction produced incorrect streams'}
         & ffmpeg -nostdin -v error -xerror -i $audio -f null -
@@ -858,6 +959,47 @@ try {
         $translated=Join-Path $workPath 'test-zh.srt'
         if(Test-Path $translated){throw 'Partial translation was published before completion'}
         & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-live.png')
+        if($SkipTranslation){
+            for($i=0;$i -lt 150;$i++){if(Find-UI '1 条字幕未翻译'){break};Start-Sleep -Milliseconds 100}
+            if(-not (Find-UI '1 条字幕未翻译')){throw 'Untranslated cue count is missing'}
+            $stoppedTime=Read-ModuleTime '字幕翻译'
+            if($stoppedTime -lt 3){throw 'Translation time did not include the real streaming request'}
+            Start-Sleep -Seconds 2
+            if([Math]::Abs((Read-ModuleTime '字幕翻译')-$stoppedTime) -gt 0.002){throw 'Stopped translation time keeps increasing'}
+            Click-AgentControl '定位未翻译字幕'
+            $missing=Find-UI 'Good morning'
+            $selected=$false
+            for($level=0;$level -lt 6 -and $missing;$level++){
+                $pattern=$null
+                if($missing.TryGetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern,[ref]$pattern)){$selected=$pattern.Current.IsSelected;break}
+                $missing=[System.Windows.Automation.TreeWalker]::ControlViewWalker.GetParent($missing)
+            }
+            if(-not $selected){throw 'Locate did not select the untranslated subtitle'}
+            & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-missing-located.png')
+            Click-AgentControl '跳过未翻译字幕'
+            for($i=0;$i -lt 200;$i++){if(Test-Path -LiteralPath $translated){break};Start-Sleep -Milliseconds 100}
+            if(-not (Test-Path -LiteralPath $translated)){throw 'Skip did not publish completed translations'}
+            $partial=[IO.File]::ReadAllText($translated)
+            if(([Regex]::Matches($partial,'(?m)^\d+\r?$')).Count -ne 1 -or $partial.Contains('Good morning') -or -not $partial.Contains('你好，世界')){throw 'Skip output includes an unfinished cue or lost the completed translation'}
+            if(-not (Find-UI 'Good morning')){throw 'Skip deleted the untranslated source from the workbench'}
+            $skipTime=Read-ModuleTime '字幕翻译'
+            if($skipTime -lt $stoppedTime){throw 'Skip reset the translation elapsed time'}
+            Start-Sleep -Seconds 2
+            if([Math]::Abs((Read-ModuleTime '字幕翻译')-$skipTime) -gt 0.002){throw 'Completed skip time keeps increasing'}
+            Click-UI '导出字幕'
+            Click-AgentControl '继续处理'
+            $translated=Join-Path $workPath 'test-zh-OneSub.srt'
+            for($i=0;$i -lt 300;$i++){if(Test-Path -LiteralPath $translated){break};Start-Sleep -Milliseconds 100}
+            if(-not (Test-Path -LiteralPath $translated)){throw 'Continue did not finish the missing translation'}
+            $complete=[IO.File]::ReadAllText($translated)
+            if(([Regex]::Matches($complete,'(?m)^\d+\r?$')).Count -ne 2 -or -not $complete.Contains('你好，世界') -or -not $complete.Contains('早上好')){throw 'Continue changed a completed translation or failed to fill the gap'}
+            $continuedTime=Read-ModuleTime '字幕翻译'
+            if($continuedTime -le $skipTime){throw 'Continue did not accumulate its execution time'}
+            Start-Sleep -Seconds 2
+            if([Math]::Abs((Read-ModuleTime '字幕翻译')-$continuedTime) -gt 0.002){throw 'Completed translation time keeps increasing'}
+            $null=Read-AgentSnapshot 'translation-skip-continued'
+            Write-Output 'PASS: locate selected the untranslated cue; skip preserved its source and wrote completed translations only; continue requested only the gap; elapsed time accumulated and stopped correctly'
+        }
         if($InterruptTranslation){
             for($i=0;$i -lt 150;$i++){if(Find-UI '继续处理'){break};Start-Sleep -Milliseconds 100}
             if(-not (Find-UI '继续处理') -or -not (Find-UI '你好，世界') -or -not (Find-UI '尚未完成')){throw 'Interruption hid completed or draft text'}
@@ -970,10 +1112,25 @@ try {
         $output=Join-Path $workPath 'test-OneSub.mp4'
         for($i=0;$i -lt 1800;$i++){if(Test-Path -LiteralPath $output){break};Start-Sleep -Milliseconds 100}
         if(-not (Test-Path -LiteralPath $output)){throw 'Automatic export did not write beside source'}
+        if($TaskTimings -and (Read-ModuleTime '视频合成') -le 0){throw 'Composition elapsed time is absent or zero'}
         if(Test-Path -LiteralPath ($output+'.onesub.json')){throw 'Video directory contains a report sidecar'}
         Start-Sleep -Milliseconds 300
         & $ScreenshotTool $p.Id (Join-Path $workPath 'compose-result.png')
         Write-Output 'PASS: background composition kept the native player playable; automatic composition beside source; no report sidecar'
+    }
+    if($TaskTimings){
+        $null=Read-AgentSnapshot 'module-times-final'
+        if($VideoTools -and (Read-ModuleTime '音视频处理') -le 0){throw 'Media processing elapsed time is absent or zero'}
+        $used=@()
+        if($TranslationEndpoint){$used+='字幕翻译'}
+        if($VideoTools){$used+=@('音视频处理','视频合成')}
+        if($ComposeOutput){$used+='视频合成'}
+        foreach($name in $used){
+            $root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
+            $shown=@($root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | Where-Object {$_.Current.Name -match ('^'+[Regex]::Escape($name)+' (?:(\d+) 小时 )?(?:(\d+) 分 )?\d+(?:\.\d+)? 秒$')})
+            if($shown.Count -ne 1 -or $shown[0].Current.IsOffscreen){throw "Permanent module time is missing or offscreen: $name"}
+        }
+        if(Find-UI '字幕导出 —'){throw 'Subtitle export still has a timing slot'}
     }
     $inputMode=if($UIAPlayback){'UIA (keyboard not exercised)'}else{'Space'}
     Write-Output "PASS: import (argument=$OpenArgument), same-name subtitle, playback/pause=$inputMode, settings, translation=$([bool]$TranslationEndpoint), upper/lower export=$BilingualExport, subtitle merge/menu=$SubtitleMenus"

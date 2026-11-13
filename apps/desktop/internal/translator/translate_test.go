@@ -384,6 +384,32 @@ func TestTranslateIncompleteRunResumesFromCache(t *testing.T) {
 	}
 }
 
+// Continuing an accepted partial track sends only unfinished cues. Existing
+// translations, including an unlocked machine answer, are retained verbatim.
+func TestTranslateOnlyMissingPreservesCompletedTrack(t *testing.T) {
+	doc := testDocument(3)
+	doc.Cues[0].TranslationSource, doc.Cues[0].Translated, doc.Cues[0].Text = doc.Cues[0].Text, true, "已有完整译文"
+	doc.Cues[2].TranslationSource, doc.Cues[2].Translated, doc.Cues[2].Text = doc.Cues[2].Text, true, "另一条已有译文"
+	f, config := serve(t, func(s seen, _ int) (string, string, int) { return translated(s), "stop", 0 })
+	if err := json.Unmarshal([]byte(`{"OnlyMissing":true}`), &config); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Translate(context.Background(), config, doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requests := f.seen()
+	if len(requests) != 1 {
+		t.Fatal("continue sent an unexpected number of requests", len(requests))
+	}
+	if len(requests[0].Payload.Units) != 1 || requests[0].Payload.Units[0].ID != "2" {
+		t.Fatal("continue retransmitted completed cues", requests[0].Payload.Units)
+	}
+	if result.Document.Cues[0].Text != "已有完整译文" || result.Document.Cues[2].Text != "另一条已有译文" || !result.Document.Cues[1].Translated {
+		t.Fatal("continue replaced a completed translation or left the missing cue unfinished", result.Document.Cues)
+	}
+}
+
 // Explicit transient HTTP failures are retried after a wait, and the live view
 // says why. An accepted request with an unknown outcome is a separate case.
 func TestTranslateRetriesTransientFailures(t *testing.T) {

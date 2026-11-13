@@ -24,7 +24,7 @@ func (a *NativeApp) processMedia() {
 		case "save-recognition":
 			a.saveTracks([]int{0}, false, a.recognitionFinished)
 		default:
-			a.recognizeWithTranslation(pending.Translate)
+			a.recognizeWithTranslation(pending.Translate, true)
 		}
 		return
 	}

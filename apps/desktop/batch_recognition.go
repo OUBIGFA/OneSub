@@ -265,14 +265,16 @@ func (a *NativeApp) startBatchRecognition() {
 		a.showError(locales.BatchRecognition(), err.Error())
 		return
 	}
+	continuing := false
 	for i := range a.batchItems {
 		if a.batchItems[i].Status != batchDone {
+			continuing = continuing || a.batchItems[i].Status == batchCancelled || a.batchItems[i].Status == batchFailed
 			a.batchItems[i].Status = batchWaiting
 			a.batchItems[i].Stage, a.batchItems[i].Error, a.batchItems[i].Output = "", "", ""
 		}
 	}
 	items := slices.Clone(a.batchItems)
-	a.run(locales.BatchRecognition(), func(ctx context.Context) (func(), error) {
+	a.runTimed(timingRecognition, continuing, locales.BatchRecognition(), func(ctx context.Context) (func(), error) {
 		for i, item := range items {
 			if ctx.Err() != nil {
 				break

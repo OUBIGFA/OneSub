@@ -54,6 +54,7 @@ func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) []func() {
 					o.Mode, o.SourceTrack = "source", "original"
 				}
 				a.settings.SubtitleOutput = o
+				a.exportSkipMissing, a.composeSkipMissing = false, false
 				a.saveSettings()
 			})
 		})
@@ -106,9 +107,11 @@ func (a *NativeApp) exportView(c *ui.Context) {
 	}
 	var outputErr error
 	if a.exportOpen && a.snapshot != nil {
-		document := a.snapshot.OutputDocument(a.settings.SubtitleOutput)
+		options := a.settings.SubtitleOutput
+		options.SkipMissing = a.exportSkipMissing
+		document := a.snapshot.OutputDocument(options)
 		document.TargetFormat = a.exportFormat
-		_, outputErr = subtitle.SelectOutput(document, a.settings.SubtitleOutput)
+		_, outputErr = subtitle.SelectOutput(document, options)
 	}
 	fixedDialog(c, &a.exportOpen, locales.MenuExportSubtitles(), 620, 0, func() {
 		ui.Form(c, func() {
@@ -142,12 +145,15 @@ func (a *NativeApp) exportView(c *ui.Context) {
 		switch {
 		case outputErr != nil:
 			note, warning = outputErr.Error(), true
+		case a.exportSkipMissing && a.snapshot != nil && a.settings.SubtitleOutput.Normalized().Mode != "source":
+			note, warning = locales.TranslationSkipped(subtitle.MissingTranslations(a.snapshot.Document))+"\n"+locales.TranslationSkipNote(), true
 		case a.exportFormat == "txt":
 			note = locales.ExportTextNote()
 		case a.exportFormat == "srt" || a.exportFormat == "vtt":
 			note = locales.ExportPlainNote()
 		}
 		stableDialogNote(c, note, warning, a.outputNoteVariants(locales.ExportTextNote(), locales.ExportPlainNote())...)
+		a.outputMissingActions(c, &a.exportSkipMissing, func() { a.exportOpen = false })
 	}, func() {
 		lobeButton(c, locales.ActionCancel()).OnClick(func() { a.exportOpen = false })
 		lobePrimaryButton(c, locales.ExportConfirm()).Disabled(outputErr != nil || a.snapshot == nil || a.busy).OnClick(func() { a.exportOpen = false; a.exportSubtitle() })
@@ -174,6 +180,7 @@ func (a *NativeApp) exportSubtitle() {
 	}
 	state, format, line := *a.snapshot, a.exportFormat, a.exportLines
 	options, style, secondary, aspect := a.settings.SubtitleOutput, a.currentStyle, a.secondaryStyle, a.frameAspect
+	options.SkipMissing = a.exportSkipMissing
 	a.run(locales.MenuExportSubtitles(), func(ctx context.Context) (func(), error) {
 		document := state.OutputDocument(options)
 		document.TargetFormat = format

@@ -1,5 +1,7 @@
 param([string]$Exe,[string]$Work,[string]$ScreenshotTool,[string]$TranslationEndpoint,[string]$ModelsRoot,[switch]$Packaged,[string]$AsrModel='Qwen3-ASR-1.7B-hf')
 $ErrorActionPreference='Stop'
+$OutputEncoding=[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
+if(-not ('SmokeNative' -as [type]) -or -not [SmokeNative]::IsPrivateDesktop()){throw 'Run the recognition pipeline through private_native_smoke.ps1'}
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Speech
@@ -56,12 +58,22 @@ $prefs=@{version=5;uiLanguage='zh-Hans';closeToTray=$false;recognitionMode='manu
 [IO.File]::WriteAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'),($prefs|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
 if($Packaged){foreach($name in @('ONESUB_FFPROBE','ONESUB_FFMPEG','ONESUB_SUBTITLE_WORKER','ONESUB_STYLE_WORKER','ONESUB_SKILL_WORKER','ONESUB_SKILL_ROOT','ONESUB_ONEASR_ROOT')){Remove-Item "Env:$name" -ErrorAction SilentlyContinue}}
 else {$env:ONESUB_FFPROBE=(Get-Command ffprobe).Source;$env:ONESUB_FFMPEG=(Get-Command ffmpeg).Source}
-$p=Start-Process -FilePath ([IO.Path]::GetFullPath($Exe)) -ArgumentList ('"'+$video+'"') -PassThru -RedirectStandardError (Join-Path $workPath 'stderr.log')
+$p=Start-Process -FilePath ([IO.Path]::GetFullPath($Exe)) -ArgumentList ('"'+$video+'"') -WindowStyle Normal -PassThru -RedirectStandardError (Join-Path $workPath 'stderr.log')
 function Find-UI($name) {
  $p.Refresh()
- if($p.HasExited -or $p.MainWindowHandle -eq [IntPtr]::Zero){return $null}
- $root=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+ $window=[SmokeNative]::TestWindow($p.Id)
+ if($p.HasExited -or $window -eq [IntPtr]::Zero){return $null}
+ $root=[System.Windows.Automation.AutomationElement]::FromHandle($window)
  return $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$name))
+}
+function Read-PipelineTime([string]$name) {
+ $root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
+ foreach($node in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)) {
+  if($node.Current.Name -match ('^'+[Regex]::Escape($name)+' (?:(\d+) 小时 )?(?:(\d+) 分 )?(\d+(?:\.\d+)?) 秒$')) {
+   return 3600*[double]$Matches[1]+60*[double]$Matches[2]+[double]$Matches[3]
+  }
+ }
+ throw "Pipeline time is missing: $name"
 }
 function Wait-UI($name,$seconds=20) {
  for($i=0;$i -lt $seconds*10;$i++){$node=Find-UI $name;if($node){return $node};Start-Sleep -Milliseconds 100}
@@ -76,7 +88,7 @@ function Check-Picture($stage) {
   $viewport=Find-UI '媒体视口'
   if($viewport) {
    $r=$viewport.Current.BoundingRectangle
-   if($r.Width -gt 100 -and $r.Height -gt 100 -and [PipelinePicture]::Visible($p.MainWindowHandle,$r.X,$r.Y,$r.Width,$r.Height)){return}
+   if($r.Width -gt 100 -and $r.Height -gt 100 -and [PipelinePicture]::Visible(([SmokeNative]::TestWindow($p.Id)),$r.X,$r.Y,$r.Width,$r.Height)){return}
   }
   Start-Sleep -Milliseconds 100
  }
@@ -92,6 +104,7 @@ try {
  Click-UI '取消任务'
  [void](Wait-UI '继续处理' 30)
  Check-Picture 'cancelled'
+ $pipelineWatch=[Diagnostics.Stopwatch]::StartNew()
  Click-UI '继续处理'
  $translated=Join-Path $workPath 'pipeline-zh.srt'
  for($i=0;$i -lt 2400;$i++) {
@@ -101,13 +114,19 @@ try {
  }
  if(-not (Test-Path -LiteralPath $translated)){
   & $ScreenshotTool $p.Id (Join-Path $workPath 'failure.png')
-  $root=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
+  $root=[System.Windows.Automation.AutomationElement]::FromHandle(([SmokeNative]::TestWindow($p.Id)))
   $root.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {$_.Current.Name}
   throw 'One-click pipeline did not produce a translated file'
  }
  $original=Join-Path $workPath 'pipeline.srt'
  if(-not (Test-Path -LiteralPath $original)){throw 'Recognized subtitles were not preserved'}
  if(-not [IO.File]::ReadAllText($translated).Contains('你好')){throw 'Pipeline output has no translated content'}
+ $pipelineWatch.Stop()
+ $recognitionTime=Read-PipelineTime '语音识别'
+ $translationTime=Read-PipelineTime '字幕翻译'
+ if($recognitionTime -le 0 -or $translationTime -le 0 -or [Math]::Abs($recognitionTime+$translationTime-$pipelineWatch.Elapsed.TotalSeconds) -gt 3){throw 'Recognition and translation times do not match the executed pipeline'}
+ Start-Sleep -Seconds 2
+ if((Read-PipelineTime '语音识别') -ne $recognitionTime -or (Read-PipelineTime '字幕翻译') -ne $translationTime){throw 'Completed pipeline timers keep increasing'}
  Check-Picture 'translated'
  Click-UI '播放'
  [void](Wait-UI '暂停')
@@ -118,12 +137,12 @@ try {
  Click-UI '暂停'
  Check-Picture 'paused'
  & $ScreenshotTool $p.Id (Join-Path $workPath 'pipeline.png')
- Write-Output "PASS: one-click recognition and translation ($AsrModel); cancellation and continue; original and translated files; visible video before/after tasks and during playback"
+ Write-Output "PASS: one-click recognition and translation ($AsrModel); cancellation and continue; independent elapsed times ($recognitionTime s + $translationTime s); original and translated files; visible video before/after tasks and during playback"
 } finally {
  $p.Refresh()
  if(-not $p.HasExited) {
   if(Find-UI '取消任务'){Click-UI '取消任务';Start-Sleep -Seconds 2}
-  [void]$p.CloseMainWindow()
+  [void][SmokeNative]::PostMessage(([SmokeNative]::TestWindow($p.Id)),0x10,[IntPtr]::Zero,[IntPtr]::Zero)
   for($i=0;$i -lt 100;$i++){if($p.HasExited){break};if(Find-UI '不保存'){Click-UI '不保存'};Start-Sleep -Milliseconds 100;$p.Refresh()}
   if(-not $p.WaitForExit(10000)){throw "Test application remains open: $($p.Id)"}
  }

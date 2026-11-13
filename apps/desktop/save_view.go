@@ -203,12 +203,23 @@ func (a *NativeApp) saveTracks(tracks []int, saveAs bool, next func()) {
 	if a.busy || a.snapshot == nil || !a.commitEdit(true) {
 		return
 	}
+	if !a.proofreadingSourceTracked && subtitle.MissingTranslations(a.snapshot.Document) > 0 {
+		for _, track := range tracks {
+			if track == 1 {
+				a.missingSaveOpen = true
+				a.missingSaveNext = func() {
+					a.run(locales.TaskSaveSubtitles(), a.saveTracksWork(tracks, saveAs, next, true))
+				}
+				return
+			}
+		}
+	}
 	a.run(locales.TaskSaveSubtitles(), a.saveTracksWork(tracks, saveAs, next))
 }
 
 // Freeze the save inputs before the task starts; completion only acknowledges
 // tracks whose files were actually replaced.
-func (a *NativeApp) saveTracksWork(tracks []int, saveAs bool, next func()) func(context.Context) (func(), error) {
+func (a *NativeApp) saveTracksWork(tracks []int, saveAs bool, next func(), skipMissing ...bool) func(context.Context) (func(), error) {
 	state := *a.snapshot
 	formatsByTrack := [3][]string{a.trackFileFormats(0), a.trackFileFormats(1), a.trackFileFormats(2)}
 	paths := [3]string{a.defaultTrackPath(0), a.defaultTrackPath(1), a.defaultTrackPath(2)}
@@ -266,7 +277,7 @@ func (a *NativeApp) saveTracksWork(tracks []int, saveAs bool, next func()) func(
 				format = formats[0]
 				path += "." + format
 			}
-			data, err := a.encodeTrack(ctx, state.TrackDocument(track), track, format)
+			data, err := a.encodeTrackWithSkipping(ctx, state.TrackDocument(track), track, format, len(skipMissing) > 0 && skipMissing[0])
 			if err != nil {
 				return finish(false), err
 			}
@@ -284,6 +295,10 @@ func (a *NativeApp) saveTracksWork(tracks []int, saveAs bool, next func()) func(
 // encodeTrack writes one track in a subtitle format through libse. A
 // translation with untranslated cues is refused, never filled with source.
 func (a *NativeApp) encodeTrack(ctx context.Context, doc subtitle.Document, track int, format string) ([]byte, error) {
+	return a.encodeTrackWithSkipping(ctx, doc, track, format, false)
+}
+
+func (a *NativeApp) encodeTrackWithSkipping(ctx context.Context, doc subtitle.Document, track int, format string, skipMissing bool) ([]byte, error) {
 	if a.proofreadingSourceTracked && track != 0 {
 		// A standalone language file contains its available rows only. The
 		// absent side remains visibly blank in the bilingual workbench.
@@ -306,7 +321,7 @@ func (a *NativeApp) encodeTrack(ctx context.Context, doc subtitle.Document, trac
 	if track == 1 {
 		mode = "translation"
 	}
-	document, err := subtitle.SelectOutput(doc, subtitle.OutputOptions{Mode: mode})
+	document, err := subtitle.SelectOutput(doc, subtitle.OutputOptions{Mode: mode, SkipMissing: skipMissing})
 	if err != nil {
 		return nil, err
 	}
@@ -421,6 +436,7 @@ func (a *NativeApp) requestExport() {
 		a.settings.SubtitleOutput.Mode, a.settings.SubtitleOutput.SourceTrack = "translation", ""
 	}
 	a.exportLines = "all"
+	a.exportSkipMissing = false
 	a.exportOpen = true
 }
 

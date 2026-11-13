@@ -980,7 +980,7 @@
   "errOutputMode": "Unknown subtitle content option",
   "errOutputPrimary": "Unknown main subtitle language",
   "errOutputAssBilingual": "ASS/SSA keeps its own layout and does not stack both languages; Save as SRT, then set the bilingual style",
-  "errOutputMissing": "{count} cues have no translation; Add the translations or choose the original subtitles",
+  "errOutputMissing": "{count} subtitles have no translation",
   "@errOutputMissing": {
     "placeholders": {
       "count": {
@@ -1065,7 +1065,7 @@
   "errTranslateIdle": "The translation service sent nothing for 4 minutes",
   "errTranslateStream": "The translation service reported an error: {detail}",
   "@errTranslateStream": {"placeholders":{"detail":{}}},
-  "errTranslateIncomplete": "{count} subtitles were not translated; Start again to continue; Finished subtitles are kept",
+  "errTranslateIncomplete": "{count} subtitles were not translated",
   "@errTranslateIncomplete": {"placeholders":{"count":{"type":"int"}}},
   "errSummaryInvalid": "The model did not return a usable summary of the source",
   "errOutcomeInterrupted": "The translation service's answer stopped before it was complete",
@@ -1137,5 +1137,25 @@
   "processingInterrupted": "Processing interrupted; Continue when ready",
   "recognitionRestartNote": "Continue processing restarts the unfinished recognition step",
   "translationShowKey": "Show key",
-  "translationHideKey": "Hide key"
+  "translationHideKey": "Hide key",
+  "translationMissingCount": "{count} subtitles not translated",
+  "@translationMissingCount": {"placeholders":{"count":{"type":"int"}}},
+  "translationLocateMissing": "Locate untranslated subtitles",
+  "translationSkipMissing": "Skip untranslated subtitles",
+  "translationSkipNote": "Output completed translations only; Keep untranslated subtitles in the list",
+  "translationSkipped": "Skipped {count} untranslated subtitles",
+  "@translationSkipped": {"placeholders":{"count":{"type":"int"}}},
+  "timingRecognition": "Recognition",
+  "timingTranslation": "Translation",
+  "timingMedia": "Media processing",
+  "timingCompose": "Video composition",
+  "timingSubtitle": "Subtitle processing",
+  "subtitleLengthGuideToggle": "Length guide",
+  "subtitleLengthGuide": "Subtitle length guide",
+  "timingSeconds": "{seconds, number, ::group-off .##} s",
+  "@timingSeconds": {"placeholders":{"seconds":{"type":"double"}}},
+  "timingMinutes": "{minutes, number, ::group-off} min {seconds, number, ::group-off} s",
+  "@timingMinutes": {"placeholders":{"minutes":{"type":"int"},"seconds":{"type":"int"}}},
+  "timingHours": "{hours, number, ::group-off} h {minutes, number, ::group-off} min {seconds, number, ::group-off} s",
+  "@timingHours": {"placeholders":{"hours":{"type":"int"},"minutes":{"type":"int"},"seconds":{"type":"int"}}}
 }

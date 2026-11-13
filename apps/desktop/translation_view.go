@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/security"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
@@ -23,6 +24,7 @@ type translationCandidate struct {
 	Revision  int64               `json:"baseRevision"`
 	Result    translator.Result   `json:"result"`
 	Checks    translator.Findings `json:"checks"`
+	Skipped   int                 `json:"skipped,omitempty"`
 }
 
 // Providers have two working views: a full-width model library for everyday
@@ -288,16 +290,23 @@ func (a *NativeApp) translationFile() string {
 // errors in is kept in the project, unsaved. Checks remain available from
 // the subtitle toolbar without interrupting the workbench.
 func (a *NativeApp) startTranslation() {
+	a.startTranslationConfigured(a.translationConfig())
+}
+
+func (a *NativeApp) startTranslationConfigured(config translator.Config) {
 	if a.busy || a.snapshot == nil || !a.commitEdit(true) {
 		return
 	}
-	config := a.translationConfig()
 	prefs := a.settings
 	task := &translationTask{ProjectID: a.snapshot.Manifest.ID, ProjectPath: a.snapshot.Path, Revision: a.snapshot.Revision, Source: a.snapshot.Document, Config: config, CredentialScope: prefs.CredentialScope(), Target: a.translationFile(), Format: a.trackFormats()[0], SavedHash: a.savedHash, SavedPath: a.savedPath}
 	if p := prefs.Provider(); p != nil {
 		task.ProviderName = p.Name
 	}
-	a.executeTranslationTask(task, newTranslationLive())
+	live := newTranslationLive()
+	if config.OnlyMissing && a.taskTimes[timingTranslation] != nil {
+		live.elapsed = a.taskTimes[timingTranslation].duration(time.Now())
+	}
+	a.executeTranslationTask(task, live)
 }
 
 // translationConfig freezes the same service, language and rules for whole-file
@@ -339,13 +348,16 @@ func (a *NativeApp) executeTranslationTask(task *translationTask, live *translat
 		return
 	}
 	baseRequests, baseInput, baseOutput := live.requests, live.input, live.output
+	continuing := a.translationLive == live || config.OnlyMissing
 	var progressErr error
 	var stopTask context.CancelFunc
+	var runClock *taskTiming
 	config.Observe = func(ev translator.Event) {
 		ev.Requests += baseRequests
 		ev.Input += baseInput
 		ev.Output += baseOutput
-		if err := writeTranslationRecord(task.ProjectPath, translationRecord{Event: &ev}, false); err != nil && progressErr == nil {
+		elapsed := runClock.duration(time.Now())
+		if err := writeTranslationRecord(task.ProjectPath, translationRecord{Event: &ev, Elapsed: &elapsed}, false); err != nil && progressErr == nil {
 			progressErr = fmt.Errorf("%s", locales.TranslationProgressWriteError(err.Error()))
 			if stopTask != nil {
 				stopTask()
@@ -360,21 +372,29 @@ func (a *NativeApp) executeTranslationTask(task *translationTask, live *translat
 	a.translationLive = live
 	a.translationTask = task
 	live.stopped, live.model = "", config.Model
+	live.started = time.Now()
 	a.changeSubtitleTab(1)
 	a.translationRunning = true
 	checker := translator.Checker{Executable: executable, SkillRoot: root, Scratch: a.worker.Scratch, Subtitle: a.worker}
 	target, format := task.Target, task.Format
-	a.run(locales.ActionTranslate(), func(ctx context.Context) (apply func(), runErr error) {
+	a.runTimed(timingTranslation, continuing, locales.ActionTranslate(), func(ctx context.Context) (apply func(), runErr error) {
+		runClock, _ = ctx.Value(taskTimingKey{}).(*taskTiming)
 		ctx, stopTask = context.WithCancel(ctx)
 		defer stopTask()
 		defer func() {
+			elapsed := runClock.duration(time.Now())
+			record := translationRecord{Elapsed: &elapsed}
 			if runErr != nil {
-				note := runErr.Error()
+				record.Error = runErr.Error()
 				if errors.Is(runErr, context.Canceled) {
-					note = locales.StatusCancelled()
+					record.Error = locales.StatusCancelled()
 				}
-				if err := writeTranslationRecord(task.ProjectPath, translationRecord{Error: note}, false); err != nil {
+			}
+			if err := writeTranslationRecord(task.ProjectPath, record, false); err != nil {
+				if runErr != nil {
 					runErr = fmt.Errorf("%s; %s", runErr, locales.TranslationProgressWriteError(err.Error()))
+				} else {
+					runErr = errors.New(locales.TranslationProgressWriteError(err.Error()))
 				}
 			}
 		}()
@@ -383,7 +403,7 @@ func (a *NativeApp) executeTranslationTask(task *translationTask, live *translat
 		source := task.Source
 		source.Cues = append([]subtitle.Cue{}, source.Cues...)
 		for i := range source.Cues {
-			if !source.Cues[i].TextLocked && !source.Cues[i].ReadOnly && source.Cues[i].Translated {
+			if !config.OnlyMissing && !source.Cues[i].TextLocked && !source.Cues[i].ReadOnly && source.Cues[i].Translated {
 				source.Cues[i].Text = cueDisplayText(source.Cues[i], 0)
 			}
 		}
@@ -398,7 +418,18 @@ func (a *NativeApp) executeTranslationTask(task *translationTask, live *translat
 			return nil, err
 		}
 		a.win.Update(func() { live.stage = "check" })
-		checks, err := checker.Check(ctx, source, result.Document, config.TargetLanguage, !result.Report.Rebuilt)
+		var checks translator.Findings
+		if config.OnlyMissing {
+			ids := []string{}
+			for _, cue := range source.Cues {
+				if cue.MissingTranslation() && !cue.TextLocked {
+					ids = append(ids, cue.ID)
+				}
+			}
+			checks, err = checker.CheckSelected(ctx, source, result.Document, ids, config.TargetLanguage)
+		} else {
+			checks, err = checker.Check(ctx, source, result.Document, config.TargetLanguage, !result.Report.Rebuilt)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -440,7 +471,7 @@ func (a *NativeApp) applyTranslation(candidate *translationCandidate, target str
 		fail(locales.ErrTranslationStale())
 		return
 	}
-	if _, err := a.store.ApplyTranslationDocument(uuid.NewString(), candidate.Revision, candidate.Result.Document); err != nil {
+	if _, err := a.store.ApplyTranslationDocument(uuid.NewString(), candidate.Revision, candidate.Result.Document, candidate.Skipped > 0); err != nil {
 		fail(err.Error())
 		return
 	}
@@ -451,6 +482,9 @@ func (a *NativeApp) applyTranslation(candidate *translationCandidate, target str
 	}
 	a.clearError(locales.ActionTranslate())
 	a.setSnapshot(state)
+	if candidate.Skipped > 0 {
+		defer func() { a.status += locales.ListSeparator() + locales.TranslationSkipped(candidate.Skipped) }()
+	}
 	// The accepted project is now visible and editable. Keep its recovery
 	// pointer until publishing finishes, in case the output write fails.
 	a.translationLive = nil
