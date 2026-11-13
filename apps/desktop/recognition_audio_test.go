@@ -334,6 +334,28 @@ func TestRecognitionSpeechThenMusicFixtureIntegration(t *testing.T) {
 	}
 }
 
+func TestParseOneAsrRegion(t *testing.T) {
+	for _, sample := range []struct {
+		line            string
+		region, regions int
+		valid           bool
+	}{
+		{"[region] 0/2", 0, 2, true},
+		{"[region] 2/2", 2, 2, true},
+		{"[region] 1/1", 1, 1, true},
+		{"[region] 3/2", 0, 0, false},
+		{"[region] -1/2", 0, 0, false},
+		{"[region] 0/0", 0, 0, false},
+		{"[region] 1/a", 0, 0, false},
+		{"[stage] Loading ASR model", 0, 0, false},
+	} {
+		progress, valid := parseOneAsrRegion(sample.line)
+		if valid != sample.valid || progress.Region != sample.region || progress.Regions != sample.regions {
+			t.Fatalf("%q: progress=%+v valid=%v", sample.line, progress, valid)
+		}
+	}
+}
+
 // Opt-in real Qwen inference: use already downloaded user-selected model
 // directories. No network service or automatic model download is involved.
 func TestRecognitionSpeechGapIntegration(t *testing.T) {
@@ -345,6 +367,9 @@ func TestRecognitionSpeechGapIntegration(t *testing.T) {
 	root := t.TempDir()
 	tools := toolset{dataRoot: root, ffmpeg: os.Getenv("ONESUB_FFMPEG"), worker: subtitle.Client{Executable: os.Getenv("ONESUB_SUBTITLE_WORKER"), Scratch: root}}
 	prefs := settings.Default()
+	if backend := os.Getenv("ONESUB_ASR_TEST_BACKEND"); backend != "" {
+		prefs.Backend = backend
+	}
 	prefs.RecognitionMode, prefs.AsrModel, prefs.Aligner, prefs.Language = recognitionManual, "Qwen3-ASR-1.7B-hf", "Qwen3-ForcedAligner-0.6B-hf", "en"
 	prefs.ModelPaths = map[string]string{prefs.AsrModel: filepath.Join(modelsRoot, prefs.AsrModel), prefs.Aligner: filepath.Join(modelsRoot, prefs.Aligner)}
 	speech, wav := filepath.Join(root, "speech.wav"), filepath.Join(root, "speech-gap.wav")
@@ -357,7 +382,13 @@ func TestRecognitionSpeechGapIntegration(t *testing.T) {
 		}
 	}
 	regionCount := 0
-	srt, evidence, cleanup, err := tools.recognize(ctx, prefs, wav, func(s recognitionStep) { regionCount = max(regionCount, s.Regions) })
+	loads := map[string]int{}
+	srt, evidence, cleanup, err := tools.recognize(ctx, prefs, wav, func(s recognitionStep) {
+		regionCount = max(regionCount, s.Regions)
+		if s.Stage == "load-asr" || s.Stage == "load-aligner" {
+			loads[s.Stage]++
+		}
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -385,6 +416,9 @@ func TestRecognitionSpeechGapIntegration(t *testing.T) {
 	}
 	if !first || !last || regionCount != 2 {
 		t.Fatalf("speech missing: first=%v last=%v regions=%d cues=%+v", first, last, regionCount, doc.Cues)
+	}
+	if loads["load-asr"] != 1 || loads["load-aligner"] != 1 {
+		t.Fatalf("each model must load once per task, got %v", loads)
 	}
 
 	// A silent recording must stop before inference and must not publish an

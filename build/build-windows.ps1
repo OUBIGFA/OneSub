@@ -35,7 +35,9 @@ try {
         if (-not $expected -or (Get-FileHash $source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected.sha256) { throw "Media hash differs from the recorded build: $name" }
         Copy-Item $source (Join-Path $media "$name.exe") -Force
     }
-    if (-not (Test-Path 'build/output/oneasr/oneasr-cli.exe')) { throw 'Verified OneAsr v1.3.0 portable payload is required' }
+    & (Join-Path $PSScriptRoot 'build-oneasr.ps1')
+    $runtime = [IO.File]::ReadAllText((Join-Path $root 'third_party/manifests/runtimes.json')) | ConvertFrom-Json
+    if (-not (Test-Path 'build/output/oneasr/oneasr-cli.exe')) { throw 'Verified OneAsr region-batch runtime is required' }
     if ((Get-FileHash 'build/output/oneasr/oneasr-cli.exe' -Algorithm SHA256).Hash.ToLowerInvariant() -ne $runtime.oneasr.sha256) { throw 'OneAsr hash differs from the recorded build' }
     & (Join-Path $PSScriptRoot 'prepare-vad.ps1')
     & (Join-Path $PSScriptRoot 'prepare-sherpa.ps1')

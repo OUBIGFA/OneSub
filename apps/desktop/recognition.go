@@ -82,6 +82,24 @@ var oneAsrStages = map[string]string{
 	"导出字幕": "export", "Exporting subtitles": "export",
 }
 
+// Region zero identifies the shared model-loading stages, not an input file.
+func parseOneAsrRegion(line string) (recognitionStep, bool) {
+	rest, found := strings.CutPrefix(line, "[region] ")
+	if !found {
+		return recognitionStep{}, false
+	}
+	current, total, found := strings.Cut(rest, "/")
+	if !found {
+		return recognitionStep{}, false
+	}
+	region, regionErr := strconv.Atoi(current)
+	regions, totalErr := strconv.Atoi(total)
+	if regionErr != nil || totalErr != nil || regions < 1 || region < 0 || region > regions {
+		return recognitionStep{}, false
+	}
+	return recognitionStep{Region: region, Regions: regions}, true
+}
+
 // parseOneAsrStage reads a stage line of the CLI; other lines are not.
 func parseOneAsrStage(line string) (recognitionStep, bool) {
 	rest, ok := strings.CutPrefix(line, "[阶段] ")

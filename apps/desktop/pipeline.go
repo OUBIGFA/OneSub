@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -191,8 +192,7 @@ func (t toolset) recognizeNative(ctx context.Context, prefs settings.Settings, s
 	if len(regions) == 0 {
 		return "", nil, nil, errors.New(locales.RecognitionNoSpeech())
 	}
-	combined := subtitle.Document{Format: "srt", TargetFormat: "srt"}
-	allWords := []subtitle.Word{}
+	inputs := make([]recognitionRegionInput, len(regions))
 	for i, region := range regions {
 		// OneAsr's own VAD plans continuous chunks; it does not remove silence.
 		// Give it only this speech region, then map both artifacts back to the
@@ -207,23 +207,45 @@ func (t toolset) recognizeNative(ctx context.Context, prefs settings.Settings, s
 		if err = jobs.Run(ctx, jobs.CommandContext(ctx, t.ffmpeg, args...), nil); err != nil {
 			return "", nil, nil, apperr.Wrap(locales.ErrAudioExtract(err.Error(), ""), err)
 		}
-		args = []string{"transcribe", "--input", part + ".wav", "--app-root", install, "--data-root", root, "--asr", asr.ID, "--aligner", aligner.ID, "--language", prefs.Language, "--backend", prefs.Backend, "--chunk-seconds", strconv.Itoa(int(prefs.ChunkSeconds)), "--max-new-tokens", strconv.Itoa(int(prefs.MaxTokens)), "--output", part + ".srt", "--words-json", part + ".json"}
-		if prefs.VocalSeparation {
-			args = append(args, "--vocal-separation", "--demucs-model-dir", t.modelPath(prefs, "htdemucs_ft"))
-		}
-		regionStep(recognitionStep{Stage: "infer"})
-		command := jobs.CommandContext(ctx, filepath.Join(install, "oneasr-cli.exe"), args...)
-		// OneAsr falls back to PATH when its own bin folder has no FFmpeg. Give
-		// this child the verified bundled tools without changing the user's PATH.
-		command.Env = append(command.Environ(), "PATH="+filepath.Dir(t.ffmpeg)+string(os.PathListSeparator)+os.Getenv("PATH"))
-		if err = jobs.RunLines(ctx, command, nil, func(line string) {
-			if s, ok := parseOneAsrStage(line); ok {
-				regionStep(s)
+		inputs[i] = recognitionRegionInput{Input: part + ".wav", Output: part + ".srt", WordsJSON: part + ".json"}
+	}
+	manifest, err := json.Marshal(struct {
+		Version int                      `json:"version"`
+		Regions []recognitionRegionInput `json:"regions"`
+	}{Version: 1, Regions: inputs})
+	if err != nil {
+		return "", nil, nil, err
+	}
+	manifestPath := filepath.Join(scratch, "regions.json")
+	if err = os.WriteFile(manifestPath, manifest, 0600); err != nil {
+		return "", nil, nil, err
+	}
+	args = []string{"transcribe-regions", "--input", inputs[0].Input, "--regions-json", manifestPath, "--app-root", install, "--data-root", root, "--asr", asr.ID, "--aligner", aligner.ID, "--language", prefs.Language, "--backend", prefs.Backend, "--chunk-seconds", strconv.Itoa(int(prefs.ChunkSeconds)), "--max-new-tokens", strconv.Itoa(int(prefs.MaxTokens))}
+	if prefs.VocalSeparation {
+		args = append(args, "--vocal-separation", "--demucs-model-dir", t.modelPath(prefs, "htdemucs_ft"))
+	}
+	step(recognitionStep{Stage: "infer", Regions: len(regions)})
+	command := jobs.CommandContext(ctx, filepath.Join(install, "oneasr-cli.exe"), args...)
+	command.Env = append(command.Environ(), "PATH="+filepath.Dir(t.ffmpeg)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	currentRegion := 0
+	if err = jobs.RunLines(ctx, command, nil, func(line string) {
+		if progress, ok := parseOneAsrRegion(line); ok {
+			if progress.Regions == len(regions) {
+				currentRegion = progress.Region
 			}
-		}); err != nil {
-			return "", nil, nil, apperr.Wrap(locales.ErrRecognition(err.Error(), ""), err)
+			return
 		}
-		doc, readErr := t.worker.Read(ctx, part+".srt")
+		if progress, ok := parseOneAsrStage(line); ok {
+			progress.Region, progress.Regions = currentRegion, len(regions)
+			step(progress)
+		}
+	}); err != nil {
+		return "", nil, nil, apperr.Wrap(locales.ErrRecognition(err.Error(), ""), err)
+	}
+	combined := subtitle.Document{Format: "srt", TargetFormat: "srt"}
+	allWords := []subtitle.Word{}
+	for i, region := range regions {
+		doc, readErr := t.worker.Read(ctx, inputs[i].Output)
 		if readErr != nil {
 			return "", nil, nil, readErr
 		}
@@ -232,7 +254,7 @@ func (t toolset) recognizeNative(ctx context.Context, prefs settings.Settings, s
 			cue.ID = fmt.Sprintf("asr-%d", cue.Position)
 			combined.Cues = append(combined.Cues, cue)
 		}
-		raw, readErr := os.ReadFile(part + ".json")
+		raw, readErr := os.ReadFile(inputs[i].WordsJSON)
 		if readErr != nil {
 			return "", nil, nil, apperr.Wrap(locales.ErrWordTimingMissing(readErr.Error()), readErr)
 		}

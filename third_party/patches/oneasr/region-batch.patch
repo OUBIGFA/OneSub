@@ -1,0 +1,459 @@
+--- /dev/null
++++ b/crates/oneasr-core/src/asr/batch.rs
+@@ -0,0 +1,144 @@
++use std::path::{Path, PathBuf};
++use std::sync::Arc;
++use std::sync::atomic::{AtomicUsize, Ordering};
++
++use super::{
++    AsrError, AsrStage, ConvertedAudio, ExportInput, Pipeline, ProcessExportOptions, StageUpdate,
++    VadPlan, check_aligner_model_dir, check_asr_model_dir, needs_alignment,
++};
++use crate::engine::EngineProvider;
++use crate::{Settings, i18n};
++
++/// A separately filtered input. Its subtitle and word clocks remain local to this file.
++pub struct BatchInput {
++    pub input: PathBuf,
++    pub media_name: String,
++    pub export: ProcessExportOptions,
++}
++
++struct PreparedInput {
++    converted: ConvertedAudio,
++    vad: VadPlan,
++    contexts: Option<Vec<String>>,
++}
++
++/// Process independent speech regions without joining their audio or retaining both GPU models.
++/// Region zero reports shared model loading; other progress uses one-based input indices.
++pub fn process_media_batch_with_export<'a>(
++    inputs: &[BatchInput],
++    settings: &Settings,
++    data_root: &Path,
++    on_stage: impl FnMut(usize, usize, StageUpdate) + Send + 'a,
++) -> Result<Vec<PathBuf>, AsrError> {
++    let provider = crate::engine::local::LocalEngineProvider::from_settings(settings)
++        .map_err(|error| AsrError::Other(error.message().to_string()))?;
++    process_media_batch_with_provider(inputs, settings, data_root, &provider, on_stage)
++}
++
++/// The batch pipeline with an explicit provider for lifecycle and output regression tests.
++pub fn process_media_batch_with_provider<'a>(
++    inputs: &[BatchInput],
++    settings: &Settings,
++    data_root: &Path,
++    provider: &dyn EngineProvider,
++    mut on_stage: impl FnMut(usize, usize, StageUpdate) + Send + 'a,
++) -> Result<Vec<PathBuf>, AsrError> {
++    if inputs.is_empty() {
++        return Err(AsrError::Other(
++            i18n::t(i18n::ERR_REGION_BATCH_EMPTY).into(),
++        ));
++    }
++    check_asr_model_dir(&settings.asr_model_dir)?;
++    let align_needed = inputs
++        .iter()
++        .any(|input| needs_alignment(settings, &input.export));
++    if align_needed {
++        check_aligner_model_dir(&settings.aligner_model_dir)?;
++    }
++    let active = Arc::new(AtomicUsize::new(0));
++    let progress_active = Arc::clone(&active);
++    let total = inputs.len();
++    let pipeline = Pipeline::new(settings, provider, move |update| {
++        on_stage(progress_active.load(Ordering::Relaxed), total, update);
++    });
++    let mut prepared = Vec::with_capacity(total);
++    for (index, input) in inputs.iter().enumerate() {
++        active.store(index + 1, Ordering::Relaxed);
++        let converted = pipeline.stage_prepare(&input.input, data_root)?;
++        let vad = pipeline.stage_vad_plan(&converted)?;
++        let contexts = pipeline.stage_rough_transcribe(&converted, &vad)?;
++        prepared.push(PreparedInput {
++            converted,
++            vad,
++            contexts,
++        });
++    }
++    let transcripts = {
++        active.store(0, Ordering::Relaxed);
++        pipeline.emit(StageUpdate::new(AsrStage::LoadingAsr));
++        let engine = provider
++            .load_asr()
++            .map_err(|error| AsrError::LoadAsr(error.message().to_string()))?;
++        let mut transcripts = Vec::with_capacity(total);
++        for (index, input) in prepared.iter().enumerate() {
++            active.store(index + 1, Ordering::Relaxed);
++            transcripts.push(pipeline.transcribe_with(
++                engine.as_ref(),
++                &input.converted,
++                &input.vad,
++                input.contexts.as_deref(),
++            )?);
++        }
++        transcripts
++    };
++    if !align_needed {
++        return inputs
++            .iter()
++            .zip(&transcripts)
++            .enumerate()
++            .map(|(index, (input, transcript))| {
++                active.store(index + 1, Ordering::Relaxed);
++                pipeline.stage_export_txt_only(
++                    &input.input,
++                    &input.media_name,
++                    pipeline.txt_body(transcript),
++                )
++            })
++            .collect();
++    }
++    let aligned = {
++        active.store(0, Ordering::Relaxed);
++        pipeline.emit(StageUpdate::new(AsrStage::LoadingAligner));
++        let engine = provider
++            .load_aligner()
++            .map_err(|error| AsrError::LoadAligner(error.message().to_string()))?;
++        let mut aligned = Vec::with_capacity(total);
++        for (index, (input, transcript)) in prepared.iter().zip(&transcripts).enumerate() {
++            active.store(index + 1, Ordering::Relaxed);
++            aligned.push(pipeline.align_with(
++                engine.as_ref(),
++                &input.converted,
++                &input.vad,
++                transcript,
++            )?);
++        }
++        aligned
++    };
++    let mut outputs = Vec::with_capacity(total);
++    for (index, alignment) in aligned.into_iter().enumerate() {
++        active.store(index + 1, Ordering::Relaxed);
++        let input = &inputs[index];
++        outputs.push(pipeline.stage_export(
++            ExportInput {
++                input: &input.input,
++                media_name: &input.media_name,
++                speech_segments: prepared[index].vad.speech_segments.clone(),
++                transcript: None,
++                txt_body: pipeline.txt_body(&transcripts[index]),
++            },
++            alignment,
++            input.export.clone(),
++        )?);
++    }
++    Ok(outputs)
++}
+--- a/crates/oneasr-core/src/asr.rs
++++ b/crates/oneasr-core/src/asr.rs
+@@ -35,6 +35,9 @@
+     check_sensevoice_model_dir, invalidate_all_model_checks, invalidate_model_check,
+     is_model_ready,
+ };
++
++mod batch;
++pub use batch::{BatchInput, process_media_batch_with_export, process_media_batch_with_provider};
+ 
+ use std::fmt;
+ use std::path::{Path, PathBuf};
+@@ -1019,6 +1022,16 @@
+             .provider
+             .load_asr()
+             .map_err(|e| AsrError::LoadAsr(e.message().to_string()))?;
++        self.transcribe_with(asr.as_ref(), conv, vad, hotword_contexts)
++    }
++
++    fn transcribe_with(
++        &self,
++        asr: &dyn crate::engine::AsrEngine,
++        conv: &ConvertedAudio,
++        vad: &VadPlan,
++        hotword_contexts: Option<&[String]>,
++    ) -> Result<AsrOutput, AsrError> {
+         let force_lang = to_qwen_language_label(&self.settings.language);
+         let chunk_tmp = conv.chunk_tmp();
+ 
+@@ -1108,7 +1121,16 @@
+             .provider
+             .load_aligner()
+             .map_err(|e| AsrError::LoadAligner(e.message().to_string()))?;
+-
++        self.align_with(aligner.as_ref(), conv, vad, asr)
++    }
++
++    fn align_with(
++        &self,
++        aligner: &dyn crate::engine::Aligner,
++        conv: &ConvertedAudio,
++        vad: &VadPlan,
++        asr: &AsrOutput,
++    ) -> Result<AlignOutput, AsrError> {
+         let mut all_words: Vec<WordToken> = Vec::new();
+         for (i, seg) in asr.transcripts.iter().enumerate() {
+             self.emit(StageUpdate::with_chunk(
+--- a/crates/oneasr-core/src/bin/oneasr-cli.rs
++++ b/crates/oneasr-core/src/bin/oneasr-cli.rs
+@@ -63,6 +63,9 @@
+ 
+     let result = match cmd {
+         "transcribe" | "run" | "pipeline" => cmd_transcribe(rest),
++        "transcribe-regions" => {
++            require_arg(rest, "--regions-json").and_then(|_| cmd_transcribe(rest))
++        }
+         "asr-chunk" | "chunk" => cmd_asr_chunk(rest),
+         "align" => cmd_align(rest),
+         "render" => cmd_render(rest),
+@@ -213,6 +216,10 @@
+         ),
+     );
+ 
++    if let Some(regions_json) = arg(args, "--regions-json") {
++        return cmd_region_batch(Path::new(&regions_json), &settings, &data_root);
++    }
++
+     let media_name = input_path
+         .file_name()
+         .map(|s| s.to_string_lossy().into_owned())
+@@ -292,6 +299,94 @@
+ }
+ 
+ // ─── asr-chunk ────────────────────────────────────────────────────
++
++#[derive(serde::Deserialize)]
++#[serde(deny_unknown_fields)]
++struct RegionBatch {
++    version: u32,
++    regions: Vec<RegionFile>,
++}
++
++#[derive(serde::Deserialize)]
++#[serde(deny_unknown_fields)]
++struct RegionFile {
++    input: PathBuf,
++    output: PathBuf,
++    words_json: PathBuf,
++}
++
++fn cmd_region_batch(path: &Path, settings: &Settings, data_root: &Path) -> Result<(), i32> {
++    let fail = |detail: String| {
++        eprintln!("{}", i18n::cli_region_batch_error(detail));
++        1
++    };
++    let metadata = std::fs::metadata(path).map_err(|error| fail(error.to_string()))?;
++    if metadata.len() > 8 * 1024 * 1024 {
++        return Err(fail(i18n::t(i18n::ERR_REGION_BATCH_INVALID).into()));
++    }
++    let raw = std::fs::read(path).map_err(|error| fail(error.to_string()))?;
++    let batch: RegionBatch =
++        serde_json::from_slice(&raw).map_err(|error| fail(error.to_string()))?;
++    if batch.version != 1
++        || batch.regions.is_empty()
++        || !settings.output_srt
++        || settings.output_txt
++        || settings.output_ass
++    {
++        return Err(fail(i18n::t(i18n::ERR_REGION_BATCH_INVALID).into()));
++    }
++    let mut stems = std::collections::HashSet::new();
++    let mut inputs = Vec::with_capacity(batch.regions.len());
++    for region in &batch.regions {
++        let name = region
++            .input
++            .file_name()
++            .ok_or_else(|| fail(i18n::t(i18n::ERR_REGION_BATCH_INVALID).into()))?;
++        let stem = region
++            .input
++            .file_stem()
++            .ok_or_else(|| fail(i18n::t(i18n::ERR_REGION_BATCH_INVALID).into()))?;
++        if !region.input.is_file() || !stems.insert(stem.to_owned()) {
++            return Err(fail(i18n::t(i18n::ERR_REGION_BATCH_INVALID).into()));
++        }
++        inputs.push(oneasr_core::BatchInput {
++            input: region.input.clone(),
++            media_name: name.to_string_lossy().into_owned(),
++            export: ProcessExportOptions {
++                words_json: Some(region.words_json.clone()),
++                timeline_json: false,
++            },
++        });
++    }
++    let started = Instant::now();
++    let outputs = oneasr_core::process_media_batch_with_export(
++        &inputs,
++        settings,
++        data_root,
++        |region, total, update| {
++            eprintln!("[region] {region}/{total}");
++            if let Some(warning) = &update.warning {
++                eprintln!("{}", i18n::cli_warn(warning));
++            }
++            eprintln!("{}", i18n::cli_stage(&update.label(i18n::ui_lang())));
++        },
++    )
++    .map_err(|error| fail(error.to_string()))?;
++    for (region, output) in batch.regions.iter().zip(outputs) {
++        if !region.words_json.is_file() {
++            return Err(fail(i18n::cli_input_not_found(&region.words_json)));
++        }
++        if region.output != output {
++            std::fs::copy(&output, &region.output).map_err(|error| fail(error.to_string()))?;
++        }
++    }
++    eprintln!(
++        "[region-batch] completed={} elapsed_ms={}",
++        batch.regions.len(),
++        started.elapsed().as_millis()
++    );
++    Ok(())
++}
+ 
+ fn cmd_asr_chunk(args: &[String]) -> Result<(), i32> {
+     if flag(args, "--help") || flag(args, "-h") {
+--- a/crates/oneasr-core/src/i18n.rs
++++ b/crates/oneasr-core/src/i18n.rs
+@@ -12,6 +12,23 @@
+ //!   （`system` | `zh` | `en`），`system` 表示跟随系统（[`detect_system_lang`]）。
+ 
+ use std::sync::atomic::{AtomicU8, Ordering};
++
++pub const ERR_REGION_BATCH_EMPTY: Str = Str {
++    zh: "语音片段列表为空",
++    en: "The speech region list is empty",
++};
++
++pub const ERR_REGION_BATCH_INVALID: Str = Str {
++    zh: "语音片段列表无效，请重新运行识别",
++    en: "Invalid speech region list; run recognition again",
++};
++
++pub fn cli_region_batch_error(detail: impl std::fmt::Display) -> String {
++    match ui_lang() {
++        UiLang::Zh => format!("语音片段处理失败：{detail}"),
++        UiLang::En => format!("Speech region processing failed: {detail}"),
++    }
++}
+ 
+ /// `Settings::ui_language`：跟随系统。
+ pub const UI_LANGUAGE_SYSTEM: &str = "system";
+--- a/crates/oneasr-core/src/lib.rs
++++ b/crates/oneasr-core/src/lib.rs
+@@ -27,10 +27,11 @@
+ pub mod vad;
+ 
+ pub use asr::{
+-    AsrStage, ProcessExportOptions, StageClock, StageTiming, StageUpdate, TaskTiming,
++    AsrStage, BatchInput, ProcessExportOptions, StageClock, StageTiming, StageUpdate, TaskTiming,
+     TranscriptInput, check_aligner_model_dir, check_asr_model_dir, check_demucs_model_dir,
+     check_sensevoice_model_dir, format_process_ms, invalidate_all_model_checks,
+-    invalidate_model_check, is_model_ready, process_media_file_with_export,
++    invalidate_model_check, is_model_ready, process_media_batch_with_export,
++    process_media_batch_with_provider, process_media_file_with_export,
+     process_media_file_with_progress, process_media_file_with_provider,
+     process_media_file_with_transcript, process_media_file_with_transcript_export,
+ };
+--- a/crates/oneasr-core/tests/pipeline_behaviour.rs
++++ b/crates/oneasr-core/tests/pipeline_behaviour.rs
+@@ -858,3 +858,102 @@
+ fn missing_sensevoice_dir(app_root: &Path) -> std::path::PathBuf {
+     app_root.join("models").join("sensevoice-absent")
+ }
++
++#[test]
++fn region_batch_loads_once_and_preserves_independent_outputs() {
++    let run = Run::new("region_batch", false);
++    let second = run.app_root.join("second.wav");
++    write_master_wav(&second, 4.0);
++    let inputs: Vec<_> = [&run.input, &second]
++        .into_iter()
++        .map(|input| oneasr_core::BatchInput {
++            input: input.clone(),
++            media_name: input.file_name().unwrap().to_string_lossy().into_owned(),
++            export: ProcessExportOptions {
++                words_json: Some(input.with_extension("words.json")),
++                ..ProcessExportOptions::default()
++            },
++        })
++        .collect();
++    let provider = FakeProvider::new("你好世界。", tokens());
++    let mut progress = Vec::new();
++    let outputs = oneasr_core::process_media_batch_with_provider(
++        &inputs,
++        &run.settings,
++        &run.app_root,
++        &provider,
++        |region, total, update| progress.push((region, total, update.stage)),
++    )
++    .unwrap();
++    assert_eq!(outputs.len(), 2);
++    assert_eq!(
++        provider.log().entries(),
++        vec![
++            "asr.load",
++            "asr.transcribe",
++            "asr.transcribe",
++            "asr.drop",
++            "aligner.load",
++            "aligner.align",
++            "aligner.align",
++            "aligner.drop",
++        ]
++    );
++    let first_srt = std::fs::read_to_string(&outputs[0]).unwrap();
++    assert_eq!(first_srt, std::fs::read_to_string(&outputs[1]).unwrap());
++    for input in &inputs {
++        let words: serde_json::Value = serde_json::from_str(
++            &std::fs::read_to_string(input.export.words_json.as_ref().unwrap()).unwrap(),
++        )
++        .unwrap();
++        assert!(words["word_count"].as_u64().unwrap() > 0);
++        for word in words["words"].as_array().unwrap() {
++            assert!(word["start"].as_f64().unwrap() >= 0.0);
++            assert!(word["end"].as_f64().unwrap() <= 4.0);
++        }
++    }
++    assert!(progress.contains(&(2, 2, oneasr_core::AsrStage::Aligning)));
++}
++
++#[test]
++fn empty_region_batch_never_loads_a_model() {
++    let run = Run::new("empty_region_batch", false);
++    let provider = FakeProvider::new("你好世界。", tokens());
++    assert!(
++        oneasr_core::process_media_batch_with_provider(
++            &[],
++            &run.settings,
++            &run.app_root,
++            &provider,
++            |_, _, _| {},
++        )
++        .is_err()
++    );
++    assert!(provider.log().entries().is_empty());
++}
++
++#[test]
++fn failed_region_batch_releases_asr_without_loading_aligner() {
++    let run = Run::new("failed_region_batch", false);
++    let provider = FakeProvider::new("", tokens());
++    let input = oneasr_core::BatchInput {
++        input: run.input.clone(),
++        media_name: "sample.wav".into(),
++        export: ProcessExportOptions::default(),
++    };
++    assert!(
++        oneasr_core::process_media_batch_with_provider(
++            &[input],
++            &run.settings,
++            &run.app_root,
++            &provider,
++            |_, _, _| {},
++        )
++        .is_err()
++    );
++    assert_eq!(
++        provider.log().entries(),
++        vec!["asr.load", "asr.transcribe", "asr.drop"]
++    );
++    assert!(!run.settings.output_dir.join("sample.srt").exists());
++}

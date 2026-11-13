@@ -7,13 +7,13 @@
     "onnxruntime 1.28.2 ThirdPartyNotices for the bundled sherpa-onnx runtime"
   ],
   "mygo": {
-    "version": "v0.9.1-0.20261113035610-31ec0eddb850",
+    "version": "v0.9.1-0.20261113072609-d5c76cf8a098",
     "repository": "https://github.com/egoist/mygo",
-    "revision": "31ec0eddb850e4e515b03ac1df346a1cee11198f",
-    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261113035610-31ec0eddb850.zip",
-    "archiveBytes": 16633044,
-    "archiveSha256": "d4dc16fb983d0e447d6b078d4a0bb46352500d4a16b2689bd815179a0e88b3ab",
-    "moduleSum": "h1:TI7QXDVUACgYnuNVZnOUQC57jQxObOEPykuFHTJ6F2g=",
+    "revision": "d5c76cf8a0986cc8b3e12671d068a8d9d510b6c7",
+    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261113072609-d5c76cf8a098.zip",
+    "archiveBytes": 16162039,
+    "archiveSha256": "ff78961f8957c758ca975072f2263eb597b63b7bb4f67e477837d83217a0e3ec",
+    "moduleSum": "h1:Sw3X/S9JljMhVH8VNxJ4xeB+OqrUypUTtr14MVAhnVM=",
     "goModSum": "h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=",
     "spdx": "MIT",
     "license": "third_party/licenses/mygo.txt",
@@ -67,10 +67,12 @@
   "mediaLicense": "third_party/licenses/ffmpeg.txt",
   "oneasr": {
     "file": "oneasr-cli.exe",
-    "bytes": 59362816,
-    "sha256": "59b5376b6a49d6c1cebac05d13188ff207454af5e397613405ebc1bed9ca78e0",
+    "bytes": 59433472,
+    "sha256": "dc2dfb72f95c715d6a42c31d45539d7dea4df68059dcceedfab7451b3957ca90",
     "version": "v1.3.0",
-    "archiveSha256": "e9e169e108ee43d88b5b047f4ec556819cd7fa5e2424d3f5ed957634f85d4936"
+    "archiveSha256": "e9e169e108ee43d88b5b047f4ec556819cd7fa5e2424d3f5ed957634f85d4936",
+    "integration": "third_party/manifests/oneasr.json",
+    "integrationSha256": "e52d903240c593cec10675e7c41162a33c037183066714883f77a1bbde15c29a"
   },
   "fireredvad": {
     "file": "fireredvad.exe",

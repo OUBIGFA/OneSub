@@ -18,6 +18,12 @@ type speechRegion struct {
 	StartMs, EndMs int64
 }
 
+type recognitionRegionInput struct {
+	Input     string `json:"input"`
+	Output    string `json:"output"`
+	WordsJSON string `json:"words_json"`
+}
+
 // speechRegions confirms the pinned FireRedVAD's candidate speech with AED.
 // VAD also accepts singing and speech-like music. Require AED speech in at
 // least half of each unpadded VAD candidate before joining or adding context.

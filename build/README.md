@@ -41,6 +41,15 @@ and executable directory to test real MyGo signature verification, same-product
 build ordering, refusal of invalid signatures and tampered archives, actual
 file replacement and byte progress. It does not modify an installed OneSub.
 
+## Local OneAsr runtime
+
+The installer uses the pinned OneAsr v1.3.0 region-batch port, not a new inference engine.
+`third_party/manifests/oneasr.json` records the source archive, patch, Cargo inputs and Rust 1.96.0 distribution checksums.
+Keep the verified archives in `.local/downloads/` and the merged Rust compiler, Cargo, standard library, rustfmt and Clippy components in `.local/toolchains/rust1.96.0/`.
+Visual Studio x64 C++ tools are required. A workspace containing spaces needs NTFS short names for the upstream resampler's CMake build.
+Run `build/build-oneasr.ps1` to test and build this runtime; the Windows build calls it and reuses an exact verified match.
+The port and its original-clock behavior are documented in `third_party/patches/oneasr/README.md`.
+
 ## Publish boundary
 
 Building does not create a tag, upload files or publish a Release. Public

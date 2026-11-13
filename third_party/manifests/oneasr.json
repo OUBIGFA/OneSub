@@ -1,0 +1,57 @@
+{
+  "repository": "https://github.com/eclipse005/OneAsr",
+  "version": "v1.3.0",
+  "revision": "9f43a8b390d503fc1ff0122cb17561032d5e6e22",
+  "checkedAt": "2026-11-13",
+  "spdx": "MIT",
+  "license": "third_party/licenses/oneasr.txt",
+  "sourceArchive": {
+    "file": "oneasr-source-9f43a8b390d503fc1ff0122cb17561032d5e6e22.zip",
+    "url": "https://codeload.github.com/eclipse005/OneAsr/zip/9f43a8b390d503fc1ff0122cb17561032d5e6e22",
+    "sha256": "dd34e3cb62af0d0248f77cfd2a4c22282d17e0f1ca40f71249be6003c0bd340a"
+  },
+  "upstreamBinarySha256": "59b5376b6a49d6c1cebac05d13188ff207454af5e397613405ebc1bed9ca78e0",
+  "patch": "third_party/patches/oneasr/region-batch.patch",
+  "patchSha256": "5f28e0ca41f1efd2c47a1a133921ad0b34d0e40c5a47e40bcf511831e10b0d04",
+  "sourceHashes": {
+    "crates/oneasr-core/src/asr.rs": "8f643b3a53969bfebd962a66a74788d997186d96a333336c41c8d166362c0d95",
+    "crates/oneasr-core/src/bin/oneasr-cli.rs": "5838326f69db926f8acd5ade91498a2fff91423e02e21bc0e50848897137e436",
+    "crates/oneasr-core/src/i18n.rs": "bbe2a77ea8d37d148314e4e68ad63a87d6db519f561a82aa0f6114263d968215",
+    "crates/oneasr-core/src/lib.rs": "cee0cf780644a490dc9fefdaf1c3dbce421b2f39ef379ebb0c635d5903d85d9a",
+    "crates/oneasr-core/tests/pipeline_behaviour.rs": "f62f121c288c61049193bac7997535442c9107ac42871b7037dbf17342d2fa43",
+    "Cargo.toml": "b204db8753a043aeaae37c961aa4925e62a3268dfdfea52c8eed42c201f7ab11",
+    "Cargo.lock": "787be291a79caf588751f20f4f5fdf5f8a34ab9ea58c016e10fa0b7a3287f039",
+    "rust-toolchain.toml": "ab248aac1da7496f11e7ee28aaca22c85e155824ff0ccdd241ce62044d65e8c9",
+    "crates/oneasr-core/Cargo.toml": "6cd81c044774c1ac7d91afd8eaed30b62f57c827601419bcf157cb5f85f32e21"
+  },
+  "patchedHashes": {
+    "crates/oneasr-core/src/asr/batch.rs": "453e69885f69a38960723c058472dce2dbfb8ce426850248419e86765fa155d1",
+    "crates/oneasr-core/src/asr.rs": "09e8e677a355f42424919e2550939cb8a242c58f573b73cd5d1b6fb774dacab7",
+    "crates/oneasr-core/src/bin/oneasr-cli.rs": "61d91aa7e21c065f0e36f8b9625c724b2011cb7fb9805736f75288a602384670",
+    "crates/oneasr-core/src/i18n.rs": "7d071ffed9e2e2492255acf025175e31c96cf7d0a81fe9b6107a696f199277b9",
+    "crates/oneasr-core/src/lib.rs": "5f407c1668dbde432e63d196afbe137071682908aa55d25444d8129798211670",
+    "crates/oneasr-core/tests/pipeline_behaviour.rs": "5de91a413479ea45e5bf04d96bb2f0b833462fc3812b57e36cb99366ae77f54b"
+  },
+  "addedFiles": [
+    "crates/oneasr-core/src/asr/batch.rs"
+  ],
+  "rust": {
+    "version": "1.96.0",
+    "target": "x86_64-pc-windows-msvc",
+    "archive": "rust-1.96.0-x86_64-pc-windows-msvc.tar.xz",
+    "url": "https://static.rust-lang.org/dist/rust-1.96.0-x86_64-pc-windows-msvc.tar.xz",
+    "bytes": 179430000,
+    "sha256": "ff7672090c1f5bcc102a1702bb33cd3cb64d671a6897e195b1b72c974664b90b"
+  },
+  "build": {
+    "package": "oneasr-core",
+    "binary": "oneasr-cli",
+    "profile": "release",
+    "locked": true
+  },
+  "protocol": {
+    "command": "transcribe-regions",
+    "manifestVersion": 1
+  },
+  "scope": "Separate audio regions and local timestamps; ASR and alignment each load once, in disjoint phases. No decoder, VAD, AED, model or timing algorithm changes."
+}
