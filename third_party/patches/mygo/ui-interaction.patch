@@ -65,9 +65,9 @@ diff --git a/ui/editor_layout.go b/ui/editor_layout.go
 +	}
 +	params := e.inputParams(width)
 +	params.Width, params.MaxLines = width, 1
-+	gen := textSystem().Generation()
++	gen := ed.sys.Generation()
 +	if ed.elidedLayout == nil || ed.elidedLayout.Params != params || ed.elidedGeneration != gen {
-+		ed.elidedLayout = textSystem().Shape(params)
++		ed.elidedLayout = ed.sys.Shape(params)
 +		ed.elidedGeneration = gen
 +	}
 +	return ed.elidedLayout
@@ -182,9 +182,10 @@ diff --git a/ui/list.go b/ui/list.go
  	s.req = listRequest{set: true, end: true}
  	s.scrolled = true
  }
-@@ -530,6 +588,9 @@
+@@ -530,7 +588,10 @@
  	}
  	e.list, owner.rowsOf = f, f
+ 	e.special = true // it lays the list out itself
  	wrapElement(owner).Bind(&s.Handle)
 +	if s.scrollMotion != nil {
 +		e.TrackScroll(s.scrollMotion)
@@ -332,7 +333,7 @@ new file mode 100644
 +				hint = text
 +				tt.Frame()
 +				tt.Image()
-+				layout := textSystem().Layout(input.placeholderParams(input.contentBox().W))
++				layout := input.c.rt.text.Layout(input.placeholderParams(input.contentBox().W))
 +				if layout.Params.Text != hint || layout.Truncated || value != "" {
 +					t.Fatal("composite input did not display the current placeholder", layout.Params.Text, hint)
 +				}
@@ -340,7 +341,7 @@ new file mode 100644
 +			hint = "Choose or enter a model name " + strings.Repeat("long ", 20)
 +			tt.Frame()
 +			tt.Image()
-+			layout := textSystem().Layout(input.placeholderParams(input.contentBox().W))
++			layout := input.c.rt.text.Layout(input.placeholderParams(input.contentBox().W))
 +			if !layout.Truncated || len(layout.Lines) != 1 || layout.Width > input.contentBox().W+1 {
 +				t.Fatal("long placeholder was clipped without an ellipsis", layout.Truncated, layout.Width)
 +			}

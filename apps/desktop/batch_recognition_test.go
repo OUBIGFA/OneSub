@@ -99,7 +99,9 @@ func TestBatchRecognitionPublishesEachFileIntegration(t *testing.T) {
 	root := t.TempDir()
 	tools := toolset{dataRoot: root, ffmpeg: ffmpeg, worker: subtitle.Client{Executable: os.Getenv("ONESUB_SUBTITLE_WORKER"), Scratch: root}}
 	prefs := settings.Default()
-	prefs.AsrModel, prefs.Aligner, prefs.Language = "Qwen3-ASR-1.7B-hf", "Qwen3-ForcedAligner-0.6B-hf", "en"
+	// Pin manual mode as well as the models: routing's current default would
+	// require a language detector and would not exercise this Qwen fixture.
+	prefs.RecognitionMode, prefs.AsrModel, prefs.Aligner, prefs.Language = recognitionManual, "Qwen3-ASR-1.7B-hf", "Qwen3-ForcedAligner-0.6B-hf", "en"
 	prefs.ModelPaths = map[string]string{prefs.AsrModel: filepath.Join(modelsRoot, prefs.AsrModel), prefs.Aligner: filepath.Join(modelsRoot, prefs.Aligner)}
 	media := filepath.Join(root, "media")
 	if err := os.MkdirAll(media, 0700); err != nil {

@@ -494,7 +494,7 @@ function Test-SubtitleClicks {
     if($selected -ne 'Click subtitle 156' -or [Math]::Abs($before.Y-$after.Y) -gt 1 -or (Read-PlaybackPosition) -gt 35 -or -not (Find-UI '暂停')){throw 'Select-only did not retain selection/viewport or changed playback'}
     Click-UI '暂停';Click-UI '播放';Start-Sleep -Milliseconds 400
     if((Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -ne 'Click subtitle 156'){throw 'Playback resume released explicit selection hold'}
-    Click-UI '回到当前字幕';Start-Sleep -Milliseconds 400
+    Click-UI '定位';Start-Sleep -Milliseconds 400
     if((Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -eq 'Click subtitle 156'){throw 'Locate command did not release follow hold'}
     # Seek/play still works during manual browsing. Locate restores following.
     Click-UI '暂停';Set-SingleClickAction '定位并播放'
@@ -502,7 +502,7 @@ function Test-SubtitleClicks {
     Pointer-ClickRow (Visible-ClickRow)
     Start-Sleep -Milliseconds $wait
     if(-not (Find-UI '暂停') -or (Read-PlaybackPosition) -lt 155 -or (Read-PlaybackPosition) -gt 158){throw 'Single seek/play did not work during playback'}
-    Click-UI '回到当前字幕'
+    Click-UI '定位'
     Set-PlaybackPosition 80.2;Start-Sleep -Milliseconds 300
     $selected=(Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
     if($selected -notmatch '^Click subtitle 08[1-3]$'){throw "Seek/play stopped later follow: $selected"}

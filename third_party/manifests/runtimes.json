@@ -7,20 +7,20 @@
     "onnxruntime 1.28.2 ThirdPartyNotices for the bundled sherpa-onnx runtime"
   ],
   "mygo": {
-    "version": "v0.9.1-0.20261111182651-0d644f4aca24",
+    "version": "v0.9.1-0.20261113035610-31ec0eddb850",
     "repository": "https://github.com/egoist/mygo",
-    "revision": "0d644f4aca24be8208d1b7d364d7c928fc2cb890",
-    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261111182651-0d644f4aca24.zip",
-    "archiveBytes": 15168807,
-    "archiveSha256": "3c8797a2f2a285d0c5ec752dc8fcca7b92f42537ea38312b03894951a4a1c143",
-    "moduleSum": "h1:2JMUFNye7Pf8zwdHJU2kYq+BgY+qknqbsVQlj3G+C/I=",
+    "revision": "31ec0eddb850e4e515b03ac1df346a1cee11198f",
+    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261113035610-31ec0eddb850.zip",
+    "archiveBytes": 16633044,
+    "archiveSha256": "d4dc16fb983d0e447d6b078d4a0bb46352500d4a16b2689bd815179a0e88b3ab",
+    "moduleSum": "h1:TI7QXDVUACgYnuNVZnOUQC57jQxObOEPykuFHTJ6F2g=",
     "goModSum": "h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=",
     "spdx": "MIT",
     "license": "third_party/licenses/mygo.txt",
     "licenseSha256": "f0b56f4ab53beb6e18c5e155219c2e2b6000b5475c0ae3ddb3af3894fd9349b4",
     "usage": "Native desktop controls, layout, themes, menus and embedded media WebView",
     "modifications": "Six reviewed native/UI patches; see third_party/patches/mygo/README.md",
-    "checkedAt": "2026-11-11",
+    "checkedAt": "2026-11-13",
     "latestRelease": "v0.9.0"
   },
   "mcpGoSdk": {
@@ -82,11 +82,11 @@
     "download": "https://github.com/eclipse005/FireRedVad/releases/download/v1.0.0/fireredvad-windows-x86_64.exe",
     "spdx": "Apache-2.0",
     "license": "third_party/licenses/fireredvad.txt",
-    "models": "Embedded FireRedTeam VAD/AED/Stream-VAD weights, Apache-2.0; only VAD is used",
+    "models": "Embedded FireRedTeam VAD/AED/Stream-VAD weights, Apache-2.0; VAD candidates require AED speech confirmation",
     "modelSource": "https://github.com/FireRedTeam/FireRedASR2S",
     "modelLicense": "third_party/licenses/fireredvad-models.txt",
     "modelLicenseBlob": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
-    "usage": "Same tag as OneAsr v1.3.0; default VAD detects speech before ASR, including short input",
+    "usage": "Default VAD plus AED speech confirmation before every ASR engine and language probe; includes short input and rejects non-speech music",
     "modifications": "none; official Windows x64 executable renamed to fireredvad.exe"
   },
   "sherpaOnnx": {

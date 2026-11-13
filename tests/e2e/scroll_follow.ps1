@@ -21,7 +21,7 @@ function Assert-ScrollCue($before) {
 Set-PlaybackPosition 80.2
 Click-UI '播放'
 Wait-PlaybackStarted
-Click-UI '回到当前字幕'
+Click-UI '定位'
 Start-Sleep -Milliseconds 500
 $selected=(Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
 Wait-VisibleSubtitle $selected
@@ -44,7 +44,7 @@ Wait-PlaybackStarted
 Start-Sleep -Seconds 6
 Assert-ScrollCue $before
 Capture-Navigation 'manual-scroll-held.png'
-Click-UI '回到当前字幕'
+Click-UI '定位'
 Start-Sleep -Milliseconds 500
 $selected=(Input-UI '字幕文字').GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
 Wait-VisibleSubtitle $selected

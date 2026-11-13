@@ -12,23 +12,23 @@ import stat
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = "github.com/egoist/mygo@v0.9.1-0.20261111182651-0d644f4aca24"
+MODULE = "github.com/egoist/mygo@v0.9.1-0.20261113035610-31ec0eddb850"
 BASE_HASHES = {
     "internal/windows/menu.go": "355564d0d9a6d34b96557d9e71a1109fdd65a7166cc6c84929797ea922ddbf96",
     "internal/windows/menudraw.go": "4b3e9006379538d4739dd7a5cc8189cef7718742ccc3c7054f7a234aff78f7b6",
     "internal/windows/menudraw_test.go": "bb929267efa4ac53c1e901bde6f6c5a5b753ae38feb1cd058dda583410b729d7",
-    "internal/windows/surface.go": "2c4a355a53a62c221dedfb2cdaf9aed89249c5e0c7b6d8f429b173cb28c47424",
-    "internal/windows/webview_embed.go": "8e8048672152b4eb7a21b60a34495ddd6ea7ccf758fb1786ebdb16981b0caf2e",
-    "ui/editor.go": "89d34e1993be3fb6751a4d8ffe0ca4cebb13ec3700d9ba0323fded728765789c",
-    "ui/editor_layout.go": "84574fea7e59d9aade29d342f110b3bd7e09048bcf8ae23d9b125682e60b0a41",
-    "ui/headless.go": "3928811c26a4704915486366fc94b41eb35ca9d39bc11d639df4ef20ca8c5b2f",
+    "internal/windows/surface.go": "534109a150e60a40e2be21db42a7c03ee1b8a1df1a600fef647a62c40ccd2bc0",
+    "internal/windows/webview_embed.go": "06085e032031434790128240cc3fd1f9967aa9c8812744266eaa712aa85fb310",
+    "ui/editor.go": "e7c4b6284820e956b96866f555ea7cede753fd4a7714e52f6b410e65f66d0a28",
+    "ui/editor_layout.go": "e6bec845539d9d669d5f6a39f740953812fcecfb1c1b6d292f625a880ba33379",
+    "ui/headless.go": "f31a86515a6b67dbc780c474dfe1b6df3965fc7ab27fe48876b373b243610c21",
     "ui/sidebar.go": "e2a6fe527d0ee57bdb1ef58eecc1f014f26ee023ad39bdce908d216e2ab593d3",
-    "ui/list.go": "42ab6e4cf844def2eb50f7a49077d9a9bd12a6157a319a2d1bb430ff7503b08f",
+    "ui/list.go": "ac4d0e964325895493aff0d1354c092cbb93f5e3e87db7b3776919135b261aee",
     "ui/value_input.go": "8dd5db4a0af7e86e7abecffc482f3dff27295b68836ff86cbe3d2e519c1fa793",
     "ui/webview.go": "4d7861d4631df4b9488fc8aa950dff80633009bd8eb647f5dc6c572b446eed55",
-    "ui/textinput.go": "4b33a12f5575ac7c76f91534846ec8e5b043720ee2b492a228606144e587e595",
+    "ui/textinput.go": "27594382dcffb32d2aab5c16de118513be397d0428987394fb34b4a690f2c542",
     "ui/tooltip.go": "5c2678202046274a90e8c4a0119e7afc6a6953eebad3ae0360cc77cee637133d",
-    "ui/table.go": "5957c7daa657ae7eb399cc8e57cd6f0b745aad0b160d90ba32b4ec25f2f71de5",
+    "ui/table.go": "3f1cc10f9e900e2ae8ad60d096b0118fe4595611d7b5d303e4a20bc19b4fcf0e",
 }
 
 
@@ -77,7 +77,7 @@ def prepare():
     source = ROOT / ".local/gomodcache" / MODULE
     patches = [ROOT / "third_party/patches/mygo" / name for name in
                ("windows-native.patch", "ui-interaction.patch", "ui-layout.patch", "ui-row-click.patch", "ui-sidebar.patch", "ui-table-elements.patch")]
-    relative = ".local/mygo-menu-source-v0.9.1-0.20261111182651-0d644f4aca24"
+    relative = ".local/mygo-menu-source-v0.9.1-0.20261113035610-31ec0eddb850"
     output = ROOT / relative
     for name, expected in BASE_HASHES.items():
         data = (source / name).read_bytes()

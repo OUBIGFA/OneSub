@@ -54,13 +54,15 @@ foreach($panel in @('字幕样式面板','字幕编辑面板')) {
     $restored=(Find-UI $panel).Current.BoundingRectangle
     if([Math]::Abs($restored.Height-$before.Height) -gt 3){throw "Inspector did not restore height: $panel"}
 }
-$wide=(Find-UI '回到当前字幕').Current.BoundingRectangle
+$locate=Find-UI '定位'
+if(-not $locate){throw 'Locate button is missing from the wide toolbar'}
+$wide=$locate.Current.BoundingRectangle
 if($wide.Width -le 1.5*$wide.Height){throw 'Wide second row hid labels too soon'}
 Capture-Navigation ('toolbar-wide-'+$Appearance+'.png')
 # A narrower workbench spends whitespace while keeping the icon and label.
 if(-not [LayoutNative]::SetWindowPos($window,[IntPtr]::Zero,0,0,3200,1000,0x14)){throw 'Private resize failed'}
 Start-Sleep -Milliseconds 600
-$tight=(Find-UI '回到当前字幕').Current.BoundingRectangle
+$tight=(Find-UI '定位').Current.BoundingRectangle
 if($tight.Width -le 1.5*$tight.Height -or $tight.Width -ge $wide.Width){throw "Toolbar did not tighten before hiding labels: $wide -> $tight"}
 $edit=(Find-UI '字幕列表操作').Current.BoundingRectangle
 foreach($label in @('查找替换','智能拆分 · 0 条长字幕','检查结果')) {
@@ -70,7 +72,7 @@ foreach($label in @('查找替换','智能拆分 · 0 条长字幕','检查结�
 Capture-Navigation ('toolbar-tight-'+$Appearance+'.png')
 if(-not [LayoutNative]::SetWindowPos($window,[IntPtr]::Zero,0,0,1760,900,0x14)){throw 'Private resize failed'}
 Start-Sleep -Milliseconds 600
-foreach($label in @('回到当前字幕','查找替换')) {
+foreach($label in @('定位','查找替换')) {
     $normal=(Find-UI $label).Current.BoundingRectangle
     if($normal.Width -le 1.5*$normal.Height){throw "Normal-width toolbar hid primary label: $label"}
 }
@@ -82,12 +84,14 @@ foreach($tab in @('文字','外观','布局')) {
 Select-Tab '识别对象' '文件队列'
 Capture-Navigation ('recognition-queue-'+$Appearance+'.png')
 Select-Tab '识别对象' '当前文件'
-# At the minimum window the middle pane is only about 390 DIPs. Keep its
-# highest-priority label; fitting both full labels would overflow that pane.
+# At the minimum window the middle pane is only about 390 DIPs. The current
+# toolbar uses square actions here so all controls stay on the same row.
 if(-not [LayoutNative]::SetWindowPos($window,[IntPtr]::Zero,0,0,1360,900,0x14)){throw 'Private resize failed'}
 Start-Sleep -Milliseconds 600
-$narrow=(Find-UI '回到当前字幕').Current.BoundingRectangle
-if($narrow.Width -le 1.5*$narrow.Height){throw 'Minimum-window toolbar hid its primary label too early'}
+$locate=Find-UI '定位'
+if(-not $locate -or -not $locate.Current.IsEnabled){throw 'Minimum-window toolbar lost its locate action'}
+$narrow=$locate.Current.BoundingRectangle
+if($narrow.Width -le 0 -or $narrow.Width -gt $narrow.Height+2){throw 'Minimum-window toolbar did not keep its locate action compact'}
 Click-UI '字幕列表操作'
 if(-not (Find-UI '查找替换')){throw 'Narrow edit menu lost find/replace'}
 Capture-Navigation ('toolbar-narrow-'+$Appearance+'.png')

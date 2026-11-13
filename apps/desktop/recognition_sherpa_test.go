@@ -21,8 +21,8 @@ import (
 // stops at the limit, long speech is cut into equal parts, and context
 // never overlaps a neighbor.
 func TestSpeechRegionsLimitLength(t *testing.T) {
-	raw := []byte(`{"dur":60,"timestamps":[[0.5,8],[8.4,16],[16.3,19],[20,50]],"sample_rate_in":16000,"sample_rate_model":16000}`)
-	got, err := speechRegions(raw, 20000)
+	raw := []byte(`{"dur":60,"event2timestamps":{"speech":[[0.5,8],[8.4,16],[16.3,19],[20,50]],"singing":[],"music":[]}}`)
+	got, err := speechRegions(matchingVAD(t, raw), raw, 20000)
 	want := []speechRegion{{250, 19250}, {19750, 35000}, {35000, 50250}}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("regions = %+v, %v; want %+v", got, err, want)

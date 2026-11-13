@@ -40,7 +40,7 @@ FP32 的 `encoder.weights` 是 `encoder.onnx` 的外部数据，不能省略、�
 
 标点处理后仍过长的英文，优先在引出分句或动作的 `and`、`or`、`because` 等连接词之前切分，连接词保留在后条开头；不为已经合适的短句增加切点。复用本地词性模型保护 `black and white`、`black or white` 等并列名词、形容词组合，不额外调用模型服务。仍无法得到合适长度时才使用普通短语边界，且不解除并列词组保护。
 
-1. 语音检测、静音保护与 OneAsr 路径共用同一 FireRedVAD；输入不超过 20 秒，相邻输入不重叠。
+1. 语音检测与 OneAsr 路径共用同一 FireRedVAD：VAD 候选须经 AED 确认为说话，避免把音乐送入识别；默认参数和边界见 [集成登记](../oneasr/README.md)。输入不超过 20 秒，相邻输入不重叠。
 2. CLI 以 ANSI 代码页读取参数。所有 WAV 与模型路径都是工作目录内的 ASCII 相对路径，模型目录经目录联接挂载，不复制权重。
 3. CT-Transformer 的 CLI 会丢失中文，因此由 `OneSub.exe punctuate` 子进程调用 C API，文本以 UTF-8 JSON 行传递。该子进程先按路径加载包内 onnxruntime，避免绑定 Windows 11 System32 中的 1.17 版本（实测会因 API 版本不符崩溃）。
 4. 每批 16 个输入一次 CLI 运行；结果条数与输入不符、token 与时间数量不符均为协议错误，不回退成整段识别。

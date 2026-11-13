@@ -39,7 +39,7 @@ func (t toolset) sherpaRuntime() string {
 }
 
 // recognizeWithSherpa is recognize for a sherpa-onnx model: the same audio
-// extraction and FireRedVAD speech detection as OneAsr, then the model's
+// extraction and FireRedVAD/AED speech confirmation as OneAsr, then the model's
 // own token times become word timings. Each engine result keeps its text
 // and boundary before the shared local subtitle segmentation. It returns the
 // same SRT and word artifacts, in a scratch folder that cleanup removes.

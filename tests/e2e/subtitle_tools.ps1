@@ -109,7 +109,7 @@ function Capture($name) {
 try {
  [void](Wait-UI '智能拆分 · 2 条长字幕')
  $savedFace=(Wait-UI '保存').Current.BoundingRectangle
- $search=Find-UI '搜索';$replace=Find-UI '查找替换';$locate=Find-UI '回到当前字幕';$periods=Find-UI '句号转逗号';$trailing=Find-UI '移除句末标点'
+ $search=Find-UI '搜索';$replace=Find-UI '查找替换';$locate=Find-UI '定位';$periods=Find-UI '句号转逗号';$trailing=Find-UI '移除句末标点'
  $sr=$search.Current.BoundingRectangle;$rr=$replace.Current.BoundingRectangle;$lr=$locate.Current.BoundingRectangle;$pr=$periods.Current.BoundingRectangle;$tr=$trailing.Current.BoundingRectangle
  if($rr.Left -lt $tr.Right -or $rr.Top -ge $tr.Bottom -or $pr.Left -le $lr.Right -or $tr.Left -lt $pr.Right){throw 'Subtitle toolbar grouping/order incorrect'}
  if($sr.Top -lt $rr.Bottom -and $sr.Bottom -gt $rr.Top -and $sr.Left -lt $rr.Right){throw 'Search does not follow the editing tools'}
