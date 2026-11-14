@@ -80,6 +80,24 @@ class UpdateArtifactTests(unittest.TestCase):
                 self.finalize(build)
         self.assertFalse(self.output.exists())
 
+    def test_public_release_uses_the_exact_product_tag(self):
+        self.config.write_text(json.dumps({"version": "0.1.0", "updates": {"github": "OUBIGFA/OneSub", "deltas": 0}}), "utf-8")
+        archive_name = "onesub-0.1.0-windows-amd64.tar.gz"
+        (self.package / archive_name).write_bytes(self.archive)
+        self.manifest.update(version="0.1.0", url="https://github.com/OUBIGFA/OneSub/releases/download/v0.1.0/" + archive_name)
+        self.save_manifest()
+        manifest = FINALIZER.finalize_update(self.config, self.package, "20261114000001", self.output, release_tag="0.1.0")
+        self.assertEqual(manifest["version"], "0.1.0.20261114000001")
+        self.assertEqual(manifest["url"], "https://github.com/OUBIGFA/OneSub/releases/download/0.1.0/" + archive_name)
+        self.assertEqual(manifest["signature"], self.manifest["signature"])
+        self.assertEqual((self.output / archive_name).read_bytes(), self.archive)
+
+    def test_rejects_a_release_tag_that_does_not_match_the_product(self):
+        for tag in ("", "v0.0.1", "0.1.0", "../0.0.1", "0.0.1/other", "0.0.1?draft"):
+            with self.subTest(tag=tag), self.assertRaises(ValueError):
+                FINALIZER.finalize_update(self.config, self.package, "20261114000001", self.output, release_tag=tag)
+        self.assertFalse(self.output.exists())
+
     def test_missing_signed_manifest_does_not_claim_an_update_package(self):
         (self.package / "update-windows-amd64.json").unlink()
         with self.assertRaises(FileNotFoundError):

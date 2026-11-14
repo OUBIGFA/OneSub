@@ -1,7 +1,20 @@
 param([string]$GoRoot = $env:GOROOT, [string[]]$Packages = @('./...'), [switch]$GoOnly, [string]$PackageRoot, [string]$TestName)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-if (-not $GoRoot) { $GoRoot = Join-Path $root '.local/toolchains/go1.27.3/go' }
+. (Join-Path $root 'tests/e2e/private_desktop.ps1')
+if (-not [PrivateSmoke]::IsPrivateDesktop()) {
+    $serialized = [Management.Automation.PSSerializer]::Serialize($PSBoundParameters)
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($serialized))
+    $script = "'" + $PSCommandPath.Replace("'", "''") + "'"
+    $command = '$arguments=[Management.Automation.PSSerializer]::Deserialize([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String(''' + $encoded + '''))); & ' + $script + ' @arguments'
+    $log = Join-Path $root ('_temp/test-' + [Guid]::NewGuid().ToString('N') + '/test.log')
+    Write-Output "Private-desktop test log: $log"
+    $code = Invoke-OneSubPrivateDesktop -Command $command -Log $log -WorkingDirectory $root -TimeoutSeconds 2400
+    Get-Content -LiteralPath $log -Encoding UTF8
+    if ($code -ne 0) { throw "Private-desktop tests failed with exit code $code" }
+    return
+}
+if (-not $GoRoot) { $GoRoot = Join-Path $root '.local/toolchains/go1.27.4/go' }
 $env:GOROOT = $GoRoot
 $env:PATH = "$GoRoot/bin;$env:PATH"
 $env:GOMODCACHE = Join-Path $root '.local/gomodcache'

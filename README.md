@@ -6,9 +6,11 @@
 
 本地优先的智能字幕工作台：识别、拆分、翻译、校对、压缩、合成
 
+[开源协议：AGPL-3.0-or-later](LICENSE)
+
 简体中文 | [English](README.en.md)
 
-![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-555555) ![WebView2](https://img.shields.io/badge/WebView2-runtime-555555) ![License](https://img.shields.io/badge/license-AGPL--3.0-555555)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-555555) ![WebView2](https://img.shields.io/badge/WebView2-runtime-555555)
 
 </div>
 
@@ -91,10 +93,10 @@ https://github.com/user-attachments/assets/64fed7da-2e36-48a5-8409-68cfbcf6a299
 
 ## 下载
 
-在 [Releases](https://github.com/OUBIGFA/OneSub/releases) 下载 `OneSub-0.0.1-Setup.exe`，核对同页的 SHA-256 后运行。
+在 [Releases](https://github.com/OUBIGFA/OneSub/releases) 下载 `OneSub-0.1.0-Setup.exe`，核对同页的 SHA-256 后运行。
 
-- 版本 0.0.1，仅 Windows x64。安装器未签名，系统可能显示安全提示。
-- 安装器约 256 MB。识别模型按需下载，体积从数百 MB 到数 GB，位置可改。
+- 版本 0.1.0，仅 Windows x64。安装器未使用 Windows Authenticode 签名，系统可能显示安全提示。
+- 安装器大小见 Release 附件。识别模型按需下载，体积从数百 MB 到数 GB，位置可改。
 
 ## 系统要求
 

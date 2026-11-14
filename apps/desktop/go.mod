@@ -1,10 +1,10 @@
 module github.com/OUBIGFA/OneSub/apps/desktop
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/agnivade/levenshtein v1.2.1
-	github.com/egoist/mygo v0.9.1-0.20261114032602-217fbc069ddc
+	github.com/egoist/mygo v0.9.1-0.20261114095642-16d30c5b71f3
 	github.com/go-text/typesetting v0.3.5
 	github.com/google/uuid v1.6.0
 	github.com/jdkato/prose/v3 v3.2.3
@@ -31,8 +31,8 @@ require (
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.digitalxero.dev/rpm v0.3.4 // indirect
-	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/time v0.15.0 // indirect

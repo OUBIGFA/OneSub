@@ -3,17 +3,16 @@
   "publicReleaseApproved": false,
   "remainingMaterials": [
     "complete transitive binary notices and corresponding source/build materials",
-    "signing and clean-machine install/upgrade/uninstall acceptance",
-    "onnxruntime 1.28.2 ThirdPartyNotices for the bundled sherpa-onnx runtime"
+    "signing and clean-machine install/upgrade/uninstall acceptance"
   ],
   "mygo": {
-    "version": "v0.9.1-0.20261114032602-217fbc069ddc",
+    "version": "v0.9.1-0.20261114095642-16d30c5b71f3",
     "repository": "https://github.com/egoist/mygo",
-    "revision": "217fbc069ddc34a9cfec8f6db3ff2d2f1d1780b6",
-    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261114032602-217fbc069ddc.zip",
-    "archiveBytes": 16189594,
-    "archiveSha256": "bace42269defabbfd00d56d9a1f78cc0552d235c09c5d55c47bd4e7675c2dc8d",
-    "moduleSum": "h1:RvtV3khh2vzZt99R9JQkLp2Mt7YITqT2QCc0RzouPMY=",
+    "revision": "16d30c5b71f3c927af62e4b064150a90fb36d277",
+    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261114095642-16d30c5b71f3.zip",
+    "archiveBytes": 16220036,
+    "archiveSha256": "8e16c4080d6f9fddce50d369541b455ed2e3591daef77df9c5400579a12b20b6",
+    "moduleSum": "h1:tGgove37zC3sTSLiIlFoRM0cUYFgZhaQnPhKLN97RYc=",
     "goModSum": "h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=",
     "spdx": "MIT",
     "license": "third_party/licenses/mygo.txt",
@@ -136,7 +135,10 @@
       "version": "1.28.2",
       "spdx": "MIT",
       "license": "third_party/licenses/onnxruntime.txt",
-      "notices": "onnxruntime ThirdPartyNotices are not yet collected; listed in remainingMaterials"
+      "notices": "third_party/licenses/onnxruntime-ThirdPartyNotices.txt",
+      "noticesSource": "https://github.com/microsoft/onnxruntime/blob/v1.28.2/ThirdPartyNotices.txt",
+      "noticesBlob": "fbd9f9a95f6013d8ecaef81e02b0033e5882a675",
+      "noticesSha256": "0e07b95f3a8d6230037707c5c4a2b554d12c4cb67369669ac255635528ffcee2"
     },
     "models": "Downloaded by the user from pinned Hugging Face revisions in apps/desktop/internal/models/catalog_sherpa.json; not bundled",
     "modelLicenses": {
@@ -199,5 +201,15 @@
     "license": "third_party/licenses/lobe-mygo.txt",
     "spdx": "MIT",
     "usage": "Native workbench components and theme"
+  },
+  "goToolchain": {
+    "version": "go1.27.4",
+    "download": "https://go.dev/dl/go1.27.4.windows-amd64.zip",
+    "archiveBytes": 79077744,
+    "archiveSha256": "178ab98950ac69ab25069307dc6ade79f3816e414cce95b4da166a115cde1e7e",
+    "checkedAt": "2026-11-14",
+    "spdx": "BSD-3-Clause",
+    "license": "third_party/licenses/go.txt",
+    "licenseSha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
   }
 }

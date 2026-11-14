@@ -1,8 +1,10 @@
 # Build and signed updates
 
-`build-windows.ps1` keeps product version `0.0.1`, identifier
-`io.github.oubigfa.onesub` and installer name `OneSub-0.0.1-Setup.exe` stable.
-Use a numeric internal build number in `yyyyMMddHHmmss` format.
+`build-windows.ps1` reads product version `0.1.0` from
+`apps/desktop/mygo.json`. The identifier `io.github.oubigfa.onesub`, update
+public key and user-data directory remain unchanged. The installer is named
+`OneSub-0.1.0-Setup.exe`. Use a numeric internal build number in
+`yyyyMMddHHmmss` format.
 
 ## Signing key
 
@@ -17,23 +19,28 @@ Authenticode: the current installer is not Authenticode-signed.
 
 ## Build and test
 
-With the fixed runtimes prepared and their hashes verified:
+Prepare the fixed runtimes, verify their hashes and stage only the reviewed
+source files before building:
 
 ```powershell
-./build/build-windows.ps1
+./build/build-windows.ps1 -ReleaseTag '0.1.0'
 ```
 
 This runs `build/test.ps1`, builds the installer with MyGo and writes the fixed
 local artifacts in `build/output/release/`:
 
-- `OneSub-0.0.1-Setup.exe` and its `.sha256`;
-- `onesub-0.0.1-windows-amd64.tar.gz` and its `.sha256`;
+- `OneSub-0.1.0-Setup.exe` and its `.sha256`;
+- `onesub-0.1.0-windows-amd64.tar.gz` and its `.sha256`;
 - `update-windows-amd64.json` and `build-info.json`.
 
 `tools/finalize_update.py` preserves MyGo's archive and signature. It assigns
-feed version `0.0.1.<build>` and an immutable `build-<build>` release URL.
+feed version `0.1.0.<build>` and an immutable `0.1.0` release URL when
+`-ReleaseTag '0.1.0'` is supplied. Without `-ReleaseTag`, the channel is
+`local-test` and the URL uses `build-<build>`. The build records the staged
+Git tree and rejects unstaged, untracked or changed release source.
 MyGo compares the numeric fourth component. SemVer `+build` metadata would not
-order builds. Product, installer and user-data identities do not change.
+order builds. Internal rebuilds do not change the product version, installer
+name, installation identity or user-data directory.
 Full archives are used; product-version deltas are disabled for these builds.
 
 `build/test-updates.ps1` is part of the full test entry. It uses a temporary key
@@ -54,7 +61,7 @@ The port and its original-clock behavior are documented in `third_party/patches/
 
 Building does not create a tag, upload files or publish a Release. Public
 updates need a separately authorized, non-prerelease GitHub Release tagged
-`build-<build>`. Publish the matching signed archive and manifest together,
+`0.1.0` for this version. Publish the matching signed archive and manifest together,
 along with the installer and checksums. Make that release the latest only
 when its artifacts and release gates have passed.
 

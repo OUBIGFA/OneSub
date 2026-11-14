@@ -688,7 +688,7 @@ try {
             if($tab -eq '翻译服务' -and ((Find-UI '并发批数') -or (Find-UI '每批字幕数'))){throw 'Task scheduling is still in service settings'}
             if($tab -eq '关于') {
                 $check=Find-UI '检查更新'
-                $version=Find-UI '版本 0.0.1'
+                $version=Find-UI '版本 0.1.0'
                 $status=Find-UI '更新状态'
                 if(-not $check -or -not $version -or -not $status -or -not (Find-UI 'https://github.com/OUBIGFA/OneSub')){throw 'About lost its version, update status, action or project link'}
                 $button=$check.Current.BoundingRectangle

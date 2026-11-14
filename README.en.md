@@ -6,9 +6,11 @@
 
 Local-first subtitle workbench: recognize, split, translate, edit, compress, and burn in
 
+[License: AGPL-3.0-or-later](LICENSE)
+
 [简体中文](README.md) | English
 
-![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-555555) ![WebView2](https://img.shields.io/badge/WebView2-runtime-555555) ![License](https://img.shields.io/badge/license-AGPL--3.0-555555)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-555555) ![WebView2](https://img.shields.io/badge/WebView2-runtime-555555)
 
 </div>
 
@@ -91,10 +93,10 @@ Workflow: **Import → Recognize → Rebuild timing → Translate and review →
 
 ## Download
 
-Download `OneSub-0.0.1-Setup.exe` from [Releases](https://github.com/OUBIGFA/OneSub/releases). Check the SHA-256 on the same page, then run it.
+Download `OneSub-0.1.0-Setup.exe` from [Releases](https://github.com/OUBIGFA/OneSub/releases). Check the SHA-256 on the same page, then run it.
 
-- Version 0.0.1, Windows x64 only. The installer is unsigned. Windows may show a security prompt.
-- The installer is about 256 MB. Recognition models download on demand. They range from several hundred MB to several GB. You can change the location.
+- Version 0.1.0, Windows x64 only. The installer is not Windows Authenticode-signed. Windows may show a security prompt.
+- See the Release asset for the installer size. Recognition models download on demand. They range from several hundred MB to several GB. You can change the location.
 
 ## System requirements
 

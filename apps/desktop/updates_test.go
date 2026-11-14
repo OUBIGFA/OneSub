@@ -31,7 +31,7 @@ func TestAboutUsesNativeSettingsAndRemembersAutomaticUpdates(t *testing.T) {
 							if err := tt.Click(locales.SettingsAbout()); err != nil {
 								t.Fatal(err)
 							}
-							if a.settingsTab != 6 || !tt.HasText(repositoryURL) || !tt.HasText("GitHub") || !tt.HasText(locales.AboutVersion("0.0.1")) {
+							if a.settingsTab != 6 || !tt.HasText(repositoryURL) || !tt.HasText("GitHub") || !tt.HasText(locales.AboutVersion("0.1.0")) {
 								t.Fatal("About is not a dedicated native page", tt.Texts())
 							}
 							insideRedesign(t, tt, locales.A11ySettingsContent(), locales.AboutCheckUpdates(), locales.AboutAutoUpdate(), repositoryURL, "GitHub", locales.AboutUpdateStatus())

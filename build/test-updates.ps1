@@ -2,7 +2,7 @@
 # The temporary signing key never matches the product key and is removed.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-$env:GOROOT = Join-Path $root '.local/toolchains/go1.27.3/go'
+$env:GOROOT = Join-Path $root '.local/toolchains/go1.27.4/go'
 $env:PATH = "$env:GOROOT/bin;$env:PATH"
 $env:GOMODCACHE = Join-Path $root '.local/gomodcache'
 $env:GOCACHE = Join-Path $root '.local/gocache'

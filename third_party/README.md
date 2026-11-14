@@ -16,9 +16,9 @@ TXT 文稿导出直接调用固定 libse 的 `HtmlUtil.RemoveHtmlTags`、`HtmlUt
 
 旧版浅色主题的 WinOne 来源、许可副本、哈希与适配边界见 [历史配色登记](ports/winone/README.md)；当前浅深色主题均使用 Lobe MyGo 的主题令牌。
 
-MyGo 原生 UI 当前锁定为 `v0.9.1-0.20261114032602-217fbc069ddc`，Lobe MyGo 锁定为 `v0.0.0-20261110162706-5e5fea5ef9e2`；依赖、源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。2026-11-14 核查时最新产品发布为 0.9.0；Lobe MyGo 依赖后续原生能力，因此使用核查时最新兼容主分支修订。升级时重新核对 API、补丁必要性、许可与相关原生验收，当前锁定修订只用于可复现构建。
+MyGo 原生 UI 当前锁定为 `v0.9.1-0.20261114095642-16d30c5b71f3`，Lobe MyGo 锁定为 `v0.0.0-20261110162706-5e5fea5ef9e2`；依赖、源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。2026-11-14 核查时最新产品发布为 0.9.0；Lobe MyGo 依赖后续原生能力，因此使用核查时最新兼容主分支修订。升级时重新核对 API、补丁必要性、许可与相关原生验收，当前锁定修订只用于可复现构建。
 
-MyGo 的应用更新直接复用 `mygo.Updater.Check`／`Update.Install`，包括 HTTPS／系统代理、Ed25519 校验、解包与替换／回滚；没有引入另一套下载器或安装器。设置“关于”与任务协调由应用原生 UI 承担，产品版本保持 `0.0.1`，用数值第四段区分测试构建。归档与签名由 MyGo 构建器生成，只调整清单中的内部构建号与不可变 Release URL，见 [构建与更新说明](../build/README.md)。新增 GitHub 和“关于”图标继续直接复用同一固定 Lucide 修订，原字节、大小和哈希见 [图标清单](manifests/lucide.json)。
+MyGo 的应用更新直接复用 `mygo.Updater.Check`／`Update.Install`，包括 HTTPS／系统代理、Ed25519 校验、解包与替换／回滚；没有引入另一套下载器或安装器。设置“关于”与任务协调由应用原生 UI 承担，产品版本为 `0.1.0`，用数值第四段区分内部构建。归档与签名由 MyGo 构建器生成，只调整清单中的内部构建号与不可变 Release URL，见 [构建与更新说明](../build/README.md)。新增 GitHub 和“关于”图标继续直接复用同一固定 Lucide 修订，原字节、大小和哈希见 [图标清单](manifests/lucide.json)。
 
 OneSub 在创建 Windows 播放器环境前启用 Chromium 的 `--disable_direct_composition_video_overlays` 驱动兼容项，只停用独立视频叠加平面，保留 GPU 解码、JASSUB 及 MyGo 必需的 DirectComposition 宿主。选项原名由 [`GpuDriverBugList::AppendWorkaroundsFromCommandLine`](https://github.com/chromium/chromium/blob/c6b1ec7e3f83227fa110f2effbd1b1695b22d089/gpu/config/gpu_driver_bug_list.cc) 解析，再由 [`SetProcessGlWorkaroundsFromGpuFeatures`](https://github.com/chromium/chromium/blob/c6b1ec7e3f83227fa110f2effbd1b1695b22d089/gpu/config/gpu_util.cc) 传给视频叠加支持判断；保留下划线名称，不替换为连字符版本。这里只调用已有运行时配置，没有复制 Chromium 代码或引入新依赖。
 

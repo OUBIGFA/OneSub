@@ -1,4 +1,4 @@
-"""Give MyGo-signed 0.0.1 archives a monotonic internal build identity.
+"""Give MyGo-signed archives a monotonic build identity and exact release URL.
 
 MyGo generates and signs the archive. Only its unsigned feed metadata changes:
 the numeric fourth version component and the immutable release URL. Product
@@ -19,12 +19,14 @@ import tempfile
 MANIFEST_NAME = "update-windows-amd64.json"
 
 
-def finalize_update(config_path: Path, package: Path, build: str, output: Path):
+def finalize_update(config_path: Path, package: Path, build: str, output: Path, release_tag: str | None = None):
     """Validate the generator output and atomically replace fixed local artifacts."""
     if re.fullmatch(r"[0-9]{14}", build) is None:
         raise ValueError("Build number must use yyyyMMddHHmmss")
     config = json.loads(config_path.read_text(encoding="utf-8"))
     version, repository = config["version"], config["updates"]["github"]
+    if release_tag is not None and release_tag != version:
+        raise ValueError("Public release tag must equal the product version")
     archive_name = f"onesub-{version}-windows-amd64.tar.gz"
     archive = package / archive_name
     manifest = json.loads((package / MANIFEST_NAME).read_text(encoding="utf-8"))
@@ -43,7 +45,8 @@ def finalize_update(config_path: Path, package: Path, build: str, output: Path):
         raise ValueError("Signed update archive size differs from its manifest")
 
     manifest["version"] = f"{version}.{build}"
-    manifest["url"] = f"https://github.com/{repository}/releases/download/build-{build}/{archive_name}"
+    tag = release_tag if release_tag is not None else f"build-{build}"
+    manifest["url"] = f"https://github.com/{repository}/releases/download/{tag}/{archive_name}"
     with archive.open("rb") as file:
         digest = hashlib.file_digest(file, "sha256").hexdigest()
     output.mkdir(parents=True, exist_ok=True)
@@ -80,8 +83,9 @@ def main():
     parser.add_argument("--package", required=True, type=Path)
     parser.add_argument("--build", required=True)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--release-tag")
     args = parser.parse_args()
-    manifest = finalize_update(args.config, args.package, args.build, args.output)
+    manifest = finalize_update(args.config, args.package, args.build, args.output, args.release_tag)
     print(f"Signed update {manifest['version']}")
     print(f"Release URL: {manifest['url']}")
 

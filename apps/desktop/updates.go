@@ -17,6 +17,7 @@ import (
 )
 
 const repositoryURL = "https://github.com/OUBIGFA/OneSub"
+const productVersion = "0.1.0"
 
 type updatePhase uint8
 
@@ -47,7 +48,7 @@ type appUpdates struct {
 	stop           context.CancelFunc
 }
 
-// Product and installer versions stay stable during 0.0.1 testing. MyGo's
+// Product and installer versions stay stable between releases. MyGo's
 // numeric version comparison uses a fourth component to order signed builds.
 // A +build suffix is ignored and would strand same-product-version updates.
 func orderedUpdateVersion(product, build string) string {
@@ -249,7 +250,7 @@ func (a *NativeApp) aboutSettingsView(c *ui.Context) {
 	ui.Column(c).Gap(em(c, 28)).Children(func() {
 		version := a.updates.productVersion
 		if version == "" {
-			version = "0.0.1"
+			version = productVersion
 		}
 		ui.Row(c).Gap(em(c, 16)).AlignItems(ui.Center).Children(func() {
 			lobeDisplay.Image(c, aboutLogo(), lobeDisplay.ImageProps{Size: em(c, 48), Contain: true, Variant: lobeDisplay.ImageBorderless, NoPreview: true, Alt: "OneSub"})
