@@ -1,6 +1,6 @@
 # MyGo 原生 UI 与 Windows 层补丁
 
-上游：`egoist/mygo v0.9.1-0.20261113232551-f31d37f48602`，修订 `f31d37f486025e0d04c4f68238c1f4fe0c8a2adc`，MIT，许可见 [mygo.txt](../../licenses/mygo.txt)，模块、源码 ZIP 与许可校验见 [运行时清单](../../manifests/runtimes.json)。工作台控件由 Lobe MyGo 提供；MyGo 保留布局、表格、媒体承载与系统菜单行为。
+上游：`egoist/mygo v0.9.1-0.20261114032602-217fbc069ddc`，修订 `217fbc069ddc34a9cfec8f6db3ff2d2f1d1780b6`，MIT，许可见 [mygo.txt](../../licenses/mygo.txt)，模块、源码 ZIP 与许可校验见 [运行时清单](../../manifests/runtimes.json)。工作台控件由 Lobe MyGo 提供；MyGo 保留布局、表格、媒体承载与系统菜单行为。
 
 ## 范围与原因
 
@@ -17,6 +17,7 @@
 
 - **长单行输入**：原生 `TextInput`、`Autocomplete` 等输入未聚焦时，仅绘制布局按可用宽度显示省略号。完整编辑布局、实际值、鼠标拖选、光标导航、IME 与辅助技术不变；密码继续掩码。绘制布局只缓存在对应编辑器，不放入全局文字缓存。单行占位文字也以省略号结束。
 - **输入内容提示**：与单行输入值完全相同的提示，仅在原生绘制布局确实省略内容时显示；聚焦编辑时不重复提示。附加操作说明和辅助技术描述保留，不影响布局。
+- **浅色悬停提示**：原生 Tooltip 继续读取主题的 Inverse／InverseText，应用将其映射到 Lobe 深色背景与白色文字。浅色外观不绘制提示阴影；定位、延迟、键盘提示与读屏描述沿用上游。
 - **复合输入占位文字**：`v0.8.3` 的 `Placeholder` 已通过原生 `focusTo` 向 `SearchField`、`Combobox`、`TokenField` 内部输入转发。本轮移除 OneSub 的递归查找转发补丁，直接使用上游接口；保留中英文当前范围及清空搜索的行为回归。单行长占位文字仍通过有限布局补丁使用省略号，而非 `NoWrap` 后直接裁切。
 - **字幕邻近行平滑定位**：`ListState.ScrollToAnimated` 将已测量的可见行位置交给现有 `ScrollState.ScrollTo`，沿用原生缓动、用户滚动中断当前动画和系统减少动态效果设置；远距离或未测量目标仍由原生 `ScrollTo` 定位，不按估计高度长距离飞行。切换轨道和过滤会清掉旧动画；应用的后续播放跟随仍自动恢复。
 - **字幕首尾导航的缓出反馈**：官方 [List](https://mygo.egoist.dev/docs/ui/list) 的首尾定位没有动画参数；[Motion](https://mygo.egoist.dev/docs/ui/motion) 和 [Scroll view](https://mygo.egoist.dev/docs/ui/scroll) 已提供 `CubicBezier` 与 `ScrollState.ScrollTo`。有限扩展 `ListState.ScrollToEdgeAnimated` 先使用原生布局测量目标与最多一屏的落点走廊，再将这段滚动交给既有 `ScrollState`；远段直接跳过，不遍历整个列表的估计高度。应用采用 420 ms、`CubicBezier(0.22, 1, 0.36, 1)`，先快后慢、无回弹；末条超过一屏时仍定位到真实底部。用户滚动、反向导航和直接定位可中断，减少动态效果时直接到达。不修改普通播放跟随的 220 ms 节奏。
@@ -123,3 +124,7 @@
 ## 2026-11-14 选中颜色与标签尺寸复核
 
 任务开始时核查并固定主分支 `f31d37f48602`，最新正式发布仍为 `v0.9.0`。上游调整测试窗口的输入法按键与注册字体、富文本布局及 macOS 辅助功能；15 个补丁目标中只有 `ui/headless.go` 的原始校验值变化。保留上游输入法行为，六份有限补丁仍有调用方且未被这些变更替代；许可证不变。分段项与页签的尺寸修正在 Lobe 集成补丁中，只使用 MyGo `ElementTransition.Position` 将选择移动与尺寸变化分开。
+
+## 2026-11-14 严重字幕检查与工具栏复核
+
+本任务一次核查并固定 `217fbc069ddc`，最新正式发布仍为 `v0.9.0`。上游新增富文本占位、菜单回调与 Markdown 内部调整，以及 macOS 视频首帧通知；15 个补丁目标文件和许可证校验均未变化。现有有限补丁仍有调用方且未被这些改动替代。浅色提示仅调整原生 Tooltip 的阴影分支，配色继续使用官方主题接口；完整构建与界面回归使用同一锁定版本。

@@ -19,6 +19,18 @@ diff --git a/ui/tooltip.go b/ui/tooltip.go
  	c := e.c
  	t := c.theme
  	fill, text := t.inverse()
+@@ -131,7 +142,10 @@
+ 		tip.MaxWidth(t.Space(80)).Padding(t.Space(1.25), t.Space(2)).Radius(t.Space(1.25)).
+ 			Background(fill).TextColor(text).FontSize(t.FontSize - 1)
+-		tip.Shadow(0, 2, 8, 0, RGBA(0, 0, 0, 0.2))
++		// Light tooltips use the app's contrasting inverse surface alone.
++		if t.Dark {
++			tip.Shadow(0, 2, 8, 0, RGBA(0, 0, 0, 0.2))
++		}
+ 		tip.Children(func() { coreText(c, s) })
+ 		tip.AttachTo(e, AnchorTop, AnchorBottom).Margin(0, 0, t.Space(1.5), 0)
+ 	})
+ 	return e
 diff --git a/ui/editor.go b/ui/editor.go
 --- a/ui/editor.go
 +++ b/ui/editor.go

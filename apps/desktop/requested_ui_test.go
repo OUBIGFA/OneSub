@@ -40,7 +40,7 @@ func TestSubtitleToolbarGroupsFilesAndEditing(t *testing.T) {
 			if edit.Y < search.Y+search.H {
 				t.Fatal("editing overlaps file actions", edit, search)
 			}
-			for _, label := range []string{locales.ListLocate(), locales.FindReplace(), locales.ReadingIssueType(), locales.TranslationResults()} {
+			for _, label := range []string{locales.ListLocate(), locales.FindReplace(), locales.ReadingTools(), locales.TranslationResults()} {
 				r, ok := tt.Find(label)
 				if !ok || math.Abs(float64(r.Y+r.H/2-edit.Y-edit.H/2)) > 1 {
 					t.Fatal("editing group is not aligned", label, r, edit)

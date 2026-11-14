@@ -147,13 +147,23 @@ func TestOutputMissingTranslationsHaveActions(t *testing.T) {
 			}
 			tt := settled(func(c *ui.Context) { applyStudioTheme(c); build(c) }, 1000, 800)
 			before, _ := tt.Find(action)
-			for _, label := range []string{"定位未翻译字幕", locales.TranslationResume(), "跳过未翻译字幕"} {
+			actions := []string{"定位未翻译字幕", locales.TranslationResume(), "跳过未翻译字幕"}
+			if compose {
+				actions = []string{locales.SubtitleIssuesToggle()}
+			}
+			for _, label := range actions {
 				if !tt.HasText(label) {
 					t.Fatal("missing-translation warning has no action", label, tt.Texts())
 				}
 			}
-			if err := tt.Click("跳过未翻译字幕"); err != nil {
-				t.Fatal(err)
+			if compose {
+				if tt.HasText("跳过未翻译字幕") {
+					t.Fatal("composition offers a missing-content bypass")
+				}
+			} else {
+				if err := tt.Click("跳过未翻译字幕"); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if after, _ := tt.Find(action); before != after {
 				t.Fatal("skip choice moved the dialog action", before, after)

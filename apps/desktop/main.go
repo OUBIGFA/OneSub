@@ -87,7 +87,8 @@ type NativeApp struct {
 	readingSnapshot                      *project.Snapshot
 	countSnapshot                        *project.Snapshot
 	originalCount, optimizedCount        int
-	readingTab, readingIssue             int // issue defaults to long; independent of the active track
+	readingTab, readingIssue             int  // issue defaults to long; independent of the active track
+	readingExpanded                      bool // opt in per session; all reading controls start folded
 	reading                              []subtitle.CueReadingLoad
 	problems                             subtitleProblemState
 	splitSkipped                         map[string]string
@@ -131,7 +132,6 @@ type NativeApp struct {
 	exportLines                          string // all, upper or lower; export-only projection
 	quitAfterTask                        bool
 	composeOpen                          bool
-	composeSkipMissing                   bool
 	exportSkipMissing                    bool
 	missingSaveOpen                      bool
 	missingSaveNext                      func()

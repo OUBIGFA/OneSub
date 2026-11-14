@@ -42,40 +42,77 @@ func composeQualities() []option {
 // and an anchored action row keep sample/export actions in the same place.
 func (a *NativeApp) composeView(c *ui.Context) {
 	var outputErr error
-	if a.composeOpen && a.snapshot != nil {
-		options := a.settings.SubtitleOutput
-		options.SkipMissing = a.composeSkipMissing
-		_, outputErr = subtitle.SelectOutput(a.snapshot.OutputDocument(options), options)
-	}
+	var issues []composeSubtitleIssue
 	fixedDialog(c, &a.composeOpen, locales.ActionCompose(), 740, 0, func() {
 		hard := strings.HasPrefix(a.settings.ComposeMode, "hard")
+		modes := composeModes()
+		var modeWidth float32
+		for _, mode := range modes {
+			width, _ := c.MeasureText(0, ui.Span{Text: mode.Label})
+			modeWidth = max(modeWidth, width)
+		}
 		ui.Form(c, func() {
 			ui.Fieldset(c, locales.OutputTrackGroup(), func() {
-				a.outputColumn(c)
+				fields := a.outputFields(c, true)
+				fields[0]()
+				// Keep related short choices beside each other so the error
+				// list and footer fit the minimum window without form scrolling.
+				ui.Grid(c).Columns(2).GapX(em(c, 20)).Children(func() {
+					fields[1]()
+					fields[2]()
+				})
 			}).Gap(em(c, 8))
 			ui.Fieldset(c, locales.ComposeEncodingGroup(), func() {
-				ui.Field(c, locales.ComposeMode(), func() {
-					idSelect(c, &a.settings.ComposeMode, composeModes()).Label(locales.ComposeMode()).OnChange(a.saveSettings)
-				})
-				ui.Field(c, locales.ComposeQuality(), func() {
-					idSelect(c, &a.settings.ComposeQuality, composeQualities()).Label(locales.ComposeQuality()).Disabled(!hard).OnChange(a.saveSettings)
+				ui.Grid(c).Columns(2).GapX(em(c, 20)).Children(func() {
+					ui.Field(c, locales.ComposeMode(), func() {
+						// Reserve every mode's label in this frame, plus the normal
+						// Lobe Select insets and arrow. A shorter selected label must
+						// not shrink the form's intrinsic width and move its footer.
+						idSelect(c, &a.settings.ComposeMode, modes).MinWidth(modeWidth + 48).Label(locales.ComposeMode()).OnChange(a.saveSettings)
+					})
+					ui.Field(c, locales.ComposeQuality(), func() {
+						idSelect(c, &a.settings.ComposeQuality, composeQualities()).Label(locales.ComposeQuality()).Disabled(!hard).OnChange(a.saveSettings)
+					})
 				})
 			}).Gap(em(c, 8)).Margin(em(c, 8), 0, 0, 0)
 		}).Gap(em(c, 8))
+		var potentialIssues []composeSubtitleIssue
+		if a.snapshot != nil {
+			options := a.settings.SubtitleOutput
+			issues = composeSubtitleIssues(*a.snapshot, options, a.problems.glyphs)
+			_, outputErr = subtitle.SelectOutput(a.snapshot.OutputDocument(options), options)
+			potentialIssues = issues
+			if len(issues) > 0 {
+				outputErr = composeSubtitleError(issues)
+			} else {
+				// Measure the translation-error state now, before a content-mode
+				// change can reveal it and move the form or its action row.
+				options.Mode = "translation"
+				potentialIssues = composeSubtitleIssues(*a.snapshot, options, a.problems.glyphs)
+			}
+		}
 		crfNote := locales.ComposeCrfNote() + "\n" + locales.ComposeCrfRecommendation()
 		note, warning := crfNote, false
 		switch {
-		case outputErr != nil:
+		case outputErr != nil && len(issues) == 0:
 			note, warning = outputErr.Error(), true
-		case a.composeSkipMissing && a.snapshot != nil && a.settings.SubtitleOutput.Normalized().Mode != "source":
-			note, warning = locales.TranslationSkipped(subtitle.MissingTranslations(a.snapshot.Document))+"\n"+locales.TranslationSkipNote(), true
 		case a.settings.ComposeMode == "soft-mp4":
 			note, warning = locales.ComposeMovTextNote(), true
 		case !hard:
 			note = locales.ComposeSoftNote()
 		}
-		stableDialogNote(c, note, warning, a.outputNoteVariants(crfNote, locales.ComposeMovTextNote(), locales.ComposeSoftNote())...)
-		a.outputMissingActions(c, &a.composeSkipMissing, func() { a.composeOpen = false })
+		normalNote := func() {
+			stableDialogNote(c, note, warning, a.outputNoteVariants(crfNote, locales.ComposeMovTextNote(), locales.ComposeSoftNote())...)
+		}
+		if len(potentialIssues) > 0 {
+			selected := 0
+			if len(issues) > 0 {
+				selected = 1
+			}
+			stableVariants(c, selected, normalNote, func() { a.composeSubtitleActions(c, potentialIssues) })
+		} else {
+			normalNote()
+		}
 		separator(c)
 		ui.Column(c).Gap(em(c, 12)).Children(func() {
 			folderField(c, a.settings.OutputDir, locales.RecognitionBesideMedia(), a.busy, a.pickComposeDir, func() { a.settings.OutputDir = ""; a.saveSettings() })
@@ -177,7 +214,15 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 	}
 	state, style, mode, aspect := *a.snapshot, a.currentStyle, a.settings.ComposeMode, a.frameAspect
 	secondary, outputOptions := a.secondaryStyle, a.settings.SubtitleOutput
-	outputOptions.SkipMissing = a.composeSkipMissing
+	// Composition cannot omit incomplete or broken subtitles. Check before
+	// starting a task or opening a file picker, including the sample path.
+	if !compress {
+		if err := composeSubtitleError(composeSubtitleIssues(state, outputOptions, a.problems.glyphs)); err != nil {
+			a.composeOpen = true
+			a.showError(locales.ActionCompose(), err.Error())
+			return
+		}
+	}
 	language := a.settings.TargetLanguage
 	if outputOptions.Normalized().Mode == "source" {
 		// Smart routing does not keep the language it detected.
@@ -208,6 +253,27 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 		module = timingMedia
 	}
 	a.runTimed(module, false, title, func(ctx context.Context) (func(), error) {
+		progress := func(p media.ComposeProgress) {
+			a.win.Update(func() { a.composeProgress = p; a.status = composeStageLabel(p.Stage) })
+		}
+		var document styles.Document
+		var err error
+		if !compress {
+			progress(media.ComposeProgress{Stage: media.StagePrepare, Fraction: -1})
+			document, err = a.styledDocument(ctx, state, style, secondary, outputOptions, aspect)
+			if err != nil {
+				return nil, err
+			}
+			// The actual selected fonts, including their fallbacks, are resolved
+			// by the shared style worker. Cached preview results are insufficient.
+			if err = composeSubtitleError(composeSubtitleIssues(state, outputOptions, document.Report.MissingGlyphs)); err != nil {
+				return func() {
+					a.problems.glyphs = append([]string(nil), document.Report.MissingGlyphs...)
+					a.problems.glyphRevision++
+					a.composeOpen = true
+				}, err
+			}
+		}
 		extension := "mp4"
 		if strings.HasSuffix(mode, "mkv") {
 			extension = "mkv"
@@ -236,20 +302,12 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 		if !strings.EqualFold(filepath.Ext(output), "."+extension) {
 			output += "." + extension
 		}
-		progress := func(p media.ComposeProgress) {
-			a.win.Update(func() { a.composeProgress = p; a.status = composeStageLabel(p.Stage) })
-		}
 		progress(media.ComposeProgress{Stage: media.StagePrepare, Fraction: -1})
-		var document styles.Document
 		subtitleMode := "compress"
 		if audio {
 			subtitleMode = "audio"
 		}
 		if !compress {
-			document, err = a.styledDocument(ctx, state, style, secondary, outputOptions, aspect)
-			if err != nil {
-				return nil, err
-			}
 			subtitleMode = "hard"
 			if strings.HasPrefix(mode, "soft") {
 				subtitleMode = "soft"

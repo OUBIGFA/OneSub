@@ -12,7 +12,9 @@ import (
 func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) {
 	compact := width < em(c, 680)
 	layout := a.subtitleToolbarDensity(c, width-em(c, 32+8), compact)
-	ui.Column(c).Padding(em(c, 8), em(c, 12)).Gap(em(c, 8)).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
+	// Tight panes spend the gap between rows too, preserving list space when
+	// large text makes the always-labelled smart split entry occupy a new row.
+	ui.Column(c).Padding(em(c, 8), em(c, 12)).Gap(layout.spacing(c)).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
 		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
 			a.proofreadingButton(c, compact, width < em(c, 300))
 			if compact {
@@ -37,11 +39,7 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 			ui.Toolbar(c, func() {
 				a.retranslationActions(c, layout)
 			}).Padding(0).Gap(layout.spacing(c)).Shrink(0)
-			if compact {
-				a.readingMenu(c, layout)
-			} else {
-				a.readingTools(c, layout)
-			}
+			a.readingToolbar(c, layout)
 			subtitleTool(c, locales.TranslationResults(), "file-warning", layout).Disabled(a.translationCandidate == nil || selectionMode).OnClick(func() { a.translationReview = true })
 			a.subtitleProblemToggle(c)
 			ui.Spacer(c)
@@ -65,21 +63,23 @@ func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow 
 	var issueWidth float32
 	navigation := float32(0)
 	if !narrow {
+		labels = append(labels, locales.TextStripTrailing(), locales.TextReplacePeriods())
+	}
+	if a.readingExpanded {
 		issues := a.readingIssues()
-		labels = append(labels, locales.TextStripTrailing(), locales.TextReplacePeriods(), locales.ReadingSplitCount(issues[0].count), locales.ReadingIssueType())
+		labels = append(labels, locales.ReadingSplitCount(issues[0].count), locales.ReadingIssueType())
 		for _, issue := range issues {
 			w, _ := c.MeasureText(0, ui.Span{Text: issue.label, Weight: 500})
 			issueWidth = max(issueWidth, float32(math.Ceil(float64(w))))
 		}
-		navigation = 2
+		navigation = 3 // the two cue arrows and the collapse control
+	} else {
+		labels = append(labels, locales.ReadingTools())
 	}
 	if count := len(a.checkedRetranslationIDs()); count > 0 {
 		labels = append(labels, locales.RetranslateClear(), locales.RetranslateCheckAll(), locales.RetranslateSelected(count))
 	} else {
 		labels = append(labels, locales.RetranslateCheckAll(), locales.RetranslateSelect())
-	}
-	if narrow {
-		labels = append(labels, locales.ReadingInspect())
 	}
 	labels = append(labels, locales.SubtitleActionsMenu(), locales.FindReplace(), locales.ListLocate())
 	widths := make([]float32, len(labels))
@@ -100,6 +100,9 @@ func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow 
 			if minimum <= width {
 				break
 			}
+			if label == locales.ReadingTools() {
+				continue // The folded entry always keeps its name and icon.
+			}
 			layout.icons[label] = true
 			minimum -= widths[i] - em(c, 32)
 		}
@@ -110,7 +113,7 @@ func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow 
 		if layout.icons == nil {
 			layout.icons = make(map[string]bool)
 		}
-		for _, label := range []string{locales.SubtitleActionsMenu(), locales.ListLocate(), locales.FindReplace(), locales.TranslationResults(), locales.ReadingInspect(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.RetranslateClear()} {
+		for _, label := range []string{locales.SubtitleActionsMenu(), locales.ListLocate(), locales.FindReplace(), locales.TranslationResults(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.RetranslateClear()} {
 			layout.icons[label] = true
 		}
 		if count := len(a.checkedRetranslationIDs()); count > 0 {

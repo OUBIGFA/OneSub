@@ -54,7 +54,7 @@ func (a *NativeApp) outputFields(c *ui.Context, keepRoom bool) []func() {
 					o.Mode, o.SourceTrack = "source", "original"
 				}
 				a.settings.SubtitleOutput = o
-				a.exportSkipMissing, a.composeSkipMissing = false, false
+				a.exportSkipMissing = false
 				a.saveSettings()
 			})
 		})

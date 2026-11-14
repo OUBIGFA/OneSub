@@ -31,6 +31,7 @@
     "pkg/form/group.go": "42244c160155e9043036144794882c271924024c5cd1ae1c6ecc0a4dfc845004",
     "pkg/nav/tabs.go": "f1fa8aed504b056cfb8ee2627bb7b9a57c0be0adddd12db9b71d00c304db1b51",
     "pkg/overlay/dropdown.go": "e3a38b50a196c0d01a4d0f1a1c52d062021313eecffac59f620065324bb2d9e3",
+    "pkg/overlay/tooltip.go": "9b8717003a9567b15e6417a4ac1ddce3841faf85900e6134cb19a7ee27a267a4",
     "pkg/theme/apply.go": "2d1afc9d3cd97fbc0b91f7ad386ee72665c852f316e09af924de9d86278c5ed7"
   },
   "addedFiles": []

@@ -26,6 +26,24 @@ for($i=0;$i -lt 100;$i++){
 if(-not (Test-Path $sourceOutput) -or -not [IO.File]::ReadAllText($sourceOutput).Contains('Corrected source')){throw 'Source save failed'}
 if(-not [IO.File]::ReadAllText($translation).Contains('Corrected translation')){throw 'Translation save failed'}
 & $ScreenshotTool $p.Id (Join-Path $workPath 'proofreading.png')
+# A second imported source has no matching translation. Refuse both sample and
+# full composition, and locate the actual paired row rather than its old number.
+$longerSource=Join-Path $workPath 'two-source-cues.srt'
+[IO.File]::WriteAllText($longerSource,"1`n00:00:00,100 --> 00:00:01,400`nCorrected source`n`n2`n00:00:01,500 --> 00:00:02,900`nSource without a translation`n",[Text.UTF8Encoding]::new($false))
+Click-UI '导入字幕';Choose-Path $longerSource
+for($i=0;$i -lt 100;$i++){if(Find-UI '选择字幕属性'){break};Start-Sleep -Milliseconds 100}
+Select-Tab '选择字幕属性' '原文'
+Click-UI '导入字幕'
+for($i=0;$i -lt 100;$i++){if(Find-UI 'Source without a translation'){break};Start-Sleep -Milliseconds 100}
+Click-AgentControl '合成视频'
+foreach($label in @('导出 5 秒预览','开始合成')){
+    $action=Find-UI $label
+    if(-not $action -or $action.Current.IsEnabled){throw "Missing translation did not block composition: $label"}
+}
+$report=Read-AgentSnapshot 'compose-missing-translation'
+if(-not ($report | ConvertTo-Json -Depth 40).Contains('#2')){throw 'Missing translation report omitted subtitle #2'}
+Click-AgentControl '定位异常字幕'
+if(-not (Find-UI 'Source without a translation')){throw 'Missing translation navigation lost the affected source'}
 Click-UI '退出校对'
 if(-not (Find-UI '原始字幕') -or -not (Find-UI '优化字幕')){throw 'Normal tabs did not return'}
-Write-Output 'PASS: private desktop proofreading toggle, role choice, bilingual edit, separate saves and exit'
+Write-Output 'PASS: private proofreading import, bilingual edits and separate saves; missing translation blocks composition with subtitle #2 and correction navigation'

@@ -779,6 +779,23 @@ diff --git a/pkg/overlay/dropdown.go b/pkg/overlay/dropdown.go
  			continue
  		}
  		if menuItem(c, tk, m, it).Clicked() && !it.Disabled {
+diff --git a/pkg/overlay/tooltip.go b/pkg/overlay/tooltip.go
+--- a/pkg/overlay/tooltip.go
++++ b/pkg/overlay/tooltip.go
+@@ -40,7 +40,12 @@
+ 		tip.Padding(4, 8).Radius(tk.BorderRadiusSM).MaxWidth(320).
+ 			Background(tk.BgElevated).TextColor(tk.TextLabel).FontSize(tk.FontSizeSM).
+ 			Transition(tipTransition(p.Placement))
+-		tk.Elevate(tip, theme.BoxShadowTertiary)
++		if tk.Dark {
++			tk.Elevate(tip, theme.BoxShadowTertiary)
++		} else {
++			// Match native hints on the light workbench without an outer shadow.
++			tip.Background(theme.Dark().BgSpotlight).TextColor(tk.TextLightSolid)
++		}
+ 		tip.Children(func() {
+ 			ui.Row(c.Key(text)).Gap(6).Transition(tipContentTransition).Children(func() {
+ 				ui.Text(c, text)
 diff --git a/pkg/theme/apply.go b/pkg/theme/apply.go
 --- a/pkg/theme/apply.go
 +++ b/pkg/theme/apply.go

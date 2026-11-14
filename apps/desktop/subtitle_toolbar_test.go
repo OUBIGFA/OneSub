@@ -11,6 +11,65 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+func TestSmartSplitToolsStartCollapsedAndExpandInToolbar(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			for _, width := range []int{320, 800, 1800} {
+				t.Run(fmt.Sprintf("%s/%d", language, width), func(t *testing.T) {
+					a := storeApp(t, subtitle.Cue{ID: "long", Text: "这是一条足够长的字幕，用来核对智能拆分的入口、下拉菜单和前后定位按钮。", EndMs: 15000})
+					tt := settled(a.subtitlesView, width, 800)
+					button, found := tt.Find(locales.ReadingTools())
+					glyph, iconFound := tt.Find(locales.A11yIconOf(locales.ReadingTools()))
+					if !found || !iconFound || button.W <= button.H || glyph.W <= 0 || button.X+button.W > float32(width) {
+						t.Fatal("collapsed smart split must show its full label and icon", button, glyph)
+					}
+					for _, label := range []string{locales.ReadingSplitCount(1), locales.ReadingIssueType(), locales.ReadingPrevious(), locales.ReadingNext()} {
+						if _, shown := tt.Find(label); shown {
+							t.Fatal("reading tool is visible before expansion", label)
+						}
+					}
+					if err := tt.Click(locales.ReadingTools()); err != nil {
+						t.Fatal(err)
+					}
+					for _, label := range []string{locales.ReadingSplitCount(1), locales.ReadingIssueType(), locales.ReadingPrevious(), locales.ReadingNext(), locales.ReadingToolsCollapse()} {
+						box, shown := tt.Find(label)
+						if !shown || box.X < 0 || box.X+box.W > float32(width)+1 {
+							t.Fatal("expanded tool is missing or clipped", label, box)
+						}
+					}
+					// Native accessibility treats the menu button as a leaf. Check
+					// its real render children here, including the trailing chevron.
+					label, labelFound := tt.Find(locales.ReadingLongCues())
+					arrow, arrowFound := tt.Find(locales.A11yIconOf(locales.ReadingLongCues()))
+					if width == 1800 && !labelFound || !arrowFound || arrow.W <= 0 || labelFound && arrow.X < label.X+label.W {
+						t.Fatal("reading category lost its trailing native chevron", label, arrow)
+					}
+					if err := tt.Click(locales.ReadingIssueType()); err != nil {
+						t.Fatal(err)
+					}
+					if err := tt.ChooseMenuItem(locales.ReadingViewLong(1)); err != nil {
+						t.Fatal("expanded category menu is unavailable", err)
+					}
+					if err := tt.Click(locales.ReadingToolsCollapse()); err != nil {
+						t.Fatal(err)
+					}
+					if _, shown := tt.Find(locales.ReadingTools()); !shown {
+						t.Fatal("cannot collapse the tools again")
+					}
+					if _, shown := tt.Find(locales.ReadingNext()); shown {
+						t.Fatal("navigation remained after collapse")
+					}
+					tt.SetPreferences(ui.Preferences{TextScale: 2, ReduceMotion: true})
+					button, found = tt.Find(locales.ReadingTools())
+					if !found || button.W <= button.H || button.X < 0 || button.X+button.W > float32(width)+1 {
+						t.Fatal("large text clipped the folded label and icon", button)
+					}
+				})
+			}
+		})
+	}
+}
+
 // Empty tracks keep import and track navigation, without presenting disabled
 // editing commands as useful next actions. Existing source data stays intact.
 func TestSubtitleEmptyTrackShowsImportAndTrackNavigation(t *testing.T) {
@@ -114,6 +173,7 @@ func TestSubtitleToolbarActionsMenuIsIconOnly(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := storeApp(t, subtitle.Cue{ID: "a", Text: "First subtitle", StartMs: 0, EndMs: 3000})
+			a.readingExpanded = true
 			tt := settled(a.subtitlesView, 1800, 800)
 			menu, ok := tt.Find(locales.SubtitleActionsMenu())
 			if !ok || menu.W > menu.H+2 {
@@ -171,9 +231,13 @@ func TestSubtitleToolbarKeepsPrimaryLabelsInNormalPanes(t *testing.T) {
 							tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
 							tt.SetDark(true)
 							firstFrameSettled(t, tt, "toolbar-normal", func() {})
-							for _, label := range []string{locales.ListLocate(), locales.FindReplace()} {
+							for _, label := range []string{locales.ListLocate(), locales.FindReplace(), locales.ReadingTools()} {
 								box, ok := tt.Find(label)
-								if !ok || box.W <= 32*scale {
+								// Bulk selection adds several controls. The new folded
+								// entry keeps its requested full name; Find can use its
+								// existing named icon in the smallest normal pane.
+								mustShowText := label != locales.FindReplace() || !checked || width >= 900
+								if !ok || mustShowText && box.W <= 32*scale {
 									t.Fatal("primary action became icon-only too early", label, box)
 								}
 								if _, ok := tt.Find(locales.A11yIconOf(label)); !ok {
@@ -205,6 +269,7 @@ func TestSubtitleToolbarKeepsLabelsWhileTightening(t *testing.T) {
 				for _, checked := range []bool{false, true} {
 					t.Run(fmt.Sprintf("%s/%g/checked=%t", language, scale, checked), func(t *testing.T) {
 						a := draftApp(t)
+						a.readingExpanded = true
 						if checked {
 							a.checkAllSubtitles()
 							a.retranslation = &retranslationState{}

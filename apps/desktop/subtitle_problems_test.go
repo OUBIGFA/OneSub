@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -9,6 +10,90 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
+
+// Reading recommendations stay available in the existing checks. The subtitle
+// itself gets only actionable content/rendering errors, even in the issue filter.
+func TestSubtitleRowsShowOnlySeriousProblemDetails(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		for _, live := range []bool{false, true} {
+			for _, filtered := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/live%t/filter%t", language, live, filtered), func(t *testing.T) {
+					inLocale(t, language, func() {
+						text := strings.Repeat("A long sentence. ", 8)
+						a := storeApp(t, subtitle.Cue{ID: "cue", Text: text, StartMs: 0, EndMs: 400})
+						a.problems.filter = filtered
+						if live {
+							a.subtitleTab = 1
+							a.translationLive = newTranslationLive()
+							a.translationLive.stage, a.translationLive.total, a.translationLive.stopped = "translate", 1, "Interrupted"
+							a.translationLive.units = slices.Clone(a.snapshot.Document.Cues)
+							a.translationLive.texts[0], a.translationLive.final[0], a.translationLive.selected = text, true, 0
+						}
+						tt := settled(a.subtitlesView, 1200, 700)
+						check := func(serious bool) {
+							t.Helper()
+							var row string
+							for _, node := range tt.AccessAll() {
+								if node.Role == ui.RoleRow && strings.Contains(node.Name, "A long sentence.") {
+									row = node.Name
+								}
+							}
+							if row == "" {
+								t.Fatal("subtitle row was not rendered")
+							}
+							for _, warning := range []string{locales.ReadingLong(), locales.ReadingFast(), locales.ReadingBrief()} {
+								if strings.Contains(row, warning) {
+									t.Errorf("reading advice is still printed below the subtitle: %s", warning)
+								}
+							}
+							if strings.Contains(row, "U+4E7FD") != serious {
+								t.Fatal("serious character diagnosis was lost or shown for clean text", row)
+							}
+						}
+						check(false)
+						if len(a.subtitleProblems()[0]) == 0 {
+							t.Fatal("hiding inline advice removed the existing issue checks")
+						}
+						if live {
+							a.translationLive.texts[0] += "\U0004e7fd"
+							a.translationLive.revision++
+						} else {
+							a.draft, a.editPending = text+"\U0004e7fd", true
+						}
+						tt.Frame()
+						check(true)
+					})
+				})
+			}
+		}
+	}
+}
+
+func TestInlineProblemDetailsKeepBlockingErrorsWithoutEmptyRows(t *testing.T) {
+	for _, kind := range []string{"long", "fast", "brief", "overlap", "characters", "glyphs", "empty", "missing", "time"} {
+		t.Run(kind, func(t *testing.T) {
+			a := nativeForTest(t)
+			a.problems.rows = [][]subtitle.CueProblem{{{Kind: kind, Characters: "\U0004e7fd", Other: 2}}}
+			tt := settled(func(c *ui.Context) {
+				ui.Column(c).Gap(8).Children(func() {
+					ui.Text(c, "Before")
+					a.subtitleProblemDetail(c, 0, true)
+					ui.Text(c, "After")
+				})
+			}, 700, 200)
+			before, _ := tt.Find("Before")
+			after, _ := tt.Find("After")
+			serious := slices.Contains([]string{"characters", "glyphs", "empty", "missing", "time"}, kind)
+			if serious {
+				if after.Y <= before.Y+before.H+8 {
+					t.Fatal("blocking error has no visible detail", kind)
+				}
+			} else if after.Y != before.Y+before.H+8 {
+				t.Fatal("advice left a line or empty layout gap under the subtitle", kind, before, after)
+			}
+		})
+	}
+}
 
 func TestSubtitleIssuesDoNotReuseAnotherProjectsFontReport(t *testing.T) {
 	a := storeApp(t, subtitle.Cue{ID: "old", Text: "Old \U000f0000", StartMs: 0, EndMs: 5000})

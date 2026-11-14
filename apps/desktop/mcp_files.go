@@ -13,6 +13,7 @@ import (
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/media"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/models"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -448,8 +449,16 @@ func (s mcpServer) composeVideo(ctx context.Context, req *mcp.CallToolRequest, i
 	if err != nil {
 		return nil, composeVideoOut{}, err
 	}
+	state := project.Snapshot{SourceDocument: doc, Document: doc}
+	output := subtitle.OutputOptions{Mode: "source", SourceTrack: "original"}
+	if err = composeSubtitleError(composeSubtitleIssues(state, output, nil)); err != nil {
+		return nil, composeVideoOut{}, err
+	}
 	styled, err := s.styledSubtitles(ctx, doc, info.FrameAspect())
 	if err != nil {
+		return nil, composeVideoOut{}, err
+	}
+	if err = composeSubtitleError(composeSubtitleIssues(state, output, styled.Report.MissingGlyphs)); err != nil {
 		return nil, composeVideoOut{}, err
 	}
 	events := 0

@@ -91,5 +91,4 @@ func (a *NativeApp) compose() {
 		return
 	}
 	a.composeOpen = true
-	a.composeSkipMissing = false
 }

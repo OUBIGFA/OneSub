@@ -46,7 +46,7 @@ function Wait-Text($name,$value){for($i=0;$i -lt 150;$i++){if((Read-Text $name) 
 function Capture($name){& $ScreenshotTool $p.Id (Join-Path $workPath $name) | Out-Host;if($LASTEXITCODE -ne 0){throw 'Screenshot failed'}}
 function Cue-Texts($path){return @([regex]::Matches([IO.File]::ReadAllText($path),'(?m)^\d+\r?\n[^\r\n]+ --> [^\r\n]+\r?\n([^\r\n]+)')|ForEach-Object{$_.Groups[1].Value})}
 try {
- [void](Wait-UI '选择字幕')
+ [void](Wait-UI '选择')
  if($LargeBatch) {
   Click-UI '全选';Click-UI '重译 · 200 条'
   [void](Wait-UI '显示 200/200 条')
@@ -80,7 +80,7 @@ try {
  }
  if(Find-UI '勾选字幕 #1'){throw 'Unchecked list shows checkboxes'}
  Click-UI '全选';[void](Wait-UI '重译 · 3 条')
- Click-UI '取消勾选';[void](Wait-UI '选择字幕')
+ Click-UI '取消勾选';[void](Wait-UI '选择')
  if(Find-UI '勾选字幕 #1'){throw 'Clear did not hide checkboxes'}
  Click-UI 'AI 翻译';Click-UI '开始翻译字幕'
  $translated=Join-Path $workPath 'sample-zh.srt'
@@ -88,7 +88,7 @@ try {
  if(-not (Test-Path $translated)){throw 'Baseline translation not published'}
  [void](Wait-UI '原来的第一条译文')
  $savedHash=(Get-FileHash $translated).Hash
- Click-UI '选择字幕';Click-UI '勾选字幕 #3'
+ Click-UI '选择';Click-UI '勾选字幕 #3'
  [void](Wait-UI '重译 · 2 条')
  Capture 'selected.png'
  Click-UI '重译 · 2 条'

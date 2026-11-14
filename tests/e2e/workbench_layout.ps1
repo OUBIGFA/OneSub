@@ -37,6 +37,29 @@ $window=[SmokeNative]::TestWindow($p.Id)
 if(-not [LayoutNative]::SetWindowPos($window,[IntPtr]::Zero,0,0,3600,1000,0x14)){throw 'Private resize failed'}
 Start-Sleep -Milliseconds 700
 if(Find-UI '暂停'){Click-UI '暂停'}
+# The style catalog loads independently of the subtitle editor. Exercise the
+# finished inspector, rather than trying to resize its loading placeholder.
+for($i=0;$i -lt 100 -and -not (Find-UI '字幕内容');$i++){Start-Sleep -Milliseconds 100}
+if(-not (Find-UI '字幕内容')){throw 'The style inspector did not finish loading'}
+# Verify the shortened selection label through the existing private driver,
+# which resolves this test's HWND directly instead of MainWindowHandle.
+if(-not (Find-UI '选择')){throw 'The subtitle selection entry is missing'}
+Click-AgentControl '选择'
+if(-not (Find-UI '重译 · 1 条')){throw 'Select did not check the current subtitle'}
+Click-AgentControl '取消勾选'
+if(-not (Find-UI '选择')){throw 'Clearing selection did not restore the Select entry'}
+$fold=Find-UI '智能拆分功能'
+# Windows UIA exposes a native button as one leaf, including its text and
+# decorative icon. Production render tests check the icon and chevron bounds;
+# this run checks the complete label, actual actions and captured native pixels.
+if(-not $fold -or $fold.Current.BoundingRectangle.Width -le $fold.Current.BoundingRectangle.Height){throw 'Folded smart split tools must show the complete label'}
+Capture-Navigation ('toolbar-folded-'+$Appearance+'.png')
+if((Find-UI '智能拆分 · 0 条长字幕') -or (Find-UI '问题类型') -or (Find-UI '下一个')){throw 'Smart split tools are expanded by default'}
+Click-AgentControl '智能拆分功能'
+foreach($label in @('智能拆分 · 0 条长字幕','问题类型','上一个','下一个','收起智能拆分功能')){
+    if(-not (Find-UI $label)){throw "Expanded toolbar is missing $label"}
+}
+Capture-Navigation ('toolbar-expanded-'+$Appearance+'.png')
 foreach($panel in @('字幕样式面板','字幕编辑面板')) {
     $before=(Find-UI $panel).Current.BoundingRectangle
     $x=[int]($before.X+$before.Width/2)
@@ -70,6 +93,8 @@ foreach($label in @('查找替换','智能拆分 · 0 条长字幕','检查结�
     if([Math]::Abs($rect.Y+$rect.Height/2-$edit.Y-$edit.Height/2) -gt 2){throw "Second toolbar row wrapped: $label"}
 }
 Capture-Navigation ('toolbar-tight-'+$Appearance+'.png')
+Click-AgentControl '收起智能拆分功能'
+if(-not (Find-UI '智能拆分功能') -or (Find-UI '问题类型')){throw 'Smart split toolbar cannot collapse again'}
 if(-not [LayoutNative]::SetWindowPos($window,[IntPtr]::Zero,0,0,1760,900,0x14)){throw 'Private resize failed'}
 Start-Sleep -Milliseconds 600
 foreach($label in @('定位','查找替换')) {
@@ -92,7 +117,9 @@ $locate=Find-UI '定位'
 if(-not $locate -or -not $locate.Current.IsEnabled){throw 'Minimum-window toolbar lost its locate action'}
 $narrow=$locate.Current.BoundingRectangle
 if($narrow.Width -le 0 -or $narrow.Width -gt $narrow.Height+2){throw 'Minimum-window toolbar did not keep its locate action compact'}
+$fold=Find-UI '智能拆分功能'
+if(-not $fold -or $fold.Current.BoundingRectangle.Width -le $fold.Current.BoundingRectangle.Height){throw 'Narrow workbench removed the complete smart split label'}
 Click-UI '字幕列表操作'
 if(-not (Find-UI '查找替换')){throw 'Narrow edit menu lost find/replace'}
 Capture-Navigation ('toolbar-narrow-'+$Appearance+'.png')
-Write-Output 'PASS: both inspectors fold and restore; primary toolbar labels remain at normal width; style and recognition switches remain operable'
+Write-Output 'PASS: smart split tools start folded with label and icon, expand with a category chevron and collapse again; both inspectors and primary toolbar labels resize correctly'

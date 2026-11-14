@@ -105,10 +105,10 @@ func TestCompactSubtitleMenusKeepEditingAndReviewReachable(t *testing.T) {
 			}
 			a.findReplace.open = false
 			tt.Frame()
-			if err := tt.Click(locales.ReadingInspect()); err != nil {
+			if err := tt.Click(locales.ReadingTools()); err != nil {
 				t.Fatal(err)
 			}
-			if err := tt.ChooseMenuItem(locales.ReadingNext()); err != nil || a.selected != 0 {
+			if err := tt.Click(locales.ReadingNext()); err != nil || a.selected != 0 {
 				t.Fatal("compact review cannot locate a long cue", err, a.selected)
 			}
 			// Once a task owns the document, the menu must not expose an

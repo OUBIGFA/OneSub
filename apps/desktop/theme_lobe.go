@@ -24,6 +24,11 @@ func studioTheme(base *ui.Theme, highContrast bool) (ui.Theme, studio) {
 		t.Danger, t.Warning = tokens.VolcanoActive, tokens.WarningText.Mix(tokens.Text, 0.4)
 	}
 	t.Inverse, t.InverseText = tokens.BgSpotlight, tokens.Text
+	if !base.Dark {
+		// Native tooltip and toast surfaces use the inverse theme role. Keep
+		// their contrast independent from the light controls underneath.
+		t.Inverse, t.InverseText = lobeTheme.Dark().BgSpotlight, tokens.TextLightSolid
+	}
 	if highContrast {
 		t.Border, t.TextMuted, t.Focus = t.Text, t.Text, t.Accent
 	}

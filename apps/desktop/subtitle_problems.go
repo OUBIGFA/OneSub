@@ -78,9 +78,44 @@ func (a *NativeApp) subtitleProblems() [][]subtitle.CueProblem {
 		}
 	}
 	p.rows = subtitle.InspectProblems(doc, expectTranslation, p.glyphs)
+	if live == nil && a.subtitleTab == 0 && a.snapshot != nil && slices.ContainsFunc(a.snapshot.Document.Cues, func(cue subtitle.Cue) bool { return cue.Translated }) {
+		for _, index := range unrepresentedSourceCues(*a.snapshot) {
+			p.rows[index] = append(p.rows[index], subtitle.CueProblem{Kind: "missing", Track: "translation"})
+		}
+	}
 	p.snapshot, p.tab, p.live, p.liveRevision = a.snapshot, a.subtitleTab, live, serial
 	p.stopped, p.checkedGlyphs, p.draft = stopped, p.glyphRevision, draft
 	return p.rows
+}
+
+// Optimizing or manually splitting/merging changes row counts. Only persisted
+// cue IDs establish coverage; positions, text similarity and timings do not.
+func unrepresentedSourceCues(state project.Snapshot) []int {
+	present := map[string]bool{}
+	for _, cue := range state.Document.Cues {
+		present[cue.ID] = true
+		for _, ids := range [][]string{cue.SourceCueIDs, cue.MergedCueIDs, cue.SplitCueIDs} {
+			for _, id := range ids {
+				present[id] = true
+			}
+		}
+	}
+	var missing []int
+	for i, cue := range state.SourceDocument.Cues {
+		if cue.ReadOnly || present[cue.ID] {
+			continue
+		}
+		// The user can also split or merge the original track after translating.
+		// Those new IDs retain the original file blocks as their provenance.
+		ids := cue.MergedCueIDs
+		if len(ids) == 0 {
+			ids = cue.SplitCueIDs
+		}
+		if len(ids) == 0 || slices.ContainsFunc(ids, func(id string) bool { return !present[id] }) {
+			missing = append(missing, i)
+		}
+	}
+	return missing
 }
 
 func subtitleProblemReason(problem subtitle.CueProblem) string {
@@ -120,9 +155,11 @@ func subtitleProblemReason(problem subtitle.CueProblem) string {
 }
 
 func subtitleProblemDetails(problems []subtitle.CueProblem) string {
-	lines := make([]string, len(problems))
-	for i, problem := range problems {
-		lines[i] = subtitleProblemReason(problem)
+	var lines []string
+	for _, problem := range problems {
+		if problem.BlocksCompose() {
+			lines = append(lines, subtitleProblemReason(problem))
+		}
 	}
 	return strings.Join(lines, "\n")
 }
@@ -168,7 +205,13 @@ func (a *NativeApp) subtitleProblemDetail(c *ui.Context, index int, chosen bool)
 	if index < 0 || index >= len(rows) || len(rows[index]) == 0 || (!a.problems.filter && !chosen) {
 		return
 	}
-	label := ui.Text(c, subtitleProblemDetails(rows[index])).FontSize(em(c, captionSize)).LineHeight(1.4)
+	// Do not create a text element for advice-only rows: even empty text would
+	// reserve a line and its parent's gap below the actual subtitle.
+	detail := subtitleProblemDetails(rows[index])
+	if detail == "" {
+		return
+	}
+	label := ui.Text(c, detail).FontSize(em(c, captionSize)).LineHeight(1.4)
 	if !chosen {
 		label.TextColor(c.Theme().Warning)
 	}

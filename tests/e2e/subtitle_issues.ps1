@@ -20,7 +20,15 @@ for($i=0;$i -lt 100;$i++){
 }
 if(-not (Find-UI '1 条异常字幕 · 1 项')){throw 'The affected subtitle/issue counts are missing'}
 if((Read-Preferences).subtitleOutput.mode -ne 'translation'){throw 'Resume lost the selected translation output'}
-Toggle-IssueFilter
+Click-AgentControl '合成视频'
+foreach($label in @('导出 5 秒预览','开始合成')){
+    $action=Find-UI $label
+    if(-not $action -or $action.Current.IsEnabled){throw "Composition was not refused for the abnormal character: $label"}
+}
+$report=Read-AgentSnapshot 'compose-abnormal-character'
+$reportText=$report | ConvertTo-Json -Depth 40
+if(-not $reportText.Contains('#1') -or -not $reportText.Contains('U+4E7FD')){throw 'Composition did not identify the exact subtitle and character'}
+Click-AgentControl '定位异常字幕'
 for($i=0;$i -lt 50;$i++){
     if(Find-UI '译文 · 异常字符：U+4E7FD'){break}
     Start-Sleep -Milliseconds 100
@@ -41,4 +49,10 @@ Preview-Probe 'corrected'
 if(Find-UI '1 条异常字幕 · 1 项'){throw 'Correcting the caption left a stale issue count'}
 if([Convert]::ToBase64String([IO.File]::ReadAllBytes($translated)) -ne [Convert]::ToBase64String($before)){throw 'Correcting the draft silently overwrote the saved translation'}
 & $ScreenshotTool $p.Id (Join-Path $workPath 'subtitle-issue-corrected.png') | Out-Null
-Write-Output 'PASS: resumed translation preview updates despite one missing glyph; counts, exact cue location, filter and editing work; saved subtitles remain untouched'
+Click-AgentControl '合成视频'
+foreach($label in @('导出 5 秒预览','开始合成')){
+    $action=Find-UI $label
+    if(-not $action -or -not $action.Current.IsEnabled){throw "Correcting the caption did not release composition: $label"}
+}
+Click-AgentControl '取消'
+Write-Output 'PASS: resumed translation preview updates despite one missing glyph; numbered compose refusal, correction, filtering and compose recovery work; saved subtitles remain untouched'

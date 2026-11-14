@@ -165,14 +165,16 @@ func TestNativeRedesignOutputGeometry(t *testing.T) {
 					title, action = locales.ActionCompose(), locales.ComposeStart()
 				}
 				button, _ := tt.Find(action)
+				captureRedesign(t, tt, fmt.Sprintf("output-%s-compose%t-initial", language, compose))
 				for _, mode := range []string{"source", "translation", "bilingual"} {
 					for _, quality := range []string{"crf18", "crf20", "crf23"} {
-						for _, videoMode := range []string{"hard-mp4", "soft-mp4", "soft-mkv"} {
+						for _, videoMode := range []string{"hard-mp4", "hard-mkv", "soft-mp4", "soft-mkv"} {
 							a.settings.SubtitleOutput = subtitle.OutputOptions{Mode: mode}
 							a.settings.ComposeQuality, a.settings.ComposeMode = quality, videoMode
 							tt.Frame()
 							if r, _ := tt.Find(action); r != button {
-								t.Fatal("output action moved", r, button)
+								captureRedesign(t, tt, fmt.Sprintf("output-%s-compose%t-moved", language, compose))
+								t.Fatalf("output action moved (%s/compose%t/%s/%s/%s): %v / %v", language, compose, mode, quality, videoMode, r, button)
 							}
 							insideRedesign(t, tt, title, locales.OutputContent(), locales.OutputOrder(), locales.OutputPrimary(), action, locales.ActionCancel())
 						}

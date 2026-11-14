@@ -14,6 +14,16 @@ type CueProblem struct {
 	Other                   int
 }
 
+// BlocksCompose separates corrupt, absent or unrenderable content from reading
+// advice. Overlap may be intentional; it remains available for manual review.
+func (p CueProblem) BlocksCompose() bool {
+	switch p.Kind {
+	case "characters", "glyphs", "empty", "missing", "time":
+		return true
+	}
+	return false
+}
+
 // InspectProblems shares the existing reading thresholds and the style
 // worker's missing-glyph report. Valid combining marks, emoji joiners, bidi
 // controls and private-use font characters are not guessed to be corruption.

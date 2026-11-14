@@ -31,6 +31,7 @@ func TestReadingToolsBothTracksLocateOutsideSearchAndUpdateDraft(t *testing.T) {
 					a.query = "Short"
 					a.position = 1.5
 					a.paused = false
+					a.readingExpanded = true
 					tt := settled(a.subtitlesView, 800, 560)
 					if !tt.HasText(locales.ReadingSplitCount(2)) {
 						t.Fatal("split target count missing")
@@ -336,6 +337,7 @@ func TestReadingCategoryControlsKeepLayout(t *testing.T) {
 			for _, dark := range []bool{false, true} {
 				for _, scale := range []float32{1, 1.5, 2} {
 					a := storeApp(t, subtitle.Cue{ID: "all", Text: strings.Repeat("长", 30), EndMs: 500})
+					a.readingExpanded = true
 					tt := settled(a.subtitlesView, int(800*scale), int(800*scale))
 					tt.SetDark(dark)
 					tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
@@ -553,17 +555,23 @@ func TestReadingToolbarLargeCountsFitMinimumPane(t *testing.T) {
 			}
 			a := storeApp(t, cues...)
 			tt := settled(a.subtitlesView, 320, 600)
-			button, found := tt.Find(locales.ReadingInspect())
+			button, found := tt.Find(locales.ReadingTools())
 			if !found || button.X < 0 || button.X+button.W > 320 {
 				t.Fatal("review menu clipped in the minimum pane", language, button)
 			}
-			if err := tt.Click(locales.ReadingInspect()); err != nil {
+			if err := tt.Click(locales.ReadingTools()); err != nil {
 				t.Fatal(err)
 			}
-			for _, label := range []string{locales.ReadingSplitCount(len(cues)), locales.ReadingViewLong(len(cues)), locales.ReadingPrevious(), locales.ReadingNext()} {
-				if !slices.Contains(tt.Menu(), label) {
-					t.Fatal("large reading count missing from compact menu", label, tt.Menu())
+			for _, label := range []string{locales.ReadingSplitCount(len(cues)), locales.ReadingIssueType(), locales.ReadingPrevious(), locales.ReadingNext()} {
+				if box, found := tt.Find(label); !found || box.X < 0 || box.X+box.W > 320 {
+					t.Fatal("large reading count missing or clipped after expansion", label, box)
 				}
+			}
+			if err := tt.Click(locales.ReadingIssueType()); err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Contains(tt.Menu(), locales.ReadingViewLong(len(cues))) {
+				t.Fatal("category menu lost the full count", tt.Menu())
 			}
 		})
 	}
@@ -574,23 +582,18 @@ func TestReadingToolbarNarrowPane(t *testing.T) {
 		inLocale(t, language, func() {
 			a := storeApp(t, subtitle.Cue{ID: "a", Text: strings.Repeat("word ", 20), StartMs: 0, EndMs: 15000})
 			for _, width := range []int{360, 520, 900} {
+				a.readingExpanded = false
 				tt := settled(a.subtitlesView, width, 600)
+				if err := tt.Click(locales.ReadingTools()); err != nil {
+					t.Fatal(err)
+				}
 				if width < 680 {
-					for _, label := range []string{locales.ReadingInspect(), locales.SubtitleActionsMenu(), locales.ListSaveAs(), locales.ListSearch()} {
+					for _, label := range []string{locales.ReadingToolsCollapse(), locales.SubtitleActionsMenu(), locales.ListSaveAs(), locales.ListSearch(), locales.ReadingSplitCount(1), locales.ReadingIssueType(), locales.ReadingPrevious(), locales.ReadingNext()} {
 						bounds, ok := tt.Find(label)
 						if !ok || bounds.X < 0 || bounds.X+bounds.W > float32(width)+1 {
 							t.Fatalf("clipped %q at width %v: %+v", label, width, bounds)
 						}
 					}
-					if err := tt.Click(locales.ReadingInspect()); err != nil {
-						t.Fatal(err)
-					}
-					for _, label := range []string{locales.ReadingSplitCount(1), locales.ReadingPrevious(), locales.ReadingNext()} {
-						if !slices.Contains(tt.Menu(), label) {
-							t.Fatal("compact reading command missing", label)
-						}
-					}
-					tt.CloseMenu()
 					if err := tt.Click(locales.SubtitleActionsMenu()); err != nil {
 						t.Fatal(err)
 					}

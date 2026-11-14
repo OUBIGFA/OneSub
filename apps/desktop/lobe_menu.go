@@ -63,10 +63,13 @@ func lobeMenuButton(c *ui.Context, label, glyph string, compact bool, build func
 			trigger = lobeAction.StyleActionIcon(c, t, icons[glyph], lobeAction.ActionIconProps{Title: label, IconLabel: locales.A11yIconOf(label)}).Size(em(c, 32), em(c, 32))
 		} else {
 			trigger = lobeAction.StyleButton(c, t, "", lobeAction.ButtonProps{}).Label(label).Children(func() {
-				if glyph != "" {
+				if glyph != "" && glyph != "chevron-down" {
 					icon(c, glyph).Label(locales.A11yIconOf(label))
 				}
 				ui.Text(c, label).SingleLine()
+				if glyph == "chevron-down" {
+					icon(c, glyph).Label(locales.A11yIconOf(label))
+				}
 			})
 		}
 	})
