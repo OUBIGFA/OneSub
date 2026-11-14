@@ -48,12 +48,25 @@ def main():
     libse_license = notice(ROOT / "third_party/sources/subtitleedit-e316223ca1cfe8861acb4da4cd0e4ef5cce634f9/src/libse/LICENSE.txt", "libse.txt")
     node = ROOT / "apps/desktop/player/node_modules"
     player = []
+    reviewed_player = {entry["name"]: entry for entry in registered.get("player", [])}
     for name in ("jassub", "abslink", "lfa-ponyfill", "rvfc-polyfill", "throughput"):
         package = node / name
         meta = json.loads((package / "package.json").read_text(encoding="utf-8"))
         license_path = next((package / filename for filename in ("LICENSE", "LICENSE.md", "license", "LICENSE.txt") if (package / filename).is_file()), None)
-        player.append({"name": name, "version": meta["version"], "spdx": meta.get("license"),
-                       "notice": notice(license_path, name + ".txt") if license_path else None})
+        reviewed = reviewed_player.get(name, {})
+        if reviewed.get("version") != meta["version"] or reviewed.get("spdx") != meta.get("license"):
+            reviewed = {}
+        if license_path:
+            license_notice = notice(license_path, name + ".txt")
+        else:
+            license_notice = reviewed.get("notice")
+            if license_notice:
+                reviewed_path = ROOT / license_notice
+                digest = hashlib.sha256(reviewed_path.read_bytes()).hexdigest()
+                if digest != reviewed.get("noticeSha256"):
+                    raise ValueError(f"Reviewed player notice changed: {name}")
+        player.append({**reviewed, "name": name, "version": meta["version"], "spdx": meta.get("license"),
+                       "notice": license_notice})
     manifest = {
         # This tool refreshes measured artifacts, not reviewed provenance or
         # registrations maintained by other dependency-specific build entries.

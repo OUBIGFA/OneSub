@@ -6,13 +6,13 @@
     "signing and clean-machine install/upgrade/uninstall acceptance"
   ],
   "mygo": {
-    "version": "v0.9.1-0.20261114095642-16d30c5b71f3",
+    "version": "v0.9.1-0.20261114153143-203930fb2d43",
     "repository": "https://github.com/egoist/mygo",
-    "revision": "16d30c5b71f3c927af62e4b064150a90fb36d277",
-    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261114095642-16d30c5b71f3.zip",
-    "archiveBytes": 16220036,
-    "archiveSha256": "8e16c4080d6f9fddce50d369541b455ed2e3591daef77df9c5400579a12b20b6",
-    "moduleSum": "h1:tGgove37zC3sTSLiIlFoRM0cUYFgZhaQnPhKLN97RYc=",
+    "revision": "203930fb2d43b2fc533919e9d9d349a28ea59f17",
+    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261114153143-203930fb2d43.zip",
+    "archiveBytes": 16255472,
+    "archiveSha256": "02226f84c39281a0d9c06c26a3f713b76cca33ef247a4f14d5f49bca3dc5c064",
+    "moduleSum": "h1:dZKJTrJe02c7rTtvJdaT++oowUFQBOSqMwPQWqZNB/w=",
     "goModSum": "h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=",
     "spdx": "MIT",
     "license": "third_party/licenses/mygo.txt",
@@ -154,19 +154,28 @@
       "name": "jassub",
       "version": "2.5.23",
       "spdx": "LGPL-2.1-or-later AND (FTL OR GPL-2.0-or-later) AND MIT AND MIT-Modern-Variant AND ISC AND NTP AND Zlib AND BSL-1.0",
-      "notice": "third_party/licenses/jassub.txt"
+      "notice": "third_party/licenses/jassub.txt",
+      "revision": "482a2fed6c8976550f09383e90d92b6ac3360fc9",
+      "bundledNotice": "third_party/licenses/jassub-bundled-libraries.txt",
+      "bundledNoticeSha256": "6d161d6c39038678046932e0e94d353c00531398053d26be3019ebd003d46ffc"
     },
     {
       "name": "abslink",
       "version": "1.3.1",
       "spdx": "Apache-2.0",
-      "notice": null
+      "notice": "third_party/licenses/abslink.txt",
+      "noticeSha256": "18c3ba3b1f297a8501f6ff2963a84e090c3cf6fbf9136314e53552c3ea3b4944",
+      "source": "https://registry.npmjs.org/abslink/1.3.1",
+      "archiveIntegrity": "sha512-ukFoU6q/RBMjoC7fu0Zx2+eVH2QFMfV+aJ2cI3Ypl0Shm0ikGjZ0T2VN0xvLl0a8imhWqvfVrqu2n2Ml3eSMyQ=="
     },
     {
       "name": "lfa-ponyfill",
       "version": "1.1.1",
       "spdx": "MIT",
-      "notice": null
+      "notice": "third_party/licenses/lfa-ponyfill.txt",
+      "noticeSha256": "a195178410a598a3f71a7bea92080e0cae5aa9ce8bea4abb9fffd58c987d1bfe",
+      "source": "https://registry.npmjs.org/lfa-ponyfill/1.1.1",
+      "archiveIntegrity": "sha512-Had4tsGEHtIj58MRtf6SlubNDltxinxMSdxIn1GdwrWbye8TD+pZ+D6qKETnJ9+vQOfG9q/Ds4WUPskhyAMp5Q=="
     },
     {
       "name": "rvfc-polyfill",
@@ -178,7 +187,10 @@
       "name": "throughput",
       "version": "1.0.2",
       "spdx": "MIT",
-      "notice": null
+      "notice": "third_party/licenses/throughput.txt",
+      "noticeSha256": "e5755b67514f7aa24d6d70c196e08899a04a0cebbccc6bacd75c4fe4f1afb146",
+      "source": "https://registry.npmjs.org/throughput/1.0.2",
+      "archiveIntegrity": "sha512-jvK1ZXuhsggjb3qYQjMiU/AVYYiTeqT5thWvYR2yuy2LGM84P5MSSyAinwHahGsdBYKR9m9HncVR/3f3nFKkxg=="
     }
   ],
   "wasm": [

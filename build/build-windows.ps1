@@ -93,6 +93,8 @@ try {
     $hash=(Get-FileHash $setup -Algorithm SHA256).Hash.ToLowerInvariant()
     [IO.File]::WriteAllText(($setup+'.sha256'),"$hash  $setupName`n",[Text.UTF8Encoding]::new($false))
     Copy-Item 'build/output/build-info.json' $out -Force
+    & python (Join-Path $root 'tools/build_sbom.py') --package (Join-Path $package 'windows-amd64') --output $out --work (Join-Path $package 'sbom')
+    if ($LASTEXITCODE -ne 0) { throw 'Release SBOM generation failed' }
     Write-Output "Build $BuildNumber : $setup"
     Write-Output "SHA-256: $hash"
 } finally { Pop-Location }

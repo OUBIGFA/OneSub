@@ -6,6 +6,8 @@
 
 当前安装器仅用于本地测试。`manifests/runtimes.json` 明确记录尚未补齐的传递许可、对应源码材料、签名与干净机器验收；这些门禁未过前不对外发布。JASSUB 的包装层 MIT 不代表其 WASM 只有 MIT 许可。
 
+播放器许可登记见 [player-licenses.json](manifests/player-licenses.json)。abslink、lfa-ponyfill 和 throughput 的发布包明确声明 Apache-2.0 或 MIT；随包附标准许可正文、原有作者署名和来源校验，不编造版权年份。throughput 保留其来源 speedometer 的原许可。JASSUB 固定源码的库许可正文见 [jassub-bundled-libraries.txt](licenses/jassub-bundled-libraries.txt)，完整对应源码及安装验收仍单独核对。
+
 TXT 文稿导出直接调用固定 libse 的 `HtmlUtil.RemoveHtmlTags`、`HtmlUtil.RemoveOpenCloseTags`、`Utilities.RemoveSsaTags` 与 `AdvancedSubStationAlpha.RemoveDrawingTag`；没有复制上游导出界面或引入新的运行时。字幕 worker 的定时写入与格式保护保持不变。
 
 文件名分级关联直接调用 MIT 的 `agnivade/levenshtein v1.2.1` 计算 Unicode 编辑距离，规范化与语言代码解析复用既有 `golang.org/x/text`。精确修订、模块／下载校验、许可与测试专用依赖见 [文件名匹配清单](manifests/filename-matching.json)。不复制上游算法，不采用 Subtitle Edit 按首个文件返回或任意截短名称的匹配实现。
@@ -16,7 +18,7 @@ TXT 文稿导出直接调用固定 libse 的 `HtmlUtil.RemoveHtmlTags`、`HtmlUt
 
 旧版浅色主题的 WinOne 来源、许可副本、哈希与适配边界见 [历史配色登记](ports/winone/README.md)；当前浅深色主题均使用 Lobe MyGo 的主题令牌。
 
-MyGo 原生 UI 当前锁定为 `v0.9.1-0.20261114095642-16d30c5b71f3`，Lobe MyGo 锁定为 `v0.0.0-20261110162706-5e5fea5ef9e2`；依赖、源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。2026-11-14 核查时最新产品发布为 0.9.0；Lobe MyGo 依赖后续原生能力，因此使用核查时最新兼容主分支修订。升级时重新核对 API、补丁必要性、许可与相关原生验收，当前锁定修订只用于可复现构建。
+MyGo 原生 UI 当前锁定为 `v0.9.1-0.20261114153143-203930fb2d43`，Lobe MyGo 锁定为 `v0.0.0-20261110162706-5e5fea5ef9e2`；依赖、源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。2026-11-14 核查时最新产品发布为 0.9.0；Lobe MyGo 依赖后续原生能力，因此使用核查时最新兼容主分支修订。升级时重新核对 API、补丁必要性、许可与相关原生验收，当前锁定修订只用于可复现构建。
 
 MyGo 的应用更新直接复用 `mygo.Updater.Check`／`Update.Install`，包括 HTTPS／系统代理、Ed25519 校验、解包与替换／回滚；没有引入另一套下载器或安装器。设置“关于”与任务协调由应用原生 UI 承担，产品版本为 `0.1.0`，用数值第四段区分内部构建。归档与签名由 MyGo 构建器生成，只调整清单中的内部构建号与不可变 Release URL，见 [构建与更新说明](../build/README.md)。新增 GitHub 和“关于”图标继续直接复用同一固定 Lucide 修订，原字节、大小和哈希见 [图标清单](manifests/lucide.json)。
 

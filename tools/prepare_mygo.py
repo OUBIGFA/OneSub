@@ -12,7 +12,7 @@ import stat
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = "github.com/egoist/mygo@v0.9.1-0.20261114095642-16d30c5b71f3"
+MODULE = "github.com/egoist/mygo@v0.9.1-0.20261114153143-203930fb2d43"
 BASE_HASHES = {
     "internal/windows/menu.go": "4d88c3541ec923c6ff9c29cac4043964f2c51f53482679b5302d8b3d1d318401",
     "internal/windows/menudraw.go": "4b3e9006379538d4739dd7a5cc8189cef7718742ccc3c7054f7a234aff78f7b6",
@@ -77,7 +77,7 @@ def prepare():
     source = ROOT / ".local/gomodcache" / MODULE
     patches = [ROOT / "third_party/patches/mygo" / name for name in
                ("windows-native.patch", "ui-interaction.patch", "ui-layout.patch", "ui-row-click.patch", "ui-sidebar.patch", "ui-table-elements.patch")]
-    relative = ".local/mygo-menu-source-v0.9.1-0.20261114095642-16d30c5b71f3"
+    relative = ".local/mygo-menu-source-v0.9.1-0.20261114153143-203930fb2d43"
     output = ROOT / relative
     for name, expected in BASE_HASHES.items():
         data = (source / name).read_bytes()

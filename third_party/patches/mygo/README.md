@@ -1,6 +1,6 @@
 # MyGo 原生 UI 与 Windows 层补丁
 
-上游：`egoist/mygo v0.9.1-0.20261114095642-16d30c5b71f3`，修订 `16d30c5b71f3c927af62e4b064150a90fb36d277`，MIT，许可见 [mygo.txt](../../licenses/mygo.txt)，模块、源码 ZIP 与许可校验见 [运行时清单](../../manifests/runtimes.json)。工作台控件由 Lobe MyGo 提供；MyGo 保留布局、表格、媒体承载与系统菜单行为。
+上游：`egoist/mygo v0.9.1-0.20261114153143-203930fb2d43`，修订 `203930fb2d43b2fc533919e9d9d349a28ea59f17`，MIT，许可见 [mygo.txt](../../licenses/mygo.txt)，模块、源码 ZIP 与许可校验见 [运行时清单](../../manifests/runtimes.json)。工作台控件由 Lobe MyGo 提供；MyGo 保留布局、表格、媒体承载与系统菜单行为。
 
 ## 范围与原因
 

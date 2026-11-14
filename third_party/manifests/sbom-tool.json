@@ -1,0 +1,14 @@
+{
+  "name": "syft",
+  "version": "1.57.1",
+  "revision": "a0c0d3890a9d79421c403e8fcadec50a2e55bf21",
+  "repository": "https://github.com/anchore/syft",
+  "spdx": "Apache-2.0",
+  "archive": "syft_1.57.1_windows_amd64.zip",
+  "download": "https://github.com/anchore/syft/releases/download/v1.57.1/syft_1.57.1_windows_amd64.zip",
+  "archiveBytes": 30255314,
+  "archiveSha256": "3a01fe865076bb548352195b77e88fa4649277861ea458efe165c3a810b6dcc7",
+  "binarySha256": "42deb23bff7852997bf0316a540d3dcb364953273152749205e47881dd270c53",
+  "usage": "Build-only binary and package cataloger.",
+  "checkedAt": "2026-11-14"
+}

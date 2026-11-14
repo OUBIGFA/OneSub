@@ -1,5 +1,6 @@
 """Runtime refresh must retain reviewed provenance and dependency registrations."""
 
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -16,7 +17,9 @@ SPEC.loader.exec_module(RECORDER)
 
 class RuntimeMaterialsTests(unittest.TestCase):
     def test_refresh_preserves_registered_dependencies(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        scratch = ROOT / "_temp/repository-tests"
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch) as temporary:
             root = Path(temporary)
 
             def put(name, text):
@@ -40,7 +43,17 @@ class RuntimeMaterialsTests(unittest.TestCase):
             put("build/output/oneasr/oneasr-cli.exe", "OneAsr fixture")
             for name in ("jassub", "abslink", "lfa-ponyfill", "rvfc-polyfill", "throughput"):
                 put(f"apps/desktop/player/node_modules/{name}/package.json", json.dumps({"version": "1", "license": "MIT"}))
-                put(f"apps/desktop/player/node_modules/{name}/LICENSE", "Player license")
+                if name != "abslink":
+                    put(f"apps/desktop/player/node_modules/{name}/LICENSE", "Player license")
+            reviewed = put("third_party/licenses/abslink.txt", "Verified published license")
+            registered = json.loads(manifest_path.read_text(encoding="utf-8"))
+            registered["player"] = [{
+                "name": "abslink", "version": "1", "spdx": "MIT",
+                "notice": "third_party/licenses/abslink.txt",
+                "noticeSha256": hashlib.sha256(reviewed.read_bytes()).hexdigest(),
+                "source": "https://registry.npmjs.org/abslink/1",
+            }]
+            manifest_path.write_text(json.dumps(registered), encoding="utf-8")
             before = json.loads(manifest_path.read_text(encoding="utf-8"))
             version = "ffmpeg version 8.1-full_build-www.gyan.dev\ncompiler\nconfiguration: --enable-gpl"
             with patch.object(RECORDER, "ROOT", root), patch.object(RECORDER, "LICENSES", root / "third_party/licenses"), \
@@ -54,6 +67,10 @@ class RuntimeMaterialsTests(unittest.TestCase):
                 self.assertEqual(after["mygo"].get(key), value, key)
             self.assertEqual((root / "third_party/licenses/mygo.txt").read_text(encoding="utf-8"), "Current MyGo license")
             self.assertEqual(after["media"][0]["bytes"], len("ffmpeg"))
+            recorded = next(entry for entry in after["player"] if entry["name"] == "abslink")
+            self.assertEqual(recorded["notice"], "third_party/licenses/abslink.txt")
+            self.assertEqual(recorded["noticeSha256"], registered["player"][0]["noticeSha256"])
+            self.assertEqual(recorded["source"], "https://registry.npmjs.org/abslink/1")
 
 
 if __name__ == "__main__":
