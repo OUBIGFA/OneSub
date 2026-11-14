@@ -322,6 +322,16 @@ func muted(c *ui.Context, text string) ui.Element {
 	return ui.Text(c, text).TextColor(c.Theme().TextMuted)
 }
 
+// Secondary row text inherits the native selection foreground when chosen.
+// An explicit muted color would override that foreground in every descendant.
+func rowMuted(c *ui.Context, text string, chosen bool) ui.Element {
+	label := ui.Text(c, text)
+	if !chosen {
+		label.TextColor(c.Theme().TextMuted)
+	}
+	return label
+}
+
 // Boundaries are quieter than input borders. Keep them in the same native
 // divider system across the workbench, settings and review windows.
 func separator(c *ui.Context) ui.Element {

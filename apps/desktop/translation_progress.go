@@ -168,15 +168,16 @@ func (a *NativeApp) translationProgressViewAtWidth(c *ui.Context, width float32)
 	l.list.Selected = &selected
 	l.list.Key = func(i int) any { return l.units[rows[i]].ID }
 	table := subtitleTableWithGuide(c, &l.list, cols, len(rows), func(row, col int) {
+		chosen := row == selected
 		row = rows[row]
 		cue := l.units[row]
 		switch col {
 		case 0:
-			muted(c, fmt.Sprint(row+1)).FontFeatures("tnum").SingleLine()
+			rowMuted(c, fmt.Sprint(row+1), chosen).FontFeatures("tnum").SingleLine()
 		case 1:
-			muted(c, stamp(float64(cue.StartMs)/1000)).FontFeatures("tnum").NoWrap().Shrink(0)
+			rowMuted(c, stamp(float64(cue.StartMs)/1000), chosen).FontFeatures("tnum").NoWrap().Shrink(0)
 		case 2:
-			muted(c, subtitle.SourceText(cue))
+			rowMuted(c, subtitle.SourceText(cue), chosen)
 		default:
 			// Accepted text in the normal color; text still being written
 			// muted, as it may change.
@@ -187,7 +188,7 @@ func (a *NativeApp) translationProgressViewAtWidth(c *ui.Context, width float32)
 				}
 				ui.Text(c, text)
 			} else {
-				muted(c, l.texts[row])
+				rowMuted(c, l.texts[row], chosen)
 			}
 		}
 	}, func(bool) { a.noteBrowse(c.Now()) }, &a.subtitleGuide, width).Label(locales.TranslationLive())

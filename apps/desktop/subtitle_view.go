@@ -149,6 +149,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		}
 		loads := a.readingLoads()
 		table := subtitleTableWithGuide(c, &a.list, cols, len(rows), func(row, col int) {
+			chosen := row == selected
 			index := rows[row]
 			cue := cues[index]
 			// The row being edited shows the draft, so typing updates the
@@ -163,11 +164,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			// Secondary columns are muted, but on the accent of the chosen
 			// row they take its text color.
 			cell := func(value string) ui.Element {
-				t := ui.Text(c, value).FontSize(em(c, captionSize)).FontFeatures("tnum").NoWrap().Shrink(0)
-				if index != a.selected {
-					t.TextColor(c.Theme().TextMuted)
-				}
-				return t
+				return rowMuted(c, value, chosen).FontSize(em(c, captionSize)).FontFeatures("tnum").NoWrap().Shrink(0)
 			}
 			switch {
 			case col == 0:
@@ -185,7 +182,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			case col == numberIndex:
 				number := cell(fmt.Sprint(cue.Position + 1))
 				// Selected rows retain MyGo's uniform accent and readable text.
-				if index != a.selected && a.draftReading(cue, index, loads[index]).Problem() {
+				if !chosen && a.draftReading(cue, index, loads[index]).Problem() {
 					number.TextColor(c.Theme().Danger)
 				}
 			case col == startIndex:
@@ -206,10 +203,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 						if index == a.selected && a.editPending && a.editRebuiltSource {
 							source = a.draft
 						}
-						label := muted(c, source).FontSize(em(c, captionSize)).LineHeight(1.5)
-						if index == a.selected {
-							label.TextColor(c.Theme().AccentText)
-						}
+						rowMuted(c, source, chosen).FontSize(em(c, captionSize)).LineHeight(1.5)
 					}
 					ui.Text(c, text).FontSize(em(c, subtitleSize)).LineHeight(1.5)
 				})

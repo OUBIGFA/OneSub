@@ -7,20 +7,20 @@
     "onnxruntime 1.28.2 ThirdPartyNotices for the bundled sherpa-onnx runtime"
   ],
   "mygo": {
-    "version": "v0.9.1-0.20261113133258-3ccc6b13f3e7",
+    "version": "v0.9.1-0.20261113232551-f31d37f48602",
     "repository": "https://github.com/egoist/mygo",
-    "revision": "3ccc6b13f3e7757363866a604cc87648e3ed6ce1",
-    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261113133258-3ccc6b13f3e7.zip",
-    "archiveBytes": 16180008,
-    "archiveSha256": "d32b29d032e52282e2fb9fbb7d57d19813bbf0003cf26ec1cb3b99218ce998d8",
-    "moduleSum": "h1:BXT67m/v4FF4VSC8yE0oelehkOAuM6dDPMtLoo9i8kA=",
+    "revision": "f31d37f486025e0d04c4f68238c1f4fe0c8a2adc",
+    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261113232551-f31d37f48602.zip",
+    "archiveBytes": 16187653,
+    "archiveSha256": "7d5977145d41f99126f9cbb088f73874287f266af63b31814c6c5537624b671c",
+    "moduleSum": "h1:PTmK69xewhySDPmKmN8Z1SYoMPKhZNeiDQzXMQC6/TY=",
     "goModSum": "h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=",
     "spdx": "MIT",
     "license": "third_party/licenses/mygo.txt",
     "licenseSha256": "f0b56f4ab53beb6e18c5e155219c2e2b6000b5475c0ae3ddb3af3894fd9349b4",
     "usage": "Native desktop controls, layout, themes, menus and embedded media WebView",
     "modifications": "Six reviewed native/UI patches; see third_party/patches/mygo/README.md",
-    "checkedAt": "2026-11-13",
+    "checkedAt": "2026-11-14",
     "latestRelease": "v0.9.0"
   },
   "mcpGoSdk": {

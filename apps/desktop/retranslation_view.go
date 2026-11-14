@@ -475,6 +475,7 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 			})
 			ui.Column(c).Grow(1).Basis(0).MinHeight(0).Gap(em(c, 8)).Label(locales.RetranslateCompare()).Children(func() {
 				list := ui.List(c, &r.list, len(rows), func(i int) {
+					chosen := i == selected
 					index := rows[i]
 					row := &r.rows[index]
 					ui.Column(c).Padding(em(c, 12), em(c, 16)).Gap(em(c, 10)).Children(func() {
@@ -482,26 +483,23 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 							ui.Column(c).Grow(1).MinWidth(0).Gap(em(c, 8)).Children(func() {
 								ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Children(func() {
 									ui.Text(c, fmt.Sprintf("# %d", row.cue.Position+1)).FontSize(em(c, captionSize)).FontFeatures("tnum").Grow(1)
-									muted(c, stamp(float64(row.cue.StartMs)/1000)+" – "+stamp(float64(row.cue.EndMs)/1000)).FontFeatures("tnum").FontSize(em(c, captionSize)).NoWrap().Shrink(0)
-									status := muted(c, row.status()).FontSize(em(c, captionSize)).SingleLine().Shrink(0)
-									if index == r.selected {
-										status.TextColor(c.Theme().Text)
-									}
+									rowMuted(c, stamp(float64(row.cue.StartMs)/1000)+" – "+stamp(float64(row.cue.EndMs)/1000), chosen).FontFeatures("tnum").FontSize(em(c, captionSize)).NoWrap().Shrink(0)
+									rowMuted(c, row.status(), chosen).FontSize(em(c, captionSize)).SingleLine().Shrink(0)
 								})
-								ui.Text(c, locales.TabSource()).FontSize(em(c, captionSize)).TextColor(c.Theme().TextMuted).Shrink(0)
+								rowMuted(c, locales.TabSource(), chosen).FontSize(em(c, captionSize)).Shrink(0)
 								ui.Text(c, subtitle.SourceText(row.cue)).FontSize(em(c, captionSize)).LineHeight(1.45)
-								ui.Text(c, locales.RetranslateCandidate()).FontSize(em(c, captionSize)).TextColor(c.Theme().TextMuted).Shrink(0)
+								rowMuted(c, locales.RetranslateCandidate(), chosen).FontSize(em(c, captionSize)).Shrink(0)
 								if row.result != nil && row.result.text != "" {
 									ui.Text(c, row.result.text).Selectable().FontSize(em(c, subtitleSize)).LineHeight(1.5)
 								} else {
 									muted(c, "")
 								}
-								ui.Text(c, locales.RetranslateExisting()).FontSize(em(c, captionSize)).TextColor(c.Theme().TextMuted).Shrink(0)
+								rowMuted(c, locales.RetranslateExisting(), chosen).FontSize(em(c, captionSize)).Shrink(0)
 								existing := cueDisplayText(row.cue, 1)
 								if existing != "" {
-									muted(c, existing).Selectable().FontSize(em(c, bodySize)).LineHeight(1.45)
+									rowMuted(c, existing, chosen).Selectable().FontSize(em(c, bodySize)).LineHeight(1.45)
 								} else {
-									muted(c, locales.RetranslateNoExisting())
+									rowMuted(c, locales.RetranslateNoExisting(), chosen)
 								}
 							})
 							ui.Column(c).Shrink(0).Gap(em(c, 8)).Children(func() {

@@ -12,7 +12,7 @@ import stat
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = "github.com/egoist/mygo@v0.9.1-0.20261113133258-3ccc6b13f3e7"
+MODULE = "github.com/egoist/mygo@v0.9.1-0.20261113232551-f31d37f48602"
 BASE_HASHES = {
     "internal/windows/menu.go": "4d88c3541ec923c6ff9c29cac4043964f2c51f53482679b5302d8b3d1d318401",
     "internal/windows/menudraw.go": "4b3e9006379538d4739dd7a5cc8189cef7718742ccc3c7054f7a234aff78f7b6",
@@ -21,7 +21,7 @@ BASE_HASHES = {
     "internal/windows/webview_embed.go": "06085e032031434790128240cc3fd1f9967aa9c8812744266eaa712aa85fb310",
     "ui/editor.go": "e7c4b6284820e956b96866f555ea7cede753fd4a7714e52f6b410e65f66d0a28",
     "ui/editor_layout.go": "e6bec845539d9d669d5f6a39f740953812fcecfb1c1b6d292f625a880ba33379",
-    "ui/headless.go": "f31a86515a6b67dbc780c474dfe1b6df3965fc7ab27fe48876b373b243610c21",
+    "ui/headless.go": "01ebb3eb94580b964af67e1fccab3021a27e83b4580d934873b2e71eee86946b",
     "ui/sidebar.go": "e2a6fe527d0ee57bdb1ef58eecc1f014f26ee023ad39bdce908d216e2ab593d3",
     "ui/list.go": "ac4d0e964325895493aff0d1354c092cbb93f5e3e87db7b3776919135b261aee",
     "ui/value_input.go": "8dd5db4a0af7e86e7abecffc482f3dff27295b68836ff86cbe3d2e519c1fa793",
@@ -77,7 +77,7 @@ def prepare():
     source = ROOT / ".local/gomodcache" / MODULE
     patches = [ROOT / "third_party/patches/mygo" / name for name in
                ("windows-native.patch", "ui-interaction.patch", "ui-layout.patch", "ui-row-click.patch", "ui-sidebar.patch", "ui-table-elements.patch")]
-    relative = ".local/mygo-menu-source-v0.9.1-0.20261113133258-3ccc6b13f3e7"
+    relative = ".local/mygo-menu-source-v0.9.1-0.20261113232551-f31d37f48602"
     output = ROOT / relative
     for name, expected in BASE_HASHES.items():
         data = (source / name).read_bytes()

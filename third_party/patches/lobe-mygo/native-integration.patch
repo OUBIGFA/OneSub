@@ -70,7 +70,14 @@ diff --git a/pkg/action/segmented.go b/pkg/action/segmented.go
  	}
  
  	indicator := tk.BgElevated
-@@ -56,8 +56,8 @@
+@@ -52,12 +52,14 @@
+ 		track.AlignSelf(ui.Stretch)
+ 	}
+ 
+-	slide := ui.ElementTransition{Duration: 240 * time.Millisecond, Ease: motion.EaseOut, Match: segmentedMatch{selected}}
++	// Only a change of selection slides. The selected surface follows its
++	// native segment's current width and height during every resize frame.
++	slide := ui.ElementTransition{Duration: 240 * time.Millisecond, Ease: motion.EaseOut, Position: true, Match: segmentedMatch{selected}}
  
  	track.Children(func() {
  		for i, option := range options {
@@ -81,7 +88,7 @@ diff --git a/pkg/action/segmented.go b/pkg/action/segmented.go
  			if p.Block {
  				seg.Grow(1).Basis(0)
  			}
-@@ -72,7 +72,7 @@
+@@ -72,7 +74,7 @@
  			seg.TextColor(text).AnimatePose(pose, segmentPress)
  			seg.Children(func() {
  				if i == *selected {
@@ -590,7 +597,11 @@ diff --git a/pkg/nav/tabs.go b/pkg/nav/tabs.go
  	if p.Vertical {
  		root = ui.Row(c).AlignSelf(ui.Stretch).AlignItems(ui.Start)
  	} else {
-@@ -67,8 +67,9 @@
+@@ -66,9 +66,12 @@
+-	slide := ui.ElementTransition{Duration: tabSlide, Ease: motion.EaseOut, Match: tabsMatch{selected}}
++	// Keep the active tab and its indicator the same size in the current
++	// layout, including vertical settings tabs and underlined navigation.
++	slide := ui.ElementTransition{Duration: tabSlide, Ease: motion.EaseOut, Position: true, Match: tabsMatch{selected}}
  	root.Children(func() {
  		tabs := ui.TabsBase(c, selected, len(p.Items))
  		list := tabs.List.Gap(2)
@@ -601,7 +612,7 @@ diff --git a/pkg/nav/tabs.go b/pkg/nav/tabs.go
  		} else {
  			list.Row().AlignItems(ui.Center).AlignSelf(ui.Start)
  		}
-@@ -90,24 +91,30 @@
+@@ -90,24 +93,30 @@
  			for i, it := range p.Items {
  				tab := tabs.Tab(i).Disabled(it.Disabled).Gap(6).AlignItems(ui.Center).Justify(ui.Center).
  					FontSize(fontSize).FontWeight(500).Shrink(0).Transition(ui.ElementTransition{Duration: 120 * time.Millisecond, Ease: motion.EaseOut, Colors: true})
@@ -636,7 +647,7 @@ diff --git a/pkg/nav/tabs.go b/pkg/nav/tabs.go
  					tab.Cursor(ui.CursorPointer)
  				default:
  					tab.Cursor(ui.CursorPointer)
-@@ -138,6 +145,11 @@
+@@ -138,6 +147,11 @@
  			body.Children(func() { panel(*selected) })
  		}
  	})
@@ -648,7 +659,7 @@ diff --git a/pkg/nav/tabs.go b/pkg/nav/tabs.go
  	return root
  }
  
-@@ -154,7 +166,10 @@
+@@ -154,7 +168,10 @@
  	case TabsPoint:
  		ind.Size(5, 5).Radius(2.5).Background(tk.Primary).Bottom(6).LeftPercent(50).Margin(0, 0, 0, -2.5)
  	default:
