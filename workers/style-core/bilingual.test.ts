@@ -1,8 +1,22 @@
 import { expect, test } from 'bun:test';
 import { buildAssDocument } from './smartsub/main/helpers/assStyleBuilder';
 import { resolveAssFonts } from './smartsub/main/helpers/assFonts';
-import { prepareSubtitleFonts } from './smartsub/main/helpers/fontResolver';
+import { prepareSubtitleFonts, newFontFallbackReport, summarizeFontFallbackReport } from './smartsub/main/helpers/fontResolver';
 import { DEFAULT_STYLE } from './smartsub/renderer/components/subtitleMerge/constants';
+
+// The desktop maps every reported glyph back to its subtitle. A shortened
+// font report would silently omit later cues from the issue count and filter.
+test('missing glyph diagnostics cover every affected subtitle', async () => {
+  if (process.platform !== 'win32') return;
+  await prepareSubtitleFonts();
+  const style = { ...DEFAULT_STYLE, fontName: 'Microsoft YaHei' };
+  const cues = Array.from({ length: 55 }, (_, i) => ({ startMs: i * 5000, endMs: (i + 1) * 5000, text: String.fromCodePoint(0xf0000 + i) }));
+  const report = newFontFallbackReport();
+  resolveAssFonts(buildAssDocument(cues, style), style.fontName, [], report);
+  const summary = summarizeFontFallbackReport(report);
+  expect(summary.missingGlyphs).toHaveLength(55);
+  expect(summary.missingGlyphs).toContain(String.fromCodePoint(0xf0036));
+});
 
 // Exercise the complete style-to-font-list path, not only the ASS builder.
 // Previously Secondary appeared in ASS but its family never reached libass.

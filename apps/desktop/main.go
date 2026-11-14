@@ -89,6 +89,7 @@ type NativeApp struct {
 	originalCount, optimizedCount        int
 	readingTab, readingIssue             int // issue defaults to long; independent of the active track
 	reading                              []subtitle.CueReadingLoad
+	problems                             subtitleProblemState
 	splitSkipped                         map[string]string
 	findReplace                          findReplaceState
 	draft                                string

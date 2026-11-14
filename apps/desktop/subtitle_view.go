@@ -83,7 +83,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			}
 			empty := ui.Column(c).Grow(1).Center().Gap(em(c, 12)).Children(func() {
 				muted(c, label)
-				a.proofreadingButton(c, false)
+				a.proofreadingButton(c, false, false)
 				iconButton(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
 			})
 			a.subtitleContextMenu(c, empty, -1, -1, nil)
@@ -92,13 +92,18 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		a.subtitleToolbar(c, width, hasCues)
 		// The toolbar boundary spans the whole pane, including the gutter.
 		separator(c)
+		a.subtitleProblemSummary(c)
 		if a.showsTranslationProgress() {
 			a.translationProgressViewAtWidth(c, width)
 			return
 		}
 		cues := a.activeDocument().Cues
+		problems := a.subtitleProblems()
 		rows := []int{}
 		for i, cue := range cues {
+			if a.problems.filter && len(problems[i]) == 0 && !(i == a.selected && a.editPending) {
+				continue
+			}
 			if strings.Contains(strings.ToLower(cueDisplayText(cue, a.subtitleTab)+"\n"+cueDisplayText(cue, 0)), strings.ToLower(a.query)) {
 				rows = append(rows, i)
 			}
@@ -182,7 +187,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			case col == numberIndex:
 				number := cell(fmt.Sprint(cue.Position + 1))
 				// Selected rows retain MyGo's uniform accent and readable text.
-				if !chosen && a.draftReading(cue, index, loads[index]).Problem() {
+				if !chosen && (len(problems[index]) > 0 || a.draftReading(cue, index, loads[index]).Problem()) {
 					number.TextColor(c.Theme().Danger)
 				}
 			case col == startIndex:
@@ -206,6 +211,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 						rowMuted(c, source, chosen).FontSize(em(c, captionSize)).LineHeight(1.5)
 					}
 					ui.Text(c, text).FontSize(em(c, subtitleSize)).LineHeight(1.5)
+					a.subtitleProblemDetail(c, index, chosen)
 				})
 			}
 		}, func(bool) {

@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$Exe, [Parameter(Mandatory=$true)][string]$Work, [switch]$VideoTools, [switch]$PresetReset, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$Development, [switch]$ScrollFollow, [ValidateSet('dark','light')][string]$Appearance = 'dark', [string]$TranslationEndpoint, [switch]$InterruptTranslation, [switch]$ClearTranslation, [switch]$ComposeOutput, [switch]$SkipTranslation, [switch]$TaskTimings, [switch]$LengthGuide, [string]$PipelineModelsRoot, [string]$AsrModel='Qwen3-ASR-1.7B-hf')
+param([Parameter(Mandatory=$true)][string]$Exe, [Parameter(Mandatory=$true)][string]$Work, [switch]$VideoTools, [switch]$PresetReset, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$Development, [switch]$ScrollFollow, [ValidateSet('dark','light')][string]$Appearance = 'dark', [string]$TranslationEndpoint, [switch]$InterruptTranslation, [switch]$ClearTranslation, [switch]$ComposeOutput, [switch]$SkipTranslation, [switch]$TaskTimings, [switch]$LengthGuide, [switch]$SubtitleIssues, [string]$PipelineModelsRoot, [string]$AsrModel='Qwen3-ASR-1.7B-hf')
 $ErrorActionPreference = 'Stop'
 # The driver and every child inherit a non-input desktop. Never SwitchDesktop:
 # UIA and window messages exercise only the isolated application's own windows.
@@ -88,6 +88,7 @@ if($ComposeOutput){$command+=' -ComposeOutput'}
 if($SkipTranslation){$command+=' -SkipTranslation'}
 if($TaskTimings){$command+=' -TaskTimings'}
 if($LengthGuide){$command+=' -LengthGuide'}
+if($SubtitleIssues){$command+=' -SubtitleIssues'}
 $command+=' -Appearance '+(Quote-Literal $Appearance)
 if($PipelineModelsRoot){
     $bootstrap='$nativeBootstrap=[IO.File]::ReadAllText('+ $driver +',[Text.Encoding]::UTF8); & ([ScriptBlock]::Create($nativeBootstrap.Substring(0,$nativeBootstrap.IndexOf(''$workPath = '')))) -PrivateDesktop -UIAPlayback; '

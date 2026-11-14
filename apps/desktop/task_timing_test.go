@@ -122,6 +122,12 @@ func TestModuleTimesFitBothLanguagesAtEveryScale(t *testing.T) {
 							}
 							label := moduleLabel(module) + " " + value
 							r, exists := tt.Find(label)
+							if module == timingSubtitle {
+								if exists {
+									t.Fatal("subtitle processing still has an elapsed-time label")
+								}
+								continue
+							}
 							if !exists || r.X < bar.X || r.X+r.W > bar.X+bar.W+1 || r.Y < bar.Y || r.Y+r.H > bar.Y+bar.H+1 {
 								t.Fatal("module time crosses the footer boundary", label, r, bar)
 							}
@@ -162,7 +168,9 @@ func TestUsedModuleTimesAndCountsShareOneFooterRow(t *testing.T) {
 				value = "9 min 21 s"
 			}
 			for module := timingRecognition; module < timingCount; module++ {
-				labels = append(labels, moduleLabel(module)+" "+value)
+				if module != timingSubtitle {
+					labels = append(labels, moduleLabel(module)+" "+value)
+				}
 			}
 			for _, label := range labels {
 				r, exists := tt.Find(label)

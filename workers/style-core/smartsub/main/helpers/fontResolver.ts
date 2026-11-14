@@ -589,7 +589,8 @@ export function summarizeFontFallbackReport(
 ): FontFallbackSummary {
   return {
     fallbacks: Array.from(report.fallbacks.values()),
-    missingGlyphs: Array.from(report.missing).slice(0, 50),
+    // OneSub maps this report to cue locations; truncation hides affected rows.
+    missingGlyphs: Array.from(report.missing),
   };
 }
 function noteFallback(

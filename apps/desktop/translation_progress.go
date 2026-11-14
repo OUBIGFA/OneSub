@@ -31,6 +31,7 @@ type translationLive struct {
 	resume                  *translator.ResumeState
 	selected, locate        int
 	elapsed                 time.Duration // last durable execution interval; excludes interruption wait
+	revision                uint64        // invalidates diagnostics after a streamed update
 }
 
 func newTranslationLive() *translationLive {
@@ -38,6 +39,7 @@ func newTranslationLive() *translationLive {
 }
 
 func (l *translationLive) apply(ev translator.Event) {
+	l.revision++
 	if ev.Resume != nil {
 		r := *ev.Resume
 		r.Completed = map[int]string{}
@@ -156,9 +158,13 @@ func (a *NativeApp) translationProgressViewAtWidth(c *ui.Context, width float32)
 		return
 	}
 	rows := []int{}
+	problems := a.subtitleProblems()
 	var maximumTime int64
 	for i, cue := range l.units {
 		maximumTime = max(maximumTime, cue.StartMs)
+		if a.problems.filter && len(problems[i]) == 0 {
+			continue
+		}
 		if strings.Contains(strings.ToLower(subtitle.SourceText(cue)+"\n"+l.texts[i]), strings.ToLower(a.query)) {
 			rows = append(rows, i)
 		}
@@ -179,17 +185,20 @@ func (a *NativeApp) translationProgressViewAtWidth(c *ui.Context, width float32)
 		case 2:
 			rowMuted(c, subtitle.SourceText(cue), chosen)
 		default:
-			// Accepted text in the normal color; text still being written
-			// muted, as it may change.
-			if l.final[row] {
-				text := l.texts[row]
-				if a.translationTask != nil && a.translationTask.Config.Punctuation != nil {
-					text = a.translationTask.Config.Punctuation.Apply(text)
+			ui.Column(c).Gap(em(c, 6)).Children(func() {
+				// Accepted text in the normal color; text still being written
+				// muted, as it may change.
+				if l.final[row] {
+					text := l.texts[row]
+					if a.translationTask != nil && a.translationTask.Config.Punctuation != nil {
+						text = a.translationTask.Config.Punctuation.Apply(text)
+					}
+					ui.Text(c, text)
+				} else {
+					rowMuted(c, l.texts[row], chosen)
 				}
-				ui.Text(c, text)
-			} else {
-				rowMuted(c, l.texts[row], chosen)
-			}
+				a.subtitleProblemDetail(c, row, chosen)
+			})
 		}
 	}, func(bool) { a.noteBrowse(c.Now()) }, &a.subtitleGuide, width).Label(locales.TranslationLive())
 	if table.Changed() && selected >= 0 && selected < len(rows) {

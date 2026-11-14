@@ -28,16 +28,21 @@ type proofreadingFile struct {
 	ids      map[string]string
 }
 
-func (a *NativeApp) proofreadingButton(c *ui.Context, compact bool) {
+func (a *NativeApp) proofreadingButton(c *ui.Context, compact, iconOnly bool) {
 	label := locales.ProofreadingEnter()
 	if a.proofreading {
 		label = locales.ProofreadingExit()
 	}
-	// The mode name remains visible at the ordinary pane width. Native wrap
-	// handles narrower panes without changing the existing toolbar actions.
-	button := iconButton(c, label, "list-checks").Shrink(0).Tooltip(label).
-		Disabled(a.busy || a.translationLive != nil).OnClick(a.toggleProofreading)
-	if compact {
+	// Extremely narrow panes use the same labelled native icon target as the
+	// other file actions, leaving room for the list and its navigation rail.
+	var button ui.Element
+	if iconOnly {
+		button = toolIcon(c, label, "list-checks")
+	} else {
+		button = iconButton(c, label, "list-checks")
+	}
+	button.Shrink(0).Tooltip(label).Disabled(a.busy || a.translationLive != nil).OnClick(a.toggleProofreading)
+	if compact && !iconOnly {
 		button.PaddingX(em(c, 8))
 	}
 }

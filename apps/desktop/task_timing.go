@@ -117,7 +117,8 @@ func (a *NativeApp) moduleTimesView(c *ui.Context) {
 	ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Shrink(0).Children(func() {
 		for module := timingRecognition; module < timingCount; module++ {
 			clock := a.taskTimes[module]
-			if clock == nil {
+			// Subtitle edits retain their task clock without a persistent receipt.
+			if clock == nil || module == timingSubtitle {
 				continue
 			}
 			muted(c, moduleLabel(module)+" "+elapsedLabel(clock.duration(c.Now()))).FontFeatures("tnum").FontSize(em(c, captionSize)).SingleLine().Shrink(0)

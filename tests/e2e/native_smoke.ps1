@@ -1,4 +1,4 @@
-param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark', [switch]$PresetReset, [switch]$PrivateDesktop, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$ScrollFollow, [switch]$ClearTranslation, [switch]$SkipTranslation, [switch]$TaskTimings, [switch]$LengthGuide)
+param([string]$Exe, [string]$Work, [string]$ScreenshotTool, [switch]$OpenArgument, [string]$TranslationEndpoint, [switch]$Packaged, [switch]$InterruptTranslation, [switch]$UIAPlayback, [switch]$BilingualExport, [switch]$SubtitleMenus, [switch]$LayoutNavigation, [switch]$VideoTools, [switch]$WorkflowLayout, [switch]$ComposeOutput, [switch]$SubtitleClicks, [string]$ProviderCatalogEndpoint, [ValidateSet('dark','light')][string]$Appearance = 'dark', [switch]$PresetReset, [switch]$PrivateDesktop, [switch]$WorkbenchLayout, [switch]$ChoiceControls, [switch]$Proofreading, [switch]$ScrollFollow, [switch]$ClearTranslation, [switch]$SkipTranslation, [switch]$TaskTimings, [switch]$LengthGuide, [switch]$SubtitleIssues)
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 if(-not $PrivateDesktop){throw 'Run through private_native_smoke.ps1 to preserve the user desktop'}
@@ -202,6 +202,7 @@ New-Item -ItemType Directory $workPath | Out-Null
 $video = Join-Path $workPath 'test.mp4'
 $subtitle = Join-Path $workPath 'test.srt'
 $sourceText = if ($TranslationEndpoint) { 'Hello, world' } elseif ($BilingualExport) { "Upper subtitle`n下行字幕" } else { '测试字幕' }
+$translatedLabel = '你好，世界' + $(if($SubtitleIssues){' '+[char]::ConvertFromUtf32(0x4e7fd)}else{''})
 [IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:02,900`n$sourceText`n",[Text.UTF8Encoding]::new($false))
 if($InterruptTranslation -or $SkipTranslation){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:01,400`n$sourceText`n`n2`n00:00:01,500 --> 00:00:02,900`nGood morning`n",[Text.UTF8Encoding]::new($false))}
 if($SubtitleMenus){[IO.File]::WriteAllText($subtitle,"1`n00:00:00,100 --> 00:00:00,900`nFirst subtitle.`n`n2`n00:00:01,000 --> 00:00:01,900`nSecond subtitle.`n`n3`n00:00:02,000 --> 00:00:02,500`n第一段字幕。`n`n4`n00:00:02,500 --> 00:00:02,900`n，第二段字幕。`n",[Text.UTF8Encoding]::new($false))}
@@ -264,6 +265,14 @@ if($Packaged){
     $env:ONESUB_FFMPEG = (Get-Command ffmpeg).Source
 }
 $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $workPath 'webview'
+if($SubtitleIssues){
+    if(-not $PrivateDesktop -or -not $InterruptTranslation){throw 'Subtitle issue acceptance requires isolated translation recovery'}
+    # Observe only this test-owned media page. The installed application and
+    # its WebView never receive a debugging option or a document observer.
+    $listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
+    $listener.Start();$previewProbePort=$listener.LocalEndpoint.Port;$listener.Stop()
+    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=$previewProbePort"
+}
 # MyGo's single-instance socket must be isolated as well as the project
 # data. Otherwise a packaged smoke run activates the user's installed app.
 $env:XDG_RUNTIME_DIR = Join-Path $workPath 'ipc'
@@ -374,6 +383,10 @@ function Start-TimedUI([string]$name) {
     return $watch
 }
 function Read-Preferences { return ([IO.File]::ReadAllText((Join-Path $env:ONESUB_DATA_ROOT 'settings.json'))|ConvertFrom-Json) }
+function Preview-Probe([string]$mode) {
+    & node (Join-Path (Split-Path $ScreenshotTool) 'preview_probe.mjs') $previewProbePort $mode (Join-Path $workPath ('preview-'+$mode))
+    if($LASTEXITCODE -ne 0){throw "Current subtitle preview check failed: $mode"}
+}
 function Scroll-PanelEnd($name) {
     $panel=Find-UI $name
     foreach($node in $panel.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition)) {
@@ -1002,7 +1015,7 @@ try {
         }
         if($InterruptTranslation){
             for($i=0;$i -lt 150;$i++){if(Find-UI '继续处理'){break};Start-Sleep -Milliseconds 100}
-            if(-not (Find-UI '继续处理') -or -not (Find-UI '你好，世界') -or -not (Find-UI '尚未完成')){throw 'Interruption hid completed or draft text'}
+            if(-not (Find-UI '继续处理') -or -not (Find-UI $translatedLabel) -or -not (Find-UI '尚未完成')){throw 'Interruption hid completed or draft text'}
             if(Test-Path $translated){throw 'Interrupted translation was published'}
             & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-interrupted.png')
             # Only the process this script launched, with isolated data and IPC,
@@ -1015,7 +1028,7 @@ try {
             $restart.RedirectStandardError=Join-Path $workPath 'restart-stderr.log'
             $p=Start-Process @restart
             for($i=0;$i -lt 150;$i++){if(Find-UI '继续处理'){break};Start-Sleep -Milliseconds 100}
-            if(-not (Find-UI '继续处理') -or -not (Find-UI '你好，世界') -or -not (Find-UI '尚未完成')){throw 'Restart did not restore the translation'}
+            if(-not (Find-UI '继续处理') -or -not (Find-UI $translatedLabel) -or -not (Find-UI '尚未完成')){throw 'Restart did not restore the translation'}
             # Recovery must restore playable media as well as subtitle text.
             for($i=0;$i -lt 100;$i++){
                 $slider=Find-UI '播放位置'
@@ -1029,6 +1042,7 @@ try {
             if((Read-PlaybackPosition) -le 0){throw 'Recovered video did not advance'}
             Click-UI '暂停'
             & $ScreenshotTool $p.Id (Join-Path $workPath 'translation-restored.png')
+            if($SubtitleIssues){Preview-Probe 'observe'}
             Click-UI '继续处理'
         }
         for($i=0;$i -lt 200;$i++){if(Test-Path $translated){break};Start-Sleep -Milliseconds 100}
@@ -1036,9 +1050,12 @@ try {
         if(-not [IO.File]::ReadAllText($translated).Contains('你好，世界')){throw 'Saved translation has no translated text'}
         if([IO.File]::ReadAllText($translated).Contains($sourceText)){throw 'Default translation save included source text'}
         if(-not [IO.File]::ReadAllText($subtitle).Contains($sourceText)){throw 'Source subtitle was overwritten'}
-        if(-not (Find-UI '你好，世界')){throw 'Finished translation did not update the subtitle table'}
+        if(-not (Find-UI $translatedLabel)){throw 'Finished translation did not update the subtitle table'}
         Start-Sleep -Seconds 2
         & $ScreenshotTool $p.Id (Join-Path $workPath 'translation.png')
+        if($SubtitleIssues){
+            . ([ScriptBlock]::Create([IO.File]::ReadAllText((Join-Path (Split-Path $ScreenshotTool) 'subtitle_issues.ps1'),[Text.Encoding]::UTF8)))
+        }
         if($ClearTranslation){
             $sourceBytes=[Convert]::ToBase64String([IO.File]::ReadAllBytes($subtitle))
             $oldBytes=[Convert]::ToBase64String([IO.File]::ReadAllBytes($translated))

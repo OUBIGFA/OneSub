@@ -43,6 +43,7 @@ func (a *NativeApp) setSnapshot(state project.Snapshot) {
 	if a.snapshot == nil || a.snapshot.Manifest.ID != state.Manifest.ID {
 		a.subtitleChecked = [2]map[string]bool{}
 		a.retranslation, a.retranslationNext = nil, nil
+		a.problems = subtitleProblemState{} // Font diagnoses belong to this project.
 	}
 	for track, checked := range a.subtitleChecked {
 		present := map[string]bool{}

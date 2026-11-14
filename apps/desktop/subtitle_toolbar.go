@@ -14,7 +14,7 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 	layout := a.subtitleToolbarDensity(c, width-em(c, 32+8), compact)
 	ui.Column(c).Padding(em(c, 8), em(c, 12)).Gap(em(c, 8)).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
 		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
-			a.proofreadingButton(c, compact)
+			a.proofreadingButton(c, compact, width < em(c, 300))
 			if compact {
 				toolIcon(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
 			} else {
@@ -43,6 +43,7 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 				a.readingTools(c, layout)
 			}
 			subtitleTool(c, locales.TranslationResults(), "file-warning", layout).Disabled(a.translationCandidate == nil || selectionMode).OnClick(func() { a.translationReview = true })
+			a.subtitleProblemToggle(c)
 			ui.Spacer(c)
 			guide := toolIcon(c, locales.SubtitleLengthGuideToggle(), "ruler").Shrink(0).OnClick(func() { a.subtitleGuide.visible = !a.subtitleGuide.visible })
 			if a.subtitleGuide.visible {
@@ -82,7 +83,7 @@ func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow 
 	}
 	labels = append(labels, locales.SubtitleActionsMenu(), locales.FindReplace(), locales.ListLocate())
 	widths := make([]float32, len(labels))
-	minimum := em(c, 24+navigation*32+(float32(len(labels))+navigation-1)*4)
+	minimum := em(c, 60+navigation*32+(float32(len(labels))+navigation-1)*4)
 	for i, label := range labels {
 		w, _ := c.MeasureText(0, ui.Span{Text: label, Weight: 500})
 		if label == locales.ReadingIssueType() {

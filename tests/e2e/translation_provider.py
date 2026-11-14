@@ -11,6 +11,7 @@ class Provider(BaseHTTPRequestHandler):
     requests = 0
     interrupt = False
     clear_workbench = False
+    subtitle_issues = False
     unit_requests = []
     def do_GET(self):
         if self.path != "/v1/models":
@@ -43,7 +44,10 @@ class Provider(BaseHTTPRequestHandler):
         # Deliberately deliver real SSE chunks slowly enough for the desktop
         # smoke test to observe progress before the checked file is published.
         interrupted = Provider.interrupt and Provider.requests == 1
-        text = '{"1":"你好，世界","2":"尚未完成' if interrupted else json.dumps(content, ensure_ascii=False)
+        first_text = '你好，世界' + (' \U0004e7fd' if Provider.subtitle_issues else '')
+        if Provider.subtitle_issues and '1' in content:
+            content['1'] = first_text
+        text = '{"1":' + json.dumps(first_text, ensure_ascii=False) + ',"2":"尚未完成' if interrupted else json.dumps(content, ensure_ascii=False)
         for char in text:
             chunk = {"choices": [{"index": 0, "delta": {"content": char}}]}
             self.wfile.write(("data: " + json.dumps(chunk) + "\n\n").encode())
@@ -67,6 +71,7 @@ if __name__ == "__main__":
     parser.add_argument("--interrupt", action="store_true")
     parser.add_argument("--clear-workbench", action="store_true")
     parser.add_argument("--skip-translation", action="store_true")
+    parser.add_argument("--subtitle-issues", action="store_true", help="Check resumed preview and editable issue locations")
     parser.add_argument("--pipeline-models-root")
     parser.add_argument("--pipeline-model", default="Qwen3-ASR-1.7B-hf")
     parser.add_argument("--uia-playback", action="store_true", help="Use UI Automation on a locked desktop; does not test Space")
@@ -77,6 +82,9 @@ if __name__ == "__main__":
         parser.error("--skip-translation must run as a separate scenario")
     Provider.interrupt = args.interrupt or args.skip_translation
     Provider.clear_workbench = args.clear_workbench
+    Provider.subtitle_issues = args.subtitle_issues
+    if args.subtitle_issues and not args.interrupt:
+        parser.error("--subtitle-issues requires --interrupt")
     server = ThreadingHTTPServer(("127.0.0.1", 0), Provider)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -103,6 +111,8 @@ if __name__ == "__main__":
             invocation += " -ClearTranslation"
         if args.skip_translation:
             invocation += " -SkipTranslation -TaskTimings"
+        if args.subtitle_issues:
+            invocation += " -SubtitleIssues"
         command = ["powershell", "-NoProfile", "-Command", invocation]
         result = subprocess.run(command)
         if result.returncode:

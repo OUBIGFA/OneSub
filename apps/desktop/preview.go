@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,7 +11,6 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
-	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 // styledDocument is the only renderer input path for both preview and compose.
@@ -44,6 +42,8 @@ func (a *NativeApp) observeStyle(now time.Time) {
 		return
 	}
 	a.observedStyle = string(raw)
+	a.problems.glyphs = nil
+	a.problems.glyphRevision++
 	// Store the whole SmartSub style, so newly added parameters are remembered
 	// too. Only disk I/O waits for input to stop; a held step button must
 	// not keep postponing the preview. One in-flight build coalesces changes.
@@ -81,9 +81,6 @@ func (a *NativeApp) refreshSubtitles() {
 	// workbench into the busy state or disable controls while a slider moves.
 	go func() {
 		document, err := a.styledDocument(ctx, state, style, secondary, options, aspect)
-		if err == nil && len(document.Report.MissingGlyphs) > 0 {
-			err = errors.New(locales.ErrMissingGlyphs(strings.Join(document.Report.MissingGlyphs, " ")))
-		}
 		var fonts []string
 		if err == nil {
 			fonts, err = a.preview.RegisterFonts(ctx, document)
@@ -114,10 +111,23 @@ func (a *NativeApp) refreshSubtitles() {
 				// the next, rather than freezing during continuous input.
 			}
 			if err != nil {
+				// A failed replacement must not leave the previous language or
+				// document visible under the newly selected subtitle-content mode.
+				a.evalPlayer("setSubtitles(null)")
 				a.showError("preview", err.Error())
 				return
 			}
-			a.clearError("preview")
+			if version == a.previewRevision {
+				a.problems.glyphs = append([]string(nil), document.Report.MissingGlyphs...)
+				a.problems.glyphRevision++
+				// Report missing glyphs while showing the current subtitles. An
+				// obsolete font/style result must not change the current warning.
+				if len(document.Report.MissingGlyphs) > 0 {
+					a.showError("preview", subtitleProblemReason(subtitle.CueProblem{Kind: "glyphs", Characters: strings.Join(document.Report.MissingGlyphs, "")}))
+				} else {
+					a.clearError("preview")
+				}
+			}
 			a.evalPlayer("setSubtitles(" + string(payload) + ")")
 		})
 	}()

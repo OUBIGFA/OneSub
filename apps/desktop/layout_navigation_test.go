@@ -347,6 +347,7 @@ func TestSubtitleNavigationButtonsAtBottomAndStayFixed(t *testing.T) {
 						for i, label := range labels {
 							r, ok := tt.Find(label)
 							if !ok || r.W < 32*scale-1 || r.H < 32*scale-1 || r.X < list.X+list.W-subtitleNavigationRailSize*scale || r.X+r.W > float32(width)-6*scale || r.Y < list.Y || r.Y+r.H > list.Y+list.H {
+								captureRedesign(t, tt, fmt.Sprintf("navigation-clipped-%s-%d-%g", language, width, scale))
 								t.Fatal("floating button outside list or too small", label, r, list)
 							}
 							before[i] = r
