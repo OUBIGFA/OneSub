@@ -100,7 +100,7 @@ https://github.com/user-attachments/assets/64fed7da-2e36-48a5-8409-68cfbcf6a299
 
 ## 系统要求
 
-- Windows 11，或已完成验收的 Windows 10 x64
+- Windows x64；Windows 10 兼容性取决于 WebView2 和随包依赖的支持范围
 - WebView2 运行时（安装器自动安装）
 - 识别目前使用 CPU
 

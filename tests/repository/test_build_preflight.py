@@ -25,14 +25,27 @@ class BuildPreflightTests(unittest.TestCase):
         (self.root / "apps/desktop").mkdir(parents=True)
         shutil.copyfile(ROOT / "build/build-windows.ps1", self.root / "build/build-windows.ps1")
         shutil.copyfile(ROOT / "apps/desktop/mygo.json", self.root / "apps/desktop/mygo.json")
+        (self.root / "bin").mkdir()
+        (self.root / "third_party/manifests").mkdir(parents=True)
+        self.prepare_bun()
         (self.root / "source.go").write_text("package fixture\n", encoding="utf-8")
         subprocess.run(["git", "init", "-q", str(self.root)], check=True, capture_output=True)
         subprocess.run(["git", "-C", str(self.root), "add", "."], check=True, capture_output=True)
+
+    def prepare_bun(self, revision="1.3.9+fixture"):
+        executable = self.root / "bin/bun.cmd"
+        executable.write_text("@echo off\necho " + revision + "\n", encoding="utf-8")
+        manifest = {"bun": {"executableSha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+                            "cliRevision": "1.3.9+fixture"}}
+        (self.root / "third_party/manifests/distribution-materials.json").write_text(
+            json.dumps(manifest), encoding="utf-8",
+        )
 
     def build(self, *arguments, signing_key=None):
         env = os.environ.copy()
         env["PATH"] = str(self.root / "bin") + os.pathsep + env.get("PATH", "")
         env.pop("MYGO_UPDATER_PRIVATE_KEY", None)
+        env["GOTOOLCHAIN"] = "auto"
         if signing_key is not None:
             env["MYGO_UPDATER_PRIVATE_KEY"] = signing_key
         return subprocess.run(
@@ -77,19 +90,58 @@ class BuildPreflightTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual((self.root / "exposed-key.txt").read_text("utf-8"), "")
 
+    def test_changed_bun_is_rejected_before_preparation(self):
+        (self.root / "bin/bun.cmd").write_text("@echo off\necho changed\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(self.root), "add", "."], check=True, capture_output=True)
+        result = self.build(signing_key="fixture-signing-key")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Pinned Bun executable checksum differs", result.stderr)
+
+    def test_wrong_bun_revision_is_rejected_even_with_matching_checksum(self):
+        self.prepare_bun("1.3.9+different")
+        subprocess.run(["git", "-C", str(self.root), "add", "."], check=True, capture_output=True)
+        result = self.build(signing_key="fixture-signing-key")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Pinned Bun CLI revision differs", result.stderr)
+
+    def test_preparation_uses_only_the_local_go_toolchain(self):
+        (self.root / "tools").mkdir()
+        (self.root / "tools/prepare_mygo.py").write_text(
+            "import os, pathlib, sys\n"
+            "pathlib.Path('toolchain.txt').write_text(os.environ.get('GOTOOLCHAIN', ''), encoding='utf-8')\n"
+            "sys.exit(42)\n", encoding="utf-8",
+        )
+        subprocess.run(["git", "-C", str(self.root), "add", "."], check=True, capture_output=True)
+        result = self.build(signing_key="fixture-signing-key")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((self.root / "toolchain.txt").read_text("utf-8"), "local")
+
     def test_media_version_does_not_replace_the_product_build_receipt(self):
-        (self.root / "bin").mkdir()
         (self.root / "tools").mkdir()
         (self.root / "workers/style-core").mkdir(parents=True)
-        (self.root / "third_party/manifests").mkdir(parents=True)
         (self.root / "build/output/oneasr").mkdir(parents=True)
         (self.root / ".gitignore").write_text("/build/output/\n", encoding="utf-8")
         (self.root / "tools/prepare_mygo.py").write_text("print('fixture.mod')\n", encoding="utf-8")
-        (self.root / "bin/bun.cmd").write_text("@echo off\nexit /b 0\n", encoding="utf-8")
+        media_program = self.root / "media.cs"
+        media_program.write_text(
+            'class FixtureMedia { static void Main() { System.Console.WriteLine("ffmpeg version 9.0.2"); '
+            'for (int lineIndex = 0; lineIndex < 8; lineIndex++) { '
+            'System.Threading.Thread.Sleep(40); System.Console.WriteLine("version details"); } } }',
+            encoding="utf-8",
+        )
+        compiler = Path(os.environ["WINDIR"]) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
+        subprocess.run([str(compiler), "/nologo", "/out:" + str(self.root / "bin/ffmpeg.exe"), str(media_program)],
+                       check=True, capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+        shutil.copyfile(self.root / "bin/ffmpeg.exe", self.root / "bin/ffprobe.exe")
+        (self.root / "tools/prepare_media.py").write_text(
+            "from pathlib import Path\nimport shutil\n"
+            "out = Path('build/output/media-tools')\nout.mkdir(parents=True, exist_ok=True)\n"
+            "for name in ('ffmpeg', 'ffprobe'): shutil.copyfile(Path('bin') / (name + '.exe'), out / (name + '.exe'))\n",
+            encoding="utf-8",
+        )
         media = []
         for name in ("ffmpeg", "ffprobe"):
-            tool = self.root / f"bin/{name}.cmd"
-            tool.write_text("@echo off\necho ffmpeg version 8.1-full_build-www.gyan.dev\n", encoding="utf-8")
+            tool = self.root / f"bin/{name}.exe"
             media.append({"file": f"{name}.exe", "sha256": hashlib.sha256(tool.read_bytes()).hexdigest()})
         runtime = self.root / "build/output/oneasr/oneasr-cli.exe"
         runtime.write_bytes(b"fixture-runtime")

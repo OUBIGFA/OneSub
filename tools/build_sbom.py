@@ -25,7 +25,7 @@ def augment(bom, package, info, declared):
         {'name': 'onesub:source-tree', 'value': info['sourceTree']},
         {'name': 'onesub:build', 'value': info['build']},
         {'name': 'onesub:release-approved', 'value': 'false'},
-        {'name': 'onesub:coverage', 'value': 'Binary discovery plus explicitly identified production package declarations; static native library and clean-machine acceptance are not inferred.'},
+        {'name': 'onesub:coverage', 'value': 'Binary discovery plus explicitly identified production and build-source declarations; exhaustive static native linkage is not inferred.'},
     ]
     components = result.setdefault('components', [])
     dependencies = result.setdefault('dependencies', [])
@@ -79,6 +79,47 @@ def javascript_components(project):
     return components
 
 
+def media_components(package, manifest):
+    """Bind declared package origins to every recorded file in the actual bundle."""
+    root = package / 'media-tools'
+    components = []
+    for entry in manifest['packages']:
+        for member in entry['files']:
+            if hashlib.sha256((root / member['path']).read_bytes()).hexdigest() != member['sha256']:
+                raise ValueError('Media package file changed: ' + member['path'])
+        purl = 'pkg:generic/' + quote(entry['name'], safe='') + '@' + quote(entry['version'], safe='')
+        components.append({'bom-ref': purl, 'type': 'library', 'name': entry['name'], 'version': entry['version'], 'purl': purl,
+                           'hashes': [{'alg': 'SHA-256', 'content': entry['sha256']}],
+                           'licenses': [{'license': {'name': name}} for name in entry.get('licenses', [])],
+                           'externalReferences': [{'type': 'distribution', 'url': entry['url']},
+                                                  {'type': 'other', 'url': entry['source']['url'], 'comment': 'Corresponding source distribution and MSYS2 build recipe'}],
+                           'properties': [{'name': 'onesub:evidence', 'value': 'Byte-verified files from a pinned MSYS2 binary package'},
+                                          {'name': 'onesub:source-archive-sha256', 'value': entry['source']['sha256']}]})
+    for entry in manifest.get('notices', []):
+        if hashlib.sha256((root / entry['path']).read_bytes()).hexdigest() != entry['sha256']:
+            raise ValueError('Media source notice changed: ' + entry['path'])
+    return components
+
+
+def material_components(package, manifest):
+    for notice in manifest['notices']:
+        if hashlib.sha256((package / notice['path']).read_bytes()).hexdigest() != notice['sha256']:
+            raise ValueError('Packaged material notice changed: ' + notice['path'])
+    components = []
+    for entry in manifest['components']:
+        source = entry['source']
+        purl = entry.get('purl') or 'pkg:generic/' + quote(entry['name'], safe='') + '@' + quote(entry['version'], safe='')
+        component = {'bom-ref': 'onesub:source:' + purl, 'type': 'library', 'name': entry['name'], 'version': entry['version'], 'purl': purl,
+                     'hashes': [{'alg': 'SHA-256', 'content': source['sha256']}],
+                     'externalReferences': [{'type': 'distribution', 'url': source['url']}, {'type': 'vcs', 'url': entry['repository']}],
+                     'properties': [{'name': 'onesub:evidence', 'value': 'Fixed build-source declaration; the digest identifies source, not linked binary bytes'},
+                                    {'name': 'onesub:material-scope', 'value': manifest['scope']}]}
+        if entry.get('license'):
+            component['licenses'] = [{'license': {'name': entry['license']}}]
+        components.append(component)
+    return components
+
+
 def verified_declarations(package):
     """Verify that reviewed player metadata and license bytes match this build."""
     manifest = json.loads((ROOT / 'third_party/manifests/player-licenses.json').read_text('utf-8'))
@@ -108,6 +149,16 @@ def verified_declarations(package):
     for entry in manifest.get('wasmLibraries', []):
         purl = 'pkg:generic/' + entry['name'] + '@' + entry['revision']
         components.append({'bom-ref': purl, 'type': 'library', 'name': entry['name'], 'version': entry['revision'], 'purl': purl, 'licenses': [{'expression': entry['spdx']}], 'externalReferences': [{'type': 'vcs', 'url': entry['source']}], 'properties': [{'name': 'onesub:evidence', 'value': 'Pinned build submodule of the byte-verified JASSUB source snapshot'}]})
+    media = json.loads((ROOT / 'third_party/manifests/media-runtime.json').read_text('utf-8'))
+    components.extend(media_components(package, media))
+    material_path = ROOT / 'third_party/manifests/distribution-materials.json'
+    if hashlib.sha256((package / 'manifests/distribution-materials.json').read_bytes()).hexdigest() != hashlib.sha256(material_path.read_bytes()).hexdigest():
+        raise ValueError('Packaged source-material registration changed')
+    material = json.loads(material_path.read_text('utf-8'))
+    for entry in material['buildInputs']:
+        if hashlib.sha256((ROOT / entry['file']).read_bytes()).hexdigest() != entry['sha256']:
+            raise ValueError('Source-material build input changed: ' + entry['file'])
+    components.extend(material_components(package, material))
     return components
 
 

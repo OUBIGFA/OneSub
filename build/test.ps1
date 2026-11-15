@@ -1,6 +1,17 @@
-param([string]$GoRoot = $env:GOROOT, [string[]]$Packages = @('./...'), [switch]$GoOnly, [string]$PackageRoot, [string]$TestName)
+param([string]$GoRoot = $env:GOROOT, [string[]]$Packages = @('./...'), [switch]$GoOnly, [string]$PackageRoot, [string]$TestName, [switch]$NativeDesktop)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
+if (-not $NativeDesktop) {
+    $env:PYTHONUTF8 = '1'
+    Push-Location $root
+    try {
+        & python tools/check_repo.py
+        if ($LASTEXITCODE -ne 0) { throw 'Repository check failed' }
+        & python -m unittest discover -s tests/repository -v
+        if ($LASTEXITCODE -ne 0) { throw 'Repository tests failed' }
+    } finally { Pop-Location }
+    return
+}
 . (Join-Path $root 'tests/e2e/private_desktop.ps1')
 if (-not [PrivateSmoke]::IsPrivateDesktop()) {
     $serialized = [Management.Automation.PSSerializer]::Serialize($PSBoundParameters)
@@ -31,8 +42,8 @@ $env:ONESUB_ONEASR_ROOT = Join-Path $root 'build/output/oneasr'
 $env:ONESUB_SHERPA_ROOT = Join-Path $root 'build/output/sherpa-onnx'
 if (-not (Test-Path $env:ONESUB_SKILL_WORKER)) { throw 'Run build/build-skill-tools.ps1 first' }
 if (-not (Test-Path $env:ONESUB_STYLE_WORKER)) { throw 'Build workers/style-core first' }
-$env:ONESUB_FFMPEG = (Get-Command ffmpeg -ErrorAction Stop).Source
-$env:ONESUB_FFPROBE = (Get-Command ffprobe -ErrorAction Stop).Source
+$env:ONESUB_FFMPEG = Join-Path $root 'build/output/media-tools/ffmpeg.exe'
+$env:ONESUB_FFPROBE = Join-Path $root 'build/output/media-tools/ffprobe.exe'
 if ($PackageRoot) {
     $PackageRoot = [IO.Path]::GetFullPath($PackageRoot)
     $env:ONESUB_SUBTITLE_WORKER = Join-Path $PackageRoot 'subtitle-core/OneSub.SubtitleCore.exe'

@@ -1,13 +1,12 @@
 """Record the exact locally tested runtimes; never downloads or approves a release.
 
-Run deliberately when updating dependencies. build-windows checks these media
-hashes rather than trusting whatever binary happens to be on PATH next time.
+Run deliberately when updating dependencies. Media files are measured only
+after they match the pinned package and notice inventory.
 """
 import hashlib
 import json
 from pathlib import Path
 import re
-import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,15 +34,27 @@ def main():
         raise ValueError("Review and register the locked MyGo version before refreshing runtimes")
     mygo_version = locked[1]
     LICENSES.mkdir(exist_ok=True)
+    media_manifest_path = ROOT / "third_party/manifests/media-runtime.json"
+    media_manifest = json.loads(media_manifest_path.read_text(encoding="utf-8"))
+    media_root = ROOT / "build/output/media-tools"
     media = []
-    for name in ("ffmpeg", "ffprobe"):
-        path = Path(shutil.which(name) or "missing")
-        version = subprocess.check_output([str(path), "-version"], text=True, encoding="utf-8")
-        if "8.1-full_build-www.gyan.dev" not in version or "--enable-nonfree" in version:
-            raise ValueError("unapproved FFmpeg build")
-        media.append({**artifact(path), "version": version.splitlines()[0],
-                      "configuration": version.splitlines()[2]})
-    ffmpeg_license = notice(Path(shutil.which("ffmpeg")).parents[1] / "LICENSE", "ffmpeg.txt")
+    for package in media_manifest["packages"]:
+        for entry in package["files"]:
+            path = media_root / entry["path"]
+            measured = artifact(path)
+            if measured["sha256"] != entry["sha256"]:
+                raise ValueError("Media file differs from its package lock: " + entry["path"])
+            if path.suffix.lower() not in (".dll", ".exe"):
+                continue
+            measured.update(package=package["name"], version=package["version"])
+            if path.name in ("ffmpeg.exe", "ffprobe.exe"):
+                version = subprocess.check_output([str(path), "-version"], text=True, encoding="utf-8")
+                measured.update(version=version.splitlines()[0], configuration=version.splitlines()[2])
+            media.append(measured)
+    for entry in media_manifest.get("notices", []):
+        if artifact(media_root / entry["path"])["sha256"] != entry["sha256"]:
+            raise ValueError("Media source notice differs from its lock: " + entry["path"])
+    ffmpeg_license = media_manifest["licenseFile"]
     mygo_license = notice(ROOT / f".local/gomodcache/github.com/egoist/mygo@{mygo_version}/LICENSE", "mygo.txt")
     libse_license = notice(ROOT / "third_party/sources/subtitleedit-e316223ca1cfe8861acb4da4cd0e4ef5cce634f9/src/libse/LICENSE.txt", "libse.txt")
     node = ROOT / "apps/desktop/player/node_modules"
@@ -76,7 +87,8 @@ def main():
         "mygo": {**registered["mygo"], "license": mygo_license},
         "libse": {**registered.get("libse", {}), "revision": "e316223ca1cfe8861acb4da4cd0e4ef5cce634f9", "license": libse_license},
         "media": media,
-        "mediaSource": "https://www.gyan.dev/ffmpeg/builds/",
+        "mediaSource": "https://packages.msys2.org/packages/mingw-w64-ucrt-x86_64-ffmpeg",
+        "mediaManifest": media_manifest_path.relative_to(ROOT).as_posix(),
         "mediaLicense": ffmpeg_license,
         "oneasr": {**registered.get("oneasr", {}), **artifact(ROOT / "build/output/oneasr/oneasr-cli.exe"), "version": "v1.3.0",
                    "archiveSha256": "e9e169e108ee43d88b5b047f4ec556819cd7fa5e2424d3f5ed957634f85d4936"},
@@ -84,7 +96,7 @@ def main():
         "wasm": [artifact(path) for path in sorted((node / "jassub/dist/wasm").glob("*.wasm"))],
         "fontRedistribution": "No system font files are copied into the installer. Runtime preview uses the user's installed fonts through local capability URLs."
     }
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

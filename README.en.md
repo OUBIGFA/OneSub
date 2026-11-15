@@ -100,7 +100,7 @@ Download `OneSub-0.1.0-Setup.exe` from [Releases](https://github.com/OUBIGFA/One
 
 ## System requirements
 
-- Windows 11, or a verified Windows 10 x64
+- Windows x64; Windows 10 compatibility depends on WebView2 and bundled dependencies
 - WebView2 runtime (the installer installs it)
 - Recognition currently runs on the CPU
 

@@ -38,8 +38,12 @@ class RuntimeMaterialsTests(unittest.TestCase):
             put(".local/gomodcache/github.com/egoist/mygo@v0.8.3/LICENSE", "Current MyGo license")
             put(".local/gomodcache/github.com/egoist/mygo@v0.6.4/LICENSE", "Obsolete MyGo license")
             put("third_party/sources/subtitleedit-e316223ca1cfe8861acb4da4cd0e4ef5cce634f9/src/libse/LICENSE.txt", "libse license")
-            put("media/LICENSE", "FFmpeg license")
-            executables = {name: str(put(f"media/bin/{name}.exe", name)) for name in ("ffmpeg", "ffprobe")}
+            put("third_party/licenses/fixture-media.txt", "FFmpeg license")
+            media_files = []
+            for name in ("ffmpeg", "ffprobe"):
+                path = put(f"build/output/media-tools/{name}.exe", "pinned " + name)
+                media_files.append({"path": name + ".exe", "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+            put("third_party/manifests/media-runtime.json", json.dumps({"licenseFile": "third_party/licenses/fixture-media.txt", "packages": [{"name": "fixture-media", "version": "9.0.2-4", "files": media_files}]}))
             put("build/output/oneasr/oneasr-cli.exe", "OneAsr fixture")
             for name in ("jassub", "abslink", "lfa-ponyfill", "rvfc-polyfill", "throughput"):
                 put(f"apps/desktop/player/node_modules/{name}/package.json", json.dumps({"version": "1", "license": "MIT"}))
@@ -55,18 +59,22 @@ class RuntimeMaterialsTests(unittest.TestCase):
             }]
             manifest_path.write_text(json.dumps(registered), encoding="utf-8")
             before = json.loads(manifest_path.read_text(encoding="utf-8"))
-            version = "ffmpeg version 8.1-full_build-www.gyan.dev\ncompiler\nconfiguration: --enable-gpl"
+            version = "ffmpeg version 9.0.2\ncompiler\nconfiguration: --enable-gpl"
             with patch.object(RECORDER, "ROOT", root), patch.object(RECORDER, "LICENSES", root / "third_party/licenses"), \
-                    patch.object(RECORDER.shutil, "which", side_effect=executables.get), \
                     patch.object(RECORDER.subprocess, "check_output", return_value=version):
-                RECORDER.main()
+                try:
+                    RECORDER.main()
+                except ValueError as error:
+                    self.fail("Approved pinned media must replace the PATH-dependent runtime: " + str(error))
             after = json.loads(manifest_path.read_text(encoding="utf-8"))
             for key in ("sherpaOnnx", "mcpGoSdk", "remainingMaterials"):
                 self.assertEqual(after.get(key), before[key], key)
             for key, value in before["mygo"].items():
                 self.assertEqual(after["mygo"].get(key), value, key)
             self.assertEqual((root / "third_party/licenses/mygo.txt").read_text(encoding="utf-8"), "Current MyGo license")
-            self.assertEqual(after["media"][0]["bytes"], len("ffmpeg"))
+            self.assertEqual(after["media"][0]["bytes"], len("pinned ffmpeg"))
+            self.assertEqual(after["mediaManifest"], "third_party/manifests/media-runtime.json")
+            self.assertEqual(after["mediaSource"], "https://packages.msys2.org/packages/mingw-w64-ucrt-x86_64-ffmpeg")
             recorded = next(entry for entry in after["player"] if entry["name"] == "abslink")
             self.assertEqual(recorded["notice"], "third_party/licenses/abslink.txt")
             self.assertEqual(recorded["noticeSha256"], registered["player"][0]["noticeSha256"])

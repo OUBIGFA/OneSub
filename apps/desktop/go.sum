@@ -16,6 +16,8 @@ github.com/ebitengine/purego v0.11.1 h1:2zpWRSQNVKN4eKsKO9eM1ILDgWfYMY9GwqRmK6Xe
 github.com/ebitengine/purego v0.11.1/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
 github.com/egoist/mygo v0.9.1-0.20261114153143-203930fb2d43 h1:dZKJTrJe02c7rTtvJdaT++oowUFQBOSqMwPQWqZNB/w=
 github.com/egoist/mygo v0.9.1-0.20261114153143-203930fb2d43/go.mod h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=
+github.com/egoist/mygo v0.9.1-0.20261114214352-2dd01b4a2b22 h1:YIVeTJGr89QMz5o8Nk3qxcpeaLU0o6XN+GBpQlGPAIQ=
+github.com/egoist/mygo v0.9.1-0.20261114214352-2dd01b4a2b22/go.mod h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=
 github.com/egoist/mygo v0.9.1-0.20261115012555-b615f2957d05 h1:ir0/lhJD16v9ypS+Wm9FaoQT09l9bdmv65dXBhwpSW8=
 github.com/egoist/mygo v0.9.1-0.20261115012555-b615f2957d05/go.mod h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=
 github.com/go-text/typesetting v0.3.5 h1:XZPUooClHY0Vf/rFyUyuPRNEkawARaFzLMQcXLSEyPk=

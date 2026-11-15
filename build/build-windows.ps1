@@ -17,9 +17,15 @@ $providedUpdateKey = $env:MYGO_UPDATER_PRIVATE_KEY
 $env:MYGO_UPDATER_PRIVATE_KEY = $null
 try {
 $env:GOROOT = Join-Path $root '.local/toolchains/go1.27.4/go'
+$env:GOTOOLCHAIN = 'local'
 $env:PATH = "$env:GOROOT/bin;$env:PATH"
 $env:GOMODCACHE = Join-Path $root '.local/gomodcache'
 $env:GOCACHE = Join-Path $root '.local/gocache'
+$materials = Get-Content -LiteralPath (Join-Path $root 'third_party/manifests/distribution-materials.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$bunCommand = Get-Command bun
+if ($bunCommand.CommandType -ne 'Application' -or (Get-FileHash -LiteralPath $bunCommand.Source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $materials.bun.executableSha256) { throw 'Pinned Bun executable checksum differs' }
+$bunRevision = (& $bunCommand.Source --revision).Trim()
+if ($LASTEXITCODE -ne 0 -or $bunRevision -ne $materials.bun.cliRevision) { throw 'Pinned Bun CLI revision differs' }
 $patchedMod = & python (Join-Path $root 'tools/prepare_mygo.py')
 if ($LASTEXITCODE -ne 0) { throw 'MyGo menu patch preparation failed' }
 $env:GOFLAGS = "`"-modfile=$patchedMod`""
@@ -36,16 +42,13 @@ try {
         & bun run build
         if ($LASTEXITCODE -ne 0) { throw 'Style worker build failed' }
     } finally { Pop-Location }
-    $runtime = [IO.File]::ReadAllText((Join-Path $root 'third_party/manifests/runtimes.json')) | ConvertFrom-Json
     $media = Join-Path $root 'build/output/media-tools'
-    New-Item -ItemType Directory $media -Force | Out-Null
+    & python (Join-Path $root 'tools/prepare_media.py')
+    if ($LASTEXITCODE -ne 0) { throw 'Pinned media runtime preparation failed' }
     foreach ($name in @('ffmpeg','ffprobe')) {
-        $source = (Get-Command $name -ErrorAction Stop).Source
-        $mediaVersion = (& $source -version 2>$null | Select-Object -First 3) -join "`n"
-        if ($mediaVersion -notmatch '8.1-full_build-www.gyan.dev' -or $mediaVersion -match 'enable-nonfree') { throw "Unapproved media build: $name" }
-        $expected = $runtime.media | Where-Object { $_.file -eq "$name.exe" }
-        if (-not $expected -or (Get-FileHash $source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected.sha256) { throw "Media hash differs from the recorded build: $name" }
-        Copy-Item $source (Join-Path $media "$name.exe") -Force
+        $source = Join-Path $media "$name.exe"
+        $mediaVersion = (& $source -version 2>$null) -join "`n"
+        if ($LASTEXITCODE -ne 0 -or $mediaVersion -notmatch 'version 9.0.2' -or $mediaVersion -match 'enable-nonfree') { throw "Unapproved media build: $name" }
     }
     & (Join-Path $PSScriptRoot 'build-oneasr.ps1')
     $runtime = [IO.File]::ReadAllText((Join-Path $root 'third_party/manifests/runtimes.json')) | ConvertFrom-Json
@@ -53,9 +56,9 @@ try {
     if ((Get-FileHash 'build/output/oneasr/oneasr-cli.exe' -Algorithm SHA256).Hash.ToLowerInvariant() -ne $runtime.oneasr.sha256) { throw 'OneAsr hash differs from the recorded build' }
     & (Join-Path $PSScriptRoot 'prepare-vad.ps1')
     & (Join-Path $PSScriptRoot 'prepare-sherpa.ps1')
-    $channel = if ($ReleaseTag) { 'release-candidate' } else { 'local-test' }
+    $channel = if ($ReleaseTag) { 'release' } else { 'local-test' }
     $tag = if ($ReleaseTag) { $ReleaseTag } else { "build-$BuildNumber" }
-    $info = [ordered]@{version=$version;build=$BuildNumber;updateVersion="$version.$BuildNumber";releaseTag=$tag;updatesSigned=$true;channel=$channel;signed=$false;p0Accepted=$false;sourceTree=$sourceTree;worktree='staged source snapshot'}
+    $info = [ordered]@{version=$version;build=$BuildNumber;updateVersion="$version.$BuildNumber";releaseTag=$tag;updatesSigned=$true;channel=$channel;signed=$false;sourceTree=$sourceTree;worktree='staged source snapshot'}
 
     [IO.File]::WriteAllText((Join-Path $root 'build/output/build-info.json'),($info|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
     if (-not $SkipTests) { & (Join-Path $PSScriptRoot 'test.ps1') }
