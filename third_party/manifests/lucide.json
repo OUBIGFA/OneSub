@@ -9,6 +9,12 @@
   "modifications": "none",
   "files": [
     {
+      "path": "apps/desktop/icons/fold-horizontal.svg",
+      "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/fold-horizontal.svg",
+      "sha256": "69378d790507fb5a03287e1067b83acb005fc9fe9100b67ef83ea8b22ce68924",
+      "bytes": 408
+    },
+    {
       "path": "apps/desktop/icons/ruler.svg",
       "source": "https://raw.githubusercontent.com/lucide-icons/lucide/f12b0de177fbc2a6795e99be065887e72b237123/icons/ruler.svg",
       "sha256": "af9710f70510217ef33773d502d0be2425c3a9cb1e3294ace27da9f0b4c8850b",

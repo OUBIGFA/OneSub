@@ -98,7 +98,7 @@ func (a *NativeApp) readingToolbar(c *ui.Context, layout subtitleToolbarLayout) 
 		layout.button(c, locales.ReadingTools(), iconButton(c, locales.ReadingTools(), "scissors")).OnClick(func() { a.readingExpanded = true })
 		return
 	}
-	toolIcon(c, locales.ReadingToolsCollapse(), "chevron-left").Shrink(0).OnClick(func() { a.readingExpanded = false })
+	toolIcon(c, locales.ReadingToolsCollapse(), "fold-horizontal").Shrink(0).OnClick(func() { a.readingExpanded = false })
 	a.readingTools(c, layout)
 }
 

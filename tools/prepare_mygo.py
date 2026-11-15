@@ -12,7 +12,7 @@ import stat
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = "github.com/egoist/mygo@v0.9.1-0.20261114153143-203930fb2d43"
+MODULE = "github.com/egoist/mygo@v0.9.1-0.20261115012555-b615f2957d05"
 BASE_HASHES = {
     "internal/windows/menu.go": "4d88c3541ec923c6ff9c29cac4043964f2c51f53482679b5302d8b3d1d318401",
     "internal/windows/menudraw.go": "4b3e9006379538d4739dd7a5cc8189cef7718742ccc3c7054f7a234aff78f7b6",
@@ -23,12 +23,12 @@ BASE_HASHES = {
     "ui/editor_layout.go": "e6bec845539d9d669d5f6a39f740953812fcecfb1c1b6d292f625a880ba33379",
     "ui/headless.go": "01ebb3eb94580b964af67e1fccab3021a27e83b4580d934873b2e71eee86946b",
     "ui/sidebar.go": "e2a6fe527d0ee57bdb1ef58eecc1f014f26ee023ad39bdce908d216e2ab593d3",
-    "ui/list.go": "ac4d0e964325895493aff0d1354c092cbb93f5e3e87db7b3776919135b261aee",
+    "ui/list.go": "a2464dbdf51bb4784fb44a0b846e1c7b15cd3241d573e3b9a79435e218b805b5",
     "ui/value_input.go": "8dd5db4a0af7e86e7abecffc482f3dff27295b68836ff86cbe3d2e519c1fa793",
     "ui/webview.go": "4d7861d4631df4b9488fc8aa950dff80633009bd8eb647f5dc6c572b446eed55",
     "ui/textinput.go": "27594382dcffb32d2aab5c16de118513be397d0428987394fb34b4a690f2c542",
     "ui/tooltip.go": "5c2678202046274a90e8c4a0119e7afc6a6953eebad3ae0360cc77cee637133d",
-    "ui/table.go": "3f1cc10f9e900e2ae8ad60d096b0118fe4595611d7b5d303e4a20bc19b4fcf0e",
+    "ui/table.go": "e4e6987b1f7684bc8e3027bc92dd4604be3bb195a2551d4b4a22416b5be16144",
 }
 
 
@@ -77,7 +77,7 @@ def prepare():
     source = ROOT / ".local/gomodcache" / MODULE
     patches = [ROOT / "third_party/patches/mygo" / name for name in
                ("windows-native.patch", "ui-interaction.patch", "ui-layout.patch", "ui-row-click.patch", "ui-sidebar.patch", "ui-table-elements.patch")]
-    relative = ".local/mygo-menu-source-v0.9.1-0.20261114153143-203930fb2d43"
+    relative = ".local/mygo-menu-source-" + MODULE.rsplit("@", 1)[1]
     output = ROOT / relative
     for name, expected in BASE_HASHES.items():
         data = (source / name).read_bytes()

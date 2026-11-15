@@ -6,20 +6,20 @@
     "signing and clean-machine install/upgrade/uninstall acceptance"
   ],
   "mygo": {
-    "version": "v0.9.1-0.20261114153143-203930fb2d43",
+    "version": "v0.9.1-0.20261115012555-b615f2957d05",
     "repository": "https://github.com/egoist/mygo",
-    "revision": "203930fb2d43b2fc533919e9d9d349a28ea59f17",
-    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261114153143-203930fb2d43.zip",
-    "archiveBytes": 16255472,
-    "archiveSha256": "02226f84c39281a0d9c06c26a3f713b76cca33ef247a4f14d5f49bca3dc5c064",
-    "moduleSum": "h1:dZKJTrJe02c7rTtvJdaT++oowUFQBOSqMwPQWqZNB/w=",
+    "revision": "b615f2957d05694033d6dd6f27b8afb121ed3c1e",
+    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261115012555-b615f2957d05.zip",
+    "archiveBytes": 16276135,
+    "archiveSha256": "affeb84e77a7e141a3565962dfb4dcd1c54533d5575fd2c97a94f1c1041fd06c",
+    "moduleSum": "h1:ir0/lhJD16v9ypS+Wm9FaoQT09l9bdmv65dXBhwpSW8=",
     "goModSum": "h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=",
     "spdx": "MIT",
     "license": "third_party/licenses/mygo.txt",
     "licenseSha256": "f0b56f4ab53beb6e18c5e155219c2e2b6000b5475c0ae3ddb3af3894fd9349b4",
     "usage": "Native desktop controls, layout, themes, menus and embedded media WebView",
     "modifications": "Six reviewed native/UI patches; see third_party/patches/mygo/README.md",
-    "checkedAt": "2026-11-14",
+    "checkedAt": "2026-11-15",
     "latestRelease": "v0.9.0"
   },
   "mcpGoSdk": {

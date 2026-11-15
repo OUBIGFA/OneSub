@@ -167,7 +167,7 @@ func subtitleProblemDetails(problems []subtitle.CueProblem) string {
 func (a *NativeApp) subtitleProblemToggle(c *ui.Context) {
 	lobeToggle(c, &a.problems.filter, "").Size(em(c, 32), em(c, 32)).Padding(0).
 		Label(locales.SubtitleIssuesToggle()).Tooltip(locales.SubtitleIssuesToggle()).
-		Disabled(a.subtitleSelectionMode()).Children(func() { icon(c, "file-warning") }).OnChange(func() {
+		Disabled(a.subtitleSelectionMode()).Children(func() { icon(c, "triangle-alert") }).OnChange(func() {
 		a.query = ""
 		if a.problems.filter {
 			a.locateSubtitleProblem(1, true)

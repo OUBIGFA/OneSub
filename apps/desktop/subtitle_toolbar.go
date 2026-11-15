@@ -41,12 +41,14 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 			}).Padding(0).Gap(layout.spacing(c)).Shrink(0)
 			a.readingToolbar(c, layout)
 			subtitleTool(c, locales.TranslationResults(), "file-warning", layout).Disabled(a.translationCandidate == nil || selectionMode).OnClick(func() { a.translationReview = true })
-			a.subtitleProblemToggle(c)
-			ui.Spacer(c)
-			guide := toolIcon(c, locales.SubtitleLengthGuideToggle(), "ruler").Shrink(0).OnClick(func() { a.subtitleGuide.visible = !a.subtitleGuide.visible })
-			if a.subtitleGuide.visible {
-				guide.Background(c.Theme().Accent).TextColor(c.Theme().AccentText)
-			}
+			// Grow the paired controls' row so they stay at the right edge after wrapping.
+			ui.Row(c).Gap(layout.spacing(c)).AlignItems(ui.Center).Justify(ui.End).Grow(1).Shrink(0).Children(func() {
+				a.subtitleProblemToggle(c)
+				guide := toolIcon(c, locales.SubtitleLengthGuideToggle(), "ruler").Shrink(0).OnClick(func() { a.subtitleGuide.visible = !a.subtitleGuide.visible })
+				if a.subtitleGuide.visible {
+					guide.Background(c.Theme().Accent).TextColor(c.Theme().AccentText)
+				}
+			})
 		})
 	})
 }
