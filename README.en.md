@@ -4,7 +4,7 @@
 
 # OneSub
 
-Local-first subtitle workbench: recognize, split, translate, edit, compress, and burn in
+Local-first subtitle workbench: transcribe, split, translate, proofread, process media, and export
 
 [License: AGPL-3.0-or-later](LICENSE)
 
@@ -16,9 +16,9 @@ Local-first subtitle workbench: recognize, split, translate, edit, compress, and
 
 ## What OneSub is
 
-OneSub imports media, recognizes speech, translates, edits, previews, and exports subtitles in one workbench. Traditional subtitle translators translate the source lines as they are. Source lines often cut one sentence into several cues. The translation keeps these cuts, and the timeline goes wrong. OneSub regroups the dialogue into sense groups first. It then aligns the text to word-level time evidence. The original track stays separate from the rebuilt track.
+OneSub imports media, transcribes speech, translates, edits, previews, and exports subtitles in one workbench. Traditional subtitle tools translate source lines one by one. Source segments often cut one sentence into several cues. The translation keeps those cuts, and the timeline goes wrong. OneSub regroups dialogue into sense groups first. It then aligns text to word-level time evidence. OneSub keeps the original and optimized subtitle tracks separate.
 
-Recognition, editing, and export need no cloud account. Translation uses the AI service that you configure.
+Local recognition, editing, and export need no cloud account. Translation uses the AI service that you configure.
 
 ## Interface and video preview
 
@@ -26,118 +26,125 @@ Recognition, editing, and export need no cloud account. Translation uses the AI 
 
 ![OneSub workbench: original subtitles](assets/readme/workbench-original.webp)
 
-![OneSub workbench: rebuilt subtitles with translation](assets/readme/workbench-translated.webp)
+![OneSub workbench: optimized subtitles with translation](assets/readme/workbench-translated.webp)
 
 ### Rebuild timing by sense groups: before and after
 
-Enable "Rebuild timing by sense groups" to merge isolated words and short fragments into complete sense groups. OneSub then adjusts cue boundaries from the source timing. Complete thoughts help the model translate more accurately.
+Enable "Rebuild timing by sense groups" to merge isolated words and short fragments into complete sense groups. OneSub then adjusts cue boundaries from the source word timing. Complete thoughts help the model translate more accurately.
 
 ![Sense-group timing comparison: disabled on the left, enabled on the right](assets/readme/sense-group-comparison.webp)
 
-**Left: disabled. Right: enabled.** On the left, `equally.` has its own cue and appears for only 660 milliseconds. On the right, it joins the previous sentence. The complete cue runs from `00:00:27,880` to `00:00:31,820`. OneSub also joins `Next,` to the instruction that follows.
+**Left: disabled. Right: enabled.** On the left, `equally.` stands alone for only 660 milliseconds. On the right, it joins the previous sentence. The complete cue runs from `00:00:27,880` to `00:00:31,820`. OneSub also joins `Next,` to the instruction that follows.
 
-OneSub saves the result in the rebuilt track and keeps the original track separate. With word-level timing, it aligns boundaries to real words. Without word-level timing, it only merges existing cues. We strongly recommend this option with `gpt-6-luna` or a model of equal or greater capability.
+OneSub saves the result in "Optimized subtitles" and keeps "Original subtitles" separate. When word timing exists, OneSub aligns boundaries to real words. Without word timing, it only merges existing cues. Enable this option when you use `gpt-6-luna` or a stronger model.
 
 ### Video demo
 
-https://github.com/user-attachments/assets/64fed7da-2e36-48a5-8409-68cfbcf6a299
+[![OneSub video demo (click to watch on Bilibili)](https://i2.hdslb.com/bfs/archive/e50ca264c459deb0932d1c443c78c625263f9ecd.jpg)](https://www.bilibili.com/video/BV19asP6PE1c/)
 
-Demo conditions: 42-minute source video; Qwen3-ASR 1.7B recognition model; `gpt-6-luna` AI model; "Rebuild timing by sense groups" enabled. Recognition and translation took 6 minutes in this run. The demo runs at increased speed. Actual time depends on hardware, network, and service.
+[Watch the 33-second video demo on Bilibili](https://www.bilibili.com/video/BV19asP6PE1c/)
 
 ## Key features
 
-Workflow: **Import → Recognize → Rebuild timing → Translate and review → Preview and deliver**.
+Workflow: **Import → Transcribe → Rebuild timing → Translate and review → Preview and deliver**.
 
 ### Subtitle structure and timing
 
-- **Rebuild timing by sense groups**: Merge isolated words and short fragments before translation. Align boundaries to real words when timing is available. Merge existing cues when word timing is missing.
-- **Smart split**: Split long cues with one click. Use the context menu for one cue. Use real word timing when available. Mark estimated cuts for timing review. Keep compact sentences unchanged. Undo a batch in one step.
-- **Punctuation handling**: Process translated punctuation locally. Add no request and change no prompt. Remove or keep final punctuation. Convert sentence periods when needed. Protect email addresses, URLs, numbers, abbreviations, file names, and ellipses.
-- **Separate tracks**: Keep original, rebuilt, and translated tracks independent. Edit, export, and undo each track. AI does not overwrite locked manual edits.
+- **Rebuild timing by sense groups**: Merge isolated words and short fragments before translation. Align boundaries to real words when timing exists. Merge existing cues when word timing is missing.
+- **Smart split**: Split long cues by language reading load with one click or per cue. Estimate missing word cuts and mark them "Check timing". Keep compact sentences unchanged. Undo a batch in one step.
+- **Punctuation handling**: Clean translated punctuation locally without extra API requests. Remove or keep final punctuation, or change sentence periods to commas. Keep email addresses, URLs, numbers, abbreviations, file names, and ellipses unchanged.
+- **Separate tracks**: Keep original, optimized, and translated tracks independent. Edit, save, export, and undo each track. AI never overwrites locked manual edits.
 
 ### Translation and review
 
-- **Controlled translation**: Use full-video context, locked terms, and per-cue checks. Never fill a missing translation with source text. Protect negation, numbers, units, and literal strings.
-- **Resumable translation**: Keep completed batches after an interruption. Retry only the missing content.
-- **Format protection**: Import SRT, VTT, ASS, and SSA. Keep ASS layout. Export plain TXT without cue numbers, timestamps, or styling.
+- **Controlled translation**: Use full-video context, custom glossaries, and per-cue checks. Never fill missing translations with source text. Protect negation, numbers, units, and literal strings.
+- **Styles and credentials**: Choose from 8 built-in domain styles or add custom `SKILL.md` styles. Save API keys in Windows Credential Manager.
+- **Resumable translation**: Keep completed batches after an interruption. Retry, locate, or skip remaining untranslated cues.
+- **Retranslation and proofreading**: Retranslate selected cues with surrounding context and compare results side by side. Use literal find and replace, issue locator, proofreading mode, and a draggable length guide.
+- **Format protection**: Import SRT, VTT, ASS, and SSA while keeping ASS layout. Export original, optimized, translated, or bilingual subtitles, or plain TXT without timestamps.
 
 ### Recognition and batch processing
 
-- **Multi-engine local recognition**: Use SenseVoiceSmall, Paraformer-zh, Parakeet-TDT v3, and Qwen3-ASR. Detect the source language, then select a matching model. Models download on demand with resume and SHA-256 checks.
-- **Silence protection**: Filter silence with VAD first. Long silence creates no false cues.
-- **File queue**: Transcribe many audio or video files. Retry failed items alone.
-- **Auto link**: Drop a video to load its same-name subtitle. Drop a subtitle to link its same-name video. Score language suffixes and small name differences.
+- **Multi-engine local recognition**: Run Qwen3-ASR (0.6B/1.7B, FP16/INT8, GPU or CPU) and sherpa-onnx models (SenseVoiceSmall, Paraformer-zh, Parakeet-TDT v3 on CPU).
+- **Smart routing and vocal separation**: Detect spoken language automatically and pick a matching model. Separate vocals with HTDemucs before Qwen3-ASR recognition when needed.
+- **Silence protection**: Filter silence and pure music with FireRedVAD (VAD and AED). Long silence creates no false cues.
+- **Model management and queue**: Download models on demand with resume and SHA-256 checks. Batch transcribe multiple audio or video files and retry failed items alone.
+- **Auto link**: Drop a video to load its same-name subtitle. Drop a subtitle to link its same-name video. Match language suffixes and small name differences by score.
 
 ### Media and delivery
 
-- **Subtitles alone**: No video needed. Import subtitles to edit, translate, and export.
-- **Video compression alone**: No subtitle needed. Encode H.264 into MP4 or MKV. Keep audio and chapters. Never overwrite the source video.
-- **Shared preview and output**: Preview and composition use one subtitle, style, and font configuration. Support soft subtitles (muxed) and hard subtitles (burned in).
-- **Chinese and English interface**: Support light and dark themes.
+- **Subtitles alone**: Import subtitles without a video to edit, translate, check, and export.
+- **Media tools**: Compress video (H.264 MP4 or MKV, CRF 18/20/23) without subtitles, keeping audio and chapters. Extract audio to MP3, M4A, AAC, WAV, FLAC, OGG, or Opus.
+- **Consistent preview and output**: Preview real-time ASS styles with JASSUB using 9 presets, custom presets, bilingual styles, and glyph checks. Export soft subtitles (muxed) or hard subtitles (burn-in), test a 5-second sample, or run in background.
+- **Bilingual interface**: Switch between Chinese and English interfaces, light and dark themes, and tray mode.
 
 ## Differences from traditional subtitle translators
 
 | Item | Traditional tools | OneSub |
 | --- | --- | --- |
-| Segmentation | Keeps source segments | Regroups by sense group; cuts fall on word boundaries |
-| Timeline | Inherited per line; translation drifts from speech | Aligned to word-level time evidence |
-| Original subtitle | Overwritten by the translation | Original, rebuilt, and translated tracks stay separate |
-| Failed translation | Often filled with the source text | Never filled; missing items are retried and flagged |
-| Manual edits | Lost on re-translation | Locked content is never overwritten by AI |
-| Speech recognition | Cloud service or one model | Local multi-engine with language detection |
-| Silence | May produce hallucinated cues | VAD filter; no cues in long silence |
-| Punctuation | Inconsistent in translation | Local rules; protected items stay unchanged |
-| Preview vs. output | Styles differ | Shared configuration |
-| Workflow | Create a project, then move through several pages | Drop a file and play; recognize, translate, and burn in on one workbench |
-| Privacy | Often uploads media | Recognition runs on your computer; only subtitle text goes to the AI service you choose |
+| Segmentation | Keeps source cuts | Regroups by sense group; cuts on word boundaries |
+| Timeline | Inherits lines; translation drifts from speech | Aligns text to word-level time evidence |
+| Original subtitle | Overwritten by translation | Keeps original, optimized, and translated tracks separate |
+| Failed translation | Often fills source text | Never fills source text; retries and flags missing items |
+| Manual edits | Lost on re-translation | AI never overwrites locked edits |
+| Speech recognition | Cloud service or one model | Local multi-engine with auto language detection and GPU/CPU support |
+| Silence | May produce hallucinated cues | FireRedVAD (VAD and AED) filters silence and pure music |
+| Punctuation | Inconsistent in translation | Applies local rules; keeps protected items unchanged |
+| Preview vs. output | Styles differ | Uses one shared style, font, and subtitle configuration |
+| Workflow | Create a project, then switch pages | Drop media and play; transcribe, translate, and export on one workbench |
+| Privacy | Often uploads media | Runs recognition locally; sends only subtitle text to your chosen AI service |
 
 ## Download
 
-Download `OneSub-0.1.0-Setup.exe` from [Releases](https://github.com/OUBIGFA/OneSub/releases). Check the SHA-256 on the same page, then run it.
+Download `OneSub-0.1.0-Setup.exe` from [Releases](https://github.com/OUBIGFA/OneSub/releases). Verify the SHA-256 on the same page, then run the installer.
 
-- Version 0.1.0, Windows x64 only. The installer is not Windows Authenticode-signed. Windows may show a security prompt.
-- See the Release asset for the installer size. Recognition models download on demand. They range from several hundred MB to several GB. You can change the location.
+- Version 0.1.0, Windows x64 only. The installer has no Windows Authenticode signature, so Windows may show a security prompt.
+- Check the Release page for the installer size. Download recognition models on demand (several hundred MB to several GB). You can change the model folder.
 
 ## System requirements
 
-- Windows x64; Windows 10 compatibility depends on WebView2 and bundled dependencies
-- WebView2 runtime (the installer installs it)
-- Recognition currently runs on the CPU
+- Windows x64 (Windows 10 compatibility depends on WebView2 and bundled dependencies)
+- WebView2 runtime (the installer installs it automatically)
+- Qwen3-ASR supports GPU (auto-detected) and CPU; SenseVoiceSmall, Paraformer-zh, and Parakeet-TDT v3 run on the CPU
 
 ## Quick start
 
-1. Drop a video into the window. It plays at once.
-2. Click "One-click transcribe & translate". On first use, follow the prompts to choose a recognition model and set up an AI service.
-3. Edit in the subtitle list and the edit panel.
-4. Click "Export subtitles", or click "Compose video".
+1. Drop a video into the window. It plays immediately.
+2. Click "One-click transcribe & translate". Follow the prompts to choose a recognition model and add an AI service.
+3. Edit and review cues in the subtitle list and editor panel.
+4. Click "Export subtitles", or click "Export video".
 
-Subtitles only: drop the subtitle file, then edit and translate. Video only: click "Compress video".
+Subtitles only: drop a subtitle file to edit and translate. Media only: click "Media tools" to compress video or extract audio.
 
 ## Recommended settings
 
 | Item | Value | Reason |
 | --- | --- | --- |
-| Video encoding | CRF 23 | Small file, enough quality for most videos |
-| Translation concurrent batches | 2 to 5 | A higher number may hit service rate limits |
+| Video encoding | CRF 23 | Balances file size and quality for most videos |
+| Translation concurrent batches | 2 to 5 | Higher values may hit service rate limits |
 | Cues per batch | 50 | Balances context and stability |
-| Rebuild timing by sense groups | Strongly recommended with a model at or above gpt-6-luna | More reliable translation and a better timeline |
+| Rebuild timing by sense groups | Enable with gpt-6-luna or stronger models | Improves translation accuracy and cue timing |
 
-A weaker model may fail to return stable segmentation. Turn the option off in that case.
+Turn off "Rebuild timing by sense groups" if a weaker model fails to return stable segments.
+
+## Get free API access
+
+<https://blog.bigfa.cc.cd/posts/2026053112195521/>
 
 ## Get gpt-6-luna usage with a ChatGPT account
 
 1. Register a ChatGPT account and sign in to Codex.
-2. Proxy that sign-in with [CLIProxyAPI (CPA)](https://github.com/router-for-me/CLIProxyAPI) or [magpie](https://github.com/yetone/magpie-releases). You get a local OpenAI-compatible address.
-3. In OneSub settings, add an AI service. Enter that address and select the model `gpt-6-luna`.
+2. Proxy that sign-in with [CLIProxyAPI (CPA)](https://github.com/router-for-me/CLIProxyAPI) or [magpie](https://github.com/yetone/magpie-releases) to get a local OpenAI-compatible endpoint.
+3. Open OneSub settings, add an AI service, enter the endpoint, and select `gpt-6-luna`.
 
-OneSub supports the OpenAI Chat Completions and Responses protocols. CPA and magpie are third-party projects and are not affiliated with OneSub. OpenAI decides the available quota, limits, and terms. They can change at any time. Read the terms before you use them.
+OneSub supports the OpenAI Chat Completions and Responses protocols. CPA and magpie are third-party projects with no affiliation to OneSub. OpenAI controls quota, limits, and terms, and can change them at any time. Read the terms before use.
 
 ## Agent workflows
 
-Copy the client configuration from Settings → MCP server to let agents transcribe, translate, read, edit, check and convert subtitles, then compose videos
+Copy the client configuration from Settings → MCP server. Agents can then transcribe, translate, read, edit, check, and convert subtitles, and export videos.
 
-The server uses your saved models, translation service and styles, and writes new files; see the [MCP guide](apps/desktop/MCP.md) for tool parameters and workflow examples
+The MCP server uses your saved models, translation service, and styles, and writes new files. See the [MCP guide](apps/desktop/MCP.md) for parameters and workflow examples.
 
 ## License and credits
 
-This project is released under **AGPL-3.0-or-later**. See [LICENSE](LICENSE). Third-party code, fonts, and models follow their own licenses. They are registered in the [third-party rules](third_party/README.md).
+OneSub uses the **AGPL-3.0-or-later** license. See [LICENSE](LICENSE). Third-party code, fonts, and models follow their own licenses. See [third-party rules](third_party/README.md) for registered components.
