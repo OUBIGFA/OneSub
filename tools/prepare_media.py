@@ -54,7 +54,8 @@ def prepare_runtime(manifest, cache, output):
     for package in manifest['packages']:
         archive = cached_archive(package, cache)
         for entry in package['files']:
-            data = subprocess.check_output(['tar.exe', '-xOf', str(archive), entry['member']])
+            # Windows resolves tar to tar.exe; Unix CI uses the same CLI name.
+            data = subprocess.check_output(['tar', '-xOf', str(archive), entry['member']])
             if hashlib.sha256(data).hexdigest() != entry['sha256']:
                 raise ValueError('Media member checksum differs from its lock: ' + entry['member'])
             verified[entry['path']] = data
