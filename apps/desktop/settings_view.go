@@ -29,10 +29,10 @@ func (a *NativeApp) settingsView(c *ui.Context) {
 	wasOpen := a.settingsOpen
 	_, height := c.Size()
 	// Pages keep their numbers; models by language (5) follows recognition.
-	labels := []string{locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsTranslation(), locales.SettingsTranslationRules(), locales.SettingsMcp(), locales.SettingsLanguageRoutes(), locales.SettingsAbout()}
+	labels := []string{locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsTranslation(), locales.SettingsTranslationRules(), locales.SettingsMcp(), locales.SettingsLanguageRoutes(), locales.SettingsAbout(), locales.SettingsStorage()}
 	// One distinct icon per category, so the sidebar can be scanned by shape.
-	pageIcons := []string{"sliders-horizontal", "audio-lines", "languages", "scroll-text", "server", "route", "info"}
-	order := []int{0, 1, 5, 2, 3, 4, 6}
+	pageIcons := []string{"sliders-horizontal", "audio-lines", "languages", "scroll-text", "server", "route", "info", "folder-open"}
+	order := []int{0, 1, 5, 2, 3, 4, 7, 6}
 	fixedDialog(c, &a.settingsOpen, locales.SettingsTitle(), 1280, 0, func() {
 		// A viewport-relative floor gives sparse pages the same generous
 		// reading area; larger forms still determine the natural height.
@@ -54,7 +54,12 @@ func (a *NativeApp) settingsView(c *ui.Context) {
 			// clips its outer corners; a second radius would leave gaps inside.
 			lobeNav.Tabs(c, &selected, lobeNav.TabsProps{Items: tabs, Vertical: true, Variant: lobeNav.TabsRounded}, nil).
 				Width(max(em(c, 200), navigationWidth+em(c, 88))).Padding(em(c, 16), em(c, 12)).Radius(0).
-				Label(locales.A11ySettingsTabs()).OnChange(func() { a.settingsTab = order[selected] })
+				Label(locales.A11ySettingsTabs()).OnChange(func() {
+				a.settingsTab = order[selected]
+				if a.settingsTab == 7 {
+					a.refreshStorage()
+				}
+			})
 			separator(c)
 			// All pages occupy one native grid cell. Invisible pages still
 			// contribute their intrinsic size, but cannot paint or take focus.
@@ -158,6 +163,8 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 		a.mcpSettingsView(c)
 	case 6:
 		a.aboutSettingsView(c)
+	case 7:
+		a.storageSettingsView(c)
 	case 5:
 		// The detector and the model of each language group used by smart
 		// routing. One full-width group keeps model names usable at the

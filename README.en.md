@@ -66,6 +66,7 @@ Workflow: **Import → Transcribe → Rebuild timing → Translate and review �
 ### Recognition and batch processing
 
 - **Multi-engine local recognition**: Run Qwen3-ASR (0.6B/1.7B, FP16/INT8, GPU or CPU) and sherpa-onnx models (SenseVoiceSmall, Paraformer-zh, Parakeet-TDT v3 on CPU).
+- **Alignment and hotwords**: Qwen3-ForcedAligner-Ultra is the default aligner. Qwen Chinese and English recognition supports hotwords with the optional SenseVoiceSmall helper model.
 - **Smart routing and vocal separation**: Detect spoken language automatically and pick a matching model. Separate vocals with HTDemucs before Qwen3-ASR recognition when needed.
 - **Silence protection**: Filter silence and pure music with FireRedVAD (VAD and AED). Long silence creates no false cues.
 - **Model management and queue**: Download models on demand with resume and SHA-256 checks. Batch transcribe multiple audio or video files and retry failed items alone.
@@ -77,6 +78,7 @@ Workflow: **Import → Transcribe → Rebuild timing → Translate and review �
 - **Media tools**: Compress video (H.264 MP4 or MKV, CRF 18/20/23) without subtitles, keeping audio and chapters. Extract audio to MP3, M4A, AAC, WAV, FLAC, OGG, or Opus.
 - **Consistent preview and output**: Preview real-time ASS styles with JASSUB using 9 presets, custom presets, bilingual styles, and glyph checks. Export soft subtitles (muxed) or hard subtitles (burn-in), test a 5-second sample, or run in background.
 - **Bilingual interface**: Switch between Chinese and English interfaces, light and dark themes, and tray mode.
+- **Storage cleanup**: Use Settings → Storage to inspect and clear caches, logs, partial downloads and past projects. Current and pending projects, source files, exports and complete models are kept.
 
 ## Differences from traditional subtitle translators
 

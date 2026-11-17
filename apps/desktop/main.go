@@ -56,6 +56,7 @@ type NativeApp struct {
 	settingsOpen                         bool
 	settingsTab                          int
 	settingsError                        bool
+	storage                              storageState
 	updates                              appUpdates
 	errorText, status                    string
 	errorScope                           string    // the operation whose error is currently displayed
@@ -242,6 +243,7 @@ func (a *NativeApp) view(c *ui.Context) {
 	a.settingsView(c)
 	a.modelManagerView(c)
 	a.modelRecycleView(c)
+	a.storageConfirmView(c)
 	a.candidatesView(c)
 	a.proofreadingImportView(c)
 	a.exportView(c)
@@ -282,7 +284,7 @@ func (a *NativeApp) view(c *ui.Context) {
 	}
 	// Style previews use their own worker and revision checks. Unrelated
 	// background work must not delay a visible style change until it finishes.
-	if a.previewPending && !a.previewRunning && !a.editPending && a.playerReady && a.mediaURL != "" && len(a.styleCatalog.Presets) > 0 {
+	if a.previewPending && !a.previewRunning && !a.storage.cleaning && !a.editPending && a.playerReady && a.mediaURL != "" && len(a.styleCatalog.Presets) > 0 {
 		if !c.Now().Before(a.previewDue) {
 			a.refreshSubtitles()
 		} else {

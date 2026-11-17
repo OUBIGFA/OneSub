@@ -5,7 +5,7 @@ import "context"
 // Refresh only catalog data after startup; never reset a user's chosen style
 // because an installed font changed while they were editing subtitles.
 func (a *NativeApp) reloadFonts() {
-	if a.fontCatalogLoading || a.win == nil {
+	if a.fontCatalogLoading || a.storage.cleaning || a.win == nil {
 		return
 	}
 	a.fontCatalogLoading = true

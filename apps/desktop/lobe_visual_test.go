@@ -129,7 +129,7 @@ func checkDarkControls(t *testing.T, tt *ui.Tester, controls []ui.AccessInfo) {
 func checkSettingsLabelsLeftAligned(t *testing.T, tt *ui.Tester) {
 	t.Helper()
 	var left float32
-	for i, label := range []string{locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsLanguageRoutes(), locales.SettingsTranslation(), locales.SettingsTranslationRules(), locales.SettingsMcp(), locales.SettingsAbout()} {
+	for i, label := range []string{locales.SettingsGeneral(), locales.SettingsRecognition(), locales.SettingsLanguageRoutes(), locales.SettingsTranslation(), locales.SettingsTranslationRules(), locales.SettingsMcp(), locales.SettingsStorage(), locales.SettingsAbout()} {
 		r, ok := tt.Find(label)
 		if !ok {
 			t.Errorf("missing settings destination %s", label)
