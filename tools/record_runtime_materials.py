@@ -90,8 +90,7 @@ def main():
         "mediaSource": "https://packages.msys2.org/packages/mingw-w64-ucrt-x86_64-ffmpeg",
         "mediaManifest": media_manifest_path.relative_to(ROOT).as_posix(),
         "mediaLicense": ffmpeg_license,
-        "oneasr": {**registered.get("oneasr", {}), **artifact(ROOT / "build/output/oneasr/oneasr-cli.exe"), "version": "v1.3.0",
-                   "archiveSha256": "e9e169e108ee43d88b5b047f4ec556819cd7fa5e2424d3f5ed957634f85d4936"},
+        "oneasr": {**registered.get("oneasr", {}), **artifact(ROOT / "build/output/oneasr/oneasr-cli.exe")},
         "player": player,
         "wasm": [artifact(path) for path in sorted((node / "jassub/dist/wasm").glob("*.wasm"))],
         "fontRedistribution": "No system font files are copied into the installer. Runtime preview uses the user's installed fonts through local capability URLs."

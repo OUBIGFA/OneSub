@@ -1,7 +1,7 @@
 {
   "upstream": "https://github.com/eclipse005/OneAsr",
-  "revision": "9c1b51085b0ee084a0c8e11cd069021fc1ea7d0f",
-  "sourceSha256": "b9180ea45cd30ee6dd4157d26fc227a51c8d48af26fa83947ec6a76bcf3204c7",
+  "revision": "41c93372413d1c65b757999c0e44c3ce04aba043",
+  "sourceSha256": "1f1520eb416ce58e9e32026ffacbabadde8ce53e913a1768a1bb4144e9e4af4a",
   "models": [
     {
       "id": "Qwen3-ASR-0.6B-hf",
@@ -147,33 +147,51 @@
       ]
     },
     {
-      "id": "Qwen3-ForcedAligner-0.6B-hf",
-      "label": "Qwen3-ForcedAligner 0.6B",
+      "id": "Qwen3-ForcedAligner-Ultra",
+      "label": "Qwen3-ForcedAligner Ultra",
       "kind": "aligner",
       "files": [
         {
           "name": "config.json",
-          "size": 248029,
-          "sha256": "82ac390b36a8f80c5a0c4e202367debd149e5d8c30abe4cf5eed439101b1c5ce",
-          "url": "https://modelscope.cn/models/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/053506a54ad1c9deea6105050330d7c500b9f098/config.json"
+          "size": 5632,
+          "sha256": "a2521a05badbd1ab064dbc1645579b99e3ed5e31a317650753ded6a0bd4d1298",
+          "url": "https://modelscope.cn/models/eclipse005/Qwen3-ForcedAligner-Ultra/resolve/2088fd62a25efd6d0949ed1ffe08356596742f18/config.json"
         },
         {
           "name": "model.safetensors",
-          "size": 1835545960,
-          "sha256": "00568245ceca5af1991d28562a75fe1ddc9bfeb041c27fda66947ea05c47fb86",
-          "url": "https://modelscope.cn/models/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/053506a54ad1c9deea6105050330d7c500b9f098/model.safetensors"
+          "size": 1835544544,
+          "sha256": "e6fcf5be2c11b265f7217ba6102917a7fe64438506357be6999f6ad5a707cb5f",
+          "url": "https://modelscope.cn/models/eclipse005/Qwen3-ForcedAligner-Ultra/resolve/2088fd62a25efd6d0949ed1ffe08356596742f18/model.safetensors"
         },
         {
           "name": "tokenizer.json",
-          "size": 11429842,
-          "sha256": "cadfb9cbd9ff8f4e309075ec6a71b063295ff796afb4b5dbc0fd2873fbb301f2",
-          "url": "https://modelscope.cn/models/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/053506a54ad1c9deea6105050330d7c500b9f098/tokenizer.json"
+          "size": 11429688,
+          "sha256": "90934377d8ceace196d3c8f872df96c8b48c6206f019b65e4ac631c04ee18f59",
+          "url": "https://modelscope.cn/models/eclipse005/Qwen3-ForcedAligner-Ultra/resolve/2088fd62a25efd6d0949ed1ffe08356596742f18/tokenizer.json"
         },
         {
           "name": "tokenizer_config.json",
-          "size": 998,
-          "sha256": "945e980986de2ca7768f3326bfdbb4fbea3406f972b8ae0be233089f2b253c11",
-          "url": "https://modelscope.cn/models/Qwen/Qwen3-ForcedAligner-0.6B-hf/resolve/053506a54ad1c9deea6105050330d7c500b9f098/tokenizer_config.json"
+          "size": 12696,
+          "sha256": "bee4786e25db33d3e8acb4c7a37c4ccf8d5a3d843b9cafb75a91d4ba774ad38f",
+          "url": "https://modelscope.cn/models/eclipse005/Qwen3-ForcedAligner-Ultra/resolve/2088fd62a25efd6d0949ed1ffe08356596742f18/tokenizer_config.json"
+        },
+        {
+          "name": "local_head/config.json",
+          "size": 1150,
+          "sha256": "d3bb91b1c29742f4d5e71507d61e52754d8ee237dc3b2e92500e61c4aa0e3f8e",
+          "url": "https://modelscope.cn/models/eclipse005/Qwen3-ForcedAligner-Ultra/resolve/2088fd62a25efd6d0949ed1ffe08356596742f18/local_head/config.json"
+        },
+        {
+          "name": "local_head/model.safetensors",
+          "size": 1623376,
+          "sha256": "50a70d6ed969446770fb9dc1063f5f4e6e4c86eac05fd3efb637492407d0e2ac",
+          "url": "https://modelscope.cn/models/eclipse005/Qwen3-ForcedAligner-Ultra/resolve/2088fd62a25efd6d0949ed1ffe08356596742f18/local_head/model.safetensors"
+        },
+        {
+          "name": "local_head/normalizer.json",
+          "size": 4370,
+          "sha256": "24f6d4fa08dd78e12f7d15a75b0d8b0cd3172bbdfdaa7ae055ca2c64db660ae7",
+          "url": "https://modelscope.cn/models/eclipse005/Qwen3-ForcedAligner-Ultra/resolve/2088fd62a25efd6d0949ed1ffe08356596742f18/local_head/normalizer.json"
         }
       ]
     },

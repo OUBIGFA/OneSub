@@ -11,14 +11,14 @@ import json
 from pathlib import Path
 import re
 
-REVISION = "9c1b51085b0ee084a0c8e11cd069021fc1ea7d0f"
+REVISION = "41c93372413d1c65b757999c0e44c3ce04aba043"
 MODELS = [
     ("qwen3_asr_06b_files", "Qwen3-ASR-0.6B-hf", "Qwen3-ASR 0.6B", "asr", "Qwen", "Qwen3-ASR-0.6B-hf", 3),
     ("qwen3_asr_17b_files", "Qwen3-ASR-1.7B-hf", "Qwen3-ASR 1.7B", "asr", "Qwen", "Qwen3-ASR-1.7B-hf", 3),
     ("qwen3_asr_06b_int8_files", "Qwen3-ASR-0.6B-int8", "Qwen3-ASR 0.6B INT8", "asr", "eclipse005", "Qwen3-ASR-0.6B-int8", 3),
     ("qwen3_asr_17b_int8_files", "Qwen3-ASR-1.7B-int8", "Qwen3-ASR 1.7B INT8", "asr", "eclipse005", "Qwen3-ASR-1.7B-int8", 3),
     ("omni_asr_ctc_300m_files", "omniASR-CTC-300M-v2-hf", "CTC 300M", "aligner", "eclipse005", "omniASR-CTC-300M-v2", 6),
-    ("qwen_align_files", "Qwen3-ForcedAligner-0.6B-hf", "Qwen3-ForcedAligner 0.6B", "aligner", "Qwen", "Qwen3-ForcedAligner-0.6B-hf", 4),
+    ("qwen_align_files", "Qwen3-ForcedAligner-Ultra", "Qwen3-ForcedAligner Ultra", "aligner", "eclipse005", "Qwen3-ForcedAligner-Ultra", 7),
     ("htdemucs_ft_files", "htdemucs_ft", "HTDemucs ft", "separation", "eclipse005", "htdemucs", 1),
     ("sensevoice_small_files", "SenseVoiceSmall", "SenseVoiceSmall", "hotword", "iic", "SenseVoiceSmall", 4),
 ]

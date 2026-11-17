@@ -68,9 +68,14 @@ func (t toolset) recognitionModels(prefs settings.Settings) (asr, aligner models
 		}
 	}
 	if strings.TrimSpace(prefs.Hotwords) != "" {
-		// v1.3.0 does not consume --hotwords; never pretend a silently ignored
-		// flag configured the core.
-		return asr, aligner, errors.New(locales.ErrHotwordsUnsupported())
+		// The upstream phonetic recall stage supports Qwen Chinese/English
+		// only. Reject unsupported routes instead of silently losing the words.
+		if asr.Sherpa() || (prefs.Language != "zh" && prefs.Language != "en") {
+			return asr, aligner, errors.New(locales.ErrHotwordsUnsupported())
+		}
+		if info, statErr := os.Stat(t.modelPath(prefs, "SenseVoiceSmall")); statErr != nil || !info.IsDir() {
+			return asr, aligner, errors.New(locales.ErrRouteModelMissing("SenseVoiceSmall"))
+		}
 	}
 	return asr, aligner, nil
 }
@@ -138,6 +143,16 @@ func (t toolset) recognizeNative(ctx context.Context, prefs settings.Settings, s
 			model models.Model
 			dir   string
 		}{aligner, alignDir})
+	}
+	if strings.TrimSpace(prefs.Hotwords) != "" {
+		hotword, lookupErr := models.ByID("SenseVoiceSmall")
+		if lookupErr != nil {
+			return "", nil, nil, lookupErr
+		}
+		checks = append(checks, struct {
+			model models.Model
+			dir   string
+		}{hotword, t.modelPath(prefs, hotword.ID)})
 	}
 	for _, m := range checks {
 		if err = models.Verify(ctx, m.model, m.dir); err != nil {
@@ -221,6 +236,10 @@ func (t toolset) recognizeNative(ctx context.Context, prefs settings.Settings, s
 		return "", nil, nil, err
 	}
 	args = []string{"transcribe-regions", "--input", inputs[0].Input, "--regions-json", manifestPath, "--app-root", install, "--data-root", root, "--asr", asr.ID, "--aligner", aligner.ID, "--language", prefs.Language, "--backend", prefs.Backend, "--chunk-seconds", strconv.Itoa(int(prefs.ChunkSeconds)), "--max-new-tokens", strconv.Itoa(int(prefs.MaxTokens))}
+	args = append(args, "--script", "original", "--asr-model-dir", asrDir, "--aligner-model-dir", alignDir)
+	if hotwords := strings.TrimSpace(prefs.Hotwords); hotwords != "" {
+		args = append(args, "--hotwords", hotwords, "--sensevoice-model-dir", t.modelPath(prefs, "SenseVoiceSmall"))
+	}
 	if prefs.VocalSeparation {
 		args = append(args, "--vocal-separation", "--demucs-model-dir", t.modelPath(prefs, "htdemucs_ft"))
 	}

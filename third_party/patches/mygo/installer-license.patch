@@ -1,0 +1,20 @@
+--- a/cmd/mygo/nsis.go
++++ b/cmd/mygo/nsis.go
+@@ -210,12 +210,16 @@
+ !define MUI_FINISHPAGE_SHOWREADME_TEXT "$(MYGO_DESKTOP_SHORTCUT)"
+ !define MUI_FINISHPAGE_SHOWREADME_FUNCTION CreateDesktopShortcut
+ !include "MUI2.nsh"
++` + include + `
++!ifmacrodef customPages
++!insertmacro customPages
++!endif
+ !insertmacro MUI_PAGE_DIRECTORY
+ !insertmacro MUI_PAGE_INSTFILES
+ !insertmacro MUI_PAGE_FINISH
+ !insertmacro MUI_UNPAGE_CONFIRM
+ !insertmacro MUI_UNPAGE_INSTFILES
+-` + languages + include + `
++` + languages + `
+ ` + nsisCloseApp(c) + `
+ Section
+   Push "$INSTDIR"

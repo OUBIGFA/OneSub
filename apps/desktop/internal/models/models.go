@@ -174,7 +174,7 @@ func (m Model) FilesPresent(dir string) bool {
 		return false
 	}
 	for _, file := range m.Files {
-		info, err := os.Stat(filepath.Join(dir, file.Name))
+		info, err := os.Stat(filepath.Join(dir, filepath.FromSlash(file.Name)))
 		if err != nil || !info.Mode().IsRegular() || info.Size() != file.Size {
 			return false
 		}
@@ -184,7 +184,7 @@ func (m Model) FilesPresent(dir string) bool {
 
 func Verify(ctx context.Context, m Model, dir string) error {
 	for _, f := range m.Files {
-		if err := verifyFile(ctx, filepath.Join(dir, f.Name), f); err != nil {
+		if err := verifyFile(ctx, filepath.Join(dir, filepath.FromSlash(f.Name)), f); err != nil {
 			return err
 		}
 	}
@@ -252,11 +252,15 @@ func Download(ctx context.Context, client *http.Client, m Model, dir string, pro
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		final := filepath.Join(dir, spec.Name)
+		final := filepath.Join(dir, filepath.FromSlash(spec.Name))
 		if err := verifyFile(ctx, final, spec); err == nil {
 			completed += spec.Size
 			progress(Progress{completed, m.Size(), StageDone})
 			continue
+		}
+		// Ultra's local refinement files live below local_head/.
+		if err := os.MkdirAll(filepath.Dir(final), 0700); err != nil {
+			return err
 		}
 		partial := final + ".partial"
 		var offset int64

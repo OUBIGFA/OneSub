@@ -8,6 +8,26 @@ import (
 	"testing"
 )
 
+func TestUltraDefaultReplacesOldRecognitionConfiguration(t *testing.T) {
+	if Default().Aligner != "Qwen3-ForcedAligner-Ultra" {
+		t.Fatal(Default().Aligner)
+	}
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if err := os.WriteFile(path, []byte(`{"version":6,"aligner":"omniASR-CTC-300M-v2-hf","modelPaths":{"Qwen3-ForcedAligner-0.6B-hf":"old-model"},"hotwords":"OneSub"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Aligner != Default().Aligner || s.ModelPaths["Qwen3-ForcedAligner-0.6B-hf"] != "" {
+		t.Fatal("old aligner configuration retained", s.Aligner, s.ModelPaths)
+	}
+	if s.Hotwords != "OneSub" {
+		t.Fatal("unrelated setting cleared")
+	}
+}
+
 func TestAutomaticUpdatesDefaultAndExplicitOptOutSurviveRestart(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	for _, raw := range []string{`{"version":1}`, `{"version":5}`, `{"version":5,"autoUpdate":true}`, `{"version":5,"autoUpdate":false}`} {

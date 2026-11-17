@@ -260,7 +260,7 @@ func TestRecognitionRejectsNonSpeechForInstalledModelsIntegration(t *testing.T) 
 			root := t.TempDir()
 			tools := toolset{dataRoot: modelsRoot, ffmpeg: os.Getenv("ONESUB_FFMPEG"), worker: subtitle.Client{Executable: os.Getenv("ONESUB_SUBTITLE_WORKER"), Scratch: root}}
 			prefs := settings.Default()
-			prefs.RecognitionMode, prefs.AsrModel, prefs.Aligner, prefs.Language = recognitionManual, model.ID, "Qwen3-ForcedAligner-0.6B-hf", "en"
+			prefs.RecognitionMode, prefs.AsrModel, prefs.Aligner, prefs.Language = recognitionManual, model.ID, "Qwen3-ForcedAligner-Ultra", "en"
 			prefs.ModelPaths = map[string]string{model.ID: filepath.Join(modelsRoot, model.ID), prefs.Aligner: filepath.Join(modelsRoot, prefs.Aligner)}
 			if model.Sherpa() {
 				prefs.Language = model.Languages[0]
@@ -301,7 +301,7 @@ func TestRecognitionSpeechThenMusicFixtureIntegration(t *testing.T) {
 			root := t.TempDir()
 			tools := toolset{ffmpeg: os.Getenv("ONESUB_FFMPEG"), worker: subtitle.Client{Executable: os.Getenv("ONESUB_SUBTITLE_WORKER"), Scratch: root}}
 			prefs := settings.Default()
-			prefs.RecognitionMode, prefs.AsrModel, prefs.Aligner, prefs.Language = recognitionManual, id, "Qwen3-ForcedAligner-0.6B-hf", "en"
+			prefs.RecognitionMode, prefs.AsrModel, prefs.Aligner, prefs.Language = recognitionManual, id, "Qwen3-ForcedAligner-Ultra", "en"
 			prefs.ModelPaths = map[string]string{id: filepath.Join(modelsRoot, id), prefs.Aligner: filepath.Join(modelsRoot, prefs.Aligner)}
 			srt, evidence, cleanup, err := tools.recognize(context.Background(), prefs, source, func(recognitionStep) {})
 			if err != nil {
@@ -370,7 +370,7 @@ func TestRecognitionSpeechGapIntegration(t *testing.T) {
 	if backend := os.Getenv("ONESUB_ASR_TEST_BACKEND"); backend != "" {
 		prefs.Backend = backend
 	}
-	prefs.RecognitionMode, prefs.AsrModel, prefs.Aligner, prefs.Language = recognitionManual, "Qwen3-ASR-1.7B-hf", "Qwen3-ForcedAligner-0.6B-hf", "en"
+	prefs.RecognitionMode, prefs.AsrModel, prefs.Aligner, prefs.Language = recognitionManual, "Qwen3-ASR-1.7B-hf", "Qwen3-ForcedAligner-Ultra", "en"
 	prefs.ModelPaths = map[string]string{prefs.AsrModel: filepath.Join(modelsRoot, prefs.AsrModel), prefs.Aligner: filepath.Join(modelsRoot, prefs.Aligner)}
 	speech, wav := filepath.Join(root, "speech.wav"), filepath.Join(root, "speech-gap.wav")
 	for _, args := range [][]string{

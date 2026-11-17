@@ -15,3 +15,5 @@ third_party/skills/srt-subtitle-translator/evals/fixtures/* whitespace=-blank-at
 third_party/patches/**/*.patch whitespace=-space-before-tab,-blank-at-eol
 
 third_party/licenses/** -whitespace
+# Preserve Microsoft's verified redistributable notices byte for byte.
+third_party/licenses/dxc/** -text

@@ -1,6 +1,6 @@
 # OneAsr 任务内模型复用
 
-固定 OneAsr v1.3.0，只增加批片段机器入口。源码修订、Rust 工具链、原始文件、补丁与产物校验分别见 [oneasr.json](../../manifests/oneasr.json) 和 [runtimes.json](../../manifests/runtimes.json)。上游 MIT 许可保持不变。
+固定 OneAsr v1.5.0，只增加批片段机器入口。源码修订、Rust 工具链、原始文件、补丁与产物校验分别见 [oneasr.json](../../manifests/oneasr.json) 和 [runtimes.json](../../manifests/runtimes.json)。上游 MIT 许可保持不变。
 
 ## 行为边界
 
@@ -26,3 +26,9 @@
 ## 验证
 
 补丁内的 core 测试检查加载/释放顺序、逐片段独立输出、局部词时间和失败释放。桌面真实模型回归检查两段语音之间的 40 秒静音，要求 ASR 和对齐器各加载一次，字幕与词均不进入静音。源码准备测试检查原始文件不变、缓存命中、损坏缓存重建及篡改拒绝；补丁从仓库根目录应用，新增文件在重建前清除，合并后的 Rust 文件统一为 LF，不受上游 CRLF 属性和本机 Git 配置影响。
+
+## Ultra 与热词
+
+默认对齐器为 Qwen3-ForcedAligner-Ultra。七个固定资产含 local_head 子目录，由上游清单生成并逐文件校验。旧对齐配置重置为 Ultra，不将旧目录伪装为新模型。Qwen 中文/英文可输入逗号分隔热词，需下载 SenseVoiceSmall 辅助模型；不支持的引擎和语言明确报错。
+
+批片段入口在热词解析、显式模型目录设置及 can_start 检查之后分发。热词粗识别模型按批加载一次并在 Qwen 加载前释放；随后 ASR 与对齐模型各加载一次，继承上游退化救回和可见的 GPU 设备丢失 CPU 重试。DXC 原始 DLL 和许可随安装器提供，见 ../dxc/README.md。默认构建只运行源码、许可及基础单元检查；真实模型和桌面回归需另行请求。

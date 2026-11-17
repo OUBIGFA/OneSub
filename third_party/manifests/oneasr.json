@@ -1,36 +1,38 @@
 {
   "repository": "https://github.com/eclipse005/OneAsr",
-  "version": "v1.3.0",
-  "revision": "9f43a8b390d503fc1ff0122cb17561032d5e6e22",
-  "checkedAt": "2026-11-13",
+  "version": "v1.5.0",
+  "revision": "41c93372413d1c65b757999c0e44c3ce04aba043",
+  "checkedAt": "2026-11-17",
   "spdx": "MIT",
   "license": "third_party/licenses/oneasr.txt",
   "sourceArchive": {
-    "file": "oneasr-source-9f43a8b390d503fc1ff0122cb17561032d5e6e22.zip",
-    "url": "https://codeload.github.com/eclipse005/OneAsr/zip/9f43a8b390d503fc1ff0122cb17561032d5e6e22",
-    "sha256": "dd34e3cb62af0d0248f77cfd2a4c22282d17e0f1ca40f71249be6003c0bd340a"
+    "file": "oneasr-source-41c93372413d1c65b757999c0e44c3ce04aba043.zip",
+    "url": "https://codeload.github.com/eclipse005/OneAsr/zip/41c93372413d1c65b757999c0e44c3ce04aba043",
+    "sha256": "8d9949708ba0c55947173a944210d78c68616aae712f2cfdd4d27bc9fbc3adac"
   },
-  "upstreamBinarySha256": "59b5376b6a49d6c1cebac05d13188ff207454af5e397613405ebc1bed9ca78e0",
   "patch": "third_party/patches/oneasr/region-batch.patch",
-  "patchSha256": "5f28e0ca41f1efd2c47a1a133921ad0b34d0e40c5a47e40bcf511831e10b0d04",
+  "patchSha256": "1d70a919e7683dcfa7f5224a2b8b805c3e2c94b6a65b34d51d14109b8280145a",
   "sourceHashes": {
-    "crates/oneasr-core/src/asr.rs": "8f643b3a53969bfebd962a66a74788d997186d96a333336c41c8d166362c0d95",
-    "crates/oneasr-core/src/bin/oneasr-cli.rs": "5838326f69db926f8acd5ade91498a2fff91423e02e21bc0e50848897137e436",
-    "crates/oneasr-core/src/i18n.rs": "bbe2a77ea8d37d148314e4e68ad63a87d6db519f561a82aa0f6114263d968215",
-    "crates/oneasr-core/src/lib.rs": "cee0cf780644a490dc9fefdaf1c3dbce421b2f39ef379ebb0c635d5903d85d9a",
-    "crates/oneasr-core/tests/pipeline_behaviour.rs": "f62f121c288c61049193bac7997535442c9107ac42871b7037dbf17342d2fa43",
-    "Cargo.toml": "b204db8753a043aeaae37c961aa4925e62a3268dfdfea52c8eed42c201f7ab11",
-    "Cargo.lock": "787be291a79caf588751f20f4f5fdf5f8a34ab9ea58c016e10fa0b7a3287f039",
+    "crates/oneasr-core/src/asr.rs": "a4bbf96a643ce2094178be08d441d9e0ed150111674908477f236695d4f7983d",
+    "crates/oneasr-core/src/bin/oneasr-cli.rs": "18c1d1058af827db95c857eb0f43395b766eeef35c0487832508b33e4d573742",
+    "crates/oneasr-core/src/i18n.rs": "16979e211c2ffd80aa6ed00ae6c39917ff57b36de0adbf7337a74d1c9c945f53",
+    "crates/oneasr-core/src/lib.rs": "1c4a32d8c15d192313736569f50e83549d4124a52bc9bf491091e5417da1fe4d",
+    "crates/oneasr-core/tests/pipeline_behaviour.rs": "8a2b5b03c142728260d7bc3275421943295c8ba7b2c6c17f2f1cf54b20c2a664",
+    "Cargo.toml": "8fec4963422f9e9605fa9fed7841d50ed00c8188440fcd8d96571346fe2029c3",
+    "Cargo.lock": "4de4287585ba19dc05029397651de87fc78e06a3c915e0d18db79e86ad795655",
     "rust-toolchain.toml": "ab248aac1da7496f11e7ee28aaca22c85e155824ff0ccdd241ce62044d65e8c9",
-    "crates/oneasr-core/Cargo.toml": "6cd81c044774c1ac7d91afd8eaed30b62f57c827601419bcf157cb5f85f32e21"
+    "crates/oneasr-core/Cargo.toml": "4df87fc29ccfc50d5dbf1d1819d03dcf7edc3c29da5f6ac227ed2007fba18bc4",
+    "crates/oneasr-core/src/engine/testing.rs": "4118fa79fa731a731ff4fbb668fdccde02f8402144876bd0793b421d683b4c54",
+    "crates/oneasr-core/src/model/catalog.rs": "ece51446cbf057a1b5e6585474356e3f4daba8d2b71e3ea7a2ccdd018e7e4929"
   },
   "patchedHashes": {
-    "crates/oneasr-core/src/asr/batch.rs": "453e69885f69a38960723c058472dce2dbfb8ce426850248419e86765fa155d1",
-    "crates/oneasr-core/src/asr.rs": "09e8e677a355f42424919e2550939cb8a242c58f573b73cd5d1b6fb774dacab7",
-    "crates/oneasr-core/src/bin/oneasr-cli.rs": "61d91aa7e21c065f0e36f8b9625c724b2011cb7fb9805736f75288a602384670",
-    "crates/oneasr-core/src/i18n.rs": "7d071ffed9e2e2492255acf025175e31c96cf7d0a81fe9b6107a696f199277b9",
-    "crates/oneasr-core/src/lib.rs": "5f407c1668dbde432e63d196afbe137071682908aa55d25444d8129798211670",
-    "crates/oneasr-core/tests/pipeline_behaviour.rs": "5de91a413479ea45e5bf04d96bb2f0b833462fc3812b57e36cb99366ae77f54b"
+    "crates/oneasr-core/src/asr/batch.rs": "97e96af7de3be9c65f5bd722ad6ebe1acb2e5104ddc4b9ef151fa7e4fe58bb39",
+    "crates/oneasr-core/src/asr.rs": "ace498f61ac8e801be2bd243a795613e76fbf2eb789ae9db3f72b2dd31a0aae6",
+    "crates/oneasr-core/src/bin/oneasr-cli.rs": "0b3bcb5150bdf3491f4c9a8a170d3ef63bc3a8a97b0d4b59738eb0ea24f3a49c",
+    "crates/oneasr-core/src/i18n.rs": "b9fd31c8821bdeceae04a4ee5a358e5759ba8805ba5d672249d35a64fc2843ce",
+    "crates/oneasr-core/src/lib.rs": "325425ec9e7a1b70835f9ddebd4d7fe06ce466bbe0187b537a1c9277817662c3",
+    "crates/oneasr-core/tests/pipeline_behaviour.rs": "0b721b5c72148ede87c8e6f93de48ac8e9bcba6196c5daa047487fbdf75a4c9d",
+    "crates/oneasr-core/src/engine/testing.rs": "52d93476741903cbbdd57a3db4a183f1c8c8af64c6d5819ee14f055848a27045"
   },
   "addedFiles": [
     "crates/oneasr-core/src/asr/batch.rs"
@@ -53,5 +55,5 @@
     "command": "transcribe-regions",
     "manifestVersion": 1
   },
-  "scope": "Separate audio regions and local timestamps; ASR and alignment each load once, in disjoint phases. No decoder, VAD, AED, model or timing algorithm changes."
+  "scope": "Independent region clocks; rough ASR, Qwen ASR and alignment each load once in disjoint phases. Reuse upstream decoding, degeneration recovery and visible GPU device-loss CPU retry."
 }

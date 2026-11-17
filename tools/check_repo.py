@@ -19,8 +19,8 @@ MAX_BYTES = 1024 * 1024
 # Keep the 1 MiB limit and reject all other binary files.
 APPROVED_BINARY = {
     "apps/desktop/branding/logo.png": "3dc212ad601d33ffd934e1f874b389220ecb8234862172488a4cb705cf79f9b3",
-    "assets/readme/workbench-original.webp": "44f59086e2ef7ee33aeafc22c9aa4b0fd9f1d5d60243ac9438d543139d938626",
-    "assets/readme/workbench-translated.webp": "555deb3ed0950faae898d7f5ddb5f1cffb64daf5ab048dd33b048fed18c1485f",
+    "assets/readme/workbench-original.webp": "3f7af3e2afbea1eca5bf054494d985e61499c1156f70eaab8d572c918df9b477",
+    "assets/readme/workbench-translated.webp": "c213214f6450f7c3b7699c01bea0bface8a69329669ffbe8b9dc2b9587c5006a",
     "assets/readme/sense-group-comparison.webp": "888ae9027302ac0714cb24ba07f1f03ce5226646cbac63b16470066cb7135fab",
 }
 CREDENTIAL = re.compile(

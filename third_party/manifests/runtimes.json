@@ -6,21 +6,21 @@
   "windowsAcceptanceRequired": false,
   "authenticode": "The installer is unsigned; its SHA-256 and signed update archive are disclosed separately.",
   "mygo": {
-    "version": "v0.9.1-0.20261115012555-b615f2957d05",
+    "version": "v0.9.3-0.20261116184738-6fbc3c535009",
     "repository": "https://github.com/egoist/mygo",
-    "revision": "b615f2957d05694033d6dd6f27b8afb121ed3c1e",
-    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.1-0.20261115012555-b615f2957d05.zip",
-    "archiveBytes": 16276135,
-    "archiveSha256": "affeb84e77a7e141a3565962dfb4dcd1c54533d5575fd2c97a94f1c1041fd06c",
-    "moduleSum": "h1:ir0/lhJD16v9ypS+Wm9FaoQT09l9bdmv65dXBhwpSW8=",
+    "revision": "6fbc3c53500974f6802fd21be22cf9b452a6dd8f",
+    "download": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.3-0.20261116184738-6fbc3c535009.zip",
+    "archiveBytes": 10955945,
+    "archiveSha256": "82122c1151b54ba90e28ae180bfb124ab389b48b54fbcf65e54ad0482f286715",
+    "moduleSum": "h1:7lq3U6eNcijoYgri9kIEXesJYXOc22dbX8HS5MclBEY=",
     "goModSum": "h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=",
     "spdx": "MIT",
     "license": "third_party/licenses/mygo.txt",
     "licenseSha256": "f0b56f4ab53beb6e18c5e155219c2e2b6000b5475c0ae3ddb3af3894fd9349b4",
     "usage": "Native desktop controls, layout, themes, menus and embedded media WebView",
-    "modifications": "Six reviewed native/UI patches; see third_party/patches/mygo/README.md",
-    "checkedAt": "2026-11-15",
-    "latestRelease": "v0.9.0"
+    "modifications": "Six native/UI patches and a build-only license-page hook; see third_party/patches/mygo/README.md",
+    "checkedAt": "2026-11-17",
+    "latestRelease": "v0.9.2"
   },
   "mcpGoSdk": {
     "module": "github.com/modelcontextprotocol/go-sdk",
@@ -873,12 +873,11 @@
   "mediaLicense": "third_party/licenses/media/mingw-w64-ffmpeg/COPYING.GPLv3.txt",
   "oneasr": {
     "file": "oneasr-cli.exe",
-    "bytes": 59433472,
-    "sha256": "dc2dfb72f95c715d6a42c31d45539d7dea4df68059dcceedfab7451b3957ca90",
-    "version": "v1.3.0",
-    "archiveSha256": "e9e169e108ee43d88b5b047f4ec556819cd7fa5e2424d3f5ed957634f85d4936",
+    "bytes": 63739392,
+    "sha256": "9baaf37928f5e411832990dfd9c8e78f34dffb0502cedc7c06ad053ff09e198d",
+    "version": "v1.5.0",
     "integration": "third_party/manifests/oneasr.json",
-    "integrationSha256": "e52d903240c593cec10675e7c41162a33c037183066714883f77a1bbde15c29a"
+    "integrationSha256": "5fe8f855962d6c94038399fb333220628e1eae0e89f003ff5c3e87b839c0d302"
   },
   "fireredvad": {
     "file": "fireredvad.exe",
@@ -1031,5 +1030,10 @@
     "license": "third_party/licenses/go.txt",
     "licenseSha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
   },
-  "mediaManifest": "third_party/manifests/media-runtime.json"
+  "mediaManifest": "third_party/manifests/media-runtime.json",
+  "dxc": {
+    "manifest": "third_party/manifests/dxc.json",
+    "version": "1.9.2609.5",
+    "usage": "Unmodified Windows redistributables used by the separate MIT OneAsr process; original licenses apply."
+  }
 }

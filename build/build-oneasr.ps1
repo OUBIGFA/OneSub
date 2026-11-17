@@ -2,6 +2,8 @@ param([switch]$Force)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $env:PYTHONUTF8 = '1'
+& python (Join-Path $root 'tools/prepare_dxc.py')
+if ($LASTEXITCODE -ne 0) { throw 'DXC runtime preparation failed' }
 $prepared = (& python (Join-Path $root 'tools/prepare_oneasr.py')) | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { throw 'OneAsr source preparation failed' }
 $pin = Get-Content (Join-Path $root 'third_party/manifests/oneasr.json') -Raw -Encoding UTF8 | ConvertFrom-Json

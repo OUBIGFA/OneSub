@@ -12,20 +12,21 @@ import stat
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = "github.com/egoist/mygo@v0.9.1-0.20261115012555-b615f2957d05"
+MODULE = "github.com/egoist/mygo@v0.9.3-0.20261116184738-6fbc3c535009"
 BASE_HASHES = {
-    "internal/windows/menu.go": "4d88c3541ec923c6ff9c29cac4043964f2c51f53482679b5302d8b3d1d318401",
+    "cmd/mygo/nsis.go": "1a666c780024f42d80b5659e251e519aa21a7727bfdff809c019add37b4b1adb",
+    "internal/windows/menu.go": "92b12c4874b6c5795dfa2c9adc3ff82e1f314dfab9264fafd6df3c5bd6531424",
     "internal/windows/menudraw.go": "4b3e9006379538d4739dd7a5cc8189cef7718742ccc3c7054f7a234aff78f7b6",
     "internal/windows/menudraw_test.go": "bb929267efa4ac53c1e901bde6f6c5a5b753ae38feb1cd058dda583410b729d7",
-    "internal/windows/surface.go": "534109a150e60a40e2be21db42a7c03ee1b8a1df1a600fef647a62c40ccd2bc0",
-    "internal/windows/webview_embed.go": "06085e032031434790128240cc3fd1f9967aa9c8812744266eaa712aa85fb310",
-    "ui/editor.go": "e7c4b6284820e956b96866f555ea7cede753fd4a7714e52f6b410e65f66d0a28",
+    "internal/windows/surface.go": "b6c66aff316f09bc53dc9362a180ccb5d47ccc7151a01ebf2254db28a797b218",
+    "internal/windows/webview_embed.go": "320bd425677a94525861fd4b16458831605078eaab01dcc72107d626020cc5ce",
+    "ui/editor.go": "5b39e1ec0a91f2652d4100b0fbc90ecc1ca1569b850d3a515b845f01ff98a8f3",
     "ui/editor_layout.go": "e6bec845539d9d669d5f6a39f740953812fcecfb1c1b6d292f625a880ba33379",
-    "ui/headless.go": "01ebb3eb94580b964af67e1fccab3021a27e83b4580d934873b2e71eee86946b",
+    "ui/headless.go": "f0f4729da3adb3b7813d952ba70ed06b42ea8f6d82318dd9f61ab2ac7459ea40",
     "ui/sidebar.go": "e2a6fe527d0ee57bdb1ef58eecc1f014f26ee023ad39bdce908d216e2ab593d3",
-    "ui/list.go": "a2464dbdf51bb4784fb44a0b846e1c7b15cd3241d573e3b9a79435e218b805b5",
+    "ui/list.go": "7aaa3c3d75558cca05c06ee656729d1acb4fedc5810447967cdfb5cd728fe3a3",
     "ui/value_input.go": "8dd5db4a0af7e86e7abecffc482f3dff27295b68836ff86cbe3d2e519c1fa793",
-    "ui/webview.go": "4d7861d4631df4b9488fc8aa950dff80633009bd8eb647f5dc6c572b446eed55",
+    "ui/webview.go": "8f04072c441be417431c077a9f29fbbb5b78c2dfb35528fb8eef9d7e554a486b",
     "ui/textinput.go": "27594382dcffb32d2aab5c16de118513be397d0428987394fb34b4a690f2c542",
     "ui/tooltip.go": "5c2678202046274a90e8c4a0119e7afc6a6953eebad3ae0360cc77cee637133d",
     "ui/table.go": "e4e6987b1f7684bc8e3027bc92dd4604be3bb195a2551d4b4a22416b5be16144",
@@ -76,7 +77,7 @@ def prepare_lobe():
 def prepare():
     source = ROOT / ".local/gomodcache" / MODULE
     patches = [ROOT / "third_party/patches/mygo" / name for name in
-               ("windows-native.patch", "ui-interaction.patch", "ui-layout.patch", "ui-row-click.patch", "ui-sidebar.patch", "ui-table-elements.patch")]
+               ("windows-native.patch", "ui-interaction.patch", "ui-layout.patch", "ui-row-click.patch", "ui-sidebar.patch", "ui-table-elements.patch", "installer-license.patch")]
     relative = ".local/mygo-menu-source-" + MODULE.rsplit("@", 1)[1]
     output = ROOT / relative
     for name, expected in BASE_HASHES.items():

@@ -35,6 +35,35 @@ func TestCatalogHasOneAsrAndSherpaChoices(t *testing.T) {
 		}
 	}
 }
+
+// Ultra includes local_head files; the downloader must create their parent
+// directories and reuse a completed, verified download without another request.
+func TestDownloadNestedModelAssets(t *testing.T) {
+	data := []byte("nested-model")
+	digest := sha256.Sum256(data)
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.Write(data)
+	}))
+	defer server.Close()
+	m := Model{Files: []File{{Name: "local_head/model.safetensors", Size: int64(len(data)), SHA256: hex.EncodeToString(digest[:]), URL: server.URL}}}
+	dir := t.TempDir()
+	for range 2 {
+		if err := Download(context.Background(), server.Client(), m, dir, func(Progress) {}); err != nil {
+			t.Fatal(err)
+		}
+		if !m.FilesPresent(dir) {
+			t.Fatal("nested model missing")
+		}
+		if err := Verify(context.Background(), m, dir); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if requests != 1 {
+		t.Fatalf("downloaded verified assets %d times", requests)
+	}
+}
 func TestModelPartsExcludeExternalWeights(t *testing.T) {
 	for _, id := range []string{"sherpa-parakeet-tdt-0.6b-v3-int8", "sherpa-parakeet-tdt-0.6b-v3-fp32"} {
 		m, err := ByID(id)

@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/crates/oneasr-core/src/asr/batch.rs
-@@ -0,0 +1,144 @@
+@@ -0,0 +1,171 @@
 +use std::path::{Path, PathBuf};
 +use std::sync::Arc;
 +use std::sync::atomic::{AtomicUsize, Ordering};
@@ -31,11 +31,36 @@
 +    inputs: &[BatchInput],
 +    settings: &Settings,
 +    data_root: &Path,
-+    on_stage: impl FnMut(usize, usize, StageUpdate) + Send + 'a,
++    mut on_stage: impl FnMut(usize, usize, StageUpdate) + Send + 'a,
 +) -> Result<Vec<PathBuf>, AsrError> {
-+    let provider = crate::engine::local::LocalEngineProvider::from_settings(settings)
-+        .map_err(|error| AsrError::Other(error.message().to_string()))?;
-+    process_media_batch_with_provider(inputs, settings, data_root, &provider, on_stage)
++    // Preserve the upstream one-time CPU retry and its visible warning for
++    // the whole batch; separate region clocks and export paths stay intact.
++    let active = AtomicUsize::new(0);
++    let last_stage = std::sync::Mutex::new(AsrStage::Converting);
++    let mut forward = |update: StageUpdate| {
++        *last_stage.lock().unwrap_or_else(|e| e.into_inner()) = update.stage;
++        on_stage(active.load(Ordering::Relaxed), inputs.len(), update);
++    };
++    super::run_local_with_device_loss_retry(
++        settings,
++        &mut forward,
++        &last_stage,
++        |settings, on_stage| {
++            active.store(0, Ordering::Relaxed);
++            let provider = crate::engine::local::LocalEngineProvider::from_settings(settings)
++                .map_err(|error| AsrError::Other(error.message().to_string()))?;
++            process_media_batch_with_provider(
++                inputs,
++                settings,
++                data_root,
++                &provider,
++                |region, _, update| {
++                    active.store(region, Ordering::Relaxed);
++                    on_stage(update);
++                },
++            )
++        },
++    )
 +}
 +
 +/// The batch pipeline with an explicit provider for lifecycle and output regression tests.
@@ -65,17 +90,19 @@
 +        on_stage(progress_active.load(Ordering::Relaxed), total, update);
 +    });
 +    let mut prepared = Vec::with_capacity(total);
++    let mut rough = None;
 +    for (index, input) in inputs.iter().enumerate() {
 +        active.store(index + 1, Ordering::Relaxed);
 +        let converted = pipeline.stage_prepare(&input.input, data_root)?;
 +        let vad = pipeline.stage_vad_plan(&converted)?;
-+        let contexts = pipeline.stage_rough_transcribe(&converted, &vad)?;
++        let contexts = pipeline.rough_transcribe_with(&converted, &vad, &mut rough)?;
 +        prepared.push(PreparedInput {
 +            converted,
 +            vad,
 +            contexts,
 +        });
 +    }
++    drop(rough);
 +    let transcripts = {
 +        active.store(0, Ordering::Relaxed);
 +        pipeline.emit(StageUpdate::new(AsrStage::LoadingAsr));
@@ -157,10 +184,57 @@
  
  use std::fmt;
  use std::path::{Path, PathBuf};
-@@ -1019,6 +1022,16 @@
-             .provider
-             .load_asr()
-             .map_err(|e| AsrError::LoadAsr(e.message().to_string()))?;
+@@ -1136,6 +1139,17 @@
+         conv: &ConvertedAudio,
+         vad: &VadPlan,
+     ) -> Result<Option<Vec<String>>, AsrError> {
++        self.rough_transcribe_with(conv, vad, &mut None)
++    }
++
++    // A region batch retains only the rough model between regions, then drops
++    // it before loading Qwen. Single-file callers keep their original lifetime.
++    fn rough_transcribe_with(
++        &self,
++        conv: &ConvertedAudio,
++        vad: &VadPlan,
++        rough: &mut Option<Box<dyn crate::engine::RoughAsr>>,
++    ) -> Result<Option<Vec<String>>, AsrError> {
+         // 语言门禁：热词只接中文与英文（见 [`crate::lang::supports_hotwords`]）。
+         // 其他语言的任务**整趟不跑**——粗转模型不加载、context 不注入。
+         // 这道闸放在这里而不是只放 `can_start`：库调用方与测试都能绕过开跑检查
+@@ -1159,19 +1173,23 @@
+             return Ok(None);
+         }
+         self.emit(StageUpdate::new(AsrStage::RoughTranscribing));
+-        let mut rough = self
+-            .provider
+-            .load_rough_asr()
+-            .map_err(|e| AsrError::LoadRoughAsr(e.message().to_string()))?;
++        if rough.is_none() {
++            *rough = Some(
++                self.provider
++                    .load_rough_asr()
++                    .map_err(|e| AsrError::LoadRoughAsr(e.message().to_string()))?,
++            );
++        }
+         let chunks: Vec<(f32, f32)> = vad
+             .chunks
+             .iter()
+             .map(|chunk| (chunk.start, chunk.end))
+             .collect();
+         let texts = rough
++            .as_mut()
++            .expect("rough model loaded")
+             .transcribe_chunks(&conv.wav_path, &chunks)
+             .map_err(|e| AsrError::Other(e.message().to_string()))?;
+-        drop(rough);
+ 
+         let top_k = run.top_k;
+         let contexts: Vec<String> = texts
+@@ -1207,6 +1225,16 @@
+             "asr model loaded in {} ms",
+             load_start.elapsed().as_millis()
+         ));
 +        self.transcribe_with(asr.as_ref(), conv, vad, hotword_contexts)
 +    }
 +
@@ -174,11 +248,10 @@
          let force_lang = to_qwen_language_label(&self.settings.language);
          let chunk_tmp = conv.chunk_tmp();
  
-@@ -1108,7 +1121,16 @@
-             .provider
-             .load_aligner()
-             .map_err(|e| AsrError::LoadAligner(e.message().to_string()))?;
--
+@@ -1404,6 +1432,16 @@
+             load_start.elapsed().as_millis()
+         ));
+ 
 +        self.align_with(aligner.as_ref(), conv, vad, asr)
 +    }
 +
@@ -194,7 +267,7 @@
              self.emit(StageUpdate::with_chunk(
 --- a/crates/oneasr-core/src/bin/oneasr-cli.rs
 +++ b/crates/oneasr-core/src/bin/oneasr-cli.rs
-@@ -63,6 +63,9 @@
+@@ -81,6 +81,9 @@
  
      let result = match cmd {
          "transcribe" | "run" | "pipeline" => cmd_transcribe(rest),
@@ -203,19 +276,19 @@
 +        }
          "asr-chunk" | "chunk" => cmd_asr_chunk(rest),
          "align" => cmd_align(rest),
-         "render" => cmd_render(rest),
-@@ -213,6 +216,10 @@
+         "transcript" => cmd_transcript(rest),
+@@ -323,6 +326,10 @@
+             settings.vocal_separation,
          ),
      );
- 
++
 +    if let Some(regions_json) = arg(args, "--regions-json") {
 +        return cmd_region_batch(Path::new(&regions_json), &settings, &data_root);
 +    }
-+
+ 
      let media_name = input_path
          .file_name()
-         .map(|s| s.to_string_lossy().into_owned())
-@@ -292,6 +299,94 @@
+@@ -1135,6 +1142,94 @@
  }
  
  // ─── asr-chunk ────────────────────────────────────────────────────
@@ -338,7 +411,7 @@
  pub const UI_LANGUAGE_SYSTEM: &str = "system";
 --- a/crates/oneasr-core/src/lib.rs
 +++ b/crates/oneasr-core/src/lib.rs
-@@ -27,10 +27,11 @@
+@@ -28,10 +28,11 @@
  pub mod vad;
  
  pub use asr::{
@@ -346,15 +419,15 @@
 +    AsrStage, BatchInput, ProcessExportOptions, StageClock, StageTiming, StageUpdate, TaskTiming,
      TranscriptInput, check_aligner_model_dir, check_asr_model_dir, check_demucs_model_dir,
      check_sensevoice_model_dir, format_process_ms, invalidate_all_model_checks,
--    invalidate_model_check, is_model_ready, process_media_file_with_export,
-+    invalidate_model_check, is_model_ready, process_media_batch_with_export,
+-    invalidate_model_check, is_model_ready, needs_alignment, process_media_file_with_export,
++    invalidate_model_check, is_model_ready, needs_alignment, process_media_batch_with_export,
 +    process_media_batch_with_provider, process_media_file_with_export,
      process_media_file_with_progress, process_media_file_with_provider,
      process_media_file_with_transcript, process_media_file_with_transcript_export,
  };
 --- a/crates/oneasr-core/tests/pipeline_behaviour.rs
 +++ b/crates/oneasr-core/tests/pipeline_behaviour.rs
-@@ -858,3 +858,102 @@
+@@ -947,3 +947,148 @@
  fn missing_sensevoice_dir(app_root: &Path) -> std::path::PathBuf {
      app_root.join("models").join("sensevoice-absent")
  }
@@ -457,3 +530,79 @@
 +    );
 +    assert!(!run.settings.output_dir.join("sample.srt").exists());
 +}
++
++#[test]
++fn region_batch_hotwords_load_rough_model_once_before_asr() {
++    let mut run = Run::new("region_batch_hotwords", false);
++    run.settings.hotword_run = Some(oneasr_core::hotword::HotwordRun {
++        text: "你好\n世界".into(),
++        group_id: "test".into(),
++        group_name: "test".into(),
++        top_k: 8,
++        threshold: 0.1,
++    });
++    let second = run.app_root.join("second.wav");
++    write_master_wav(&second, 4.0);
++    let inputs: Vec<_> = [&run.input, &second]
++        .into_iter()
++        .map(|input| oneasr_core::BatchInput {
++            input: input.clone(),
++            media_name: input.file_name().unwrap().to_string_lossy().into_owned(),
++            export: ProcessExportOptions::default(),
++        })
++        .collect();
++    let provider = FakeProvider::new("你好世界。", tokens());
++    oneasr_core::process_media_batch_with_provider(
++        &inputs,
++        &run.settings,
++        &run.app_root,
++        &provider,
++        |_, _, _| {},
++    )
++    .unwrap();
++    let log = provider.log().entries();
++    assert_eq!(
++        log.iter().filter(|v| *v == "rough.load").count(),
++        1,
++        "{log:?}"
++    );
++    assert_eq!(
++        log.iter().filter(|v| *v == "rough.drop").count(),
++        1,
++        "{log:?}"
++    );
++    assert!(
++        log.iter().position(|v| v == "rough.drop").unwrap()
++            < log.iter().position(|v| v == "asr.load").unwrap()
++    );
++}
+--- a/crates/oneasr-core/src/engine/testing.rs
++++ b/crates/oneasr-core/src/engine/testing.rs
+@@ -203,6 +203,12 @@
+ struct FakeRough {
+     log: EngineLog,
+     text: String,
++}
++
++impl Drop for FakeRough {
++    fn drop(&mut self) {
++        self.log.push("rough.drop");
++    }
+ }
+ 
+ impl crate::engine::RoughAsr for FakeRough {
+--- a/crates/oneasr-core/src/engine/testing.rs
++++ b/crates/oneasr-core/src/engine/testing.rs
+@@ -203,6 +203,12 @@
+ struct FakeRough {
+     log: EngineLog,
+     text: String,
++}
++
++impl Drop for FakeRough {
++    fn drop(&mut self) {
++        self.log.push("rough.drop");
++    }
+ }
+ 
+ impl crate::engine::RoughAsr for FakeRough {

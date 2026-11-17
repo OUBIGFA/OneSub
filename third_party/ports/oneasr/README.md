@@ -1,10 +1,10 @@
 # OneAsr 与非语音过滤集成
 
-核查日期：2026-11-13。OneSub 复用固定识别内核，只补任务内批片段调用，不修改解码器、模型、语音过滤或时间算法。
+核查日期：2026-11-17。OneSub 复用固定识别内核，只补任务内批片段调用，不修改解码器、模型、语音过滤或时间算法。
 
 ## 固定来源
 
-- OneAsr `v1.3.0`，源码修订 [`9f43a8b390d503fc1ff0122cb17561032d5e6e22`](https://github.com/eclipse005/OneAsr/tree/9f43a8b390d503fc1ff0122cb17561032d5e6e22)。运行时由该源码与[批片段补丁](../../patches/oneasr/README.md)构建；来源、源码和补丁校验见[集成清单](../../manifests/oneasr.json)，实际二进制哈希见[运行时清单](../../manifests/runtimes.json)。
+- OneAsr `v1.5.0`，源码修订 [`41c93372413d1c65b757999c0e44c3ce04aba043`](https://github.com/eclipse005/OneAsr/tree/41c93372413d1c65b757999c0e44c3ce04aba043)。运行时由该源码与[批片段补丁](../../patches/oneasr/README.md)构建；来源、源码和补丁校验见[集成清单](../../manifests/oneasr.json)，实际二进制哈希见[运行时清单](../../manifests/runtimes.json)。
 - OneAsr 的 `Cargo.lock` 固定 FireRedVAD `v1.0.0`，修订 [`1d0d349464635f33123af18fd4d373efc4613f26`](https://github.com/eclipse005/FireRedVad/tree/1d0d349464635f33123af18fd4d373efc4613f26)。OneSub 使用该版本的官方 Windows x64 CLI，未修改二进制，仅命名为 `fireredvad.exe`。
 - FireRedVAD 代码为 Apache-2.0，见 [许可](../../licenses/fireredvad.txt)。该版本 README 明确说明嵌入的 VAD、AED、Stream-VAD 权重来自 FireRedTeam/FireRedASR2S 并以 Apache-2.0 再分发；另保留 [权重来源许可](../../licenses/fireredvad-models.txt)。OneSub 调用同一二进制内的 VAD 和 AED，不另下载权重。
 - `fireredvad.exe` 为 9,353,216 字节；SHA-256 `ea991bb111efe7984c72fcaf31e21717a2ac8a08dbc8c26695a60d7b4ce2dd69`，已与 GitHub Release digest 核对。
@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | `oneasr-core/src/settings.rs` | 分块默认 60 秒，范围 30–180；最大生成 Token 默认 2048 | 沿用默认值，并传递用户当前设置 |
 | `oneasr-core/src/engine/local/qwen_asr.rs` | `TranscribeOptions::default()`，设置源语言与最大生成 Token | 直接运行同一 CLI/core，无自建解码器 |
-| `qwen3-asr-wgpu` 修订 `28d4ec7510a057d50273af340de228a145d34e23`，`src/prompt.rs` | 解析输出时以阈值 20 清理异常字符/模式重复 | 已包含于固定 OneAsr 二进制；不是可保证消除幻觉的重复惩罚参数 |
+| `qwen3-asr-wgpu` 修订 `db80d2cd2d0c960fb4978ae04e8bab19b2754fe2`，`src/prompt.rs` | 解析输出时以阈值 20 清理异常字符/模式重复 | 已包含于固定 OneAsr 二进制；不是可保证消除幻觉的重复惩罚参数 |
 | `oneasr-core/src/vad.rs` | FireRedVAD 的 `VadConfig::default()`，用静音位置选择连续分块 | 保留 core 的分块逻辑；所有模型的输入先经过 VAD 候选和 AED 说话确认 |
 | FireRedVAD `src/aed.rs` | 同时输出 `speech`、`singing`、`music` 的时间段；三类可以重叠 | 使用 `AedConfig::default()` 的 `speech` 时间轴确认说话，不因存在背景音乐而删除解说 |
 
@@ -49,3 +49,9 @@ VAD 的二类判断还会把歌声和类似人声的音乐当成候选语音。�
 - 可选的 `ONESUB_NONSPEECH_TEST_AUDIO` 指向本地 16 kHz 单声道 PCM 非语音录音。检测入口和每个已安装的 ASR 模型均须在推理/发布前停止；素材不入库。`ONESUB_SPEECH_MUSIC_TEST_AUDIO` 与 `ONESUB_SPEECH_END_MS` 接受说话后接音乐的本地样例及独立确认的说话终点，实际运行 Qwen3-ASR 1.7B、SenseVoice、Parakeet，检查保留说话、词证据匹配且音乐尾段没有输出。
 - `tests/e2e/process_media.ps1` 使用独立数据和 IPC 目录，在真实工作台验证一键识别翻译、取消与继续处理。
 - 最终包内证据与安装器校验值保存在本地验收材料中，不随仓库发布。
+
+## Ultra 与热词
+
+默认对齐器为 Qwen3-ForcedAligner-Ultra。七个固定资产含 local_head 子目录，由上游清单生成并逐文件校验。旧对齐配置重置为 Ultra，不将旧目录伪装为新模型。Qwen 中文/英文可输入逗号分隔热词，需下载 SenseVoiceSmall 辅助模型；不支持的引擎和语言明确报错。
+
+批片段入口在热词解析、显式模型目录设置及 can_start 检查之后分发。热词粗识别模型按批加载一次并在 Qwen 加载前释放；随后 ASR 与对齐模型各加载一次，继承上游退化救回和可见的 GPU 设备丢失 CPU 重试。DXC 原始 DLL 和许可随安装器提供，见 ../dxc/README.md。默认构建只运行源码、许可及基础单元检查；真实模型和桌面回归需另行请求。

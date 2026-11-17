@@ -116,10 +116,10 @@ type Settings struct {
 
 // version is that of the settings written now. Version 1 had full volume
 // and SmartSub's shadow as defaults; Load moves them to version 2's.
-const version = 6
+const version = 7
 
 func Default() Settings {
-	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, AutoUpdate: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "omniASR-CTC-300M-v2-hf", Backend: "auto", RecognitionMode: "route", Language: "zh", LanguageModels: map[string]string{}, ManualLanguages: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", CompressionFormat: "mp4", CompressionQuality: "crf23", MediaProcessMode: "compress", AudioFormat: "mp3", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 300.0 / 7, TopHeight: 75, EditorWidth: 75, SubtitleHeight: 75, StyleContentWidth: 100.0 / 3, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
+	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, AutoUpdate: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "Qwen3-ForcedAligner-Ultra", Backend: "auto", RecognitionMode: "route", Language: "zh", LanguageModels: map[string]string{}, ManualLanguages: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", CompressionFormat: "mp4", CompressionQuality: "crf23", MediaProcessMode: "compress", AudioFormat: "mp3", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 300.0 / 7, TopHeight: 75, EditorWidth: 75, SubtitleHeight: 75, StyleContentWidth: 100.0 / 3, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
 }
 
 // TranslationPunctuation freezes the local output options for a task.
@@ -208,9 +208,17 @@ func Load(path string) (Settings, error) {
 // independent 3:1 vertical splits. Old ratios describe different dividers;
 // reset only that geometry once and retain all other user preferences.
 func upgrade(s *Settings) {
+	// Retire the old aligner configuration. Its four-file folder cannot be
+	// reused as Ultra; retain unrelated preferences and downloaded models.
+	if s.Version < 7 {
+		s.Aligner = Default().Aligner
+		delete(s.ModelPaths, "Qwen3-ForcedAligner-0.6B-hf")
+	}
 	d := Default()
-	s.PlayerWidth, s.TopHeight = d.PlayerWidth, d.TopHeight
-	s.EditorWidth, s.SubtitleHeight = d.EditorWidth, d.SubtitleHeight
+	if s.Version < 6 {
+		s.PlayerWidth, s.TopHeight = d.PlayerWidth, d.TopHeight
+		s.EditorWidth, s.SubtitleHeight = d.EditorWidth, d.SubtitleHeight
+	}
 	if s.Version >= 2 {
 		s.Version = version
 		return

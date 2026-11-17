@@ -1,5 +1,8 @@
 param([string]$BuildNumber = (Get-Date -Format 'yyyyMMddHHmmss'), [switch]$SkipTests, [string]$ReleaseTag)
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell children can inherit PowerShell 7's module search path.
+# Import its own built-in module explicitly before verifying build artifacts.
+Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1')
 $root = Split-Path $PSScriptRoot -Parent
 if ($BuildNumber -notmatch '^[0-9]{14}$') { throw 'Build number must use yyyyMMddHHmmss' }
 $config = Get-Content -LiteralPath (Join-Path $root 'apps/desktop/mygo.json') -Raw -Encoding UTF8 | ConvertFrom-Json

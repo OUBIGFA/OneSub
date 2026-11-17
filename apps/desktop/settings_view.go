@@ -242,7 +242,7 @@ func modelSummary(id string) string {
 		return locales.ModelSummaryParakeetFp32()
 	case "omniASR-CTC-300M-v2-hf":
 		return locales.ModelSummaryCtc()
-	case "Qwen3-ForcedAligner-0.6B-hf":
+	case "Qwen3-ForcedAligner-Ultra":
 		return locales.ModelSummaryQwenAligner()
 	case "htdemucs_ft":
 		return locales.ModelSummaryDemucs()
