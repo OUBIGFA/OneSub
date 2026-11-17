@@ -11,7 +11,7 @@
     "sha256": "8d9949708ba0c55947173a944210d78c68616aae712f2cfdd4d27bc9fbc3adac"
   },
   "patch": "third_party/patches/oneasr/region-batch.patch",
-  "patchSha256": "1d70a919e7683dcfa7f5224a2b8b805c3e2c94b6a65b34d51d14109b8280145a",
+  "patchSha256": "d554fc56e2cd394b47ba37d883f657c812af3f613fdcc8b0956be34eb8834f34",
   "sourceHashes": {
     "crates/oneasr-core/src/asr.rs": "a4bbf96a643ce2094178be08d441d9e0ed150111674908477f236695d4f7983d",
     "crates/oneasr-core/src/bin/oneasr-cli.rs": "18c1d1058af827db95c857eb0f43395b766eeef35c0487832508b33e4d573742",
@@ -32,7 +32,8 @@
     "crates/oneasr-core/src/i18n.rs": "b9fd31c8821bdeceae04a4ee5a358e5759ba8805ba5d672249d35a64fc2843ce",
     "crates/oneasr-core/src/lib.rs": "325425ec9e7a1b70835f9ddebd4d7fe06ce466bbe0187b537a1c9277817662c3",
     "crates/oneasr-core/tests/pipeline_behaviour.rs": "0b721b5c72148ede87c8e6f93de48ac8e9bcba6196c5daa047487fbdf75a4c9d",
-    "crates/oneasr-core/src/engine/testing.rs": "52d93476741903cbbdd57a3db4a183f1c8c8af64c6d5819ee14f055848a27045"
+    "crates/oneasr-core/src/engine/testing.rs": "52d93476741903cbbdd57a3db4a183f1c8c8af64c6d5819ee14f055848a27045",
+    "Cargo.lock": "0fcff294a184ba4bacaa8ac9436c256bb7bc064e257988a2686d960db950efdb"
   },
   "addedFiles": [
     "crates/oneasr-core/src/asr/batch.rs"
@@ -55,5 +56,14 @@
     "command": "transcribe-regions",
     "manifestVersion": 1
   },
-  "scope": "Independent region clocks; rough ASR, Qwen ASR and alignment each load once in disjoint phases. Reuse upstream decoding, degeneration recovery and visible GPU device-loss CPU retry."
+  "scope": "Independent region clocks; rough ASR, Qwen ASR and alignment each load once in disjoint phases. Reuse upstream decoding, degeneration recovery and visible GPU device-loss CPU retry.",
+  "securityUpdates": {
+    "checkedAt": "2026-11-17",
+    "rustls-webpki": "0.103.16",
+    "webpki-roots": "1.0.10",
+    "tokio": "1.53.3",
+    "zstd": "0.13.4",
+    "zstd-safe": "7.4.0",
+    "zstd-sys": "2.1.2+zstd.1.5.7"
+  }
 }

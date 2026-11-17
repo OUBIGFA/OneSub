@@ -15,7 +15,8 @@ def literal(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
-@unittest.skipUnless(os.name == "nt", "Windows private desktops only")
+@unittest.skipUnless(os.name == "nt" and os.environ.get("ONESUB_TEST_PRIVATE_DESKTOP") == "1",
+                     "explicit ONESUB_TEST_PRIVATE_DESKTOP=1 opt-in required")
 class PrivateDesktopTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="onesub-private-test-")

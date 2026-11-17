@@ -52,6 +52,40 @@ def mirror(source, output):
             shutil.copyfile(Path(folder) / name, destination)
 
 
+def cached_files(output):
+    """Hash the actual mirrored inputs, including files not touched by patches."""
+    result = {}
+    if not output.is_dir():
+        return result
+    for path in sorted(output.rglob("*")):
+        if path.is_symlink():
+            raise RuntimeError(f"Patched source contains a link: {path}")
+        if path.is_file() and path.name != ".onesub-patch-sha256":
+            with path.open("rb") as stream:
+                result[path.relative_to(output).as_posix()] = hashlib.file_digest(stream, "sha256").hexdigest()
+    return result
+
+
+def cache_matches(output, fingerprint):
+    """A matching patch marker alone cannot attest to locally edited sources."""
+    stamp = output / ".onesub-patch-sha256"
+    try:
+        recorded = json.loads(stamp.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(recorded, dict) and recorded.get("fingerprint") == fingerprint and recorded.get("files") == cached_files(output)
+
+
+def record_cache(source, output, added, fingerprint):
+    files = cached_files(output)
+    expected = {path.relative_to(source).as_posix() for path in source.rglob("*") if path.is_file()} | set(added)
+    # Do not bless or delete an unexpected source file left in a working copy.
+    if set(files) != expected:
+        raise RuntimeError("Patched source file list differs from upstream and registered additions")
+    (output / ".onesub-patch-sha256").write_text(
+        json.dumps({"fingerprint": fingerprint, "files": files}, sort_keys=True), encoding="utf-8")
+
+
 def prepare_lobe():
     """Apply the kit's limited native integration without editing its cache."""
     manifest = json.loads((ROOT / "third_party/manifests/lobe-mygo.json").read_text(encoding="utf-8"))
@@ -64,13 +98,12 @@ def prepare_lobe():
             raise RuntimeError(f"Lobe MyGo source changed; review integration patch: {name}")
     patch = ROOT / manifest["patch"]
     fingerprint = hashlib.sha256(module.encode("ascii") + b"\0" + patch.read_bytes()).hexdigest()
-    stamp = output / ".onesub-patch-sha256"
-    if not stamp.exists() or stamp.read_text() != fingerprint:
+    if not cache_matches(output, fingerprint):
         mirror(source, output)
         for name in manifest["addedFiles"]:
             (output / name).unlink(missing_ok=True)
-        subprocess.run(["git", "apply", "--whitespace=nowarn", "--directory=" + relative, str(patch)], cwd=ROOT, check=True)
-        stamp.write_text(fingerprint, encoding="ascii")
+        subprocess.run(["git", "-c", "core.autocrlf=false", "apply", "--whitespace=nowarn", "--directory=" + relative, str(patch)], cwd=ROOT, check=True)
+        record_cache(source, output, manifest["addedFiles"], fingerprint)
     return output
 
 
@@ -84,23 +117,23 @@ def prepare():
         data = (source / name).read_bytes()
         if hashlib.sha256(data).hexdigest() != expected:
             raise RuntimeError(f"MyGo source changed; review native patches: {name}")
-    stamp = output / ".onesub-patch-sha256"
     # A new upstream version must refresh the mirror even when its patch text
     # is unchanged; the locked module and patches together identify the output.
     fingerprint = hashlib.sha256(MODULE.encode("ascii") + b"\0" + b"".join(p.read_bytes() for p in patches)).hexdigest()
-    if not stamp.exists() or stamp.read_text() != fingerprint:
+    added = ["ui/" + name for name in ("onesub_interaction_test.go", "onesub_layout_test.go", "onesub_menu_tester.go", "onesub_sidebar_test.go")]
+    if not cache_matches(output, fingerprint):
         # The pristine module, then the current patch on top of it.
         mirror(source, output)
         # Upstream files are reset by mirror. Reset this patch-added test too,
         # so a changed or interrupted patch can be applied again safely.
-        for name in ("onesub_interaction_test.go", "onesub_layout_test.go", "onesub_menu_tester.go", "onesub_sidebar_test.go"):
-            (output / "ui" / name).unlink(missing_ok=True)
+        for name in added:
+            (output / name).unlink(missing_ok=True)
         for patch in patches:
             subprocess.run(
-                ["git", "apply", "--whitespace=nowarn", "--directory=" + relative, str(patch)],
+                ["git", "-c", "core.autocrlf=false", "apply", "--whitespace=nowarn", "--directory=" + relative, str(patch)],
                 cwd=ROOT, check=True,
             )
-        stamp.write_text(fingerprint, encoding="ascii")
+        record_cache(source, output, added, fingerprint)
     modfile = ROOT / ".local/onesub-patched.mod"
     modfile.write_bytes((ROOT / "apps/desktop/go.mod").read_bytes())
     modfile.with_suffix(".sum").write_bytes((ROOT / "apps/desktop/go.sum").read_bytes())

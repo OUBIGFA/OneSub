@@ -325,7 +325,10 @@ type answer struct {
 // read takes Server-Sent Events, or the one JSON body a service that
 // ignores "stream" sends.
 func (s *service) read(body io.Reader, alive func(), stream streamed) (reply, error) {
-	reader := bufio.NewReaderSize(body, 64<<10)
+	// Bound the wire response before buffering a line. A service can ignore
+	// streaming or send one unterminated event larger than the answer limit.
+	limited := &io.LimitedReader{R: body, N: maxAnswer + 1}
+	reader := bufio.NewReaderSize(limited, 64<<10)
 	var a answer
 	partial := func(err error) (reply, error) {
 		return reply{text: a.content.String(), input: a.input, output: a.output}, err
@@ -335,9 +338,21 @@ func (s *service) read(body io.Reader, alive func(), stream streamed) (reply, er
 	for !done {
 		line, err := reader.ReadString('\n')
 		alive()
+		if limited.N == 0 {
+			return reply{}, errors.New(locales.ErrTranslateSize())
+		}
 		text := strings.TrimSpace(line)
 		if !started && strings.HasPrefix(text, "{") {
-			rest, _ := io.ReadAll(io.LimitReader(reader, maxAnswer))
+			rest, readErr := io.ReadAll(reader)
+			if limited.N == 0 {
+				return reply{}, errors.New(locales.ErrTranslateSize())
+			}
+			if err != nil && err != io.EOF {
+				return partial(apperr.Wrap(locales.ErrTranslateNetwork(err.Error()), err))
+			}
+			if readErr != nil {
+				return partial(apperr.Wrap(locales.ErrTranslateNetwork(readErr.Error()), readErr))
+			}
 			return s.whole(append([]byte(line), rest...))
 		}
 		started = started || text != ""
@@ -351,7 +366,7 @@ func (s *service) read(body io.Reader, alive func(), stream streamed) (reply, er
 				return partial(eventErr)
 			}
 			done = finished
-			if a.content.Len()+a.thinking.Len() > maxAnswer {
+			if a.content.Len()+a.thinking.Len()+a.refused.Len() > maxAnswer {
 				return reply{}, errors.New(locales.ErrTranslateSize())
 			}
 			if stream != nil {

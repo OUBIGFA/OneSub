@@ -5,6 +5,7 @@ It never prints matched credential contents. Application tests remain separate.
 """
 
 import hashlib
+import io
 import json
 from pathlib import Path, PurePosixPath
 import posixpath
@@ -33,23 +34,47 @@ LINK = re.compile(r"!?\[[^\]\n]*\]\(([^)\n]+)\)")
 RESERVED = re.compile(r"^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)", re.I)
 
 
-def git(*args):
+def git(*args, data=None):
     """Use Git's index and blob APIs so unstaged cleanup cannot hide staged data."""
-    result = subprocess.run(["git", *args], capture_output=True)
+    result = subprocess.run(["git", *args], input=data, capture_output=True)
     if result.returncode:
         raise RuntimeError("Git command failed: " + " ".join(args[:2]))
     return result.stdout
 
 
-def ignored(path):
+def ignored_paths(paths):
     # Ignore a developer's global excludes; project rules must work equally in CI.
     result = subprocess.run(
-        ["git", "-c", "core.excludesFile=", "check-ignore", "--no-index", "-q", "--", path],
-        capture_output=True,
+        ["git", "-c", "core.excludesFile=", "check-ignore", "--no-index", "-z", "--stdin"],
+        input=b"".join(path.encode("utf-8") + b"\0" for path in paths), capture_output=True,
     )
     if result.returncode not in (0, 1):
         raise RuntimeError("Git ignore check failed")
-    return result.returncode == 0
+    return {path.decode("utf-8") for path in result.stdout.split(b"\0") if path}
+
+
+def staged_blobs(entries):
+    """Read each staged object once, checking sizes before requesting contents."""
+    objects = list(dict.fromkeys(blob for _, mode, blob, stage in entries
+                                 if mode in ("100644", "100755") and stage == "0"))
+    if not objects:
+        return {}, {}
+    sizes = {}
+    for line in git("cat-file", "--batch-check", data="".join(blob + "\n" for blob in objects).encode("ascii")).splitlines():
+        blob, kind, size = line.decode("ascii").split()
+        if kind != "blob":
+            raise RuntimeError("Index entry is not a blob")
+        sizes[blob] = int(size)
+    selected = [blob for blob in objects if sizes[blob] <= MAX_BYTES]
+    stream = io.BytesIO(git("cat-file", "--batch", data="".join(blob + "\n" for blob in selected).encode("ascii")))
+    contents = {}
+    for expected in selected:
+        blob, kind, size = stream.readline().decode("ascii").split()
+        data = stream.read(int(size))
+        if blob != expected or kind != "blob" or len(data) != sizes[blob] or stream.read(1) != b"\n":
+            raise RuntimeError("Incomplete staged blob response")
+        contents[blob] = data
+    return sizes, contents
 
 
 def check():
@@ -67,6 +92,8 @@ def check():
     texts = {}
     case_names = {}
     paths = {entry[0] for entry in entries}
+    ignored = ignored_paths(paths)
+    sizes, contents = staged_blobs(entries)
     targets = set(paths)
     if not entries:
         errors.append("empty Git index: stage the intended files first")
@@ -84,13 +111,13 @@ def check():
         if mode not in ("100644", "100755") or stage != "0":
             errors.append(f"{path}: unsupported mode or unresolved index stage")
             continue
-        if "_temp" in [part.casefold() for part in parts] or ignored(path):
+        if "_temp" in [part.casefold() for part in parts] or path in ignored:
             errors.append(f"{path}: ignored path is tracked")
-        size = int(git("cat-file", "-s", blob))
+        size = sizes[blob]
         if size > MAX_BYTES:
             errors.append(f"{path}: exceeds 1 MiB file limit")
             continue
-        data = git("cat-file", "blob", blob)
+        data = contents[blob]
         if path in APPROVED_BINARY:
             if hashlib.sha256(data).hexdigest() != APPROVED_BINARY[path]:
                 errors.append(f"{path}: approved binary asset hash mismatch")
@@ -124,8 +151,10 @@ def check():
     if not rules or rules[-1] != "_temp/":
         errors.append("ignore boundary: the last active root rule must be _temp/")
     if ignore_files_match:
-        for probe in ("_temp/probe.txt", "references/_temp/probe.txt", "a/b/_temp/probe.txt", ".env", ".local/private.txt", "node_modules/package/index.js"):
-            if not ignored(probe):
+        probes = ("_temp/probe.txt", "references/_temp/probe.txt", "a/b/_temp/probe.txt", ".env", ".local/private.txt", "node_modules/package/index.js")
+        protected = ignored_paths(probes)
+        for probe in probes:
+            if probe not in protected:
                 errors.append(f"ignore boundary: {probe} is exposed")
 
     for path, text in texts.items():

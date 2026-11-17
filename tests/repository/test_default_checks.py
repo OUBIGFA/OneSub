@@ -6,9 +6,24 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import importlib.util
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+class DesktopOptInTests(unittest.TestCase):
+    def test_repository_discovery_skips_private_desktop_without_opt_in(self):
+        # Import the real discovery target, without executing a native launcher.
+        previous = os.environ.pop('ONESUB_TEST_PRIVATE_DESKTOP', None)
+        try:
+            spec = importlib.util.spec_from_file_location('private_opt_in', ROOT / 'tests/repository/test_private_desktop.py')
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            self.assertTrue(module.PrivateDesktopTests.__unittest_skip__)
+        finally:
+            if previous is not None:
+                os.environ['ONESUB_TEST_PRIVATE_DESKTOP'] = previous
 
 
 @unittest.skipUnless(os.name == 'nt', 'PowerShell build entry only')

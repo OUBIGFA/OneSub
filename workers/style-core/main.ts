@@ -111,14 +111,23 @@ export async function collectFonts(names: string[], directory: string) {
   return fonts;
 }
 
+// Control messages can split a UTF-8 character across pipe reads.
+export async function readControl(chunks: AsyncIterable<Uint8Array>): Promise<string> {
+  let control = '';
+  let bytes = 0;
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  for await (const chunk of chunks) {
+    bytes += chunk.byteLength;
+    if (bytes > 1024 * 1024) throw new Error('E_CONTROL_SIZE');
+    control += decoder.decode(chunk, { stream: true });
+  }
+  return control + decoder.decode();
+}
+
 if (import.meta.main) {
   let requestId = '';
   try {
-    let control = '';
-    for await (const chunk of Bun.stdin.stream()) {
-      control += new TextDecoder().decode(chunk);
-      if (Buffer.byteLength(control) > 1024 * 1024) throw new Error('E_CONTROL_SIZE');
-    }
+    const control = await readControl(Bun.stdin.stream());
     const request = JSON.parse(control);
     requestId = request.requestId;
     if (request.protocol !== 1 || !request.outputPath) throw new Error('E_PROTOCOL');

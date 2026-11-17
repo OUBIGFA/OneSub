@@ -873,11 +873,11 @@
   "mediaLicense": "third_party/licenses/media/mingw-w64-ffmpeg/COPYING.GPLv3.txt",
   "oneasr": {
     "file": "oneasr-cli.exe",
-    "bytes": 63739392,
-    "sha256": "9baaf37928f5e411832990dfd9c8e78f34dffb0502cedc7c06ad053ff09e198d",
+    "bytes": 63743488,
+    "sha256": "eb300d0042b35daf8c02b6c0756ddb068590121380536f038c68c1afebe51ac2",
     "version": "v1.5.0",
     "integration": "third_party/manifests/oneasr.json",
-    "integrationSha256": "5fe8f855962d6c94038399fb333220628e1eae0e89f003ff5c3e87b839c0d302"
+    "integrationSha256": "0ca026540268241b6ce7ff9fd6128a4cb00d520e13a1c99f141592633370fce6"
   },
   "fireredvad": {
     "file": "fireredvad.exe",
@@ -1014,7 +1014,7 @@
   "fontRedistribution": "No system font files are copied into the installer. Runtime preview uses the user's installed fonts through local capability URLs.",
   "lobeMygo": {
     "module": "github.com/lobehub/lobe-mygo",
-    "version": "v0.0.0-20261110162706-5e5fea5ef9e2",
+    "version": "v0.0.0-20261116124832-d88b4ad7f238",
     "manifest": "third_party/manifests/lobe-mygo.json",
     "license": "third_party/licenses/lobe-mygo.txt",
     "spdx": "MIT",

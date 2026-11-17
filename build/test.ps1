@@ -1,6 +1,36 @@
-param([string]$GoRoot = $env:GOROOT, [string[]]$Packages = @('./...'), [switch]$GoOnly, [string]$PackageRoot, [string]$TestName, [switch]$NativeDesktop)
+param([string]$GoRoot = $env:GOROOT, [string[]]$Packages = @('./...'), [switch]$GoOnly, [string]$PackageRoot, [string]$TestName, [switch]$NativeDesktop, [switch]$CoreOnly)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
+if ($CoreOnly -and $NativeDesktop) { throw 'CoreOnly and NativeDesktop are separate test scopes' }
+if ($CoreOnly) {
+    # Business-package unit tests need no window, private desktop or model.
+    if (-not $GoRoot) { $GoRoot = Join-Path $root '.local/toolchains/go1.27.4/go' }
+    $env:GOROOT = $GoRoot
+    $env:GOTOOLCHAIN = 'local'
+    $env:PATH = "$GoRoot/bin;$env:PATH"
+    $env:GOMODCACHE = Join-Path $root '.local/gomodcache'
+    $env:GOCACHE = Join-Path $root '.local/gocache'
+    $env:PYTHONUTF8 = '1'
+    $env:ONESUB_SUBTITLE_WORKER = Join-Path $root 'build/output/subtitle-core/OneSub.SubtitleCore.exe'
+    $env:ONESUB_SKILL_WORKER = Join-Path $root 'build/output/skill-tools/OneSub.SkillTools.exe'
+    $env:ONESUB_SKILL_ROOT = Join-Path $root 'third_party/skills/srt-subtitle-translator'
+    $env:ONESUB_FFMPEG = Join-Path $root 'build/output/media-tools/ffmpeg.exe'
+    $env:ONESUB_FFPROBE = Join-Path $root 'build/output/media-tools/ffprobe.exe'
+    $patchedMod = & python (Join-Path $root 'tools/prepare_mygo.py')
+    if ($LASTEXITCODE -ne 0) { throw 'MyGo patch preparation failed' }
+    $env:GOFLAGS = "`"-modfile=$patchedMod`""
+    if (-not $PSBoundParameters.ContainsKey('Packages')) { $Packages = @('./internal/...') }
+    Push-Location (Join-Path $root 'apps/desktop')
+    try {
+        & go run github.com/egoist/mygo/cmd/mygo generate
+        if ($LASTEXITCODE -ne 0) { throw 'Message catalog generation failed' }
+        $arguments = @('-timeout=10m')
+        if ($TestName) { $arguments += @('-run', $TestName) }
+        & go test @Packages @arguments
+        if ($LASTEXITCODE -ne 0) { throw 'Core unit tests failed' }
+    } finally { Pop-Location }
+    return
+}
 if (-not $NativeDesktop) {
     $env:PYTHONUTF8 = '1'
     Push-Location $root

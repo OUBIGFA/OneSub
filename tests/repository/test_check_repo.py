@@ -57,6 +57,29 @@ class RepositoryCheckTests(unittest.TestCase):
         self.git("add", ".")
         self.assertEqual(self.run_check().returncode, 0)
 
+    def test_empty_and_fragment_only_markdown_links_pass(self):
+        self.write("README.md", "[Here]()\n[Heading](#heading)\n[Empty](<>)\n")
+        self.git("add", "README.md")
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_batch_reads_keep_git_process_count_bounded(self):
+        for index in range(40):
+            self.write(f"references/file-{index}.txt", f"file {index}\n")
+        self.git("add", ".")
+        # Real Git tracing measures process fan-out without timing thresholds.
+        trace = self.repo / "git-trace.txt"
+        environment = os.environ.copy()
+        environment["GIT_TRACE"] = str(trace)
+        result = subprocess.run(
+            [sys.executable, "-X", "utf8", str(CHECKER)], cwd=self.repo,
+            capture_output=True, text=True, encoding="utf-8", env=environment,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        calls = trace.read_text(encoding="utf-8")
+        self.assertLessEqual(calls.count("built-in: git cat-file"), 2)
+        self.assertLessEqual(calls.count("check-ignore"), 2)
+
     def test_force_added_nested_scratch_is_rejected(self):
         self.write("references/_temp/private.txt", "private\n")
         self.git("add", "-f", "references/_temp/private.txt")

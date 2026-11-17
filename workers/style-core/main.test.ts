@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { validateCues, collectFonts } from './main';
+import { validateCues, collectFonts, readControl } from './main';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +7,21 @@ import * as fontkit from 'fontkit';
 import { prepareSubtitleFonts, loadFontData } from './smartsub/main/helpers/fontResolver';
 import { buildAssDocument } from './smartsub/main/helpers/assStyleBuilder';
 import { DEFAULT_STYLE, STYLE_PRESETS } from './smartsub/renderer/components/subtitleMerge/constants';
+
+test('control pipe preserves Chinese paths and emoji across byte boundaries', async () => {
+  const text = JSON.stringify({ requestId: '字幕🎬', inputPath: '作品/中文.srt' });
+  const bytes = new TextEncoder().encode(text);
+  async function* chunks() {
+    for (let i = 0; i < bytes.length; i++) yield bytes.subarray(i, i + 1);
+  }
+  expect(await readControl(chunks())).toBe(text);
+});
+
+test('control pipe rejects oversized and incomplete UTF-8 input', async () => {
+  async function* chunks(value: Uint8Array) { yield value; }
+  await expect(readControl(chunks(new Uint8Array(1024 * 1024 + 1)))).rejects.toThrow('E_CONTROL_SIZE');
+  await expect(readControl(chunks(new Uint8Array([0xe5, 0xad])))).rejects.toThrow();
+});
 
 test('SmartSub styles and position are executed without replacing its generator', () => {
   const cues = [{ startMs: 1000, endMs: 3000, text: '字幕' }];

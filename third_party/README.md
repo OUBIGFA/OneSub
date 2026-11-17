@@ -6,7 +6,7 @@
 
 发行需保留传递许可、对应源码、构建材料、SBOM、摘要及真实签名状态。Windows 桌面、Windows 10、干净机器、安装、升级、失败回滚和卸载验收不作为构建或发布门槛，未实测的范围如实标注。JASSUB 的包装层 MIT 不代表其 WASM 只有 MIT 许可。
 
-对应源码与构建材料登记在 [材料清单](manifests/distribution-materials.json)，原始许可来源与摘要登记在 [通知来源](manifests/material-notices.json)。发行随包保留通知正文，并提供源码材料附件；恢复固定输入和重建说明见 [分发源码说明](../build/DISTRIBUTION-SOURCES.md)。源码集合含保守的开发／非 Windows 依赖超集，不冒充完整静态链接符号清单。
+对应源码与构建材料登记在 [材料清单](manifests/distribution-materials.json)，原始许可来源与摘要登记在 [通知来源](manifests/material-notices.json)。发行随包保留通知正文；源码材料留在本地，并在公开二进制前通过经确认的合规渠道提供，不自动作为 Release 附件上传。恢复固定输入和重建说明见 [分发源码说明](../build/DISTRIBUTION-SOURCES.md)。源码集合含保守的开发／非 Windows 依赖超集，不冒充完整静态链接符号清单。
 
 播放器许可登记见 [player-licenses.json](manifests/player-licenses.json)。abslink、lfa-ponyfill 和 throughput 的发布包明确声明 Apache-2.0 或 MIT；随包附标准许可正文、原有作者署名和来源校验，不编造版权年份。throughput 保留其来源 speedometer 的原许可。JASSUB 固定源码的库许可正文见 [jassub-bundled-libraries.txt](licenses/jassub-bundled-libraries.txt)，完整对应源码与安装包内许可材料仍单独核对。
 
@@ -20,7 +20,7 @@ TXT 文稿导出直接调用固定 libse 的 `HtmlUtil.RemoveHtmlTags`、`HtmlUt
 
 旧版浅色主题的 WinOne 来源、许可副本、哈希与适配边界见 [历史配色登记](ports/winone/README.md)；当前浅深色主题均使用 Lobe MyGo 的主题令牌。
 
-MyGo 原生 UI 当前锁定为 `v0.9.3-0.20261116184738-6fbc3c535009`，Lobe MyGo 锁定为 `v0.0.0-20261110162706-5e5fea5ef9e2`；依赖、源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。2026-11-17 核查时最新产品发布为 0.9.2；Lobe MyGo 依赖后续原生能力，因此使用本任务核查时最新兼容主分支修订。升级时重新核对 API、补丁必要性、许可与相关原生测试，当前锁定修订只用于可复现构建。
+MyGo 原生 UI 当前锁定为 `v0.9.3-0.20261116184738-6fbc3c535009`，Lobe MyGo 锁定为 `v0.0.0-20261116124832-d88b4ad7f238`；依赖、源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。2026-11-17 核查时最新产品发布为 0.9.2；Lobe MyGo 依赖后续原生能力，因此使用本任务核查时最新兼容主分支修订。升级时重新核对 API、补丁必要性、许可与相关原生测试，当前锁定修订只用于可复现构建。
 
 MyGo 的应用更新直接复用 `mygo.Updater.Check`／`Update.Install`，包括 HTTPS／系统代理、Ed25519 校验、解包与替换／回滚；没有引入另一套下载器或安装器。设置“关于”与任务协调由应用原生 UI 承担，产品版本为 `0.1.0`，用数值第四段区分内部构建。归档与签名由 MyGo 构建器生成，只调整清单中的内部构建号与不可变 Release URL，见 [构建与更新说明](../build/README.md)。新增 GitHub 和“关于”图标继续直接复用同一固定 Lucide 修订，原字节、大小和哈希见 [图标清单](manifests/lucide.json)。
 

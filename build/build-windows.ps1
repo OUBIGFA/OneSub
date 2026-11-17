@@ -64,7 +64,10 @@ try {
     $info = [ordered]@{version=$version;build=$BuildNumber;updateVersion="$version.$BuildNumber";releaseTag=$tag;updatesSigned=$true;channel=$channel;signed=$false;sourceTree=$sourceTree;worktree='staged source snapshot'}
 
     [IO.File]::WriteAllText((Join-Path $root 'build/output/build-info.json'),($info|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
-    if (-not $SkipTests) { & (Join-Path $PSScriptRoot 'test.ps1') }
+    if (-not $SkipTests) {
+        & (Join-Path $PSScriptRoot 'test.ps1')
+        & (Join-Path $PSScriptRoot 'test.ps1') -CoreOnly
+    }
     $package = Join-Path $root "_temp/build-output/packages/$BuildNumber"
     if (Test-Path $package) { throw 'Use a new internal build number; package directories are immutable' }
     $previousUpdateKey = $providedUpdateKey

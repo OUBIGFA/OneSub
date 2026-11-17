@@ -26,7 +26,8 @@ source files before building:
 ./build/build-windows.ps1 -ReleaseTag '0.1.0'
 ```
 
-This runs the default repository and unit checks in `build/test.ps1`, builds
+This runs the repository checks and business-package unit tests in
+`build/test.ps1` (the latter use `-CoreOnly`), builds
 the installer with MyGo and writes the fixed
 local artifacts in `build/output/release/`:
 
@@ -40,6 +41,8 @@ Windows desktop, Windows 10, clean-machine, installation, upgrade, rollback
 and uninstall acceptance are not build or release requirements. The default
 entry does not start a private desktop or a virtual machine. Existing desktop
 tests remain optional and require an explicit `-NativeDesktop` invocation.
+The private-desktop launcher tests also require an explicit
+`ONESUB_TEST_PRIVATE_DESKTOP=1` opt-in; repository discovery does not run them.
 Do not describe unperformed Windows tests as passed.
 
 The SBOM records packaged file SHA-256 values and source-tree/build identity.
@@ -65,7 +68,7 @@ file replacement and byte progress. It does not modify an installed OneSub.
 
 ## Local OneAsr runtime
 
-The installer uses the pinned OneAsr v1.3.0 region-batch port, not a new inference engine.
+The installer uses the pinned OneAsr v1.5.0 region-batch port, not a new inference engine.
 `third_party/manifests/oneasr.json` records the source archive, patch, Cargo inputs and Rust 1.96.0 distribution checksums.
 Keep the verified archives in `.local/downloads/` and the merged Rust compiler, Cargo, standard library, rustfmt and Clippy components in `.local/toolchains/rust1.96.0/`.
 Visual Studio x64 C++ tools are required. A workspace containing spaces needs NTFS short names for the upstream resampler's CMake build.
@@ -76,12 +79,16 @@ The port and its original-clock behavior are documented in `third_party/patches/
 
 Building does not create a tag, upload files or publish a Release. Public
 updates need a separately authorized, non-prerelease GitHub Release tagged
-`0.1.0` for this version. Publish the matching signed archive and manifest together,
-along with the installer and checksums. Make that release the latest only
-when its required artifact, license, security and distribution checks have passed.
+`0.1.0` for this version. The approved public attachment is only
+`OneSub-0.1.0-Setup.exe`. Keep signed update archives, update manifests,
+checksums, SBOMs, source materials and build records locally. Building does
+not authorize uploading any of these additional files.
 
 The app checks the latest release's `update-windows-amd64.json`. A missing
 release or manifest is shown as unavailable, not as evidence of being current.
+An installer-only Release therefore supports manual installation, but does
+not supply in-app updates. Publishing an update feed needs a separately
+approved distribution location and matching signed archive.
 Automatic checking and installation default on. Installation waits for an
 active workbench task to finish, uses its cancellation/exit guards and never
 forces a restart. The new build runs at the next launch.

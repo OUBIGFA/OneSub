@@ -1,6 +1,12 @@
 # OneAsr 任务内模型复用
 
-固定 OneAsr v1.5.0，只增加批片段机器入口。源码修订、Rust 工具链、原始文件、补丁与产物校验分别见 [oneasr.json](../../manifests/oneasr.json) 和 [runtimes.json](../../manifests/runtimes.json)。上游 MIT 许可保持不变。
+固定 OneAsr v1.5.0，增加批片段机器入口，并锁定兼容的依赖安全更新。源码修订、Rust 工具链、原始文件、补丁与产物校验分别见 [oneasr.json](../../manifests/oneasr.json) 和 [runtimes.json](../../manifests/runtimes.json)。上游 MIT 许可保持不变。
+
+2026-11-17 的 `Cargo.lock` 补丁固定 rustls-webpki 0.103.16、webpki-roots 1.0.10、
+Tokio 1.53.3、zstd 0.13.4、zstd-safe 7.4.0、zstd-sys 2.1.2，修复证书信任、
+压缩上下文与内存边界相关公告。原始锁文件保持不变，合并后的锁文件及源码归档
+校验见清单。ZIP 2.4.2 的解包公告与停止维护公告仍需按实际调用路径评估，不能
+把兼容更新描述成全部传递依赖已无风险。
 
 ## 行为边界
 

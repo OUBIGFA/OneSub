@@ -1,6 +1,7 @@
 # Third-party source and build material
 
-The release provides two source-material archives and SHA-256 files:
+Keep these source-material archives and SHA-256 files locally for distribution
+compliance. They are not approved GitHub Release attachments:
 
 - `OneSub-0.1.0-third-party-media-source.tar.gz`;
 - `OneSub-0.1.0-third-party-runtime-source.tar.gz`.
@@ -12,6 +13,10 @@ exports exclude font files. The SkiaSharp export also excludes the specified
 test/sample directories and prebuilt file extensions; these are not inputs
 for the shipped library. No Windows installation image, user media, product
 signing secret or unrelated local file is included.
+
+Before public binary distribution, provide the corresponding source through
+an approved compliance channel. Local retention alone is not a public source
+offer. Do not claim the installer-only Release includes these archives.
 
 ## Restore fixed inputs
 
