@@ -111,3 +111,40 @@ func TestSubtitleLengthGuideStaysAtToolbarRightAndUsesPinkNativeLine(t *testing.
 		})
 	}
 }
+
+func TestSubtitleLengthGuideRestoresItsPositionAfterNarrowing(t *testing.T) {
+	a := storeApp(t, navigationCues(40)...)
+	tt := settled(a.subtitlesView, 900, 680)
+	if err := tt.Click(locales.SubtitleLengthGuideToggle()); err != nil {
+		t.Fatal(err)
+	}
+	label := locales.SubtitleLengthGuide()
+	guide, ok := tt.Find(label)
+	if !ok {
+		t.Fatal("reference line is missing")
+	}
+	x, y := guide.X+guide.W/2, guide.Y+guide.H/2
+	tt.Press(x, y)
+	tt.Move(x+90, y)
+	tt.Release(x+90, y)
+	tt.Frame()
+	moved, ok := tt.Find(label)
+	if !ok || moved.X <= guide.X {
+		t.Fatal("reference line did not move on a direct drag", guide, moved)
+	}
+	position := a.subtitleGuide.position
+	tt.SetSize(810, 680)
+	if kept, ok := tt.Find(label); !ok || kept.X != moved.X {
+		t.Fatal("reference line moved while it still fit", moved, kept)
+	}
+	for _, width := range []int{680, 620, 680} {
+		tt.SetSize(width, 680)
+		if _, shown := tt.Find(label); shown || a.subtitleGuide.position != position {
+			t.Fatal("pane resize pushed the line onto the boundary", width, position, a.subtitleGuide.position)
+		}
+	}
+	tt.SetSize(900, 680)
+	if restored, ok := tt.Find(label); !ok || restored != moved || a.subtitleGuide.position != position {
+		t.Fatal("growing the pane did not restore the chosen reference", moved, restored)
+	}
+}

@@ -316,8 +316,7 @@ func TestSubtitleListMenuPlacementAndKeyboard(t *testing.T) {
 				t.Fatal("structure menu is not above the subtitle list", language, menu, list)
 			}
 			tabs, _ := tt.Find(locales.A11ySubtitleTabs())
-			locate, _ := tt.Find(locales.ListLocate())
-			header := []ui.Rect{menu, tabs, locate}
+			header := []ui.Rect{menu, tabs}
 			toolbar, _ := tt.Find(locales.A11ySubtitleActions())
 			for i, r := range header {
 				if r.X < toolbar.X || r.X+r.W > toolbar.X+toolbar.W {

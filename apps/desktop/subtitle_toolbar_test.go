@@ -182,7 +182,7 @@ func TestSubtitleToolbarActionsMenuIsIconOnly(t *testing.T) {
 			if _, ok := tt.Find(locales.A11yIconOf(locales.SubtitleActionsMenu())); !ok {
 				t.Fatal("subtitle actions menu has no icon")
 			}
-			for _, label := range []string{locales.ListLocate(), locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.FindReplace(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.ReadingSplitCount(0), locales.ReadingLongCues(), locales.TranslationResults()} {
+			for _, label := range []string{locales.TextReplacePeriods(), locales.TextStripTrailing(), locales.FindReplace(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.ReadingSplitCount(0), locales.ReadingLongCues(), locales.TranslationResults()} {
 				if box, ok := tt.Find(label); !ok || box.W < box.H*1.5 {
 					t.Fatal("wide toolbar does not allocate space for the label", label, box)
 				}
@@ -198,7 +198,7 @@ func TestSubtitleToolbarActionsMenuIsIconOnly(t *testing.T) {
 			captureRedesign(t, tt, "subtitle-tools-wide-"+language)
 			tt.SetSize(320, 800)
 			tt.Frame()
-			for _, label := range []string{locales.SubtitleActionsMenu(), locales.ListLocate(), locales.FindReplace(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.TranslationResults()} {
+			for _, label := range []string{locales.SubtitleActionsMenu(), locales.FindReplace(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.TranslationResults()} {
 				if box, ok := tt.Find(label); !ok || box.W > box.H+2 {
 					t.Fatal("narrow toolbar must retain icon-only actions", label)
 				}
@@ -231,7 +231,7 @@ func TestSubtitleToolbarKeepsPrimaryLabelsInNormalPanes(t *testing.T) {
 							tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
 							tt.SetDark(true)
 							firstFrameSettled(t, tt, "toolbar-normal", func() {})
-							for _, label := range []string{locales.ListLocate(), locales.FindReplace(), locales.ReadingTools()} {
+							for _, label := range []string{locales.FindReplace(), locales.ReadingTools()} {
 								box, ok := tt.Find(label)
 								// Bulk selection adds several controls. The new folded
 								// entry keeps its requested full name; Find can use its
@@ -274,10 +274,10 @@ func TestSubtitleToolbarKeepsLabelsWhileTightening(t *testing.T) {
 							a.checkAllSubtitles()
 							a.retranslation = &retranslationState{}
 						}
-						labels := []string{locales.ListLocate(), locales.FindReplace(), locales.TranslationResults(), locales.ReadingSplitCount(0), locales.ReadingIssueType()}
+						labels := []string{locales.FindReplace(), locales.TranslationResults(), locales.ReadingSplitCount(0), locales.ReadingIssueType()}
 						width := 1320
 						if language == "en" {
-							width = 1720
+							width = 1600
 						}
 						if checked {
 							width += 300
@@ -301,11 +301,11 @@ func TestSubtitleToolbarKeepsLabelsWhileTightening(t *testing.T) {
 									t.Fatal("second row wrapped or clipped", label, r, edit)
 								}
 							}
-							locate, _ := tt.Find(locales.ListLocate())
-							if previousWidth != 0 && locate.W >= previousWidth {
-								t.Fatal("buttons did not tighten before hiding labels", previousWidth, locate.W)
+							find, _ := tt.Find(locales.FindReplace())
+							if previousWidth != 0 && find.W >= previousWidth {
+								t.Fatal("buttons did not tighten before hiding labels", previousWidth, find.W)
 							}
-							previousWidth = locate.W
+							previousWidth = find.W
 							captureRedesign(t, tt, fmt.Sprintf("toolbar-%s-%d-%g-%t", language, w, scale, checked))
 						}
 					})

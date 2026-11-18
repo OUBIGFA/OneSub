@@ -612,12 +612,12 @@ func TestReadingToolbarNarrowPane(t *testing.T) {
 				}
 				search, _ := tt.Find(locales.ListSearch())
 				replace, _ := tt.Find(locales.FindReplace())
-				locate, _ := tt.Find(locales.ListLocate())
+				edit, _ := tt.Find(locales.SubtitleActionsMenu())
 				periods, _ := tt.Find(locales.TextReplacePeriods())
 				trailing, _ := tt.Find(locales.TextStripTrailing())
 				// Mixed icon/text controls have different native heights but share a center.
-				if periods.X <= locate.X+locate.W || trailing.X < periods.X+periods.W || math.Abs(float64(periods.Y+periods.H/2-locate.Y-locate.H/2)) > 1 || math.Abs(float64(trailing.Y+trailing.H/2-locate.Y-locate.H/2)) > 1 {
-					t.Fatal("punctuation is not grouped after navigation", locate, periods, trailing)
+				if periods.X <= edit.X+edit.W || trailing.X < periods.X+periods.W || math.Abs(float64(periods.Y+periods.H/2-edit.Y-edit.H/2)) > 1 || math.Abs(float64(trailing.Y+trailing.H/2-edit.Y-edit.H/2)) > 1 {
+					t.Fatal("punctuation is not grouped after edit actions", edit, periods, trailing)
 				}
 				if replace.X < trailing.X+trailing.W || replace.X-trailing.X-trailing.W > 8 || math.Abs(float64(replace.Y+replace.H/2-trailing.Y-trailing.H/2)) > 1 {
 					t.Fatal("find/replace is not immediately right of trailing punctuation", trailing, replace)

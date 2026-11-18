@@ -20,7 +20,7 @@
 
 需求：双语字幕的原文与译文各用一套样式，并在碰撞布局中保持为一组。
 
-修改：可选参数 `bilingual` 增加 `Secondary` 样式行。每条字幕仍写成一个事件，用 `{\rDefault}` 和 `{\rSecondary}` 切换样式，`secondaryFirst` 决定上下顺序。块的对齐和边距沿用主样式。不传 `bilingual` 时输出与上游相同。
+修改：可选参数 `bilingual` 增加 `Secondary` 样式行。每条字幕仍在一个文字事件中，用 `{\rDefault}` 和 `{\rSecondary}` 切换样式，`secondaryFirst` 决定上下顺序。块的对齐和边距沿用主样式。
 
 ## 双语字体解析
 
@@ -30,18 +30,22 @@
 
 修改：按 ASS `Format` 字段读取命名样式的字体；事件从自身 `Style` 的字体开始，裸 `\r` 回到该事件字体，`\rSecondary` 等命名重置使用对应样式。每次切换收集实际使用字体，不改写字号或其他样式字段。两层字体／字号、原译文对应与上下顺序分别测试，UI 明示主／次样式各自对应原文或译文。尚未配置的次样式从当前主样式继承字体，以 80% 字号初始化；用户保存的两套独立参数不被强制覆盖。
 
+## 长字幕换行
+
+`wrapSubtitleLine` 按画面宽高比、字幕边距和字体度量为普通字幕分行，描边和背景框共用。优先在词界或允许断行的中日韩字符之间分行；单个词超宽时才按字素分行。测量使用 SmartSub 为每段文本解析出的字体，不把缺字占位符当成字宽。通过 `\N` 和 `\q2` 将分行交给 JASSUB 和 FFmpeg，保留手动换行、颜色、时间及源字幕文件。严格导入的 ASS/SSA 保留原排版。
+
 ## 背景框精确边距
 
-文件：`main/helpers/assStyleBuilder.ts`；符号：`FontMeasure`、`wrapForBox`、`exactBoxEvents`、`buildAssDocument`。
+文件：`main/helpers/assStyleBuilder.ts`；符号：`FontMeasure`、`exactBoxEvents`、`buildAssDocument`。
 
 复现：背景框（BorderStyle=3）边距设为 0 时，左右贴紧文字，上下仍有空白。libass 按 OS/2 winAscent + winDescent 确定字号，背景框覆盖整个行高，与字形墨迹无关，`\ybord` 也不能小于 0。脚本空间为 384×288（4:3），16:9 视频中 libass 按画面宽度缩放水平边框、按高度缩放字形，所以左右边距大于上下边距。
 
 修改：
 
 - 传入 `measure` 时，不与其它字幕同时显示的字幕改用精确背景框。每个带框的行占一层：该层用不可见文字复用 libass 自身的背景框，再用 `\clip` 裁到"墨迹上下沿 ± 边距"的横带。相邻行的横带重叠时在中点分开，半透明背景不重复叠加。文字在最上层单独绘制。
-- 自动换行改为显式 `\N` 加 `\q2`。换行按 libass 智能换行（WrapStyle 0）均衡行宽，并遵守中文避头尾。预览与烧录使用同一组行。
+- 背景框、发光和文字层复用同一组分行；背景框每行有单独的裁切范围。
 - `frameAspect` 校正水平边距：`\xbord = 边距 × (384 / 288) / 画面宽高比`。
-- 与其它字幕时间重叠的字幕、字体无法测量的字幕和描边模式，保持上游输出。
+- 与其它字幕时间重叠或字体无法测量时，保留 libass 的原生背景框。
 
 适配器：`workers/style-core/main.ts` 的 `measureStyle` 用 fontkit 读取 SmartSub 交给 libass 的同一份字体字节（粗体取同族粗体字面），按 `Fontsize / (winAscent + winDescent)` 换算字宽与字形墨迹。
 

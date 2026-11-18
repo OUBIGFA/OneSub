@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { measureStyle } from './main';
 import { prepareSubtitleFonts } from './smartsub/main/helpers/fontResolver';
-import { buildAssDocument, wrapForBox, type FontMeasure } from './smartsub/main/helpers/assStyleBuilder';
+import { buildAssDocument, wrapSubtitleLine, type FontMeasure } from './smartsub/main/helpers/assStyleBuilder';
 import { DEFAULT_STYLE } from './smartsub/renderer/components/subtitleMerge/constants';
 
 // Exact background boxes (OneSub patch). The pixel result is verified by
@@ -18,13 +18,13 @@ const box = { ...DEFAULT_STYLE, borderStyle: 3, outline: 2, alignment: 2, margin
 
 test('wrapped lines are balanced and keep closing marks off line starts', () => {
   const text = '这是一条很长很长的字幕，用来检查自动换行之后每一行的背景框都与文字保持同样的边距';
-  const lines = wrapForBox(text, fixed, 200);
+  const lines = wrapSubtitleLine(text, fixed, 200);
   expect(lines.join('')).toBe(text);
   expect(lines.length).toBe(2);
   expect(Math.abs([...lines[0]].length - [...lines[1]].length)).toBeLessThanOrEqual(1);
   expect(lines.every((line) => !/^[，。、]/.test(line))).toBe(true);
   const english = 'Mixed English words stay whole when wrapped';
-  expect(wrapForBox(english, fixed, 200).join(' ')).toBe(english);
+  expect(wrapSubtitleLine(english, fixed, 200).join('')).toBe(english);
 });
 
 test('each boxed line gets its own layer and band; text is drawn once above', () => {

@@ -13424,9 +13424,9 @@
     {
       "group": "oneasr-1.5",
       "noticeSha256": "f0b56f4ab53beb6e18c5e155219c2e2b6000b5475c0ae3ddb3af3894fd9349b4",
-      "archive": "v0.9.3-0.20261116184738-6fbc3c535009.zip",
-      "member": "github.com/egoist/mygo@v0.9.3-0.20261116184738-6fbc3c535009/LICENSE",
-      "url": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.3-0.20261116184738-6fbc3c535009.zip"
+      "archive": "v0.10.0.zip",
+      "member": "github.com/egoist/mygo@v0.10.0/LICENSE",
+      "url": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.10.0.zip"
     },
     {
       "group": "oneasr-1.5",

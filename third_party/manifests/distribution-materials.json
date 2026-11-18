@@ -18,11 +18,11 @@
   "buildInputs": [
     {
       "file": "apps/desktop/go.mod",
-      "sha256": "4d2529011c9611a3b8956a120b352c79c93858ee76c0279f2a0ba45e00c91452"
+      "sha256": "d78432fdeca6c528c992e77d5206b815cd2ef01e976805570a0bb6f8d3722946"
     },
     {
       "file": "apps/desktop/go.sum",
-      "sha256": "bd70b59eb8f9bb494305d5afb6240f52b79b67ae6b9d87de9010fa7e92f4d7e8"
+      "sha256": "bc2f870cba76e34f403a5826cce53f0110248297a36c570aad74e2e62b6782a4"
     },
     {
       "file": "workers/style-core/package.json",
@@ -191,8 +191,8 @@
     {
       "file": "third_party/licenses/materials/oneasr-1.5-02.txt",
       "path": "licenses/materials/oneasr-1.5-02.txt",
-      "sha256": "f48cad6738442e1a8324278894a908f005f6a62434e8974eeab3e7d27059f7ac",
-      "bytes": 67739
+      "sha256": "62908144add308f2915c3463c401925454ada77945ed7f36cc2a97062d2df7b3",
+      "bytes": 67710
     },
     {
       "file": "third_party/licenses/dxc/LICENSE-MS.txt",
@@ -5330,11 +5330,11 @@
     },
     {
       "name": "github.com/egoist/mygo",
-      "version": "v0.9.3-0.20261116184738-6fbc3c535009",
+      "version": "v0.10.0",
       "repository": "https://github.com/egoist/mygo",
       "source": {
-        "url": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.3-0.20261116184738-6fbc3c535009.zip",
-        "sha256": "82122c1151b54ba90e28ae180bfb124ab389b48b54fbcf65e54ad0482f286715"
+        "url": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.10.0.zip",
+        "sha256": "53b0ce8c4bf7581deb3891a2e8cf75267a5804a82ed6de0d5d68b8440d8c395a"
       },
       "license": "MIT"
     },
@@ -14131,11 +14131,11 @@
       "group": "oneasr-cargo"
     },
     {
-      "archive": "v0.9.3-0.20261116184738-6fbc3c535009.zip",
-      "file": ".local/gomodcache/cache/download/github.com/egoist/mygo/@v/v0.9.3-0.20261116184738-6fbc3c535009.zip",
-      "url": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.9.3-0.20261116184738-6fbc3c535009.zip",
-      "sha256": "82122c1151b54ba90e28ae180bfb124ab389b48b54fbcf65e54ad0482f286715",
-      "bytes": 10955945,
+      "archive": "v0.10.0.zip",
+      "file": ".local/gomodcache/cache/download/github.com/egoist/mygo/@v/v0.10.0.zip",
+      "url": "https://proxy.golang.org/github.com/egoist/mygo/@v/v0.10.0.zip",
+      "sha256": "53b0ce8c4bf7581deb3891a2e8cf75267a5804a82ed6de0d5d68b8440d8c395a",
+      "bytes": 11528848,
       "group": "runtime"
     },
     {

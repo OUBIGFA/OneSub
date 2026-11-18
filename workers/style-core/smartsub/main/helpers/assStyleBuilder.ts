@@ -155,15 +155,23 @@ function escapeAssText(text: string): string {
     .replace(/\n/g, '\\N');
 }
 
-export function styledAssText(text: string, style: SubtitleStyle): string {
-  if (
-    !style.secondLineColor &&
-    !style.highlightTerms?.some((term) => term.trim())
-  )
-    return escapeAssText(text);
-  return subtitleTextRuns(text, style)
-    .map((run) => `${assPrimaryColorTags(run.color)}${escapeAssText(run.text)}`)
-    .join('');
+export function styledAssText(text: string, style: SubtitleStyle, breaks: number[] = []): string {
+  const styled = style.secondLineColor || style.highlightTerms?.some((term) => term.trim());
+  const runs = styled ? subtitleTextRuns(text, style) : [{ text, color: style.primaryColor }];
+  // Apply authored line colors and highlights before inserting display-only breaks.
+  let offset = 0;
+  let next = 0;
+  return runs.map((run) => {
+    let output = styled ? assPrimaryColorTags(run.color) : '';
+    let start = 0;
+    while (breaks[next] < offset + run.text.length) {
+      const index = breaks[next++] - offset;
+      output += escapeAssText(run.text.slice(start, index)) + '\\N';
+      start = index;
+    }
+    offset += run.text.length;
+    return output + escapeAssText(run.text.slice(start));
+  }).join('');
 }
 
 export function assGlowTags(style: SubtitleStyle): string {
@@ -212,35 +220,23 @@ type BilingualOptions = { secondaryStyle: SubtitleStyle; secondaryFirst: boolean
 // CJK line-breaking rules (kinsoku).
 const NO_LINE_START = new Set([...'，。、；：？！）》」』】〕〉’”…—·%),.;:?!]}']);
 const NO_LINE_END = new Set([...'（《「『【〔〈‘“([{']);
+const graphemes = new Intl.Segmenter('und', { granularity: 'grapheme' });
 const isWide = (character: string) =>
-  /[\u2e80-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef\u3000-\u303f]/u.test(character);
+  /[\p{Ideographic}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff01-\uff60]/u.test(character);
 
 /** Units between which a line may break: words with their spaces, single CJK characters. */
-function breakUnits(text: string): string[] {
+function breakUnits(text: string, width: (text: string) => number, maxWidth: number): string[] {
   const units: string[] = [];
-  let word = '';
-  const flush = () => {
-    if (word) units.push(word);
-    word = '';
-  };
-  for (const character of text) {
-    if (NO_LINE_START.has(character) && (word || units.length)) {
-      if (word) word += character;
-      else units[units.length - 1] += character;
-      continue;
-    }
-    if (isWide(character)) {
-      flush();
-      const last = units[units.length - 1];
-      if (last && NO_LINE_END.has([...last].pop()!)) units[units.length - 1] += character;
-      else units.push(character);
-      continue;
-    }
-    if (word.endsWith(' ') && character !== ' ') flush();
-    word += character;
+  let previous = '';
+  for (const { segment } of graphemes.segment(text)) {
+    if (units.length && (segment === ' ' || NO_LINE_START.has(segment) || NO_LINE_END.has(previous) ||
+      (previous !== ' ' && !isWide(previous) && !isWide(segment)))) {
+      units[units.length - 1] += segment;
+    } else units.push(segment);
+    previous = segment;
   }
-  flush();
-  return units;
+  // Keep a word intact unless it cannot fit even on a line of its own.
+  return units.flatMap((unit) => width(unit) <= maxWidth ? [unit] : Array.from(graphemes.segment(unit), ({ segment }) => segment));
 }
 
 /**
@@ -249,30 +245,62 @@ function breakUnits(text: string): string[] {
  * lines are written with explicit \N and \q2, so preview and burn-in use
  * exactly these lines.
  */
-export function wrapForBox(text: string, measure: FontMeasure, maxWidth: number): string[] {
-  if (measure.width(text) <= maxWidth) return [text];
-  const units = breakUnits(text);
+export function wrapSubtitleLine(text: string, measure: FontMeasure, maxWidth: number): string[] {
+  // libass trims ASCII space at line edges. Keep the text intact so colors
+  // and highlights can still use offsets in the authored text.
+  const trim = (value: string) => value.replace(/^ +| +$/g, '');
+  if (measure.width(trim(text)) <= maxWidth) return [text];
+  const measured = new Map<string, number>();
+  const width = (value: string) => {
+    const key = trim(value);
+    let result = measured.get(key);
+    if (result === undefined) measured.set(key, result = measure.width(key));
+    return result;
+  };
+  const units = breakUnits(text, width, maxWidth);
   const greedy = (limit: number) => {
     const lines: string[] = [];
     let current = '';
     for (const unit of units) {
-      if (current && measure.width((current + unit).trimEnd()) > limit) {
-        lines.push(current.trimEnd());
-        current = unit.trimStart();
+      if (width(current) > 0 && width(current + unit) > limit) {
+        lines.push(current);
+        current = unit;
       } else current += unit;
     }
-    if (current.trim()) lines.push(current.trimEnd());
+    if (current) lines.push(current);
     return lines;
   };
   const count = greedy(maxWidth).length;
-  let low = measure.width(text) / count;
+  let low = 0;
   let high = maxWidth;
-  for (let step = 0; step < 24; step++) {
+  for (let step = 0; step < 16; step++) {
     const middle = (low + high) / 2;
     if (greedy(middle).length <= count) high = middle;
     else low = middle;
   }
   return greedy(high);
+}
+
+type SubtitleLine = { text: string; style: SubtitleStyle; measure: FontMeasure };
+
+/** Lay out a language before style tags change the text sent to libass. */
+function layoutPart(text: string, style: SubtitleStyle, measure: FontMeasure | null, maxWidth: number) {
+  const source = text.replace(/\r\n?|\\N/g, '\n');
+  const lines: SubtitleLine[] = [];
+  const breaks: number[] = [];
+  if (measure) {
+    let offset = 0;
+    for (const paragraph of source.split('\n')) {
+      const wrapped = wrapSubtitleLine(paragraph, measure, maxWidth);
+      wrapped.forEach((line, index) => {
+        if (index) breaks.push(offset);
+        lines.push({ text: line, style, measure });
+        offset += line.length;
+      });
+      offset++; // The author's newline is already in the source.
+    }
+  }
+  return { text: styledAssText(source, style, breaks), lines, wrapped: breaks.length > 0 };
 }
 
 /** Cues shown at the same time as another; libass may move them on collision. */
@@ -299,37 +327,14 @@ function overlappingCues<T extends SubtitleCue>(cues: T[]): Set<T> {
  * SmartSub's box.
  */
 function exactBoxEvents(
-  cue: SubtitleCue & { secondaryText?: string },
+  text: string,
+  lines: SubtitleLine[],
   timing: string,
   position: string,
   style: SubtitleStyle,
   bilingual: BilingualOptions | undefined,
-  measure: MeasureStyle,
   horizontal: number,
 ): string[] | null {
-  type Part = { name: string; style: SubtitleStyle; text: string };
-  const primary: Part = { name: 'Default', style, text: cue.text };
-  let parts: Part[] = [primary];
-  if (bilingual && cue.secondaryText !== undefined) {
-    const secondary: Part = { name: 'Secondary', style: bilingual.secondaryStyle, text: cue.secondaryText };
-    parts = bilingual.secondaryFirst ? [secondary, primary] : [primary, secondary];
-  }
-  const maxWidth = ASS_PLAY_RES_X - style.marginL - style.marginR;
-  type Line = { text: string; style: SubtitleStyle; measure: FontMeasure };
-  const lines: Line[] = [];
-  const texts: string[] = [];
-  for (const part of parts) {
-    const metrics = measure(part.style);
-    if (!metrics) return null;
-    const wrapped = part.text
-      .replace(/\r\n?/g, '\n')
-      .split('\n')
-      .flatMap((line) => wrapForBox(line, metrics, maxWidth));
-    for (const line of wrapped) lines.push({ text: line, style: part.style, measure: metrics });
-    const styled = styledAssText(wrapped.join('\n'), part.style);
-    texts.push(bilingual ? `{\\r${part.name}}${styled}` : styled);
-  }
-  const text = texts.join('\\N');
   // Vertical layout as libass does it: lines stacked by their line height,
   // the block placed by its alignment row against MarginV or the \pos anchor.
   const height = lines.reduce((sum, line) => sum + line.measure.lineHeight, 0);
@@ -371,6 +376,7 @@ function exactBoxEvents(
   // Colour runs (second-line colour, highlights) set their own fill alpha;
   // on box layers the fill stays transparent.
   const segments = mapAssOverrideBlocks(retag(text, hidden), (tag) => (/^\\1a(?:&|$)/.test(tag) ? '\\1a&HFF&' : tag)).split('\\N');
+  if (segments.length !== lines.length) return null;
   // Per-line tags go after a line's leading style reset, which would clear them.
   const lineTags = (segment: string, tags: string) => {
     const leading = /^(?:\{[^}]*\})*/.exec(segment)![0];
@@ -429,37 +435,47 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
   const shown = cues.filter((cue) => cue.text.trim() !== '' && cue.endMs > cue.startMs);
-  const overlapping = overlappingCues(shown);
   const anyBox = style.borderStyle === 3 || bilingual?.secondaryStyle.borderStyle === 3;
+  const overlapping = anyBox ? overlappingCues(shown) : null;
   // Script units per pixel differ across and down when the video's aspect is
-  // not PlayRes's 4:3; equal padding needs the ratio (1 when unknown).
-  const horizontal = frameAspect && frameAspect > 0 ? ASS_PLAY_RES_X / ASS_PLAY_RES_Y / frameAspect : 1;
+  // not PlayRes's 4:3. Glyph advances scale with video height, margins with width.
+  const horizontal = frameAspect && frameAspect > 0 && Number.isFinite(frameAspect) ? ASS_PLAY_RES_X / ASS_PLAY_RES_Y / frameAspect : 1;
+  const marginWidth = ASS_PLAY_RES_X - (position && anchor.horizontal === 1 ? 2 * Math.max(style.marginL, style.marginR) : style.marginL + style.marginR);
+  const maxWidth = (part: SubtitleStyle) => {
+    const edge = part.borderStyle === 3
+      ? Math.max(1, part.outline) * Math.max(1, horizontal)
+      : part.outline + part.shadow + 2 * subtitleGlow(part);
+    return Math.max(1, (marginWidth - 2 * edge) / horizontal);
+  };
+  const primaryMeasure = measure?.(style) ?? null;
+  const secondaryMeasure = bilingual ? measure?.(bilingual.secondaryStyle) ?? null : null;
+  const primaryWidth = maxWidth(style);
+  const secondaryWidth = bilingual ? maxWidth(bilingual.secondaryStyle) : primaryWidth;
   const events = shown
     .flatMap((cue) => {
       const timing = `${formatAssTime(cue.startMs)},${formatAssTime(cue.endMs)},Default,,0,0,0,,`;
+      const primary = layoutPart(cue.text, style, primaryMeasure, primaryWidth);
+      const secondary = bilingual && cue.secondaryText !== undefined
+        ? layoutPart(cue.secondaryText, bilingual.secondaryStyle, secondaryMeasure, secondaryWidth)
+        : null;
+      const parts = secondary ? (bilingual?.secondaryFirst ? [secondary, primary] : [primary, secondary]) : [primary];
+      // Keep both languages in one event. Named resets change typography, not block positioning.
+      const text = parts.map((part) => (secondary ? (part === primary ? '{\\rDefault}' : '{\\rSecondary}') : '') + part.text).join('\\N');
       // OneSub patch: exact box padding where the layout is known. Cues shown
       // together may be moved by libass's collision handling and keep
       // SmartSub's box.
-      if (measure && anyBox && !overlapping.has(cue)) {
-        const exact = exactBoxEvents(cue, timing, position, style, bilingual, measure, horizontal);
+      if (overlapping && !overlapping.has(cue) && parts.every((part) => part.lines.length)) {
+        const exact = exactBoxEvents(text, parts.flatMap((part) => part.lines), timing, position, style, bilingual, horizontal);
         if (exact) return exact;
       }
-      let text = styledAssText(cue.text, style);
-      // One bilingual event keeps both languages together during collision
-      // layout. Named style resets provide independent typography without a
-      // second ASS generator; block alignment/margins come from the main style.
-      if (bilingual && cue.secondaryText !== undefined) {
-        const primary = `{\\rDefault}${text}`;
-        const secondary = `{\\rSecondary}${styledAssText(cue.secondaryText, bilingual.secondaryStyle)}`;
-        text = bilingual.secondaryFirst ? `${secondary}\\N${primary}` : `${primary}\\N${secondary}`;
-      }
+      const prefix = position + (parts.some((part) => part.wrapped) && parts.every((part) => part.lines.length) ? '{\\q2}' : '');
       const glow = assGlowTags(style);
       return glow
         ? [
-            `Dialogue: 0,${timing}${position}${assGlowText(text, style)}`,
-            `Dialogue: 1,${timing}${position}${text}`,
+            `Dialogue: 0,${timing}${prefix}${assGlowText(text, style)}`,
+            `Dialogue: 1,${timing}${prefix}${text}`,
           ]
-        : [`Dialogue: 0,${timing}${position}${text}`];
+        : [`Dialogue: 0,${timing}${prefix}${text}`];
     })
     .join('\n');
 

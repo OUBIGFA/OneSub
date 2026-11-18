@@ -2,12 +2,43 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
+
+func TestSubtitleLocateSharesBottomNavigationRail(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			a := storeApp(t, navigationCues(80)...)
+			a.query = "not in the subtitles"
+			a.browseHeld = true
+			tt := settled(a.subtitlesView, 550, 600)
+			for _, scale := range []float32{1, 1.5, 2} {
+				tt.SetSize(int(550*scale), int(600*scale))
+				tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
+				tt.Frame()
+				table, _ := tt.Find(locales.A11ySubtitleList())
+				locate, found := tt.Find(locales.ListLocate())
+				top, _ := tt.Find(locales.ListTop())
+				bottom, _ := tt.Find(locales.ListBottom())
+				gap := top.Y - (locate.Y + locate.H)
+				if !found || locate.X != top.X || locate.W != top.W || top.X != bottom.X || locate.Y < table.Y ||
+					math.Abs(float64(gap-locate.H)) > 1 || bottom.Y+bottom.H > table.Y+table.H+1 {
+					t.Fatal("locate must sit one button-height above the fixed return buttons", locate, top, bottom, table)
+				}
+			}
+			// Return buttons have no search result, but Locate can still clear
+			// the search and restore playback following.
+			if err := tt.Click(locales.ListLocate()); err != nil || a.query != "" || a.browseHeld {
+				t.Fatal("locate did not clear the search and restore following", err, a.query, a.browseHeld)
+			}
+		})
+	}
+}
 
 // The right gutter is part of the native selected row, even though the edge
 // navigation buttons stay fixed while rows scroll underneath that gutter.

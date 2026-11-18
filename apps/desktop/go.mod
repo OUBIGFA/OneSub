@@ -4,7 +4,7 @@ go 1.27.4
 
 require (
 	github.com/agnivade/levenshtein v1.2.1
-	github.com/egoist/mygo v0.9.3-0.20261116184738-6fbc3c535009
+	github.com/egoist/mygo v0.10.0
 	github.com/go-text/typesetting v0.3.5
 	github.com/google/uuid v1.6.0
 	github.com/jdkato/prose/v3 v3.2.3

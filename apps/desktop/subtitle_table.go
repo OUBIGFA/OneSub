@@ -29,10 +29,10 @@ func subtitleSelectionColumn(c *ui.Context) ui.TableColumn {
 // and selected-row background reach the pane edge. Fixed buttons occupy only
 // that empty column and leave the native scrollbar accessible at the edge.
 func subtitleTable(c *ui.Context, state *ui.ListState, columns []ui.TableColumn, count int, cell func(int, int), onNavigate func(toEnd bool), cellMenu ...func(row int, target ui.Element)) ui.Element {
-	return subtitleTableWithGuide(c, state, columns, count, cell, onNavigate, nil, 0, cellMenu...)
+	return subtitleTableWithGuide(c, state, columns, count, cell, onNavigate, nil, nil, 0, cellMenu...)
 }
 
-func subtitleTableWithGuide(c *ui.Context, state *ui.ListState, columns []ui.TableColumn, count int, cell func(int, int), onNavigate func(toEnd bool), guide *subtitleLengthGuide, width float32, cellMenu ...func(row int, target ui.Element)) ui.Element {
+func subtitleTableWithGuide(c *ui.Context, state *ui.ListState, columns []ui.TableColumn, count int, cell func(int, int), onNavigate func(toEnd bool), locate func(*ui.Context), guide *subtitleLengthGuide, width float32, cellMenu ...func(row int, target ui.Element)) ui.Element {
 	// Keep every header whole even when that leaves little room for text:
 	// MyGo scrolls the table horizontally instead of ellipsizing labels.
 	for i := range columns {
@@ -63,18 +63,28 @@ func subtitleTableWithGuide(c *ui.Context, state *ui.ListState, columns []ui.Tab
 		if guide != nil {
 			guide.view(c, width)
 		}
+		const buttonSize, edgeGap, bottomInset = 32, 8, 8
 		ui.Column(c).Absolute().Top(0).Bottom(0).Right(0).Width(railWidth).Padding(0, em(c, 8), em(c, 8), 0).
-			Justify(ui.End).Gap(em(c, 8)).KeepFocus().PassThrough().Children(func() {
-			toolIcon(c, locales.ListTop(), "arrow-up-to-line").Size(em(c, 32), em(c, 32)).Disabled(count == 0).OnClick(func() {
+			Justify(ui.End).Gap(em(c, edgeGap)).KeepFocus().PassThrough().Children(func() {
+			toolIcon(c, locales.ListTop(), "arrow-up-to-line").Disabled(count == 0).OnClick(func() {
 				onNavigate(false)
 				state.ScrollToEdgeAnimated(false, subtitleNavigationAnimation)
 			})
-			toolIcon(c, locales.ListBottom(), "arrow-down-to-line").Size(em(c, 32), em(c, 32)).Disabled(count == 0).OnClick(func() {
+			toolIcon(c, locales.ListBottom(), "arrow-down-to-line").Disabled(count == 0).OnClick(func() {
 				onNavigate(true)
 				// Include the bottom of an unusually tall last row in the landing.
 				state.ScrollToEdgeAnimated(true, subtitleNavigationAnimation)
 			})
 		})
+		if locate != nil {
+			// Use a separate layer so Locate cannot squeeze the return pair in
+			// a short viewport. Its bottom is one button-height above the pair.
+			ui.Column(c).Absolute().Top(0).Bottom(0).Right(0).Width(railWidth).
+				ClipY().KeepFocus().PassThrough().Children(func() {
+				ui.Column(c).Absolute().Right(em(c, 8)).Bottom(em(c, bottomInset+edgeGap+3*buttonSize)).
+					Width(em(c, buttonSize)).PassThrough().Children(func() { locate(c) })
+			})
+		}
 	})
 	return table
 }

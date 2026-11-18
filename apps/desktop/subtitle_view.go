@@ -60,8 +60,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 	compact := width < em(c, 680)
 	ui.Column(c).Fill().Background(studioColors(c).panel).Children(func() {
 		hasCues := len(a.activeDocument().Cues) > 0
-		// Keep the track switch centered; all list commands live in the
-		// wrapping toolbar below, so narrow headers never crowd the tabs.
+		// Keep the track switch centered, separate from editing and navigation.
 		panelHeader(c, nil, func() {
 			if a.proofreading {
 				tab := 0
@@ -221,6 +220,8 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			a.pendingClick = nil
 			a.browseHeld = true
 			a.locateCue = -1
+		}, func(c *ui.Context) {
+			a.subtitleLocateButton(c, hasCues)
 		}, &a.subtitleGuide, width, func(row int, target ui.Element) {
 			a.subtitleContextMenu(c, target, rows[row], row, &selected)
 		}).Label(locales.A11ySubtitleList())
@@ -306,6 +307,11 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			c.After(a.browseUntil.Sub(c.Now()))
 		}
 	})
+}
+
+func (a *NativeApp) subtitleLocateButton(c *ui.Context, hasCues bool) {
+	toolIcon(c, locales.ListLocate(), "locate-fixed").Shrink(0).
+		Disabled(!hasCues || a.subtitleSelectionMode()).OnClick(a.locateCurrent)
 }
 
 // locateCurrent chooses the cue at the playhead, shows it in the middle of

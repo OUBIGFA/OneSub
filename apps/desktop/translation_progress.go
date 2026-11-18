@@ -200,7 +200,9 @@ func (a *NativeApp) translationProgressViewAtWidth(c *ui.Context, width float32)
 				a.subtitleProblemDetail(c, row, chosen)
 			})
 		}
-	}, func(bool) { a.noteBrowse(c.Now()) }, &a.subtitleGuide, width).Label(locales.TranslationLive())
+	}, func(bool) { a.noteBrowse(c.Now()) }, func(c *ui.Context) {
+		a.subtitleLocateButton(c, len(a.activeDocument().Cues) > 0)
+	}, &a.subtitleGuide, width).Label(locales.TranslationLive())
 	if table.Changed() && selected >= 0 && selected < len(rows) {
 		l.selected = rows[selected]
 		a.followHeld = true

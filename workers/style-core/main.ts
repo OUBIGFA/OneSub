@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import * as fontkit from 'fontkit';
 import { buildAssDocument, type FontMeasure } from './smartsub/main/helpers/assStyleBuilder';
 import { resolveAssFonts } from './smartsub/main/helpers/assFonts';
-import { listSubtitleFonts, prepareSubtitleFonts, newFontFallbackReport, summarizeFontFallbackReport, resolveBurnFontName, loadFontData } from './smartsub/main/helpers/fontResolver';
+import { fontTextRuns, listSubtitleFonts, prepareSubtitleFonts, newFontFallbackReport, summarizeFontFallbackReport, resolveBurnFontName, loadFontData } from './smartsub/main/helpers/fontResolver';
 import { DEFAULT_STYLE, STYLE_PRESETS } from './smartsub/renderer/components/subtitleMerge/constants';
 import type { SubtitleStyle } from './smartsub/types/subtitleMerge';
 import type { SubtitleCue } from './smartsub/main/helpers/subtitleFormats';
@@ -49,25 +49,48 @@ function styleFace(style: SubtitleStyle): Face | null {
       });
       const regular = faces.find((f) => f.postscriptName === loaded.postscriptName) ?? faces[0] ?? null;
       const weight = (f: Face) => f['OS/2']?.usWeightClass ?? 400;
-      face = (regular && style.bold && faces.find((f) => f.familyName === regular.familyName && weight(f) >= 600 && !!f.italicAngle === !!style.italic)) || regular;
+      face = (regular && (style.bold || style.italic) && faces.find((f) => f.familyName === regular.familyName && (weight(f) >= 600) === !!style.bold && !!f.italicAngle === !!style.italic)) || regular;
     }
     measuredFaces.set(key, face);
   }
   return measuredFaces.get(key)!;
 }
 
-export function measureStyle(style: SubtitleStyle): FontMeasure | null {
-  const face = styleFace(style);
-  if (!face) return null;
+function faceMetrics(face: Face) {
   const os2 = face['OS/2'];
   const ascent = os2?.winAscent ?? os2?.usWinAscent ?? face.hhea.ascent;
   const descent = os2?.winDescent ?? os2?.usWinDescent ?? -face.hhea.descent;
+  return { ascent, descent };
+}
+
+export function measureStyle(style: SubtitleStyle): FontMeasure | null {
+  const face = styleFace(style);
+  if (!face) return null;
+  const { ascent, descent } = faceMetrics(face);
   if (!(ascent + descent > 0)) return null;
   const scale = style.fontSize / (ascent + descent);
+  const advance = (font: Face, text: string, fontScale: number) => font.layout(text).advanceWidth * fontScale;
+  const fallbacks = new Map<string, (text: string) => number>();
   return {
     lineHeight: style.fontSize,
     ascent: ascent * scale,
-    width: (text) => face.layout(text).advanceWidth * scale,
+    width: (text) => {
+      // Measure the same fallback families resolveAssFonts inserts, not the
+      // primary font's missing-glyph placeholders (e.g. Arial for Chinese).
+      return fontTextRuns(text, style.fontName).reduce((width, run) => {
+        if (run.fontName === style.fontName) return width + advance(face, run.text, scale);
+        let measure = fallbacks.get(run.fontName);
+        if (!measure) {
+          const fallback = styleFace({ ...style, fontName: run.fontName });
+          const metrics = fallback && faceMetrics(fallback);
+          measure = fallback && metrics && metrics.ascent + metrics.descent > 0
+            ? (text) => advance(fallback, text, style.fontSize / (metrics.ascent + metrics.descent))
+            : (text) => advance(face, text, scale);
+          fallbacks.set(run.fontName, measure);
+        }
+        return width + measure(run.text);
+      }, 0);
+    },
     ink: (text) => {
       let top = -Infinity;
       let bottom = -Infinity;

@@ -14,14 +14,8 @@ github.com/dustin/go-humanize v1.1.0 h1:dbKTrvD0klcbBV/h4AWJdMuZogJACoMlvWIWZ5b2
 github.com/dustin/go-humanize v1.1.0/go.mod h1:hc1CvRkJMsgxqjmjMQF3QNRAZBwY8AXBAzKYoSX9sFI=
 github.com/ebitengine/purego v0.11.1 h1:2zpWRSQNVKN4eKsKO9eM1ILDgWfYMY9GwqRmK6XeQ/0=
 github.com/ebitengine/purego v0.11.1/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
-github.com/egoist/mygo v0.9.1-0.20261114153143-203930fb2d43 h1:dZKJTrJe02c7rTtvJdaT++oowUFQBOSqMwPQWqZNB/w=
-github.com/egoist/mygo v0.9.1-0.20261114153143-203930fb2d43/go.mod h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=
-github.com/egoist/mygo v0.9.1-0.20261114214352-2dd01b4a2b22 h1:YIVeTJGr89QMz5o8Nk3qxcpeaLU0o6XN+GBpQlGPAIQ=
-github.com/egoist/mygo v0.9.1-0.20261114214352-2dd01b4a2b22/go.mod h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=
-github.com/egoist/mygo v0.9.1-0.20261115012555-b615f2957d05 h1:ir0/lhJD16v9ypS+Wm9FaoQT09l9bdmv65dXBhwpSW8=
-github.com/egoist/mygo v0.9.1-0.20261115012555-b615f2957d05/go.mod h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=
-github.com/egoist/mygo v0.9.3-0.20261116184738-6fbc3c535009 h1:7lq3U6eNcijoYgri9kIEXesJYXOc22dbX8HS5MclBEY=
-github.com/egoist/mygo v0.9.3-0.20261116184738-6fbc3c535009/go.mod h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=
+github.com/egoist/mygo v0.10.0 h1:HpLUrlh6WES+4VYbz5K0TvUSw/v8PSdjT/ttiUYrBFM=
+github.com/egoist/mygo v0.10.0/go.mod h1:Hw9sxdSQ4tHuehHw5Q6alR1qTS8kgv3oSFxEejg+7qo=
 github.com/go-text/typesetting v0.3.5 h1:XZPUooClHY0Vf/rFyUyuPRNEkawARaFzLMQcXLSEyPk=
 github.com/go-text/typesetting v0.3.5/go.mod h1:XZO1hD+nQVyvVa5IicQk7FsCa4PFQaJ2soWAP1f//68=
 github.com/go-text/typesetting-utils v0.0.0-20260419141703-4ffe8874dabc h1:8FGo2It5K75XkavhTiCKExUfVaVDS1feBnLCru5qeoY=
@@ -42,8 +36,6 @@ github.com/jdkato/prose/v3 v3.2.3 h1:WYrAHh0Lo+A/qswKjtvi7M5RhQwrF+OY9Qgn121M1us
 github.com/jdkato/prose/v3 v3.2.3/go.mod h1:VRQyR/EyA6bX457JTCIF67n04ycHek4v6v0veGiJvUk=
 github.com/klauspost/compress v1.18.6 h1:2jupLlAwFm95+YDR+NwD2MEfFO9d4z4Prjl1XXDjuao=
 github.com/klauspost/compress v1.18.6/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
-github.com/lobehub/lobe-mygo v0.0.0-20261110162706-5e5fea5ef9e2 h1:bQP4VH/kneeRoK6pmBx5V2pbt3yw7cJ2eNoVFQGVs+s=
-github.com/lobehub/lobe-mygo v0.0.0-20261110162706-5e5fea5ef9e2/go.mod h1:hHlyBWw2a7l8ToxyVSQbrjZ5ghPZSItBs5uYRDTIzZY=
 github.com/lobehub/lobe-mygo v0.0.0-20261116124832-d88b4ad7f238 h1:Oki819/x3/qf2IHFA2JXDf0ZezbVQFprK5qF2XkU6xs=
 github.com/lobehub/lobe-mygo v0.0.0-20261116124832-d88b4ad7f238/go.mod h1:hHlyBWw2a7l8ToxyVSQbrjZ5ghPZSItBs5uYRDTIzZY=
 github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=

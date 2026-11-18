@@ -1,6 +1,8 @@
 # MyGo 原生 UI 与 Windows 层补丁
 
-上游：`egoist/mygo v0.9.3-0.20261116184738-6fbc3c535009`，修订 `6fbc3c53500974f6802fd21be22cf9b452a6dd8f`，MIT，许可见 [mygo.txt](../../licenses/mygo.txt)，模块、源码 ZIP 与许可校验见 [运行时清单](../../manifests/runtimes.json)。工作台控件由 Lobe MyGo 提供；MyGo 保留布局、表格、媒体承载与系统菜单行为。 2026-11-17 核查最新发布为 v0.9.2；本任务锁定当时最新主分支修订。上游新增表格固定行高及 Linux 窗口／快捷键支持；十五个补丁输入文件中 list.go、table.go 有变化，同步校验并复核六份有限补丁。
+上游：`egoist/mygo v0.10.0`，修订 `ebde9399baf2734b3361856a53f4036859973d1d`，MIT，许可见 [mygo.txt](../../licenses/mygo.txt)，模块、源码 ZIP 与许可校验见 [运行时清单](../../manifests/runtimes.json)。工作台控件由 Lobe MyGo 提供；MyGo 保留布局、表格、媒体承载与系统菜单行为。
+
+2026-11-18 核查最新正式发布 v0.10.0 与主分支 `d8fc2b074c17`。当前 Lobe MyGo 的依赖由正式发布满足，固定 v0.10.0。上游改动覆盖触摸手势、附着弹窗、三击选择和输入；现有七份补丁未被替代，仍能直接应用。更新 Windows surface、editor、headless、textinput 四个文件的原始校验值，许可证不变。
 
 ## 范围与原因
 

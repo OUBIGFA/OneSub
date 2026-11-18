@@ -23,7 +23,11 @@ func (guide *subtitleLengthGuide) view(c *ui.Context, width float32) {
 	if !guide.initialized {
 		guide.position.X, guide.initialized = maximum*.75, true
 	}
-	guide.position.X, guide.position.Y = min(max(0, guide.position.X), maximum), 0
+	// MyGo clamps the bound offset even at rest. Do not bind an out-of-view
+	// position while a pane resize excludes it; only dragging changes it.
+	if guide.position.X > maximum {
+		return
+	}
 	ui.Row(c.Key("subtitle-length-guide")).Absolute().Top(0).Bottom(0).Left(0).Width(hitWidth).
 		Justify(ui.Center).KeepFocus().Cursor(ui.CursorResizeEW).Label(locales.SubtitleLengthGuide()).
 		Draggable(&guide.position, ui.DraggableOptions{Axis: ui.Horizontal, Bounds: &ui.Rect{W: maximum}, Rigid: true}).

@@ -30,7 +30,6 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 			ui.Toolbar(c, func() {
 				a.subtitleActionsMenu(c, layout)
 				a.subtitleSelectionActions(c, layout)
-				subtitleTool(c, locales.ListLocate(), "locate-fixed", layout).Disabled(!hasCues || selectionMode).OnClick(a.locateCurrent)
 				if !compact {
 					a.listPunctuationTools(c, layout)
 				}
@@ -55,7 +54,7 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 
 // Fit this frame's visible controls, not the full set hidden by narrow-pane
 // menus. Once whitespace is exhausted, review/cleanup labels yield one at a
-// time; locating and finding subtitles retain icon + text for longest.
+// time; Find and replace retains icon + text for longest.
 func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow bool) subtitleToolbarLayout {
 	labels := []string{}
 	if a.retranslation != nil {
@@ -83,7 +82,7 @@ func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow 
 	} else {
 		labels = append(labels, locales.RetranslateCheckAll(), locales.RetranslateSelect())
 	}
-	labels = append(labels, locales.SubtitleActionsMenu(), locales.FindReplace(), locales.ListLocate())
+	labels = append(labels, locales.SubtitleActionsMenu(), locales.FindReplace())
 	widths := make([]float32, len(labels))
 	minimum := em(c, 60+navigation*32+(float32(len(labels))+navigation-1)*4)
 	for i, label := range labels {
@@ -109,13 +108,13 @@ func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow 
 			minimum -= widths[i] - em(c, 32)
 		}
 	}
-	// At the smallest supported pane, keep every second-row action square so
-	// the shortened Locate label cannot consume the row needed by the list.
+	// At the smallest supported pane, compact the second-row editing actions
+	// to preserve the list viewport.
 	if width < em(c, 400) {
 		if layout.icons == nil {
 			layout.icons = make(map[string]bool)
 		}
-		for _, label := range []string{locales.SubtitleActionsMenu(), locales.ListLocate(), locales.FindReplace(), locales.TranslationResults(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.RetranslateClear()} {
+		for _, label := range []string{locales.SubtitleActionsMenu(), locales.FindReplace(), locales.TranslationResults(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.RetranslateClear()} {
 			layout.icons[label] = true
 		}
 		if count := len(a.checkedRetranslationIDs()); count > 0 {
