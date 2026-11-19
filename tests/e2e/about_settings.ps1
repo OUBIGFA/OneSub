@@ -65,7 +65,7 @@ foreach($name in $names | Where-Object {$_ -notin @('ONESUB_DATA_ROOT','XDG_RUNT
 $preferences="$workPath/data/settings.json"
 # Omit autoUpdate to exercise the actual default, not a pre-checked fixture.
 [IO.File]::WriteAllText($preferences,(@{version=5;uiLanguage=$Language;appearance=$Appearance;closeToTray=$false}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
-$text=if($Language -eq 'en'){@{settings='Settings';about='About';automatic='Check and install updates automatically';check='Check for updates';close='Close';content='Settings content';missing='No update package published yet';version='Version 0.1.0'}}else{@{settings='设置';about='关于';automatic='自动检查并安装更新';check='检查更新';close='关闭';content='设置内容';missing='尚无可用更新包';version='版本 0.1.0'}}
+$text=if($Language -eq 'en'){@{settings='Settings';about='About';automatic='Check and install updates automatically';check='Check for updates';close='Close';content='Settings content';missing='No update package published yet';version='Version 0.1.1'}}else{@{settings='设置';about='关于';automatic='自动检查并安装更新';check='检查更新';close='关闭';content='设置内容';missing='尚无可用更新包';version='版本 0.1.1'}}
 $p=$null
 function Start-TestWindow {
  # Return the process to the caller's scope. ScriptBlock UTF-8 invocation

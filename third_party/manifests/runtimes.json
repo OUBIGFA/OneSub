@@ -20,7 +20,7 @@
     "usage": "Native desktop controls, layout, themes, menus and embedded media WebView",
     "modifications": "Six native/UI patches and a build-only license-page hook; see third_party/patches/mygo/README.md",
     "checkedAt": "2026-11-19",
-    "latestMainRevision": "400ba3b17c3ec60ef9b0604e26aa4cdcf2a2ff2d",
+    "latestMainRevision": "61ea5567ab14f66fcf5a2d342aaa9fe5a25dce42",
     "latestRelease": "v0.10.0"
   },
   "mcpGoSdk": {

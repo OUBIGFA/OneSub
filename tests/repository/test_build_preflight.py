@@ -24,7 +24,10 @@ class BuildPreflightTests(unittest.TestCase):
         (self.root / "build").mkdir()
         (self.root / "apps/desktop").mkdir(parents=True)
         shutil.copyfile(ROOT / "build/build-windows.ps1", self.root / "build/build-windows.ps1")
-        shutil.copyfile(ROOT / "apps/desktop/mygo.json", self.root / "apps/desktop/mygo.json")
+        # A product release must not change which preflight boundary each test reaches.
+        config = json.loads((ROOT / "apps/desktop/mygo.json").read_text(encoding="utf-8"))
+        config["version"] = "0.1.0"
+        (self.root / "apps/desktop/mygo.json").write_text(json.dumps(config), encoding="utf-8")
         (self.root / "bin").mkdir()
         (self.root / "third_party/manifests").mkdir(parents=True)
         self.prepare_bun()
