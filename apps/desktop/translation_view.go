@@ -128,7 +128,10 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 		// Protocol names are product labels, not user content. Reserve a full
 		// row so the selected API never becomes an ambiguous ellipsis.
 		ui.Field(c, locales.TranslationApi(), func() {
-			idSelect(c, &a.settings.ProviderAPI, []option{{translator.APIChatCompletions, "OpenAI Chat Completions"}, {translator.APIResponses, "OpenAI Responses"}}).Label(locales.TranslationApi()).Disabled(a.settings.Provider() == nil).OnChange(a.saveSettings)
+			idSelect(c, &a.settings.ProviderAPI, []option{{translator.APIChatCompletions, "OpenAI Chat Completions"}, {translator.APIResponses, "OpenAI Responses"}}).Label(locales.TranslationApi()).Disabled(a.settings.Provider() == nil).OnChange(func() {
+				a.modelChecks = nil
+				a.saveSettings()
+			})
 		})
 		ui.Field(c, locales.TranslationEndpoint(), func() {
 			lobeTextInput(c, &a.settings.ProviderURL).MinHeight(em(c, 36)).Placeholder(locales.TranslationEndpointPlaceholder()).Label(locales.TranslationEndpoint()).Tooltip(a.settings.ProviderURL).Disabled(a.settings.Provider() == nil).OnChange(func() {
@@ -136,6 +139,7 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 				a.providerKeyVisible = false
 				a.modelsGeneration++
 				a.modelsLoading = false
+				a.modelChecks = nil
 				if p := a.settings.Provider(); p != nil {
 					p.Catalog = nil // invalidate discovery, not retained models or manual limits
 				}
@@ -170,6 +174,7 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 				a.providerKeyVisible = false
 				a.modelsGeneration++
 				a.modelsLoading = false
+				a.modelChecks = nil
 			})
 			lobePrimaryButton(c, locales.TranslationSaveKey()).Disabled(a.providerKey == "" || a.settings.ProviderURL == "").OnClick(func() {
 				if err := security.SaveKey(a.settings.CredentialScope(), a.providerKey); err != nil {
@@ -181,6 +186,7 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 				a.providerKeyVisible = false
 				a.modelsGeneration++
 				a.modelsLoading = false
+				a.modelChecks = nil
 				a.providerSettingsTab = 0
 			})
 		})

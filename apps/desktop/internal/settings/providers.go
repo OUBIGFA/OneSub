@@ -2,6 +2,7 @@ package settings
 
 import (
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/translator"
@@ -13,7 +14,8 @@ import (
 // Models are the ones the user keeps for this provider: several may be kept
 // at once, and any of them may be the one in use. Catalog is what the
 // endpoint offered when it was last asked: the list the user keeps models
-// from. A model kept by hand, with its own limits, stays kept.
+// from. Successful discovery removes unavailable choices; manual choices stay
+// usable offline when discovery is unsupported or fails.
 type Provider struct {
 	ID        string                 `json:"id"`
 	Name      string                 `json:"name"`
@@ -57,6 +59,30 @@ func (p *Provider) DropModel(id string) {
 			p.Models = append(p.Models[:i], p.Models[i+1:]...)
 			return
 		}
+	}
+}
+
+// ReplaceProviderCatalog applies only a successful explicit discovery. Missing
+// models lose their saved/active selection; surviving manual limits are kept.
+// Clear both active fields before Save/SyncProvider can re-add an expired ID.
+func (s *Settings) ReplaceProviderCatalog(items []translator.ModelInfo) {
+	p := s.Provider()
+	if p == nil {
+		return
+	}
+	p.Catalog = append([]translator.ModelInfo{}, items...)
+	available := make(map[string]bool, len(items))
+	for _, item := range items {
+		available[item.ID] = true
+	}
+	p.Models = slices.DeleteFunc(p.Models, func(info translator.ModelInfo) bool { return !available[info.ID] })
+	for _, item := range items {
+		if p.KeepsModel(item.ID) {
+			p.KeepModel(item)
+		}
+	}
+	if !available[s.ProviderModel] {
+		s.ProviderModel, p.Model = "", ""
 	}
 }
 

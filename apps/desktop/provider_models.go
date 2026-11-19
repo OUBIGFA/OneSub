@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/security"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
@@ -20,21 +21,28 @@ type providerModelDraft struct {
 	provider, selected, text string
 }
 
+type providerModelCheck struct {
+	running bool
+	err     string
+	elapsed time.Duration
+}
+
 // fetchProviderModels asks the configured endpoint what models it offers.
-// The answer is the provider's catalog: the list the user keeps models from.
-// The models kept for the provider are not disturbed by it, except that a
-// kept model now knows the limits the endpoint advertises for it.
+// A successful answer replaces the catalog and removes unavailable choices.
+// A failed request leaves saved models and their selection intact.
 func (a *NativeApp) fetchProviderModels() {
 	if a.modelsLoading || a.win == nil || a.settings.ProviderURL == "" {
 		return
 	}
 	// Snapshot the selected account only on this explicit command. Rendering
 	// settings must never perform discovery or use a half-edited connection.
+	a.commitProviderModelInput()
 	a.settings.SyncProvider()
 	endpoint := a.settings.ProviderURL
 	providerID := a.settings.ActiveProvider
 	a.modelsGeneration++
 	generation := a.modelsGeneration
+	a.modelChecks = nil
 	key, err := security.ReadKey(a.settings.CredentialScope())
 	if err != nil {
 		a.modelsError = err.Error()
@@ -54,20 +62,46 @@ func (a *NativeApp) fetchProviderModels() {
 				return
 			}
 			a.modelsError = ""
-			p := a.settings.Provider()
-			if p == nil {
+			a.settings.ReplaceProviderCatalog(items)
+			a.modelEdit = providerModelDraft{}
+			a.saveSettings()
+		})
+	}()
+}
+
+// Each model is probed without selecting or retaining it. Results belong only
+// to this exact provider, endpoint, protocol and saved credential generation.
+func (a *NativeApp) testProviderModel(id string) {
+	if a.win == nil || id == "" || a.settings.Provider() == nil || a.settings.ProviderURL == "" {
+		return
+	}
+	if previous := a.modelChecks[id]; previous != nil && previous.running {
+		return
+	}
+	a.settings.SyncProvider()
+	endpoint, api, providerID := a.settings.ProviderURL, a.settings.ProviderAPI, a.settings.ActiveProvider
+	generation := a.modelsGeneration
+	check := &providerModelCheck{running: true}
+	if a.modelChecks == nil {
+		a.modelChecks = map[string]*providerModelCheck{}
+	}
+	a.modelChecks[id] = check
+	key, err := security.ReadKey(a.settings.CredentialScope())
+	if err != nil {
+		check.running, check.err = false, err.Error()
+		return
+	}
+	win := a.win
+	go func() {
+		elapsed, err := translator.CheckModel(context.Background(), endpoint, api, id, key, nil)
+		win.Update(func() {
+			if a.settings.ActiveProvider != providerID || a.settings.ProviderURL != endpoint || a.settings.ProviderAPI != api || a.modelsGeneration != generation || a.modelChecks[id] != check {
 				return
 			}
-			// The catalog is what the endpoint offers now. The models kept
-			// stay kept; a kept model learns the limits the endpoint
-			// advertises, unless the user entered its own.
-			p.Catalog = append([]translator.ModelInfo{}, items...)
-			for _, item := range items {
-				if p.KeepsModel(item.ID) {
-					p.KeepModel(item)
-				}
+			check.running, check.elapsed = false, elapsed
+			if err != nil {
+				check.err = err.Error()
 			}
-			a.saveSettings()
 		})
 	}()
 }
@@ -78,6 +112,7 @@ func (a *NativeApp) providerSelectionChanged(id string) {
 		return
 	}
 	a.modelsGeneration++
+	a.modelChecks = nil
 	a.providerKey, a.keyStatus, a.modelsError = "", "", ""
 	a.providerKeyVisible = false
 	a.modelsLoading = false
@@ -153,9 +188,8 @@ func (a *NativeApp) commitProviderModelInput() {
 	}
 }
 
-// The catalog and saved choices have separate lifetimes. Manual IDs and
-// models removed from a later catalog remain available until the user removes
-// them; manually edited limits take precedence over advertised metadata.
+// Manual IDs remain available offline. Explicit successful discovery prunes
+// expired choices; manually edited limits of surviving models take precedence.
 func (a *NativeApp) providerModelCatalog() []translator.ModelInfo {
 	p := a.settings.Provider()
 	if p == nil {
@@ -267,6 +301,7 @@ func (a *NativeApp) providerDeleteView(c *ui.Context) {
 	a.providerKey, a.keyStatus, a.modelsError = "", "", ""
 	a.providerKeyVisible = false
 	a.modelQuery, a.modelsLoading = "", false
+	a.modelChecks = nil
 	if len(a.settings.Providers) > 0 {
 		a.providerSelectionChanged(a.settings.Providers[0].ID)
 	} else {
@@ -304,12 +339,14 @@ func (a *NativeApp) providerModelsView(c *ui.Context) {
 			return width + em(c, 24)
 		}
 		statusWidth := measure(locales.TranslationModelInUse(), locales.TranslationUseModel(), locales.TranslationModelUnused())
+		testWidth := measure(locales.TranslationTestModel(), locales.TranslationModelTesting(), locales.TranslationModelTestPassed(), locales.TranslationModelTestFailed())
 		a.modelList.Key = func(i int) any { return models[i].ID }
 		a.modelList.Label = func(i int) string { return models[i].ID }
 		ui.Table(c, &a.modelList, []ui.TableColumn{
 			{Title: locales.TranslationKeep(), Width: measure(locales.TranslationKeep()), Fixed: true, Align: ui.Center},
 			{Title: locales.TranslationModel(), MinWidth: em(c, 80), Fixed: true},
 			{Title: locales.TranslationModelState(), Width: max(statusWidth+em(c, 24), measure(locales.TranslationModelInUse(), locales.TranslationModelState())), Fixed: true, Align: ui.Center},
+			{Title: locales.TranslationModelConnection(), Width: max(testWidth+em(c, 24), measure(locales.TranslationModelConnection())), Fixed: true, Align: ui.Center},
 			// MyGo scrollbars overlay their content. A native empty column
 			// reserves a stable gutter in both the header and every row.
 			{ID: "scrollbar-gutter", Width: em(c, 20), Fixed: true},
@@ -345,6 +382,25 @@ func (a *NativeApp) providerModelsView(c *ui.Context) {
 				// the current model; only unused models are disabled/muted.
 				lobeButton(c, label).Width(statusWidth).Shrink(0).Padding(em(c, 2), em(c, 8)).Disabled(!p.KeepsModel(info.ID)).
 					Label(locales.TranslationUseModelNamed(info.ID)).OnClick(func() { a.useProviderModel(info.ID) })
+			case 3:
+				check := a.modelChecks[info.ID]
+				label, detail := locales.TranslationTestModel(), locales.TranslationTestModelHint()
+				if check != nil {
+					switch {
+					case check.running:
+						label = locales.TranslationModelTesting()
+					case check.err != "":
+						label, detail = locales.TranslationModelTestFailed(), check.err
+					default:
+						label, detail = locales.TranslationModelTestPassed(), locales.TranslationModelTestLatency(int(check.elapsed.Milliseconds()))
+					}
+				}
+				button := lobeButton(c, label).Width(testWidth).Shrink(0).Padding(em(c, 2), em(c, 8)).
+					Disabled(a.modelsLoading || a.settings.ProviderURL == "" || check != nil && check.running).
+					Label(locales.TranslationTestModelNamed(info.ID)).Tooltip(detail).OnClick(func() { a.testProviderModel(info.ID) })
+				if check != nil && check.err != "" {
+					button.TextColor(c.Theme().Danger)
+				}
 			}
 		}).Fill().Label(locales.TranslationModels())
 	})

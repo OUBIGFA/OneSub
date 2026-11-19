@@ -42,7 +42,8 @@ type request struct {
 // reply is a model's complete answer.
 type reply struct {
 	text          string
-	truncated     bool // cut by the output limit or a content filter
+	finish        string // retain the terminal status for model connection checks
+	truncated     bool   // cut by the output limit or a content filter
 	input, output int
 }
 
@@ -392,7 +393,7 @@ func (a *answer) reply() (reply, error) {
 		return reply{}, refusal{a.refused.String()}
 	}
 	cut := a.finish == "length" || a.finish == "content_filter" || a.finish == "incomplete" || a.finish == "max_tokens"
-	return reply{text: a.content.String(), truncated: cut, input: a.input, output: a.output}, nil
+	return reply{text: a.content.String(), finish: a.finish, truncated: cut, input: a.input, output: a.output}, nil
 }
 
 // event reads one SSE data payload. It reports when the reply is complete.
@@ -527,6 +528,11 @@ func (s *service) whole(raw []byte) (reply, error) {
 			}
 		}
 		a.finish = map[string]string{"completed": "stop", "incomplete": "incomplete"}[wire.Status]
+		if a.finish == "" && wire.Status != "" {
+			// A failed/cancelled JSON response can contain partial text. Preserve
+			// that status so a connection probe cannot report it as completed.
+			a.finish = wire.Status
+		}
 		a.input, a.output = wire.Usage.InputTokens, wire.Usage.OutputTokens
 	} else {
 		var wire struct {

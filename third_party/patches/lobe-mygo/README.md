@@ -1,7 +1,7 @@
 # Lobe MyGo 原生组件集成
 
 上游：[lobehub/lobe-mygo](https://github.com/lobehub/lobe-mygo)，MIT。
-2026-11-17 核查主分支并锁定修订 `d88b4ad7f238950ed04a3be6a82501540330dbd6`。
+2026-11-19 核查主分支并继续锁定修订 `d88b4ad7f238950ed04a3be6a82501540330dbd6`。
 模块版本、源码 ZIP、原文件与许可证 SHA-256 见
 [清单](../../manifests/lobe-mygo.json)。
 

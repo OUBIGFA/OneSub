@@ -18,9 +18,11 @@ TXT 文稿导出直接调用固定 libse 的 `HtmlUtil.RemoveHtmlTags`、`HtmlUt
 
 实际翻译协议与分段流程参考的固定上游修订、源码位置和适配边界见各组件的 `ports/` 登记。它们不是新增运行时依赖；完整字幕技能快照仍为质量规则来源。
 
+翻译模型连接测试参考 [Cherry Studio 的模型检查](https://github.com/CherryHQ/cherry-studio/blob/563c1e8a8e4a1f5fc6f51fa4abbad5f9399e51d3/src/main/ai/AiService.ts)与[逐模型结果处理](https://github.com/CherryHQ/cherry-studio/blob/563c1e8a8e4a1f5fc6f51fa4abbad5f9399e51d3/src/renderer/pages/settings/ProviderSettings/ModelList/checkModelsHealth.ts)。实现直接复用 OneSub 既有 `translator.service.send`、Chat Completions／Responses 解析与凭据读取，不复制 Cherry Studio 代码或增加运行时依赖。测试只发送固定短句，等待完整非空文本，总时限 15 秒，不重试或重定向，不创建字幕或对话历史；结果与响应时间显示在原生 Lobe MyGo 模型表格中。
+
 旧版浅色主题的 WinOne 来源、许可副本、哈希与适配边界见 [历史配色登记](ports/winone/README.md)；当前浅深色主题均使用 Lobe MyGo 的主题令牌。
 
-MyGo 原生 UI 锁定为 2026-11-18 核查时的最新正式发布 `v0.10.0`，满足当前 Lobe MyGo `v0.0.0-20261116124832-d88b4ad7f238` 的依赖；源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。
+MyGo 原生 UI 锁定为 2026-11-19 核查时的最新正式发布 `v0.10.0`，满足当前 Lobe MyGo `v0.0.0-20261116124832-d88b4ad7f238` 的依赖；源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。
 
 MyGo 的应用更新直接复用 `mygo.Updater.Check`／`Update.Install`，包括 HTTPS／系统代理、Ed25519 校验、解包与替换／回滚；没有引入另一套下载器或安装器。设置“关于”与任务协调由应用原生 UI 承担，产品版本为 `0.1.0`，用数值第四段区分内部构建。归档与签名由 MyGo 构建器生成，只调整清单中的内部构建号与不可变 Release URL，见 [构建与更新说明](../build/README.md)。新增 GitHub 和“关于”图标继续直接复用同一固定 Lucide 修订，原字节、大小和哈希见 [图标清单](manifests/lucide.json)。
 

@@ -80,7 +80,7 @@ func ModelCatalog(ctx context.Context, endpointURL, key string, client *http.Cli
 	var result struct {
 		Data []map[string]json.RawMessage `json:"data"`
 	}
-	if err = json.Unmarshal(data, &result); err != nil {
+	if err = json.Unmarshal(data, &result); err != nil || result.Data == nil {
 		return nil, errors.New(locales.ErrModelsFormat())
 	}
 	items := map[string]ModelInfo{}
@@ -110,7 +110,9 @@ func ModelCatalog(ctx context.Context, endpointURL, key string, client *http.Cli
 		models = append(models, info)
 	}
 	slices.SortFunc(models, func(a, b ModelInfo) int { return strings.Compare(a.ID, b.ID) })
-	if len(models) == 0 {
+	// Only an explicit empty data array can remove the last saved model.
+	// A response whose entries are all invalid must leave preferences intact.
+	if len(models) == 0 && len(result.Data) > 0 {
 		return nil, errors.New(locales.ErrModelsEmpty())
 	}
 	return models, nil

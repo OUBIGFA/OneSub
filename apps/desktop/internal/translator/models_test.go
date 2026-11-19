@@ -53,3 +53,30 @@ func TestModelLimitsComeFromTheConfiguredProvider(t *testing.T) {
 		t.Fatal(models)
 	}
 }
+
+// A valid empty catalog is authoritative: callers must be able to remove
+// the last saved model. A failed or malformed response has no such authority.
+func TestModelCatalogAcceptsAnExplicitEmptyList(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"data":[]}`)
+	}))
+	defer server.Close()
+	models, err := ModelCatalog(context.Background(), server.URL, "", nil)
+	if err != nil || len(models) != 0 {
+		t.Fatalf("empty catalog could not replace stale models: %v, %v", models, err)
+	}
+}
+
+func TestModelCatalogRejectsMissingOrInvalidLists(t *testing.T) {
+	for _, body := range []string{`{}`, `{"error":{"message":"unavailable"}}`, `{"data":null}`, `{"data":[{"id":""}]}`} {
+		t.Run(body, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprint(w, body)
+			}))
+			defer server.Close()
+			if _, err := ModelCatalog(context.Background(), server.URL, "", nil); err == nil {
+				t.Fatal("invalid response could clear the saved models")
+			}
+		})
+	}
+}

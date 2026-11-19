@@ -182,6 +182,7 @@ type NativeApp struct {
 	modelsError                          string
 	modelsLoading                        bool
 	modelsGeneration                     uint64
+	modelChecks                          map[string]*providerModelCheck
 	providerDelete                       bool
 	fontCatalogLoading                   bool
 	translationReview                    bool // the check results of the last translation are shown
@@ -424,7 +425,9 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 	if optimized > 0 {
 		counts = append(counts, locales.StatusOptimizedCount(optimized))
 	}
-	ui.Row(c).Height(em(c, 32)).Shrink(0).Padding(0, em(c, 12)).Gap(em(c, 12)).AlignItems(ui.Center).Background(look.chrome).FontSize(em(c, captionSize)).Label(locales.A11yStatusBar()).Children(func() {
+	// The 24-DIP actions fit inside the 32-DIP bar with four DIP above/below.
+	// Keep the same inset for icon-only and labelled actions at every text scale.
+	ui.Row(c).Height(em(c, 32)).Shrink(0).Padding(em(c, 4), em(c, 12)).Gap(em(c, 12)).AlignItems(ui.Center).Background(look.chrome).FontSize(em(c, captionSize)).Label(locales.A11yStatusBar()).Children(func() {
 		// Reading warnings and transient results stay on the left. Track counts
 		// have a separate stable slot immediately before the output action.
 		readingHint := false
@@ -459,15 +462,26 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 		}
 		a.moduleTimesView(c)
 
-		canCancel := a.busy && a.cancel != nil && !a.choosingFile && (!a.composeRunning || a.composeInBackground) && !a.recognitionRunning && !a.translationRunning
+		backgroundCompose := a.busy && a.composeRunning && a.composeInBackground && !a.compressRunning && !a.audioExtractRunning
+		canCancel := a.busy && a.cancel != nil && !a.choosingFile && (!a.composeRunning || a.composeInBackground) && !a.recognitionRunning && !a.translationRunning && !backgroundCompose
 		canOpenOutput := a.lastOutput != "" && !a.busy
-		if (readingHint || hasStatus) && (canCancel || canOpenOutput || len(counts) > 0) {
+		if (readingHint || hasStatus) && (backgroundCompose || canCancel || canOpenOutput || len(counts) > 0) {
 			separator(c).Height(em(c, 16)).AlignSelf(ui.Center)
 		}
-		if canCancel {
-			lobeButton(c, locales.StatusOwnerTask()+locales.ActionCancelTask()).Padding(em(c, 2), em(c, 10)).Shrink(0).OnClick(func() { a.cancel() })
+		if backgroundCompose {
+			// The same worker fraction drives both progress surfaces. Negative
+			// fractions retain the native indeterminate bar during preparation/checks.
+			ui.Row(c).Gap(em(c, 6)).AlignItems(ui.Center).Shrink(0).Children(func() {
+				muted(c, locales.StatusOwnerTask()).SingleLine().Shrink(0)
+				lobeProgress(c, a.composeProgress.Fraction).Width(em(c, 120)).Shrink(0).Label(locales.A11yComposeProgress()).Tooltip(composeStageLabel(a.composeProgress.Stage))
+				if a.composeProgress.Fraction >= 0 {
+					muted(c, locales.Percent(100*a.composeProgress.Fraction)).SingleLine().FontFeatures("tnum").Shrink(0)
+				}
+			})
+		} else if canCancel {
+			lobeButton(c, locales.StatusOwnerTask()+locales.ActionCancelTask()).MinHeight(em(c, 24)).Height(em(c, 24)).FontSize(em(c, captionSize)).LineHeight(1.1).Padding(em(c, 2), em(c, 10)).Shrink(0).OnClick(func() { a.cancel() })
 		}
-		if canCancel && len(counts) > 0 {
+		if (backgroundCompose || canCancel) && len(counts) > 0 {
 			separator(c).Height(em(c, 16)).AlignSelf(ui.Center)
 		}
 		if len(counts) > 0 {
@@ -490,9 +504,9 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 				}
 			}
 			if compact {
-				toolIcon(c, label, "folder-open").Shrink(0).OnClick(open)
+				toolIcon(c, label, "folder-open").Size(em(c, 24), em(c, 24)).Shrink(0).OnClick(open)
 			} else {
-				lobeButton(c, label).Padding(em(c, 2), em(c, 10)).Shrink(0).OnClick(open)
+				lobeButton(c, label).MinHeight(em(c, 24)).Height(em(c, 24)).FontSize(em(c, captionSize)).LineHeight(1.1).Padding(em(c, 2), em(c, 10)).Shrink(0).OnClick(open)
 			}
 		}
 	})
