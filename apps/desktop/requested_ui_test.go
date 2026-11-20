@@ -36,7 +36,7 @@ func TestSubtitleToolbarGroupsFilesAndEditing(t *testing.T) {
 					t.Fatal("subtitle command is not on the search row", label, r, search)
 				}
 			}
-			edit, _ := tt.Find(locales.SubtitleActionsMenu())
+			edit, _ := tt.Find(locales.FindReplace())
 			if edit.Y < search.Y+search.H {
 				t.Fatal("editing overlaps file actions", edit, search)
 			}

@@ -612,7 +612,7 @@ func TestReadingToolbarNarrowPane(t *testing.T) {
 				}
 				search, _ := tt.Find(locales.ListSearch())
 				replace, _ := tt.Find(locales.FindReplace())
-				edit, _ := tt.Find(locales.SubtitleActionsMenu())
+				edit, _ := tt.Find(locales.RetranslateCheckAll())
 				periods, _ := tt.Find(locales.TextReplacePeriods())
 				trailing, _ := tt.Find(locales.TextStripTrailing())
 				// Mixed icon/text controls have different native heights but share a center.

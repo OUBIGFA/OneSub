@@ -222,7 +222,7 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			a.locateCue = -1
 		}, func(c *ui.Context) {
 			a.subtitleLocateButton(c, hasCues)
-		}, &a.subtitleGuide, width, func(row int, target ui.Element) {
+		}, a.subtitleActionsMenu, &a.subtitleGuide, width, func(row int, target ui.Element) {
 			a.subtitleContextMenu(c, target, rows[row], row, &selected)
 		}).Label(locales.A11ySubtitleList())
 		// Blank space keeps the current selection; a cell prepares its own cue.

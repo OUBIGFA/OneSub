@@ -11,7 +11,8 @@ import (
 // and review. Narrow panes keep the same order through native compact menus.
 func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) {
 	compact := width < em(c, 680)
-	layout := a.subtitleToolbarDensity(c, width-em(c, 32+8), compact)
+	// Leave one physical DIP for fractional native text and gap rounding.
+	layout := a.subtitleToolbarDensity(c, width-em(c, 24)-1, compact)
 	// Tight panes spend the gap between rows too, preserving list space when
 	// large text makes the always-labelled smart split entry occupy a new row.
 	ui.Column(c).Padding(em(c, 8), em(c, 12)).Gap(layout.spacing(c)).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
@@ -28,7 +29,6 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 		ui.Row(c).Gap(layout.spacing(c)).Wrap().AlignItems(ui.Center).Children(func() {
 			selectionMode := a.subtitleSelectionMode()
 			ui.Toolbar(c, func() {
-				a.subtitleActionsMenu(c, layout)
 				a.subtitleSelectionActions(c, layout)
 				if !compact {
 					a.listPunctuationTools(c, layout)
@@ -82,9 +82,15 @@ func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow 
 	} else {
 		labels = append(labels, locales.RetranslateCheckAll(), locales.RetranslateSelect())
 	}
-	labels = append(labels, locales.SubtitleActionsMenu(), locales.FindReplace())
+	labels = append(labels, locales.FindReplace())
 	widths := make([]float32, len(labels))
-	minimum := em(c, 60+navigation*32+(float32(len(labels))+navigation-1)*4)
+	// Include both fixed right-side icons and every gap. The actions menu no
+	// longer contributes an oversized label budget that could hide this cost.
+	gaps := float32(len(labels)) + navigation + 1
+	if a.retranslation == nil {
+		gaps++ // The empty retranslation toolbar still separates its neighbors.
+	}
+	minimum := em(c, 64+navigation*32+gaps*4)
 	for i, label := range labels {
 		w, _ := c.MeasureText(0, ui.Span{Text: label, Weight: 500})
 		if label == locales.ReadingIssueType() {
@@ -93,7 +99,7 @@ func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow 
 		widths[i] = float32(math.Ceil(float64(w))) + em(c, iconSize+12) + 2
 		minimum += widths[i]
 	}
-	comfortable := minimum + em(c, float32(len(labels))*22+(float32(len(labels))+navigation-1)*4)
+	comfortable := minimum + em(c, float32(len(labels))*22+gaps*4)
 	layout := subtitleToolbarLayout{tightness: min(1, max(0, (comfortable-width)/(comfortable-minimum)))}
 	if width < minimum {
 		layout.icons = make(map[string]bool)
@@ -114,7 +120,7 @@ func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow 
 		if layout.icons == nil {
 			layout.icons = make(map[string]bool)
 		}
-		for _, label := range []string{locales.SubtitleActionsMenu(), locales.FindReplace(), locales.TranslationResults(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.RetranslateClear()} {
+		for _, label := range []string{locales.FindReplace(), locales.TranslationResults(), locales.RetranslateSelect(), locales.RetranslateCheckAll(), locales.RetranslateClear()} {
 			layout.icons[label] = true
 		}
 		if count := len(a.checkedRetranslationIDs()); count > 0 {

@@ -10,7 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func TestSubtitleLocateSharesBottomNavigationRail(t *testing.T) {
+func TestSubtitleLocateAndActionsShareBottomNavigationRail(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := storeApp(t, navigationCues(80)...)
@@ -25,10 +25,16 @@ func TestSubtitleLocateSharesBottomNavigationRail(t *testing.T) {
 				locate, found := tt.Find(locales.ListLocate())
 				top, _ := tt.Find(locales.ListTop())
 				bottom, _ := tt.Find(locales.ListBottom())
+				actions, actionsFound := tt.Find(locales.SubtitleActionsMenu())
 				gap := top.Y - (locate.Y + locate.H)
 				if !found || locate.X != top.X || locate.W != top.W || top.X != bottom.X || locate.Y < table.Y ||
 					math.Abs(float64(gap-locate.H)) > 1 || bottom.Y+bottom.H > table.Y+table.H+1 {
 					t.Fatal("locate must sit one button-height above the fixed return buttons", locate, top, bottom, table)
+				}
+				if !actionsFound || actions.X != bottom.X || actions.W != bottom.W ||
+					math.Abs(float64(actions.Y-bottom.Y-bottom.H-actions.H)) > 1 ||
+					math.Abs(float64(table.Y+table.H-actions.Y-actions.H-actions.H/4)) > 1 {
+					t.Fatal("actions must sit at the rail bottom, one button-height below the return buttons", actions, bottom, table)
 				}
 			}
 			// Return buttons have no search result, but Locate can still clear

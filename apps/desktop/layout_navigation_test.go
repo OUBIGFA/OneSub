@@ -340,13 +340,13 @@ func TestSubtitleNavigationButtonsAtBottomAndStayFixed(t *testing.T) {
 							theme, _ := studioTheme(c.Theme(), false)
 							c.SetTheme(&theme)
 							a.subtitlesView(c)
-						}, width, 800)
+						}, int(float32(width)*scale), int(800*scale))
 						tt.SetPreferences(ui.Preferences{TextScale: scale})
 						list, _ := tt.Find(locales.A11ySubtitleList())
 						before := make([]ui.Rect, len(labels))
 						for i, label := range labels {
 							r, ok := tt.Find(label)
-							if !ok || r.W < 32*scale-1 || r.H < 32*scale-1 || r.X < list.X+list.W-subtitleNavigationRailSize*scale || r.X+r.W > float32(width)-6*scale || r.Y < list.Y || r.Y+r.H > list.Y+list.H {
+							if !ok || r.W < 32*scale-1 || r.H < 32*scale-1 || r.X < list.X+list.W-subtitleNavigationRailSize*scale || r.X+r.W > float32(width)*scale-6*scale || r.Y < list.Y || r.Y+r.H > list.Y+list.H {
 								captureRedesign(t, tt, fmt.Sprintf("navigation-clipped-%s-%d-%g", language, width, scale))
 								t.Fatal("floating button outside list or too small", label, r, list)
 							}
@@ -355,12 +355,13 @@ func TestSubtitleNavigationButtonsAtBottomAndStayFixed(t *testing.T) {
 						if before[0].Y+before[0].H > before[1].Y || before[0].X != before[1].X {
 							t.Fatal("floating buttons are not a vertical group", before)
 						}
-						// When the viewport barely fits both buttons, native flex
-						// layout keeps them visible and spends only spare space on the inset.
-						groupHeight := before[1].Y + before[1].H - before[0].Y
+						// The menu closes the rail, separated from the return pair
+						// by one button-height. The whole group stays fixed while scrolling.
+						actions, _ := tt.Find(locales.SubtitleActionsMenu())
+						groupHeight := actions.Y + actions.H - before[0].Y
 						inset := min(8*scale, max(0, list.H-groupHeight))
-						if math.Abs(float64(list.Y+list.H-before[1].Y-before[1].H-inset)) > 1 {
-							t.Fatal("floating buttons are not inset from the list bottom", before, list)
+						if math.Abs(float64(list.Y+list.H-actions.Y-actions.H-inset)) > 1 || math.Abs(float64(actions.Y-before[1].Y-before[1].H-32*scale)) > 1 {
+							t.Fatal("navigation rail does not reserve the bottom menu and its gap", before, actions, list)
 						}
 						if err := tt.Click(labels[1]); err != nil {
 							t.Fatal(err)
@@ -371,13 +372,16 @@ func TestSubtitleNavigationButtonsAtBottomAndStayFixed(t *testing.T) {
 								t.Fatal("floating button moved with list rows", label, before[i], after)
 							}
 						}
+						if after, _ := tt.Find(locales.SubtitleActionsMenu()); after != actions {
+							t.Fatal("actions menu moved with list rows", actions, after)
+						}
 						// Resizing the viewport must anchor the group to the bottom, not retain
 						// a fixed vertical offset from the previous layout.
-						tt.SetSize(width, 1000)
+						tt.SetSize(int(float32(width)*scale), int(1000*scale))
 						list, _ = tt.Find(locales.A11ySubtitleList())
 						top, _ := tt.Find(labels[0])
 						bottom, _ := tt.Find(labels[1])
-						if math.Abs(float64(list.Y+list.H-bottom.Y-bottom.H-8*scale)) > 1 {
+						if math.Abs(float64(list.Y+list.H-bottom.Y-bottom.H-(8+2*32)*scale)) > 1 {
 							t.Fatal("floating buttons did not follow the bottom after resizing", top, bottom, list)
 						}
 					})
@@ -399,7 +403,7 @@ func TestTranslationProgressNavigation(t *testing.T) {
 	list, _ := tt.Find(locales.TranslationLive())
 	top, _ := tt.Find(locales.ListTop())
 	bottom, _ := tt.Find(locales.ListBottom())
-	if math.Abs(float64(list.Y+list.H-bottom.Y-bottom.H-8)) > 1 {
+	if math.Abs(float64(list.Y+list.H-bottom.Y-bottom.H-bottom.H*2.25)) > 1 {
 		t.Fatal("live translation navigation is not inset from the list bottom", top, bottom, list)
 	}
 	if err := tt.Click("返回顶部"); err != nil {

@@ -169,7 +169,7 @@ func TestSubtitleToolbarFindReplaceBecomesAvailable(t *testing.T) {
 	}
 }
 
-func TestSubtitleToolbarActionsMenuIsIconOnly(t *testing.T) {
+func TestSubtitleActionsMenuIsIconOnly(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := storeApp(t, subtitle.Cue{ID: "a", Text: "First subtitle", StartMs: 0, EndMs: 3000})
@@ -244,7 +244,7 @@ func TestSubtitleToolbarKeepsPrimaryLabelsInNormalPanes(t *testing.T) {
 									t.Fatal("primary action lost its icon", label)
 								}
 							}
-							edit, _ := tt.Find(locales.SubtitleActionsMenu())
+							edit, _ := tt.Find(locales.FindReplace())
 							for _, control := range auditControls(tt) {
 								r := control.Bounds
 								if r.X < 0 || r.X+r.W > float32(width)*scale+.5 || r.Y+r.H/2 > edit.Y+edit.H/2+1 {
@@ -275,9 +275,9 @@ func TestSubtitleToolbarKeepsLabelsWhileTightening(t *testing.T) {
 							a.retranslation = &retranslationState{}
 						}
 						labels := []string{locales.FindReplace(), locales.TranslationResults(), locales.ReadingSplitCount(0), locales.ReadingIssueType()}
-						width := 1320
+						width := 1120
 						if language == "en" {
-							width = 1600
+							width = 1400
 						}
 						if checked {
 							width += 300
@@ -291,7 +291,7 @@ func TestSubtitleToolbarKeepsLabelsWhileTightening(t *testing.T) {
 							}, int(float32(w)*scale), int(180*scale))
 							tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
 							firstFrameSettled(t, tt, "toolbar", func() {})
-							edit, _ := tt.Find(locales.SubtitleActionsMenu())
+							edit, _ := tt.Find(locales.FindReplace())
 							for _, label := range labels {
 								r, ok := tt.Find(label)
 								if !ok || r.W <= 32*scale {

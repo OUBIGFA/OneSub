@@ -312,21 +312,13 @@ func TestSubtitleListMenuPlacementAndKeyboard(t *testing.T) {
 			tt := settled(a.view, 900, 640)
 			menu, ok := tt.Find(locales.SubtitleActionsMenu())
 			list, found := tt.Find(locales.A11ySubtitleList())
-			if !ok || !found || menu.X < list.X || menu.X+menu.W > list.X+list.W || menu.Y+menu.H > list.Y {
-				t.Fatal("structure menu is not above the subtitle list", language, menu, list)
+			if !ok || !found || menu.X < list.X+list.W-subtitleNavigationRailSize || menu.X+menu.W > list.X+list.W || menu.Y < list.Y || menu.Y+menu.H > list.Y+list.H {
+				t.Fatal("structure menu is not inside the subtitle navigation rail", language, menu, list)
 			}
 			tabs, _ := tt.Find(locales.A11ySubtitleTabs())
-			header := []ui.Rect{menu, tabs}
 			toolbar, _ := tt.Find(locales.A11ySubtitleActions())
-			for i, r := range header {
-				if r.X < toolbar.X || r.X+r.W > toolbar.X+toolbar.W {
-					t.Fatal("list header control clipped", language, r)
-				}
-				for _, other := range header[i+1:] {
-					if r.X < other.X+other.W && r.X+r.W > other.X && r.Y < other.Y+other.H && r.Y+r.H > other.Y {
-						t.Fatal("list header controls overlap", language, r, other)
-					}
-				}
+			if tabs.X < toolbar.X || tabs.X+tabs.W > toolbar.X+toolbar.W || tabs.Y+tabs.H > toolbar.Y || toolbar.Y+toolbar.H > menu.Y {
+				t.Fatal("list header overlaps or clips the rail menu", language, tabs, toolbar, menu)
 			}
 			// A wrapped English toolbar can leave the second cue below the
 			// viewport. Use the real list navigation before testing its menu;

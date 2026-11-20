@@ -18,6 +18,9 @@ func TestModelConnectionUsesTheSelectedProtocolAndCredential(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/stream=%t", api, stream), func(t *testing.T) {
 				calls := 0
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					// Keep the measured round trip above the Windows clock tick;
+					// an immediate loopback reply can otherwise take zero ticks.
+					time.Sleep(time.Millisecond)
 					calls++
 					path := "/v1/chat/completions"
 					if api == APIResponses {
