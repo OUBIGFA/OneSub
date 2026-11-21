@@ -19,8 +19,8 @@
     "licenseSha256": "f0b56f4ab53beb6e18c5e155219c2e2b6000b5475c0ae3ddb3af3894fd9349b4",
     "usage": "Native desktop controls, layout, themes, menus and embedded media WebView",
     "modifications": "Six native/UI patches and a build-only license-page hook; see third_party/patches/mygo/README.md",
-    "checkedAt": "2026-11-19",
-    "latestMainRevision": "61ea5567ab14f66fcf5a2d342aaa9fe5a25dce42",
+    "checkedAt": "2026-11-21",
+    "latestMainRevision": "b8249d84874892ac709441732893ec89261e272a",
     "latestRelease": "v0.10.0"
   },
   "mcpGoSdk": {
@@ -98,6 +98,13 @@
       "version": "1.18.6-2"
     },
     {
+      "file": "libcurl-4.dll",
+      "bytes": 1413589,
+      "sha256": "07ffcc59d7c012b39956f4f21dc8875f3892d1570077606703e23ebb2b0dee0f",
+      "package": "mingw-w64-ucrt-x86_64-curl",
+      "version": "8.23.0-3"
+    },
+    {
       "file": "libdav1d-7.dll",
       "bytes": 1929830,
       "sha256": "bbe67862f77c22f6f509684207b5363542e5b52c1a1faa354e12a11d072ad766",
@@ -112,69 +119,69 @@
       "version": "2.10.0-1"
     },
     {
-      "file": "ffprobe.exe",
-      "bytes": 235027,
-      "sha256": "ecb70de0b005a22a5a9d32fcfd779b0892408b905a8a8c78c3c5cb45fc4aec14",
-      "package": "mingw-w64-ucrt-x86_64-ffmpeg",
-      "version": "ffprobe version 9.0.2 Copyright (c) 2007-2026 the FFmpeg developers",
-      "configuration": "configuration: --prefix=/ucrt64 --target-os=mingw32 --arch=x86_64 --cc=gcc --cxx=g++ --disable-debug --disable-stripping --disable-doc --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-iconv --enable-libaom --enable-libass --enable-libbluray --enable-libcaca --enable-libdav1d --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopus --enable-librtmp --enable-libssh --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libtheora --enable-libvidstab --enable-libvorbis --enable-libx264 --enable-libx265 --enable-libxvid --enable-libvpx --enable-libwebp --enable-libxml2 --enable-libzimg --enable-libzvbi --enable-openal --enable-pic --enable-runtime-cpudetect --enable-swresample --enable-version3 --enable-vulkan --enable-zlib --enable-libvpl --enable-liblc3 --enable-libplacebo --enable-librav1e --enable-librsvg --enable-libsvtav1 --enable-whisper --enable-amf --enable-nvenc --logfile=config.log --enable-shared"
-    },
-    {
-      "file": "swscale-10.dll",
-      "bytes": 2205464,
-      "sha256": "1b22433643a769e12fc66f5006fad046a4e6886bb1998918a6f237bb71cf3c2a",
-      "package": "mingw-w64-ucrt-x86_64-ffmpeg",
-      "version": "9.0.2-4"
-    },
-    {
-      "file": "avutil-61.dll",
-      "bytes": 1287361,
-      "sha256": "6ab29032cdfffda2ddfb97850a9fa13a94deb33f13b410370359ef97383bdf60",
-      "package": "mingw-w64-ucrt-x86_64-ffmpeg",
-      "version": "9.0.2-4"
-    },
-    {
-      "file": "swresample-7.dll",
-      "bytes": 183853,
-      "sha256": "73acf8917e11e28a25e38d7c61467567e711db7a485045a184ba51dba18bfcd1",
-      "package": "mingw-w64-ucrt-x86_64-ffmpeg",
-      "version": "9.0.2-4"
-    },
-    {
-      "file": "avformat-63.dll",
-      "bytes": 2990584,
-      "sha256": "4aecd36f896d1eac8f6d7cdc37868ab39e6c9caf7c494bf11fe5298bcf99186f",
-      "package": "mingw-w64-ucrt-x86_64-ffmpeg",
-      "version": "9.0.2-4"
-    },
-    {
       "file": "avcodec-63.dll",
-      "bytes": 20616071,
-      "sha256": "ee2ef61e743576d033750800a8144ccd15b3a02280e435c8dc52a0111a499d52",
+      "bytes": 21433835,
+      "sha256": "edf1fb7389caf25749c409c0c9e18a30115ff048d0c3f1deab522902cee5792d",
       "package": "mingw-w64-ucrt-x86_64-ffmpeg",
-      "version": "9.0.2-4"
-    },
-    {
-      "file": "avfilter-12.dll",
-      "bytes": 6798608,
-      "sha256": "3696c018b5a821c411039a187e2ec2701536edf6d4256a3a09b5d291121c029b",
-      "package": "mingw-w64-ucrt-x86_64-ffmpeg",
-      "version": "9.0.2-4"
+      "version": "9.1-1"
     },
     {
       "file": "avdevice-63.dll",
       "bytes": 173337,
-      "sha256": "144b1b26eaf974a1f07d1fb75af904a277f569987adbd48e9661c715bb17028b",
+      "sha256": "c8e79ef72f885003c689cf3734965c0dfccfc10afef41b2b5190263c9f672b30",
       "package": "mingw-w64-ucrt-x86_64-ffmpeg",
-      "version": "9.0.2-4"
+      "version": "9.1-1"
+    },
+    {
+      "file": "avfilter-12.dll",
+      "bytes": 6905968,
+      "sha256": "2bed6aa675f8b8c7ee2c818f3cc098c49dbb4c2a0157ff7351bee8085172c021",
+      "package": "mingw-w64-ucrt-x86_64-ffmpeg",
+      "version": "9.1-1"
+    },
+    {
+      "file": "avformat-63.dll",
+      "bytes": 3098076,
+      "sha256": "2f19e67dc2158682ee41ebad51ba4012f177b7dd6cdfb260e88320a7ee8a627e",
+      "package": "mingw-w64-ucrt-x86_64-ffmpeg",
+      "version": "9.1-1"
+    },
+    {
+      "file": "avutil-61.dll",
+      "bytes": 1305845,
+      "sha256": "d63fb38660ae6bc787be78fbca84663914cfec53260a2e0c3dcc36e18f927bb4",
+      "package": "mingw-w64-ucrt-x86_64-ffmpeg",
+      "version": "9.1-1"
     },
     {
       "file": "ffmpeg.exe",
-      "bytes": 496358,
-      "sha256": "ea6916da731394f30d6bc3ebdba90219834a075bb39ea9fc442be0e2f894788a",
+      "bytes": 518683,
+      "sha256": "fafac0a0da43973808cae7d0ec6f329a05fcac8dc9f8c0fb60b99cf044503015",
       "package": "mingw-w64-ucrt-x86_64-ffmpeg",
-      "version": "ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers",
+      "version": "ffmpeg version 9.1 Copyright (c) 2000-2026 the FFmpeg developers",
       "configuration": "configuration: --prefix=/ucrt64 --target-os=mingw32 --arch=x86_64 --cc=gcc --cxx=g++ --disable-debug --disable-stripping --disable-doc --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-iconv --enable-libaom --enable-libass --enable-libbluray --enable-libcaca --enable-libdav1d --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopus --enable-librtmp --enable-libssh --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libtheora --enable-libvidstab --enable-libvorbis --enable-libx264 --enable-libx265 --enable-libxvid --enable-libvpx --enable-libwebp --enable-libxml2 --enable-libzimg --enable-libzvbi --enable-openal --enable-pic --enable-runtime-cpudetect --enable-swresample --enable-version3 --enable-vulkan --enable-zlib --enable-libvpl --enable-liblc3 --enable-libplacebo --enable-librav1e --enable-librsvg --enable-libsvtav1 --enable-whisper --enable-amf --enable-nvenc --logfile=config.log --enable-shared"
+    },
+    {
+      "file": "ffprobe.exe",
+      "bytes": 240659,
+      "sha256": "7d69f1531fbd8120585b8edbb1e83a6a89d8a5f1d8cb353f0629343386420985",
+      "package": "mingw-w64-ucrt-x86_64-ffmpeg",
+      "version": "ffprobe version 9.1 Copyright (c) 2007-2026 the FFmpeg developers",
+      "configuration": "configuration: --prefix=/ucrt64 --target-os=mingw32 --arch=x86_64 --cc=gcc --cxx=g++ --disable-debug --disable-stripping --disable-doc --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-frei0r --enable-gmp --enable-gnutls --enable-gpl --enable-iconv --enable-libaom --enable-libass --enable-libbluray --enable-libcaca --enable-libdav1d --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libjxl --enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enable-libopus --enable-librtmp --enable-libssh --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libtheora --enable-libvidstab --enable-libvorbis --enable-libx264 --enable-libx265 --enable-libxvid --enable-libvpx --enable-libwebp --enable-libxml2 --enable-libzimg --enable-libzvbi --enable-openal --enable-pic --enable-runtime-cpudetect --enable-swresample --enable-version3 --enable-vulkan --enable-zlib --enable-libvpl --enable-liblc3 --enable-libplacebo --enable-librav1e --enable-librsvg --enable-libsvtav1 --enable-whisper --enable-amf --enable-nvenc --logfile=config.log --enable-shared"
+    },
+    {
+      "file": "swresample-7.dll",
+      "bytes": 189010,
+      "sha256": "bbf3344a1f2041939abf12046891ca6ba974a453be3f255d985a8e85faeb5bdb",
+      "package": "mingw-w64-ucrt-x86_64-ffmpeg",
+      "version": "9.1-1"
+    },
+    {
+      "file": "swscale-10.dll",
+      "bytes": 2204773,
+      "sha256": "7b48c6a40a5a2a21a324b5c318c1254e24d3ebb316d9213675329026c042895c",
+      "package": "mingw-w64-ucrt-x86_64-ffmpeg",
+      "version": "9.1-1"
     },
     {
       "file": "libfontconfig-1.dll",
@@ -471,6 +478,13 @@
       "version": "1.6.59-2"
     },
     {
+      "file": "libpsl-5.dll",
+      "bytes": 105846,
+      "sha256": "a531e72de3c64d43fb83cbfb6fa63e5ee982a970292ec51314e29d0acabf1dd5",
+      "package": "mingw-w64-ucrt-x86_64-libpsl",
+      "version": "0.21.5-3"
+    },
+    {
       "file": "librsvg-2-2.dll",
       "bytes": 11712009,
       "sha256": "4fe1479c791a604fc184edc5b2e0c9d8dcd790bccfa326d3fa85fa2ec838a1ed",
@@ -490,6 +504,13 @@
       "sha256": "dbaf4b60ccbcef6aa5d6385d8d1965d4f483999b9ced1d5a2afbf719028b3d1e",
       "package": "mingw-w64-ucrt-x86_64-libssh",
       "version": "0.12.2-1"
+    },
+    {
+      "file": "libssh2-1.dll",
+      "bytes": 336426,
+      "sha256": "682fd57a3d16f00f26025d01672d7ec3bfc4b1694c35e90b7b1ffc321c0fa5aa",
+      "package": "mingw-w64-ucrt-x86_64-libssh2",
+      "version": "1.11.1-4"
     },
     {
       "file": "libstdc++-6.dll",
@@ -653,6 +674,34 @@
       "version": "4.0-1"
     },
     {
+      "file": "libnghttp2-14.dll",
+      "bytes": 213153,
+      "sha256": "5e5460b1f9dd489566a747f7fb72bcc7862608213e1cc401e02a9ee0f1866da1",
+      "package": "mingw-w64-ucrt-x86_64-nghttp2",
+      "version": "1.71.0-1"
+    },
+    {
+      "file": "libnghttp3-9.dll",
+      "bytes": 203451,
+      "sha256": "30ed479b0ae35b56bd79c816e2b9010f2d0a9f84c96b0a210d44e188e9222f1e",
+      "package": "mingw-w64-ucrt-x86_64-nghttp3",
+      "version": "1.19.0-1"
+    },
+    {
+      "file": "libngtcp2-16.dll",
+      "bytes": 391446,
+      "sha256": "099bdd982e4c6ec0fc04dd00ebaa9fb8bc090cc5521175cceb7c66ea5b5b4aea",
+      "package": "mingw-w64-ucrt-x86_64-ngtcp2",
+      "version": "1.26.0-3"
+    },
+    {
+      "file": "libngtcp2_crypto_ossl-0.dll",
+      "bytes": 51580,
+      "sha256": "9ce610fc3d42e4d82e8242a71feace273f5e305fb551d2f6d6b09861362ebec9",
+      "package": "mingw-w64-ucrt-x86_64-ngtcp2",
+      "version": "1.26.0-3"
+    },
+    {
       "file": "libopenal-1.dll",
       "bytes": 2719658,
       "sha256": "cb33f3a9505f38b4a82510bf303547e5e66c525eff591085c752e3d81dfc51cb",
@@ -681,11 +730,18 @@
       "version": "2.5.4-2"
     },
     {
-      "file": "libcrypto-3-x64.dll",
-      "bytes": 5501287,
-      "sha256": "97308feea369b305e562c0098638a1b02a06f52ee9fcc4b8cf3da362ff563cf4",
+      "file": "libcrypto-4-x64.dll",
+      "bytes": 5590344,
+      "sha256": "ff5bd426835acf70a03e6fd8bb51b60441806bf228de608caf4355b57f0c2340",
       "package": "mingw-w64-ucrt-x86_64-openssl",
-      "version": "3.6.5-1"
+      "version": "4.1.0-1"
+    },
+    {
+      "file": "libssl-4-x64.dll",
+      "bytes": 1148375,
+      "sha256": "879b67699f587b4e1c5ce23c444f587f01a4fbe10f0cdf0374414e37bd606331",
+      "package": "mingw-w64-ucrt-x86_64-openssl",
+      "version": "4.1.0-1"
     },
     {
       "file": "libopus-0.dll",

@@ -75,8 +75,8 @@ Workflow: **Import → Transcribe → Rebuild timing → Translate and review �
 ### Media and delivery
 
 - **Subtitles alone**: Import subtitles without a video to edit, translate, check, and export.
-- **Media tools**: Compress video (H.264 MP4 or MKV, CRF 18/20/23) without subtitles, keeping audio and chapters. Extract audio to MP3, M4A, AAC, WAV, FLAC, OGG, or Opus.
-- **Consistent preview and output**: Preview real-time ASS styles with JASSUB using 9 presets, custom presets, bilingual styles, and glyph checks. Export soft subtitles (muxed) or hard subtitles (burn-in), test a 5-second sample, or run in background.
+- **Media tools**: Compress video to MP4 or MKV without subtitles using 10-bit SVT-AV1 and XPSNR-guided CRF search (Near-lossless, High quality, Compact). Keep audio tracks and chapters, never overwrite source files, and stop early when output size would not shrink. Extract the first audio track to MP3, M4A, AAC, WAV, FLAC, OGG, or Opus.
+- **Consistent preview and output**: Preview real-time ASS styles with JASSUB using 9 presets, custom presets, bilingual styles, and glyph checks. Export soft subtitles (muxed) or hard subtitles (burn-in using the same 10-bit SVT-AV1 perceptual pipeline), test a 5-second sample, or run in background.
 - **Bilingual interface**: Switch between Chinese and English interfaces, light and dark themes, and tray mode.
 - **Storage cleanup**: Use Settings → Storage to inspect and clear caches, logs, partial downloads and past projects. Current and pending projects, source files, exports and complete models are kept.
 
@@ -122,7 +122,7 @@ Subtitles only: drop a subtitle file to edit and translate. Media only: click "M
 
 | Item | Value | Reason |
 | --- | --- | --- |
-| Video encoding | CRF 23 | Balances file size and quality for most videos |
+| Video encoding | High quality (AV1 · XPSNR 39) or Near-lossless (AV1 · XPSNR 42) | Use High quality for everyday delivery or Near-lossless for archives; CRF is chosen automatically by XPSNR sampling |
 | Translation concurrent batches | 2 to 5 | Higher values may hit service rate limits |
 | Cues per batch | 50 | Balances context and stability |
 | Rebuild timing by sense groups | Enable with gpt-6-luna or stronger models | Improves translation accuracy and cue timing |

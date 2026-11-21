@@ -29,12 +29,12 @@ func composeModes() []option {
 	}
 }
 
-// CRF choices are labelled by their actual value, not as original quality.
+// Hard burn-in and standalone compression share the same SVT-AV1 XPSNR targets.
 func composeQualities() []option {
 	return []option{
-		{"crf18", "CRF 18"},
-		{"crf20", "CRF 20"},
-		{"crf23", "CRF 23"},
+		{"near-lossless", locales.CompressQualityNearLossless()},
+		{"high", locales.CompressQualityHigh()},
+		{"compact", locales.CompressQualityCompact()},
 	}
 }
 
@@ -50,6 +50,12 @@ func (a *NativeApp) composeView(c *ui.Context) {
 		for _, mode := range modes {
 			width, _ := c.MeasureText(0, ui.Span{Text: mode.Label})
 			modeWidth = max(modeWidth, width)
+		}
+		qualities := composeQualities()
+		var qualityWidth float32
+		for _, q := range qualities {
+			width, _ := c.MeasureText(0, ui.Span{Text: q.Label})
+			qualityWidth = max(qualityWidth, width)
 		}
 		ui.Form(c, func() {
 			ui.Fieldset(c, locales.OutputTrackGroup(), func() {
@@ -71,7 +77,7 @@ func (a *NativeApp) composeView(c *ui.Context) {
 						idSelect(c, &a.settings.ComposeMode, modes).MinWidth(modeWidth + 48).Label(locales.ComposeMode()).OnChange(a.saveSettings)
 					})
 					ui.Field(c, locales.ComposeQuality(), func() {
-						idSelect(c, &a.settings.ComposeQuality, composeQualities()).Label(locales.ComposeQuality()).Disabled(!hard).OnChange(a.saveSettings)
+						idSelect(c, &a.settings.ComposeQuality, qualities).MinWidth(qualityWidth + 48).Label(locales.ComposeQuality()).Disabled(!hard).OnChange(a.saveSettings)
 					})
 				})
 			}).Gap(em(c, 8)).Margin(em(c, 8), 0, 0, 0)
@@ -181,6 +187,8 @@ func composeStageLabel(stage string) string {
 		return locales.ComposeStagePrepare()
 	case media.StageVerifyInput:
 		return locales.ComposeStageVerifyInput()
+	case media.StageAnalyze:
+		return locales.ComposeStageAnalyze()
 	case media.StageEncode:
 		return locales.ComposeStageEncode()
 	case media.StageMux:

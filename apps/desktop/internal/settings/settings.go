@@ -119,7 +119,7 @@ type Settings struct {
 const version = 7
 
 func Default() Settings {
-	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, AutoUpdate: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "Qwen3-ForcedAligner-Ultra", Backend: "auto", RecognitionMode: "route", Language: "zh", LanguageModels: map[string]string{}, ManualLanguages: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "crf20", CompressionFormat: "mp4", CompressionQuality: "crf23", MediaProcessMode: "compress", AudioFormat: "mp3", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 300.0 / 7, TopHeight: 75, EditorWidth: 75, SubtitleHeight: 75, StyleContentWidth: 100.0 / 3, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
+	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, AutoUpdate: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "Qwen3-ForcedAligner-Ultra", Backend: "auto", RecognitionMode: "route", Language: "zh", LanguageModels: map[string]string{}, ManualLanguages: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "near-lossless", CompressionFormat: "mp4", CompressionQuality: "near-lossless", MediaProcessMode: "compress", AudioFormat: "mp3", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 300.0 / 7, TopHeight: 75, EditorWidth: 75, SubtitleHeight: 75, StyleContentWidth: 100.0 / 3, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
 }
 
 // TranslationPunctuation freezes the local output options for a task.
@@ -151,10 +151,13 @@ func Load(path string) (Settings, error) {
 	if s.Version < version {
 		upgrade(&s)
 	}
-	// The lossless UI choice was retired. Migrate only that choice to the
-	// installation default; keep existing CRF levels and pane preferences.
-	if s.ComposeQuality == "lossless" {
-		s.ComposeQuality = Default().ComposeQuality
+	// Hard burn-in and standalone compression both use SVT-AV1 perceptual XPSNR presets.
+	for _, quality := range []*string{&s.ComposeQuality, &s.CompressionQuality} {
+		switch *quality {
+		case "near-lossless", "high", "compact":
+		default:
+			*quality = Default().ComposeQuality
+		}
 	}
 	if s.ModelPaths == nil {
 		s.ModelPaths = map[string]string{}

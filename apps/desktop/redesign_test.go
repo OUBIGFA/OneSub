@@ -167,7 +167,7 @@ func TestNativeRedesignOutputGeometry(t *testing.T) {
 				button, _ := tt.Find(action)
 				captureRedesign(t, tt, fmt.Sprintf("output-%s-compose%t-initial", language, compose))
 				for _, mode := range []string{"source", "translation", "bilingual"} {
-					for _, quality := range []string{"crf18", "crf20", "crf23"} {
+					for _, quality := range []string{"near-lossless", "high", "compact"} {
 						for _, videoMode := range []string{"hard-mp4", "hard-mkv", "soft-mp4", "soft-mkv"} {
 							a.settings.SubtitleOutput = subtitle.OutputOptions{Mode: mode}
 							a.settings.ComposeQuality, a.settings.ComposeMode = quality, videoMode

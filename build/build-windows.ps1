@@ -48,10 +48,14 @@ try {
     $media = Join-Path $root 'build/output/media-tools'
     & python (Join-Path $root 'tools/prepare_media.py')
     if ($LASTEXITCODE -ne 0) { throw 'Pinned media runtime preparation failed' }
+    # Keep the executable check tied to the reviewed lock when FFmpeg updates.
+    $mediaManifest = Get-Content -LiteralPath (Join-Path $root 'third_party/manifests/media-runtime.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $expectedMediaVersion = ($mediaManifest.version -split '-', 2)[0]
+    $mediaVersionPattern = 'version ' + [regex]::Escape($expectedMediaVersion) + '(?:\s|$)'
     foreach ($name in @('ffmpeg','ffprobe')) {
         $source = Join-Path $media "$name.exe"
         $mediaVersion = (& $source -version 2>$null) -join "`n"
-        if ($LASTEXITCODE -ne 0 -or $mediaVersion -notmatch 'version 9.0.2' -or $mediaVersion -match 'enable-nonfree') { throw "Unapproved media build: $name" }
+        if ($LASTEXITCODE -ne 0 -or $mediaVersion -notmatch $mediaVersionPattern -or $mediaVersion -match 'enable-nonfree') { throw "Unapproved media build: $name" }
     }
     & (Join-Path $PSScriptRoot 'build-oneasr.ps1')
     $runtime = [IO.File]::ReadAllText((Join-Path $root 'third_party/manifests/runtimes.json')) | ConvertFrom-Json

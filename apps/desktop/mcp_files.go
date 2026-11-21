@@ -413,7 +413,7 @@ type composeVideoIn struct {
 	SubtitlePath string `json:"subtitle_path"`
 	OutputPath   string `json:"output_path" jsonschema:"absolute new mp4 or mkv path"`
 	Mode         string `json:"mode" jsonschema:"soft for selectable subtitles or hard for burned-in captions"`
-	Quality      string `json:"quality,omitempty" jsonschema:"hard mode only: lossless, crf18, crf20 or crf23; default crf18"`
+	Quality      string `json:"quality,omitempty" jsonschema:"hard mode only: near-lossless, high or compact; default near-lossless"`
 	Language     string `json:"language,omitempty" jsonschema:"subtitle language ID; omitted means und (undetermined)"`
 	Sample       bool   `json:"sample,omitempty" jsonschema:"true creates a five-second sample before a full export"`
 }
@@ -433,10 +433,10 @@ func (s mcpServer) composeVideo(ctx context.Context, req *mcp.CallToolRequest, i
 		return nil, composeVideoOut{}, errors.New("mode must be soft or hard")
 	}
 	if in.Quality == "" {
-		in.Quality = "crf18"
+		in.Quality = media.CompressQualityNearLossless
 	}
-	if in.Quality != "lossless" && in.Quality != "crf18" && in.Quality != "crf20" && in.Quality != "crf23" {
-		return nil, composeVideoOut{}, errors.New("unknown quality; use lossless, crf18, crf20 or crf23")
+	if _, ok := media.CompressPresetFor(in.Quality); !ok {
+		return nil, composeVideoOut{}, errors.New("unknown quality; use near-lossless, high or compact")
 	}
 	if in.Language == "" {
 		in.Language = "und"

@@ -14,6 +14,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/media"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -171,19 +172,19 @@ func TestComposeNamesTermsAndPlayerProgress(t *testing.T) {
 	a := nativeForTest(t)
 	a.composeOpen = true
 	tt := settled(a.view, 1400, 900)
-	if !tt.HasText("硬字幕（烧录） · MP4") || !tt.HasText("CRF 20") || a.settings.ComposeMode != "hard-mp4" {
+	if !tt.HasText("硬字幕（烧录） · MP4") || !tt.HasText(locales.CompressQualityNearLossless()) || a.settings.ComposeMode != "hard-mp4" {
 		t.Fatal(tt.Texts())
 	}
-	// The selected CRF level and container are remembered by ID.
-	a.settings.ComposeQuality = "crf23"
+	// The selected AV1 quality level and container are remembered by ID.
+	a.settings.ComposeQuality = "compact"
 	a.settings.ComposeMode = "hard-mkv"
 	a.saveSettings()
 	prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
-	if err != nil || prefs.ComposeQuality != "crf23" || prefs.ComposeMode != "hard-mkv" {
+	if err != nil || prefs.ComposeQuality != "compact" || prefs.ComposeMode != "hard-mkv" {
 		t.Fatal(prefs, err)
 	}
 	tt = settled(a.view, 1400, 900)
-	if !tt.HasText("CRF 23") || tt.HasText("原画质（无损）") || !tt.HasText("硬字幕（烧录） · MKV") {
+	if !tt.HasText(locales.CompressQualityCompact()) || tt.HasText("原画质（无损）") || !tt.HasText("硬字幕（烧录） · MKV") {
 		t.Fatal(tt.Texts())
 	}
 	a.composeOpen = false

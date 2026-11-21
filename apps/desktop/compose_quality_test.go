@@ -14,32 +14,32 @@ func TestComposeOffersCRFOnlyAndDailyRecommendation(t *testing.T) {
 			a := nativeForTest(t)
 			a.composeOpen = true
 			tt := settled(a.composeView, 900, 640)
-			if a.settings.ComposeQuality != "crf20" || !tt.HasText("CRF 20") {
+			if a.settings.ComposeQuality != "near-lossless" || !tt.HasText(locales.CompressQualityNearLossless()) {
 				t.Fatal("incorrect install default")
 			}
 			note, ok := tt.Find(locales.ComposeCrfNote())
 			recommendation, found := tt.Find(locales.ComposeCrfRecommendation())
 			if !ok || !found || recommendation.Y <= note.Y {
-				t.Fatal("recommendation is not below the CRF explanation", note, recommendation)
+				t.Fatal("recommendation is not below the AV1 explanation", note, recommendation)
 			}
 			insideRedesign(t, tt, locales.ActionCompose(), locales.ComposeCrfNote(), locales.ComposeCrfRecommendation(), locales.ComposeStart())
 			button, _ := tt.Find(locales.ComposeStart())
-			if err := tt.Click("CRF 20"); err != nil {
+			if err := tt.Click(locales.CompressQualityNearLossless()); err != nil {
 				t.Fatal(err)
 			}
-			if tt.HasText("原画质") || tt.HasText("lossless") {
+			if tt.HasText("原画质") || tt.HasText("CRF 18") || tt.HasText("CRF 20") || tt.HasText("CRF 23") {
 				t.Fatal("retired quality is still offered")
 			}
-			for _, label := range []string{"CRF 18", "CRF 20", "CRF 23"} {
+			for _, label := range []string{locales.CompressQualityNearLossless(), locales.CompressQualityHigh(), locales.CompressQualityCompact()} {
 				if !tt.HasText(label) {
-					t.Fatal("missing CRF choice", label)
+					t.Fatal("missing AV1 quality choice", label)
 				}
 			}
-			if err := tt.Click("CRF 23"); err != nil {
+			if err := tt.Click(locales.CompressQualityHigh()); err != nil {
 				t.Fatal(err)
 			}
 			prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
-			if err != nil || prefs.ComposeQuality != "crf23" {
+			if err != nil || prefs.ComposeQuality != "high" {
 				t.Fatal("quality choice not saved", err)
 			}
 			if after, _ := tt.Find(locales.ComposeStart()); after != button {

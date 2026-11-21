@@ -25,7 +25,10 @@ func chapterMediaFixture(t *testing.T, ffmpeg, root string) string {
 		t.Fatal(err)
 	}
 	source := filepath.Join(root, "chapter-source.mp4")
-	args := []string{"-v", "error", "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=30:duration=6", "-f", "lavfi", "-i", "sine=frequency=440:duration=6", "-f", "ffmetadata", "-i", path, "-map", "0:v", "-map", "1:a", "-map", "1:a", "-map_chapters", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-metadata:s:a:0", "language=eng", "-metadata:s:a:1", "language=jpn", source}
+	// Use a fixture that can reach the actual quality target. At 160x90 the
+	// corrected metric cannot reach 42 dB even at the highest allowed quality;
+	// accepting it previously concealed an unsuccessful CRF search.
+	args := []string{"-v", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=30:duration=6", "-f", "lavfi", "-i", "sine=frequency=440:duration=6", "-f", "ffmetadata", "-i", path, "-map", "0:v", "-map", "1:a", "-map", "1:a", "-map_chapters", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-metadata:s:a:0", "language=eng", "-metadata:s:a:1", "language=jpn", source}
 	if out, err := exec.Command(ffmpeg, args...).CombinedOutput(); err != nil {
 		t.Fatalf("chapter fixture: %v %s", err, out)
 	}
@@ -119,7 +122,7 @@ func TestRealCompositionPreservesChapterData(t *testing.T) {
 		mode, extension, sample := c.mode, c.extension, c.sample
 		t.Run(fmt.Sprintf("%s%s/sample%t", mode, extension, sample), func(t *testing.T) {
 			output := filepath.Join(root, fmt.Sprintf("%s-%t%s", mode, sample, extension))
-			options := ComposeOptions{Source: source, Destination: output, Mode: mode, Quality: "lossless", Sample: sample, Language: "en"}
+			options := ComposeOptions{Source: source, Destination: output, Mode: mode, Quality: CompressQualityNearLossless, Sample: sample, Language: "en"}
 			report, err := Compose(context.Background(), ffmpeg, probe, root, options, document, func(ComposeProgress) {})
 			if err != nil {
 				t.Fatal("chapter-bearing video rejected", err)
@@ -132,17 +135,25 @@ func TestRealCompositionPreservesChapterData(t *testing.T) {
 			}
 			assertChapterOutput(t, probe, output, sample)
 			if mode == "hard" {
-				// At three seconds the test subtitle is absent. Lossless
-				// encoding must preserve the decoded frame, not just QP args.
-				frameHash := func(path string) string {
-					out, err := exec.Command(ffmpeg, "-v", "error", "-ss", "3", "-i", path, "-map", "0:v:0", "-frames:v", "1", "-pix_fmt", "yuv420p", "-f", "hash", "-hash", "sha256", "-").CombinedOutput()
-					if err != nil {
-						t.Fatalf("decode frame: %v %s", err, out)
-					}
-					return strings.TrimSpace(string(out))
+				if report.Compression == nil || report.Compression.Encoder != "libsvtav1" || report.Compression.MeasuredXPSNR <= 0 {
+					t.Fatal("hard burn missing SVT-AV1 compression report", report.Compression)
 				}
-				if frameHash(source) != frameHash(output) {
-					t.Fatal("lossless chapter handling changed a subtitle-free frame")
+				// At three seconds the test subtitle is absent. Verify that the
+				// SVT-AV1 burn preserves high perceptual fidelity on that frame.
+				out, err := exec.Command(ffmpeg, "-hide_banner", "-v", "info", "-i", output, "-i", source, "-filter_complex", "[0:v]setpts=PTS-STARTPTS,trim=start=3:duration=0.5,settb=1/30,setpts=N,format=yuv420p[d];[1:v]setpts=PTS-STARTPTS,trim=start=3:duration=0.5,settb=1/30,setpts=N,format=yuv420p[r];[r][d]xpsnr", "-f", "null", "-").CombinedOutput()
+				if err != nil {
+					t.Fatalf("measure subtitle-free xpsnr: %v %s", err, out)
+				}
+				var score float64
+				foundScore := false
+				for _, line := range strings.Split(string(out), "\n") {
+					if parsed, ok := parseXPSNR(line); ok {
+						score = parsed
+						foundScore = true
+					}
+				}
+				if !foundScore || score < 38.0 {
+					t.Fatalf("subtitle-free frame fidelity dropped too low: %v (%v), compression=%+v", score, foundScore, report.Compression)
 				}
 			}
 		})
@@ -174,14 +185,14 @@ func TestChapterMappingRejectsUnidentifiedData(t *testing.T) {
 				info.Streams = []Stream{{Index: 0, CodecType: "video", CodecName: "av1", PixFmt: "yuv420p"}, {Index: 1, CodecType: "audio", CodecName: "aac"}, {Index: 2, CodecType: "subtitle", CodecName: "mov_text", CodecTag: "tx3g"}, {Index: 3, CodecType: "data", CodecName: "bin_data", CodecTag: "text", Tags: map[string]string{"handler_name": "SubtitleHandler"}}}
 				info.Chapters = []Chapter{{StartTime: "0", EndTime: "6", Tags: map[string]string{"title": "Chapter"}}}
 				scenario.change(&info)
-				opts := ComposeOptions{Source: "source.mp4", Destination: "output" + extension, Mode: "hard", Quality: "lossless"}
+				opts := ComposeOptions{Source: "source.mp4", Destination: "output" + extension, Mode: "hard", Quality: CompressQualityNearLossless}
 				args, err := ComposeArgs(opts, info, "render.ass", "partial"+extension)
 				if (err == nil) != scenario.allow {
 					t.Fatal("chapter exception accepted or rejected the wrong data", err)
 				}
 				if scenario.allow {
 					joined := strings.Join(args, " ")
-					for _, mapping := range []string{"-map 0:0", "-map 0:1", "-map 0:2", "-map_chapters 0", "-qp 0"} {
+					for _, mapping := range []string{"-map 0:0", "-map 0:1", "-map 0:2", "-map_chapters 0", "-c:v:0 libsvtav1"} {
 						if !strings.Contains(joined, mapping) {
 							t.Fatal("audiovisual/subtitle stream or chapters lost", joined)
 						}
@@ -233,7 +244,7 @@ func TestLocalChapterMediaLosslessSample(t *testing.T) {
 		t.Fatal(err)
 	}
 	document := compositionTestDocument(t, worker, root, info.FrameAspect())
-	opts := ComposeOptions{Source: source, Destination: filepath.Join(root, "sample.mp4"), Mode: "hard", Quality: "lossless", Sample: true, Language: "en"}
+	opts := ComposeOptions{Source: source, Destination: filepath.Join(root, "sample.mp4"), Mode: "hard", Quality: CompressQualityNearLossless, Sample: true, Language: "en"}
 	report, err := Compose(context.Background(), ffmpeg, probe, root, opts, document, func(ComposeProgress) {})
 	if err != nil {
 		t.Fatal(err)

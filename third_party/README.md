@@ -22,7 +22,7 @@ TXT 文稿导出直接调用固定 libse 的 `HtmlUtil.RemoveHtmlTags`、`HtmlUt
 
 旧版浅色主题的 WinOne 来源、许可副本、哈希与适配边界见 [历史配色登记](ports/winone/README.md)；当前浅深色主题均使用 Lobe MyGo 的主题令牌。
 
-MyGo 原生 UI 锁定为 2026-11-19 核查时的最新正式发布 `v0.10.0`，满足当前 Lobe MyGo `v0.0.0-20261116124832-d88b4ad7f238` 的依赖；源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。
+MyGo 原生 UI 锁定为 2026-11-21 核查时的最新正式发布 `v0.10.0`，满足当前 Lobe MyGo `v0.0.0-20261116124832-d88b4ad7f238` 的依赖；源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。
 
 MyGo 的应用更新直接复用 `mygo.Updater.Check`／`Update.Install`，包括 HTTPS／系统代理、Ed25519 校验、解包与替换／回滚；没有引入另一套下载器或安装器。设置“关于”与任务协调由应用原生 UI 承担，产品版本为 `0.1.1`，用数值第四段区分内部构建。归档与签名由 MyGo 构建器生成，只调整清单中的内部构建号与不可变 Release URL，见 [构建与更新说明](../build/README.md)。新增 GitHub 和“关于”图标继续直接复用同一固定 Lucide 修订，原字节、大小和哈希见 [图标清单](manifests/lucide.json)。
 
@@ -42,6 +42,12 @@ Windows 11 / WebView2 `158.0.4370.1` 的正式 `OneSub.exe` 对照中，正常 1
 主界面文案统一使用“软字幕（封装）”“硬字幕（烧录）”“背景框”等通行术语，不以自创名称替代；质量参数按真实编码设置展示。维护者提供的应用图标单独登记于 [品牌资源](../apps/desktop/branding/README.md)，不属于 Lucide 操作图标库。
 
 字幕工具栏的设计检查参考 [Impeccable](https://github.com/pbakaus/impeccable)（pbakaus，Apache-2.0）与 [unslop](https://github.com/heydamir/unslop)（Damir Sokolovsky / @heydamir，CC-BY-4.0）的操作分组、间距、文案与克制表达方法；本次仅阅读其公开设计指南，没有复制脚本、组件、图标或其他分发资产，也没有将其加入运行时依赖
+
+硬字幕烧录与独立视频压缩的抽样感知寻优思路参考 MIT 许可的 [ab-av1](https://github.com/alexheretic/ab-av1)（抽样编码、FFmpeg 内置 Fraunhofer `xpsnr` 评估、插值/二分 CRF 搜索与体积占比保护）。实现由 OneSub 在 `apps/desktop/internal/media/compress.go` 以 Go 原生编写，使用 [media-runtime.json](manifests/media-runtime.json) 锁定的 `FFmpeg 9.1` 与 `SVT-AV1 4.3.0`。FFmpeg 9.1 是 2026-11-21 核查时的最新稳定版；同包更新 ffprobe、依赖、许可和对应源码，没有复制上游 Rust 代码或引入另一个压缩程序。
+
+编码使用 [SVT 官方速度预设说明](https://github.com/AOMediaCodec/SVT-AV1/blob/v4.3.0/Docs/CommonQuestions.md)中的 preset 8；样本和最终编码使用相同参数，保留原有画质目标。XPSNR 按[官方文档](https://ffmpeg.org/ffmpeg-filters.html#xpsnr)将原片置于第一输入。FFmpeg 9.1 的 `libavfilter/vf_xpsnr.c` 在高位深路径中将第二输入步长假定为画面宽度，部分 AV1 解码缓冲带行填充，会产生错误负分；评分统一转为 8 位 YCbCr，使用该滤镜正确处理步长的复制路径，实际编码保持 10 位。此兼容项应在升级 FFmpeg 后复核，不能只删除格式转换。新增 HTTP 库依赖按实际 DLL 导入和符号校验；ngtcp2 的对应源码包后来删除了一个构建依赖，清单单独登记与二进制 BUILDINFO 校验值一致的原始构建配方。
+
+音频导出的 M4A/AAC 保持 192 kb/s，显式使用 FFmpeg 原生 AAC 的 `fast` coder。[官方编码器说明](https://ffmpeg.org/ffmpeg-codecs.html#aac)说明该方法适合高码率；FFmpeg 9.1 的默认 `twoloop` 在先静音后有声的 PCM 输入上可持续计算不结束，2 秒与 30 秒样本均复现。使用 `fast` 后通过真实时长和全音轨解码校验。该项只影响独立音频编码，视频合成继续保留已有兼容音轨。
 
 具体许可风险与产品发行门禁由 `manifests/` 和各 `ports/` 登记记录。
 

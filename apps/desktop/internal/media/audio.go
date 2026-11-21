@@ -32,9 +32,12 @@ func audioArgs(options ComposeOptions, info Info, partial string) ([]string, err
 	case ".mp3":
 		encoding = []string{"-c:a", "libmp3lame", "-b:a", "192k"}
 	case ".m4a":
-		encoding = []string{"-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"}
+		encoding = []string{"-c:a", "aac", "-aac_coder", "fast", "-b:a", "192k", "-movflags", "+faststart"}
 	case ".aac":
-		encoding = []string{"-c:a", "aac", "-b:a", "192k"}
+		// FFmpeg 9.1's default twoloop coder stalls on silence-to-tone PCM at
+		// 192 kb/s. Its documented fast coder is suitable at this high bitrate
+		// and avoids the stalled quantizer search (also used for M4A above).
+		encoding = []string{"-c:a", "aac", "-aac_coder", "fast", "-b:a", "192k"}
 	case ".wav":
 		encoding = []string{"-c:a", "pcm_s16le"}
 	case ".flac":

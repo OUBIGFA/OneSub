@@ -32,7 +32,7 @@ func TestRealNonzeroStartComposition(t *testing.T) {
 				// instead of a fixture whose video timestamps were lost at mux.
 				args = append(args, "-itsoffset", "0.3")
 			}
-			args = append(args, "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=30:duration=3", "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-itsoffset", "0.4", "-f", "lavfi", "-i", "sine=frequency=880:duration=3", "-map", "0:v", "-map", "1:a", "-map", "2:a", "-c:v", "libx264", "-c:a", "aac", "-output_ts_offset", offset, "-avoid_negative_ts", "disabled", source)
+			args = append(args, "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=30:duration=3", "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-itsoffset", "0.4", "-f", "lavfi", "-i", "sine=frequency=880:duration=3", "-map", "0:v", "-map", "1:a", "-map", "2:a", "-c:v", "libx264", "-c:a", "aac", "-output_ts_offset", offset, "-avoid_negative_ts", "disabled", source)
 			if out, err := exec.Command(ffmpeg, args...).CombinedOutput(); err != nil {
 				t.Fatalf("timing fixture: %v %s", err, out)
 			}
@@ -52,7 +52,7 @@ func TestRealNonzeroStartComposition(t *testing.T) {
 				t.Run(fmt.Sprintf("%s/%s/%s/%s", inputExt, offset, mode, ext), func(t *testing.T) {
 					outputDir, scratch := t.TempDir(), t.TempDir()
 					target := filepath.Join(outputDir, "result."+ext)
-					opts := ComposeOptions{Source: source, Destination: target, Mode: mode, Quality: "lossless", Language: "en"}
+					opts := ComposeOptions{Source: source, Destination: target, Mode: mode, Quality: CompressQualityHigh, Language: "en"}
 					report, err := Compose(context.Background(), ffmpeg, probe, scratch, opts, document, func(ComposeProgress) {})
 					if err != nil {
 						t.Fatal(err)
@@ -140,7 +140,7 @@ func TestCompositionFailureAndCancellationLeaveNoSidecars(t *testing.T) {
 	for _, scenario := range []string{"invalid-quality", "cancel-encode", "cancel-validation"} {
 		t.Run(scenario, func(t *testing.T) {
 			outDir, scratch := t.TempDir(), t.TempDir()
-			opts := ComposeOptions{Source: source, Destination: filepath.Join(outDir, "result.mp4"), Mode: "hard", Quality: "crf23"}
+			opts := ComposeOptions{Source: source, Destination: filepath.Join(outDir, "result.mp4"), Mode: "hard", Quality: CompressQualityHigh}
 			if scenario == "invalid-quality" {
 				opts.Quality = "invalid"
 			}
@@ -194,7 +194,7 @@ func TestRealNonzeroChapterTimeline(t *testing.T) {
 	document := compositionTestDocument(t, worker, root, 16.0/9)
 	for _, sample := range []bool{false, true} {
 		target := filepath.Join(root, fmt.Sprintf("chapters-%t.mkv", sample))
-		_, err := Compose(context.Background(), ffmpeg, probe, root, ComposeOptions{Source: source, Destination: target, Mode: "hard", Quality: "lossless", Sample: sample}, document, func(ComposeProgress) {})
+		_, err := Compose(context.Background(), ffmpeg, probe, root, ComposeOptions{Source: source, Destination: target, Mode: "hard", Quality: CompressQualityHigh, Sample: sample}, document, func(ComposeProgress) {})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -216,8 +216,17 @@ func TestRealNonzeroChapterTimeline(t *testing.T) {
 	}
 	// MOV forces its first chapter start to zero. If normalization left
 	// a real pre-chapter gap, reject that MP4 rather than silently erase it.
+	gapMeta := filepath.Join(root, "gap.ffmetadata")
+	if err := os.WriteFile(gapMeta, []byte(";FFMETADATA1\n[CHAPTER]\nTIMEBASE=1/1000\nSTART=2500\nEND=4000\ntitle=Opening\n[CHAPTER]\nTIMEBASE=1/1000\nSTART=4000\nEND=8000\ntitle=Ending\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	gapSource := filepath.Join(root, "gap-chapters.mkv")
+	gapArgs := []string{"-v", "error", "-copyts", "-itsoffset", "2", "-i", base, "-f", "ffmetadata", "-i", gapMeta, "-map", "0:v", "-map", "0:a", "-map_chapters", "1", "-c", "copy", "-avoid_negative_ts", "disabled", gapSource}
+	if out, err := exec.Command(ffmpeg, gapArgs...).CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
 	target := filepath.Join(t.TempDir(), "chapter-gap.mp4")
-	_, err = Compose(context.Background(), ffmpeg, probe, root, ComposeOptions{Source: source, Destination: target, Mode: "hard", Quality: "lossless"}, document, func(ComposeProgress) {})
+	_, err = Compose(context.Background(), ffmpeg, probe, root, ComposeOptions{Source: gapSource, Destination: target, Mode: "hard", Quality: CompressQualityHigh}, document, func(ComposeProgress) {})
 	if err == nil {
 		t.Fatal("MP4 changed the first chapter start without detection")
 	}
@@ -225,48 +234,68 @@ func TestRealNonzeroChapterTimeline(t *testing.T) {
 }
 
 // Burn-in must use the frozen ASS time, not the source's raw PTS. Compare
-// lossless frame hashes, allowing only the interval where our cue is visible.
+// per-frame PSNR against the source so only frames inside the cue interval
+// show burned-subtitle divergence.
 func TestNonzeroStartBurnTiming(t *testing.T) {
 	worker, ffmpeg, probe := compositionTestTools(t)
 	root := t.TempDir()
 	source := filepath.Join(root, "offset.mp4")
-	if out, err := exec.Command(ffmpeg, "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=30:duration=3", "-c:v", "libx264", "-output_ts_offset", "2", source).CombinedOutput(); err != nil {
+	if out, err := exec.Command(ffmpeg, "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=30:duration=3", "-c:v", "libx264", "-output_ts_offset", "2", source).CombinedOutput(); err != nil {
 		t.Fatalf("%v %s", err, out)
 	}
 	document := compositionTestDocument(t, worker, root, 16.0/9)
 	target := filepath.Join(root, "burn.mp4")
-	_, err := Compose(context.Background(), ffmpeg, probe, root, ComposeOptions{Source: source, Destination: target, Mode: "hard", Quality: "lossless"}, document, func(ComposeProgress) {})
+	_, err := Compose(context.Background(), ffmpeg, probe, root, ComposeOptions{Source: source, Destination: target, Mode: "hard", Quality: CompressQualityNearLossless}, document, func(ComposeProgress) {})
 	if err != nil {
 		t.Fatal(err)
 	}
-	hashes := func(path string) []string {
-		raw, err := exec.Command(ffmpeg, "-v", "error", "-i", path, "-map", "0:V:0", "-pix_fmt", "yuv420p", "-fps_mode", "passthrough", "-f", "framemd5", "-").Output()
-		if err != nil {
-			t.Fatal(err)
-		}
-		var result []string
-		for _, line := range strings.Split(string(raw), "\n") {
-			if strings.HasPrefix(line, "0,") {
-				fields := strings.Split(line, ",")
-				result = append(result, strings.TrimSpace(fields[len(fields)-1]))
+	statsFile := filepath.Join(root, "psnr.log")
+	psnrCmd := exec.Command(ffmpeg, "-hide_banner", "-v", "error", "-i", target, "-i", source, "-filter_complex", "[0:v]setpts=PTS-STARTPTS,format=yuv420p[d];[1:v]setpts=PTS-STARTPTS,format=yuv420p[r];[d][r]psnr=stats_file=psnr.log", "-f", "null", "-")
+	psnrCmd.Dir = root
+	if out, err := psnrCmd.CombinedOutput(); err != nil {
+		t.Fatalf("psnr: %v %s", err, out)
+	}
+	raw, err := os.ReadFile(statsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var scores []float64
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		for _, field := range strings.Fields(line) {
+			if strings.HasPrefix(field, "psnr_avg:") {
+				val := strings.TrimPrefix(field, "psnr_avg:")
+				if val == "inf" {
+					scores = append(scores, 100)
+				} else {
+					v, parseErr := strconv.ParseFloat(val, 64)
+					if parseErr != nil {
+						t.Fatal(parseErr)
+					}
+					scores = append(scores, v)
+				}
 			}
 		}
-		return result
 	}
-	before, after := hashes(source), hashes(target)
-	if len(before) != 90 || len(after) != len(before) {
-		t.Fatal("frame count changed", len(before), len(after))
+	if len(scores) != 90 {
+		t.Fatal("frame count changed", len(scores))
 	}
-	changed := 0
-	for i := range before {
-		if before[i] != after[i] {
-			if i < 3 || i >= 36 {
-				t.Fatalf("subtitle burned outside 0.1–1.2 seconds at frame %d", i)
+	var outsideMin, insideSum float64 = 100, 0
+	insideCount := 0
+	for i, s := range scores {
+		if i < 3 || i >= 36 {
+			if s < outsideMin {
+				outsideMin = s
 			}
-			changed++
+		} else {
+			insideSum += s
+			insideCount++
 		}
 	}
-	if changed < 30 {
-		t.Fatal("subtitle not burned on the expected frames", changed)
+	insideAvg := insideSum / float64(insideCount)
+	if outsideMin < 32.0 {
+		t.Fatalf("subtitle burned outside 0.1–1.2 seconds: min outside PSNR %.2f dB", outsideMin)
+	}
+	if insideAvg >= outsideMin-3.0 {
+		t.Fatalf("subtitle not burned on expected frames: inside avg %.2f dB vs outside min %.2f dB", insideAvg, outsideMin)
 	}
 }

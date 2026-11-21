@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "checkedAt": "2026-11-17",
+  "checkedAt": "2026-11-21",
   "scope": "Fixed corresponding-source and build-recipe material. Cargo includes a conservative dev/non-Windows source superset; this is not an exhaustive linked-symbol inventory.",
   "bun": {
     "version": "1.3.9",
@@ -34,7 +34,7 @@
     },
     {
       "file": "third_party/manifests/media-runtime.json",
-      "sha256": "9531371260314838ea2d3bef20f147adcf2173c3c487f2282cbdabc760c3d605"
+      "sha256": "58a94734a3496fda15bfd034739977cb72de8495fad27c5ccd2e24ca7922b46d"
     },
     {
       "file": "third_party/manifests/media-cargo.json",
@@ -8487,14 +8487,6 @@
       "group": "media"
     },
     {
-      "archive": "mingw-w64-ffmpeg-9.0.2-4.src.tar.zst",
-      "file": ".local/downloads/media-sources/mingw-w64-ffmpeg-9.0.2-4.src.tar.zst",
-      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-ffmpeg-9.0.2-4.src.tar.zst",
-      "sha256": "360d495057cbe6b93bbc739d94b2e465454d618a9b1d2c3dca5296b487ffcfed",
-      "bytes": 12050316,
-      "group": "media"
-    },
-    {
       "archive": "mingw-w64-fontconfig-2.18.3-1.src.tar.zst",
       "file": ".local/downloads/media-sources/mingw-w64-fontconfig-2.18.3-1.src.tar.zst",
       "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-fontconfig-2.18.3-1.src.tar.zst",
@@ -8940,14 +8932,6 @@
       "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-openjpeg2-2.5.4-2.src.tar.zst",
       "sha256": "88be024421b79a557ea9cc94932806f5daddcae5d917895d81ac974df7f38b24",
       "bytes": 2156125,
-      "group": "media"
-    },
-    {
-      "archive": "mingw-w64-openssl-3.6.5-1.src.tar.zst",
-      "file": ".local/downloads/media-sources/mingw-w64-openssl-3.6.5-1.src.tar.zst",
-      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-openssl-3.6.5-1.src.tar.zst",
-      "sha256": "997157ec74a6a722d7c8848605b1389a31a103d4b9f2aa6a40e179373a139cd1",
-      "bytes": 54979777,
       "group": "media"
     },
     {
@@ -14193,6 +14177,78 @@
       "sha256": "481ada9c543b2323cbb7bbdbb5249177fbf0188ed959ed2c15e4b22421c84ed3",
       "bytes": 785774,
       "group": "oneasr-cargo"
+    },
+    {
+      "archive": "mingw-w64-curl-8.23.0-3.src.tar.zst",
+      "file": ".local/downloads/media-sources/mingw-w64-curl-8.23.0-3.src.tar.zst",
+      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-curl-8.23.0-3.src.tar.zst",
+      "sha256": "169e6b07e5d71d42f972cec40d4b4c4061d4557ca6bc5204dc5b7562871fd0d9",
+      "bytes": 3000687,
+      "group": "media"
+    },
+    {
+      "archive": "mingw-w64-ffmpeg-9.1-1.src.tar.zst",
+      "file": ".local/downloads/media-sources/mingw-w64-ffmpeg-9.1-1.src.tar.zst",
+      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-ffmpeg-9.1-1.src.tar.zst",
+      "sha256": "5973ec869cfbd790eb8ab37eb5c6cf0137f70fabe900e2dfb7489f55b2265c74",
+      "bytes": 12567039,
+      "group": "media"
+    },
+    {
+      "archive": "mingw-w64-libpsl-0.21.5-3.src.tar.zst",
+      "file": ".local/downloads/media-sources/mingw-w64-libpsl-0.21.5-3.src.tar.zst",
+      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-libpsl-0.21.5-3.src.tar.zst",
+      "sha256": "102b4ab4c60322162e808c5c81f545438c346c659e8fb63e0851066f07a0e76b",
+      "bytes": 6829368,
+      "group": "media"
+    },
+    {
+      "archive": "mingw-w64-libssh2-1.11.1-4.src.tar.zst",
+      "file": ".local/downloads/media-sources/mingw-w64-libssh2-1.11.1-4.src.tar.zst",
+      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-libssh2-1.11.1-4.src.tar.zst",
+      "sha256": "454e838ede47a28229f32ec41f0a95ad39c328b4a1ca4ddd9af418a2200652c7",
+      "bytes": 1094642,
+      "group": "media"
+    },
+    {
+      "archive": "mingw-w64-nghttp2-1.71.0-1.src.tar.zst",
+      "file": ".local/downloads/media-sources/mingw-w64-nghttp2-1.71.0-1.src.tar.zst",
+      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-nghttp2-1.71.0-1.src.tar.zst",
+      "sha256": "6a68db57bd52eb46c5710af2edf25fef301a8a5a8ce808347cc9d916012ed47f",
+      "bytes": 1998079,
+      "group": "media"
+    },
+    {
+      "archive": "mingw-w64-nghttp3-1.19.0-1.src.tar.zst",
+      "file": ".local/downloads/media-sources/mingw-w64-nghttp3-1.19.0-1.src.tar.zst",
+      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-nghttp3-1.19.0-1.src.tar.zst",
+      "sha256": "3520379c8c2a8c9a9414cfb6f857b50c0d5e0c8917745b5554f04db52da5ab93",
+      "bytes": 421839,
+      "group": "media"
+    },
+    {
+      "archive": "mingw-w64-ngtcp2-1.26.0-3.src.tar.zst",
+      "file": ".local/downloads/media-sources/mingw-w64-ngtcp2-1.26.0-3.src.tar.zst",
+      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-ngtcp2-1.26.0-3.src.tar.zst",
+      "sha256": "9153878c349e12826645f8500cd43c3c63a61e01d8696e5c5bf61691f3987dbd",
+      "bytes": 737188,
+      "group": "media"
+    },
+    {
+      "archive": "mingw-w64-openssl-4.1.0-1.src.tar.zst",
+      "file": ".local/downloads/media-sources/mingw-w64-openssl-4.1.0-1.src.tar.zst",
+      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-openssl-4.1.0-1.src.tar.zst",
+      "sha256": "bff1d415a5919720d844a28fabf04de182e802a6afae5aada4cf836ba84af9ce",
+      "bytes": 55635992,
+      "group": "media"
+    },
+    {
+      "archive": "ngtcp2-PKGBUILD-f6fe8c6a81c3f6e51c900d9b0ceb4bf87f615b17.txt",
+      "file": ".local/downloads/media-sources/ngtcp2-PKGBUILD-f6fe8c6a81c3f6e51c900d9b0ceb4bf87f615b17.txt",
+      "url": "https://raw.githubusercontent.com/msys2/MINGW-packages/f6fe8c6a81c3f6e51c900d9b0ceb4bf87f615b17/mingw-w64-ngtcp2/PKGBUILD",
+      "sha256": "e0b9dd96ad451722cab78354a35eeadcf83c7a7aaed1adb658ec89689fe0ac1d",
+      "bytes": 2950,
+      "group": "media"
     }
   ],
   "cargoManifest": "third_party/manifests/media-cargo.json",

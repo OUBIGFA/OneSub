@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 )
@@ -119,7 +120,11 @@ func TestRealAudioExtractionRejectsSilentVideoAndChecksLongAAC(t *testing.T) {
 			t.Fatalf("fixture: %v %s", err, out)
 		}
 		options := ComposeOptions{Source: source, Destination: filepath.Join(dir, "out.aac"), Mode: "audio"}
-		report, err := Compose(context.Background(), ffmpeg, probe, root, options, styles.Document{}, func(ComposeProgress) {})
+		// AAC silence regressions must fail here instead of hanging the entire
+		// media suite. This 30-second fixture normally encodes in under a second.
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		report, err := Compose(ctx, ffmpeg, probe, root, options, styles.Document{}, func(ComposeProgress) {})
+		cancel()
 		if audio {
 			if err != nil || report.DurationMs < 29900 || report.DurationMs > 30250 {
 				t.Fatal("valid variable-rate AAC rejected", report, err)

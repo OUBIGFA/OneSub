@@ -162,7 +162,7 @@ func TestMCPFileWorkflow(t *testing.T) {
 	}
 	for _, mode := range []string{"soft", "hard"} {
 		composed := filepath.Join(data, mode+".mkv")
-		args := map[string]any{"media_path": video, "subtitle_path": output, "output_path": composed, "mode": mode, "quality": "crf23"}
+		args := map[string]any{"media_path": video, "subtitle_path": output, "output_path": composed, "mode": mode, "quality": "high"}
 		result := call("compose_video", args, false)
 		report := result["report"].(map[string]any)
 		streams := report["streams"].(map[string]any)

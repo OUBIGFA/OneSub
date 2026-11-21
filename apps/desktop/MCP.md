@@ -54,7 +54,7 @@
 
 `convert_subtitles` 从输出扩展名确定格式，TXT 只作为导出格式；ASS 使用 SmartSub 模块与已保存样式，导入的 ASS 保留排版；转换到 SRT、VTT 或 TXT 时，目标格式无法表达的样式不保留
 
-`compose_video` 的 `mode` 为 `soft` 或 `hard`；`quality` 为 `lossless`、`crf18`、`crf20` 或 `crf23`，默认 `crf18`，只影响硬字幕编码；软字幕复制视频流；`sample: true` 生成前 5 秒样片；字幕语言未知时默认 `und`
+`compose_video` 的 `mode` 为 `soft` 或 `hard`；`quality` 为 `near-lossless`、`high` 或 `compact`，默认 `near-lossless`，使用 10-bit SVT-AV1 与 XPSNR 自动寻优 CRF，只影响硬字幕编码；软字幕复制视频流；`sample: true` 生成前 5 秒样片；字幕语言未知时默认 `und`
 
 ## 长任务与错误
 

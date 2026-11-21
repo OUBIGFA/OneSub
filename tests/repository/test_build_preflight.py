@@ -30,6 +30,8 @@ class BuildPreflightTests(unittest.TestCase):
         (self.root / "apps/desktop/mygo.json").write_text(json.dumps(config), encoding="utf-8")
         (self.root / "bin").mkdir()
         (self.root / "third_party/manifests").mkdir(parents=True)
+        (self.root / "third_party/manifests/media-runtime.json").write_text(
+            json.dumps({"version": "9.1-1"}), encoding="utf-8")
         self.prepare_bun()
         (self.root / "source.go").write_text("package fixture\n", encoding="utf-8")
         subprocess.run(["git", "init", "-q", str(self.root)], check=True, capture_output=True)
@@ -127,7 +129,7 @@ class BuildPreflightTests(unittest.TestCase):
         (self.root / "tools/prepare_mygo.py").write_text("print('fixture.mod')\n", encoding="utf-8")
         media_program = self.root / "media.cs"
         media_program.write_text(
-            'class FixtureMedia { static void Main() { System.Console.WriteLine("ffmpeg version 9.0.2"); '
+            'class FixtureMedia { static void Main() { System.Console.WriteLine("ffmpeg version 9.1"); '
             'for (int lineIndex = 0; lineIndex < 8; lineIndex++) { '
             'System.Threading.Thread.Sleep(40); System.Console.WriteLine("version details"); } } }',
             encoding="utf-8",

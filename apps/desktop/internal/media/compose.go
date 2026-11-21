@@ -25,6 +25,7 @@ const (
 	StageChooseOutput = "choose-output"
 	StagePrepare      = "prepare"
 	StageVerifyInput  = "verify-input"
+	StageAnalyze      = "analyze"
 	StageEncode       = "encode"
 	StageMux          = "mux"
 	StageVerifyOutput = "verify-output"
@@ -34,29 +35,31 @@ const (
 // between subtitle mode, stream mapping and encoder options, without its UI or
 // its final-target -y overwrite behavior.
 type ComposeOptions struct {
-	Source      string `json:"source"`
-	Destination string `json:"destination"`
-	Mode        string `json:"mode"`    // hard, soft, compress or audio (no added subtitles)
-	Quality     string `json:"quality"` // lossless, crf18, crf20 or crf23
-	Sample      bool   `json:"sample"`
-	Language    string `json:"language"`
-	Revision    int64  `json:"revision"`
+	Source      string  `json:"source"`
+	Destination string  `json:"destination"`
+	Mode        string  `json:"mode"`    // hard, soft, compress or audio (no added subtitles)
+	Quality     string  `json:"quality"` // hard/compress: near-lossless, high or compact
+	ResolvedCRF float64 `json:"resolvedCrf,omitempty"`
+	Sample      bool    `json:"sample"`
+	Language    string  `json:"language"`
+	Revision    int64   `json:"revision"`
 }
 type ComposeReport struct {
-	Version      int            `json:"version"`
-	Source       string         `json:"source"`
-	SourceSHA256 string         `json:"sourceSha256"`
-	SourceStart  float64        `json:"sourceStartSeconds"`
-	Output       string         `json:"output"`
-	OutputSHA256 string         `json:"outputSha256"`
-	ASSSHA256    string         `json:"subtitleSha256"`
-	Revision     int64          `json:"revision"`
-	Mode         string         `json:"mode"`
-	Sample       bool           `json:"sample"`
-	DurationMs   int64          `json:"durationMs"`
-	Streams      map[string]int `json:"streams"`
-	Chapters     int            `json:"chapters"`
-	Checks       []string       `json:"checks"`
+	Version      int                `json:"version"`
+	Source       string             `json:"source"`
+	SourceSHA256 string             `json:"sourceSha256"`
+	SourceStart  float64            `json:"sourceStartSeconds"`
+	Output       string             `json:"output"`
+	OutputSHA256 string             `json:"outputSha256"`
+	ASSSHA256    string             `json:"subtitleSha256"`
+	Revision     int64              `json:"revision"`
+	Mode         string             `json:"mode"`
+	Sample       bool               `json:"sample"`
+	DurationMs   int64              `json:"durationMs"`
+	Streams      map[string]int     `json:"streams"`
+	Chapters     int                `json:"chapters"`
+	Compression  *CompressionReport `json:"compression,omitempty"`
+	Checks       []string           `json:"checks"`
 }
 
 func streamCounts(streams []Stream) map[string]int {
@@ -202,35 +205,30 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 	}
 	args = append(args, "-map_metadata", "0", "-map_chapters", "0", "-c", "copy")
 	if options.Mode != "soft" {
-		// Compression and burn-in share the same encoder and stream plan.
-		// Only burn-in adds the ASS filter; compression needs no subtitle or font.
-		// The CRF levels and even-dimension handling mirror SmartSub. QP 0 is
-		// x264's mathematically lossless mode: outside the burned subtitles the
-		// frames equal the decoded source, in its own chroma layout where x264
-		// encodes it. The filter uses task-local fixed names, never
-		// shell-escaped user filenames.
-		pixelFormat, rate := "yuv420p", []string{}
-		switch options.Quality {
-		case "lossless":
-			pixelFormat, rate = losslessPixelFormat(mainVideo[0].PixFmt), []string{"-qp", "0"}
-		case "crf18", "crf20", "crf23":
-			rate = []string{"-crf", strings.TrimPrefix(options.Quality, "crf")}
-		default:
+		// Hard burn-in and standalone compression share the same 10-bit SVT-AV1
+		// perceptual pipeline. Only burn-in prepends the ASS filter using
+		// task-local fixed names, never shell-escaped user filenames.
+		preset, ok := CompressPresetFor(options.Quality)
+		if !ok {
 			return nil, errors.New(locales.ErrComposeQuality())
+		}
+		crf := options.ResolvedCRF
+		if crf <= 0 {
+			crf = preset.InitialCRF
 		}
 		filters := []string{}
 		if options.Mode == "hard" {
 			filters = append(filters, "ass=render.ass:fontsdir=fonts")
 		}
-		if !strings.HasPrefix(pixelFormat, "yuv444") {
-			filters = append(filters, "crop=trunc(iw/2)*2:trunc(ih/2)*2:0:0")
-		}
-		if len(filters) > 0 {
-			args = append(args, "-filter:v:0", strings.Join(filters, ","))
-		}
-		args = append(args, "-c:v:0", "libx264")
-		args = append(args, rate...)
-		args = append(args, "-preset", "medium", "-pix_fmt:v:0", pixelFormat, "-fps_mode:v:0", "passthrough")
+		filters = append(filters, "crop=trunc(iw/2)*2:trunc(ih/2)*2:0:0")
+		args = append(args, "-filter:v:0", strings.Join(filters, ","))
+		args = append(args,
+			"-c:v:0", "libsvtav1",
+			"-preset", strconv.Itoa(preset.Preset),
+			"-pix_fmt:v:0", "yuv420p10le",
+			"-svtav1-params", svtAV1Params(crf),
+			"-fps_mode:v:0", "passthrough",
+		)
 	} else {
 		if ext == ".mp4" {
 			args = append(args, "-c:s", "mov_text")
@@ -259,15 +257,6 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 	return append(args, "-avoid_negative_ts", "disabled", "-progress", "pipe:1", "-nostats", "-y", partial), nil
 }
 
-// losslessPixelFormat keeps the source's chroma layout and bit depth when
-// libx264 can encode it losslessly; other layouts become 4:2:0.
-func losslessPixelFormat(source string) string {
-	switch source {
-	case "yuv420p", "yuv422p", "yuv444p", "yuv420p10le", "yuv422p10le", "yuv444p10le":
-		return source
-	}
-	return "yuv420p"
-}
 func containerLanguage(tag string) string {
 	values := map[string]string{"zh-CN": "zho", "zh-TW": "zho", "zh": "zho", "en": "eng", "ja": "jpn", "ko": "kor", "fr": "fra", "de": "deu", "es": "spa"}
 	if value := values[tag]; value != "" {
@@ -406,8 +395,6 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	if err != nil {
 		return report, err
 	}
-	command := exec.Command(ffmpeg, args...)
-	command.Dir = scratch
 	stage := StageEncode
 	if options.Mode == "soft" {
 		stage = StageMux
@@ -425,9 +412,23 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 			return report, err
 		}
 	}
+	if (options.Mode == "compress" || options.Mode == "hard") && options.ResolvedCRF <= 0 {
+		resolvedCRF, compressionReport, searchErr := searchCompressionCRF(ctx, ffmpeg, scratch, options, info, duration, progress)
+		report.Compression = compressionReport
+		if searchErr != nil {
+			return report, searchErr
+		}
+		options.ResolvedCRF = resolvedCRF
+		args, err = ComposeArgs(options, info, assPath, partial)
+		if err != nil {
+			return report, err
+		}
+	}
 	if options.Sample && duration > 5000 {
 		duration = 5000
 	}
+	command := exec.Command(ffmpeg, args...)
+	command.Dir = scratch
 	progress(ComposeProgress{Stage: stage, Fraction: 0})
 	err = jobs.Run(ctx, command, func(line string) {
 		if fraction, ok := composeFraction(line, duration); ok {
@@ -494,6 +495,9 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	report.Streams = streamCounts(output.Streams)
 	report.Chapters = len(output.Chapters)
 	report.Checks = []string{"streams", "duration", "chapter titles and timings", "full audiovisual decode", "sha256"}
+	if (options.Mode == "compress" || options.Mode == "hard") && report.Compression != nil {
+		report.Checks = append([]string{"xpsnr crf search"}, report.Checks...)
+	}
 	if options.Mode == "audio" {
 		report.Checks = []string{"audio stream only", "selected audio duration", "full audio decode", "sha256"}
 	}

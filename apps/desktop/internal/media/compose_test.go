@@ -28,7 +28,7 @@ func TestComposeMappingAndGuards(t *testing.T) {
 		}
 	}
 	opts.Mode = "hard"
-	opts.Quality = "crf20"
+	opts.Quality = CompressQualityNearLossless
 	info.Streams[0].ColorTransfer = "smpte2084"
 	if _, err = ComposeArgs(opts, info, "render.ass", "partial.mkv"); err == nil {
 		t.Fatal("HDR burn accepted")
@@ -73,9 +73,9 @@ func TestRealSmartSubComposition(t *testing.T) {
 	for _, c := range [][2]string{{"hard", ".mp4"}, {"soft", ".mkv"}} {
 		mode, extension := c[0], c[1]
 		output := filepath.Join(root, mode+extension)
-		options := ComposeOptions{Source: source, Destination: output, Mode: mode, Quality: "crf23", Language: "zh-CN", Revision: 1}
+		options := ComposeOptions{Source: source, Destination: output, Mode: mode, Quality: CompressQualityHigh, Language: "zh-CN", Revision: 1}
 		report, err := Compose(context.Background(), ffmpeg, probe, root, options, document, func(p ComposeProgress) {
-			if p.Stage == "" || p.Fraction < -1 || p.Fraction >= 1 {
+			if p.Stage == "" || p.Fraction < -1 || p.Fraction > 1 {
 				t.Errorf("invalid progress: %+v", p)
 			}
 		})
@@ -94,35 +94,39 @@ func TestRealSmartSubComposition(t *testing.T) {
 	}
 }
 
-// Lossless burn-in keeps the source's chroma layout and bit depth with QP 0;
-// the CRF levels stay 4:2:0. Unknown levels are rejected, never guessed.
+// Hard burn-in uses the shared 10-bit SVT-AV1 perceptual presets and rejects
+// retired H.264/lossless choices.
 func TestComposeQualityLevels(t *testing.T) {
 	var info Info
 	info.Format.StartTime = "0"
 	info.Streams = []Stream{{Index: 0, CodecType: "video", CodecName: "h264", PixFmt: "yuv444p10le"}}
-	opts := ComposeOptions{Source: "source.mkv", Destination: "out.mkv", Mode: "hard", Quality: "lossless"}
-	args, err := ComposeArgs(opts, info, "render.ass", "partial.mkv")
-	if err != nil {
-		t.Fatal(err)
-	}
-	joined := strings.Join(args, " ")
-	if !strings.Contains(joined, "-qp 0") || !strings.Contains(joined, "-pix_fmt:v:0 yuv444p10le") || strings.Contains(joined, "crop=") || strings.Contains(joined, "-crf") {
-		t.Fatal(joined)
-	}
-	info.Streams[0].PixFmt = "yuvj420p"
-	args, _ = ComposeArgs(opts, info, "render.ass", "partial.mkv")
-	if joined = strings.Join(args, " "); !strings.Contains(joined, "-pix_fmt:v:0 yuv420p") || !strings.Contains(joined, "crop=") {
-		t.Fatal(joined)
-	}
-	for quality, crf := range map[string]string{"crf18": "18", "crf20": "20", "crf23": "23"} {
-		opts.Quality = quality
-		args, err = ComposeArgs(opts, info, "render.ass", "partial.mkv")
-		if joined = strings.Join(args, " "); err != nil || !strings.Contains(joined, "-crf "+crf) || strings.Contains(joined, "-qp") {
-			t.Fatal(quality, joined, err)
+	for quality, wantPreset := range map[string]string{
+		CompressQualityNearLossless: "8",
+		CompressQualityHigh:         "8",
+		CompressQualityCompact:      "8",
+	} {
+		opts := ComposeOptions{Source: "source.mkv", Destination: "out.mkv", Mode: "hard", Quality: quality, ResolvedCRF: 26.25}
+		args, err := ComposeArgs(opts, info, "render.ass", "partial.mkv")
+		if err != nil {
+			t.Fatal(quality, err)
+		}
+		joined := strings.Join(args, " ")
+		for _, required := range []string{
+			"ass=render.ass:fontsdir=fonts,crop=trunc(iw/2)*2:trunc(ih/2)*2:0:0",
+			"-c:v:0 libsvtav1",
+			"-preset " + wantPreset,
+			"-pix_fmt:v:0 yuv420p10le",
+			"-svtav1-params crf=26.25:tune=0:enable-variance-boost=1:enable-overlays=1",
+		} {
+			if !strings.Contains(joined, required) {
+				t.Fatalf("%s missing %q: %s", quality, required, joined)
+			}
 		}
 	}
-	opts.Quality = "original"
-	if _, err = ComposeArgs(opts, info, "render.ass", "partial.mkv"); err == nil {
-		t.Fatal("unknown quality accepted")
+	for _, retired := range []string{"lossless", "crf18", "crf20", "crf23", "original"} {
+		opts := ComposeOptions{Source: "source.mkv", Destination: "out.mkv", Mode: "hard", Quality: retired}
+		if _, err := ComposeArgs(opts, info, "render.ass", "partial.mkv"); err == nil {
+			t.Fatalf("retired or unknown quality %q accepted", retired)
+		}
 	}
 }

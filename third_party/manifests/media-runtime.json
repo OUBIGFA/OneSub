@@ -1,10 +1,10 @@
 {
   "provider": "MSYS2 UCRT64",
-  "checkedAt": "2026-11-15",
+  "checkedAt": "2026-11-21",
   "repository": "https://github.com/msys2/MINGW-packages",
   "database": {
     "url": "https://mirror.msys2.org/mingw/ucrt64/ucrt64.db",
-    "sha256": "4b25dc3fa517512bc6f3569c538424d8fa7add0ec8880b1ec287b4ae965bd3ef"
+    "sha256": "3791828867c54d193da35afe119dd266e2c57dbf13b2d315151e095ead3d12fc"
   },
   "packages": [
     {
@@ -166,6 +166,38 @@
       }
     },
     {
+      "name": "mingw-w64-ucrt-x86_64-curl",
+      "version": "8.23.0-3",
+      "base": "mingw-w64-curl",
+      "licenses": [
+        "spdx:MIT"
+      ],
+      "archive": "mingw-w64-ucrt-x86_64-curl-8.23.0-3-any.pkg.tar.zst",
+      "sha256": "b7fbd278e496ee6e796c632d7a1b895b2bdbbd212970f58a6d3f8bc00d76f29c",
+      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-curl-8.23.0-3-any.pkg.tar.zst",
+      "bytes": 1784091,
+      "files": [
+        {
+          "member": "ucrt64/bin/libcurl-4.dll",
+          "path": "libcurl-4.dll",
+          "sha256": "07ffcc59d7c012b39956f4f21dc8875f3892d1570077606703e23ebb2b0dee0f"
+        },
+        {
+          "member": "ucrt64/share/licenses/curl/COPYING",
+          "path": "licenses/mingw-w64-ucrt-x86_64-curl/curl/COPYING",
+          "sha256": "82f2f4427d6545ee5aaac4f0b80428da6cc8ba41c2cf5da3a03680ec327b9681"
+        }
+      ],
+      "source": {
+        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-curl-8.23.0-3.src.tar.zst",
+        "archive": "mingw-w64-curl-8.23.0-3.src.tar.zst",
+        "sha256": "169e6b07e5d71d42f972cec40d4b4c4061d4557ca6bc5204dc5b7562871fd0d9",
+        "bytes": 3000687,
+        "recipe": "mingw-w64-curl/PKGBUILD",
+        "recipeSha256": "2cc2c228e845b90e80ce3c4ac5e1225ec6fb3c29aad0ec88781913d206dd8096"
+      }
+    },
+    {
       "name": "mingw-w64-ucrt-x86_64-dav1d",
       "version": "1.5.4-1",
       "base": "mingw-w64-dav1d",
@@ -236,69 +268,69 @@
     },
     {
       "name": "mingw-w64-ucrt-x86_64-ffmpeg",
-      "version": "9.0.2-4",
+      "version": "9.1-1",
       "base": "mingw-w64-ffmpeg",
       "licenses": [
         "spdx:GPL-3.0-or-later"
       ],
-      "archive": "mingw-w64-ucrt-x86_64-ffmpeg-9.0.2-4-any.pkg.tar.zst",
-      "sha256": "22928bcab225fba6de842204d9e89998a8549ebca615c1de3fe8add560ef1cf0",
-      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-ffmpeg-9.0.2-4-any.pkg.tar.zst",
-      "bytes": 25266624,
+      "archive": "mingw-w64-ucrt-x86_64-ffmpeg-9.1-1-any.pkg.tar.zst",
+      "sha256": "be092dd7cd544c4e235d90926888e31dde3321081a6113675a9c91e00ef07f82",
+      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-ffmpeg-9.1-1-any.pkg.tar.zst",
+      "bytes": 26912399,
       "files": [
-        {
-          "member": "ucrt64/bin/ffprobe.exe",
-          "path": "ffprobe.exe",
-          "sha256": "ecb70de0b005a22a5a9d32fcfd779b0892408b905a8a8c78c3c5cb45fc4aec14"
-        },
-        {
-          "member": "ucrt64/bin/swscale-10.dll",
-          "path": "swscale-10.dll",
-          "sha256": "1b22433643a769e12fc66f5006fad046a4e6886bb1998918a6f237bb71cf3c2a"
-        },
-        {
-          "member": "ucrt64/bin/avutil-61.dll",
-          "path": "avutil-61.dll",
-          "sha256": "6ab29032cdfffda2ddfb97850a9fa13a94deb33f13b410370359ef97383bdf60"
-        },
-        {
-          "member": "ucrt64/bin/swresample-7.dll",
-          "path": "swresample-7.dll",
-          "sha256": "73acf8917e11e28a25e38d7c61467567e711db7a485045a184ba51dba18bfcd1"
-        },
-        {
-          "member": "ucrt64/bin/avformat-63.dll",
-          "path": "avformat-63.dll",
-          "sha256": "4aecd36f896d1eac8f6d7cdc37868ab39e6c9caf7c494bf11fe5298bcf99186f"
-        },
         {
           "member": "ucrt64/bin/avcodec-63.dll",
           "path": "avcodec-63.dll",
-          "sha256": "ee2ef61e743576d033750800a8144ccd15b3a02280e435c8dc52a0111a499d52"
-        },
-        {
-          "member": "ucrt64/bin/avfilter-12.dll",
-          "path": "avfilter-12.dll",
-          "sha256": "3696c018b5a821c411039a187e2ec2701536edf6d4256a3a09b5d291121c029b"
+          "sha256": "edf1fb7389caf25749c409c0c9e18a30115ff048d0c3f1deab522902cee5792d"
         },
         {
           "member": "ucrt64/bin/avdevice-63.dll",
           "path": "avdevice-63.dll",
-          "sha256": "144b1b26eaf974a1f07d1fb75af904a277f569987adbd48e9661c715bb17028b"
+          "sha256": "c8e79ef72f885003c689cf3734965c0dfccfc10afef41b2b5190263c9f672b30"
+        },
+        {
+          "member": "ucrt64/bin/avfilter-12.dll",
+          "path": "avfilter-12.dll",
+          "sha256": "2bed6aa675f8b8c7ee2c818f3cc098c49dbb4c2a0157ff7351bee8085172c021"
+        },
+        {
+          "member": "ucrt64/bin/avformat-63.dll",
+          "path": "avformat-63.dll",
+          "sha256": "2f19e67dc2158682ee41ebad51ba4012f177b7dd6cdfb260e88320a7ee8a627e"
+        },
+        {
+          "member": "ucrt64/bin/avutil-61.dll",
+          "path": "avutil-61.dll",
+          "sha256": "d63fb38660ae6bc787be78fbca84663914cfec53260a2e0c3dcc36e18f927bb4"
         },
         {
           "member": "ucrt64/bin/ffmpeg.exe",
           "path": "ffmpeg.exe",
-          "sha256": "ea6916da731394f30d6bc3ebdba90219834a075bb39ea9fc442be0e2f894788a"
+          "sha256": "fafac0a0da43973808cae7d0ec6f329a05fcac8dc9f8c0fb60b99cf044503015"
+        },
+        {
+          "member": "ucrt64/bin/ffprobe.exe",
+          "path": "ffprobe.exe",
+          "sha256": "7d69f1531fbd8120585b8edbb1e83a6a89d8a5f1d8cb353f0629343386420985"
+        },
+        {
+          "member": "ucrt64/bin/swresample-7.dll",
+          "path": "swresample-7.dll",
+          "sha256": "bbf3344a1f2041939abf12046891ca6ba974a453be3f255d985a8e85faeb5bdb"
+        },
+        {
+          "member": "ucrt64/bin/swscale-10.dll",
+          "path": "swscale-10.dll",
+          "sha256": "7b48c6a40a5a2a21a324b5c318c1254e24d3ebb316d9213675329026c042895c"
         }
       ],
       "source": {
-        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-ffmpeg-9.0.2-4.src.tar.zst",
-        "archive": "mingw-w64-ffmpeg-9.0.2-4.src.tar.zst",
-        "sha256": "360d495057cbe6b93bbc739d94b2e465454d618a9b1d2c3dca5296b487ffcfed",
-        "bytes": 12050316,
+        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-ffmpeg-9.1-1.src.tar.zst",
+        "archive": "mingw-w64-ffmpeg-9.1-1.src.tar.zst",
+        "sha256": "5973ec869cfbd790eb8ab37eb5c6cf0137f70fabe900e2dfb7489f55b2265c74",
+        "bytes": 12567039,
         "recipe": "mingw-w64-ffmpeg/PKGBUILD",
-        "recipeSha256": "49802ece2ac9396748b91ad660df0a9536219439c0b8912085091c6d1e733fad"
+        "recipeSha256": "80689ff9c30877fb0bb58be0dd8896a55f288ecd89ee06ffc7a42e839f779341"
       }
     },
     {
@@ -1528,6 +1560,38 @@
       }
     },
     {
+      "name": "mingw-w64-ucrt-x86_64-libpsl",
+      "version": "0.21.5-3",
+      "base": "mingw-w64-libpsl",
+      "licenses": [
+        "spdx:MIT"
+      ],
+      "archive": "mingw-w64-ucrt-x86_64-libpsl-0.21.5-3-any.pkg.tar.zst",
+      "sha256": "d96e0bb50ac3f8b6e44a39ea8de8d186f7b08f6938b0676eb69a7ba1f127bcf4",
+      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libpsl-0.21.5-3-any.pkg.tar.zst",
+      "bytes": 95717,
+      "files": [
+        {
+          "member": "ucrt64/bin/libpsl-5.dll",
+          "path": "libpsl-5.dll",
+          "sha256": "a531e72de3c64d43fb83cbfb6fa63e5ee982a970292ec51314e29d0acabf1dd5"
+        },
+        {
+          "member": "ucrt64/share/licenses/libpsl/COPYING",
+          "path": "licenses/mingw-w64-ucrt-x86_64-libpsl/libpsl/COPYING",
+          "sha256": "322392e6001b2b3b0fca705dc9f11f26e12441188ecde50eb1d22909980b2925"
+        }
+      ],
+      "source": {
+        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-libpsl-0.21.5-3.src.tar.zst",
+        "archive": "mingw-w64-libpsl-0.21.5-3.src.tar.zst",
+        "sha256": "102b4ab4c60322162e808c5c81f545438c346c659e8fb63e0851066f07a0e76b",
+        "bytes": 6829368,
+        "recipe": "mingw-w64-libpsl/PKGBUILD",
+        "recipeSha256": "84f8e19b62b3037d82f1f20bc041b9c1a83f8d82eeffe158bbf3d7f50df286c3"
+      }
+    },
+    {
       "name": "mingw-w64-ucrt-x86_64-librsvg",
       "version": "2.63.4-1",
       "base": "mingw-w64-librsvg",
@@ -1626,6 +1690,38 @@
         "bytes": 762807,
         "recipe": "mingw-w64-libssh/PKGBUILD",
         "recipeSha256": "a034ae78fc47fa516eee2336c44a99e8ddb2eb9e0e9f5ecea38219ad0fc85735"
+      }
+    },
+    {
+      "name": "mingw-w64-ucrt-x86_64-libssh2",
+      "version": "1.11.1-4",
+      "base": "mingw-w64-libssh2",
+      "licenses": [
+        "spdx:BSD-3-Clause"
+      ],
+      "archive": "mingw-w64-ucrt-x86_64-libssh2-1.11.1-4-any.pkg.tar.zst",
+      "sha256": "ee2cff90a12579e42cc3fd1362097f46b32b1f61b19a9137c70d4afe0251f3a9",
+      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libssh2-1.11.1-4-any.pkg.tar.zst",
+      "bytes": 439146,
+      "files": [
+        {
+          "member": "ucrt64/bin/libssh2-1.dll",
+          "path": "libssh2-1.dll",
+          "sha256": "682fd57a3d16f00f26025d01672d7ec3bfc4b1694c35e90b7b1ffc321c0fa5aa"
+        },
+        {
+          "member": "ucrt64/share/licenses/libssh2/COPYING",
+          "path": "licenses/mingw-w64-ucrt-x86_64-libssh2/libssh2/COPYING",
+          "sha256": "f7f9633cf9ff2f1333f3d7ce46973a8716a4d2a2815ad56f30d437d5fea7bafe"
+        }
+      ],
+      "source": {
+        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-libssh2-1.11.1-4.src.tar.zst",
+        "archive": "mingw-w64-libssh2-1.11.1-4.src.tar.zst",
+        "sha256": "454e838ede47a28229f32ec41f0a95ad39c328b4a1ca4ddd9af418a2200652c7",
+        "bytes": 1094642,
+        "recipe": "mingw-w64-libssh2/PKGBUILD",
+        "recipeSha256": "9beecbdb804a28168bf1adf0e3960a39f97eaa30ea88b6ff4c920002b65e1d85"
       }
     },
     {
@@ -2194,6 +2290,114 @@
       }
     },
     {
+      "name": "mingw-w64-ucrt-x86_64-nghttp2",
+      "version": "1.71.0-1",
+      "base": "mingw-w64-nghttp2",
+      "licenses": [
+        "spdx:MIT"
+      ],
+      "archive": "mingw-w64-ucrt-x86_64-nghttp2-1.71.0-1-any.pkg.tar.zst",
+      "sha256": "ce394855ca96785b75ec9b8bf03de29cded23770228131c1dc459f96a2ff087e",
+      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-nghttp2-1.71.0-1-any.pkg.tar.zst",
+      "bytes": 204020,
+      "files": [
+        {
+          "member": "ucrt64/bin/libnghttp2-14.dll",
+          "path": "libnghttp2-14.dll",
+          "sha256": "5e5460b1f9dd489566a747f7fb72bcc7862608213e1cc401e02a9ee0f1866da1"
+        },
+        {
+          "member": "ucrt64/share/licenses/nghttp2/COPYING",
+          "path": "licenses/mingw-w64-ucrt-x86_64-nghttp2/nghttp2/COPYING",
+          "sha256": "6b94f3abc1aabd0c72a7c7d92a77f79dda7c8a0cb3df839a97890b4116a2de2a"
+        }
+      ],
+      "source": {
+        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-nghttp2-1.71.0-1.src.tar.zst",
+        "archive": "mingw-w64-nghttp2-1.71.0-1.src.tar.zst",
+        "sha256": "6a68db57bd52eb46c5710af2edf25fef301a8a5a8ce808347cc9d916012ed47f",
+        "bytes": 1998079,
+        "recipe": "mingw-w64-nghttp2/PKGBUILD",
+        "recipeSha256": "c41f25ffafd521a96ca9d22feaa40568acbdb78a51ce6876efed8b09cac36df9"
+      }
+    },
+    {
+      "name": "mingw-w64-ucrt-x86_64-nghttp3",
+      "version": "1.19.0-1",
+      "base": "mingw-w64-nghttp3",
+      "licenses": [
+        "spdx:MIT"
+      ],
+      "archive": "mingw-w64-ucrt-x86_64-nghttp3-1.19.0-1-any.pkg.tar.zst",
+      "sha256": "d2917a08bea179c0de58023d57fe8572f905b90f5d2f8d8798789bedfbbe5634",
+      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-nghttp3-1.19.0-1-any.pkg.tar.zst",
+      "bytes": 139567,
+      "files": [
+        {
+          "member": "ucrt64/bin/libnghttp3-9.dll",
+          "path": "libnghttp3-9.dll",
+          "sha256": "30ed479b0ae35b56bd79c816e2b9010f2d0a9f84c96b0a210d44e188e9222f1e"
+        },
+        {
+          "member": "ucrt64/share/licenses/nghttp3/COPYING",
+          "path": "licenses/mingw-w64-ucrt-x86_64-nghttp3/nghttp3/COPYING",
+          "sha256": "58cc3fc8c6d6cb2485ab35eb5918e849b5bf1e56522974e106d7a39a88d61dcd"
+        }
+      ],
+      "source": {
+        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-nghttp3-1.19.0-1.src.tar.zst",
+        "archive": "mingw-w64-nghttp3-1.19.0-1.src.tar.zst",
+        "sha256": "3520379c8c2a8c9a9414cfb6f857b50c0d5e0c8917745b5554f04db52da5ab93",
+        "bytes": 421839,
+        "recipe": "mingw-w64-nghttp3/PKGBUILD",
+        "recipeSha256": "9dd61f123f18f3281de11d3bce090d0df876566b0c328dc133abfa2406d21acb"
+      }
+    },
+    {
+      "name": "mingw-w64-ucrt-x86_64-ngtcp2",
+      "version": "1.26.0-3",
+      "base": "mingw-w64-ngtcp2",
+      "licenses": [
+        "spdx:MIT"
+      ],
+      "archive": "mingw-w64-ucrt-x86_64-ngtcp2-1.26.0-3-any.pkg.tar.zst",
+      "sha256": "76e9803547b986f386d61b4dd2d6efd25ab51801a23e159b1f80d41f4157f9fc",
+      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-ngtcp2-1.26.0-3-any.pkg.tar.zst",
+      "bytes": 315683,
+      "files": [
+        {
+          "member": "ucrt64/bin/libngtcp2-16.dll",
+          "path": "libngtcp2-16.dll",
+          "sha256": "099bdd982e4c6ec0fc04dd00ebaa9fb8bc090cc5521175cceb7c66ea5b5b4aea"
+        },
+        {
+          "member": "ucrt64/bin/libngtcp2_crypto_ossl-0.dll",
+          "path": "libngtcp2_crypto_ossl-0.dll",
+          "sha256": "9ce610fc3d42e4d82e8242a71feace273f5e305fb551d2f6d6b09861362ebec9"
+        },
+        {
+          "member": "ucrt64/share/licenses/ngtcp2/COPYING",
+          "path": "licenses/mingw-w64-ucrt-x86_64-ngtcp2/ngtcp2/COPYING",
+          "sha256": "542dd526d2ea23565f0571cc68df6f05ed11248a90ff0f32de19d8ba589db513"
+        }
+      ],
+      "source": {
+        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-ngtcp2-1.26.0-3.src.tar.zst",
+        "archive": "mingw-w64-ngtcp2-1.26.0-3.src.tar.zst",
+        "sha256": "9153878c349e12826645f8500cd43c3c63a61e01d8696e5c5bf61691f3987dbd",
+        "bytes": 737188,
+        "recipe": "mingw-w64-ngtcp2/PKGBUILD",
+        "recipeSha256": "60a51a9798101918d53da520eedad57d8fb3806db8f0e4590d89459904c2cfea",
+        "buildRecipe": {
+          "file": ".local/downloads/media-sources/ngtcp2-PKGBUILD-f6fe8c6a81c3f6e51c900d9b0ceb4bf87f615b17.txt",
+          "sha256": "e0b9dd96ad451722cab78354a35eeadcf83c7a7aaed1adb658ec89689fe0ac1d",
+          "url": "https://raw.githubusercontent.com/msys2/MINGW-packages/f6fe8c6a81c3f6e51c900d9b0ceb4bf87f615b17/mingw-w64-ngtcp2/PKGBUILD",
+          "revision": "f6fe8c6a81c3f6e51c900d9b0ceb4bf87f615b17",
+          "note": "Published source recipe later removed an openssl-3 build dependency; use this exact binary-matching recipe to rebuild."
+        }
+      }
+    },
+    {
       "name": "mingw-w64-ucrt-x86_64-openal",
       "version": "1.25.2-1",
       "base": "mingw-w64-openal",
@@ -2286,20 +2490,25 @@
     },
     {
       "name": "mingw-w64-ucrt-x86_64-openssl",
-      "version": "3.6.5-1",
+      "version": "4.1.0-1",
       "base": "mingw-w64-openssl",
       "licenses": [
         "spdx:Apache-2.0"
       ],
-      "archive": "mingw-w64-ucrt-x86_64-openssl-3.6.5-1-any.pkg.tar.zst",
-      "sha256": "773e021ebad83f14b5c103db467411e8ff064663e1c7e7f730e2be72f4117064",
-      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-openssl-3.6.5-1-any.pkg.tar.zst",
-      "bytes": 8297898,
+      "archive": "mingw-w64-ucrt-x86_64-openssl-4.1.0-1-any.pkg.tar.zst",
+      "sha256": "e4b35719e68c9d27ec0c36b6f38a16970dd875554401ef35e14c6d35ad2a9429",
+      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-openssl-4.1.0-1-any.pkg.tar.zst",
+      "bytes": 8481931,
       "files": [
         {
-          "member": "ucrt64/bin/libcrypto-3-x64.dll",
-          "path": "libcrypto-3-x64.dll",
-          "sha256": "97308feea369b305e562c0098638a1b02a06f52ee9fcc4b8cf3da362ff563cf4"
+          "member": "ucrt64/bin/libcrypto-4-x64.dll",
+          "path": "libcrypto-4-x64.dll",
+          "sha256": "ff5bd426835acf70a03e6fd8bb51b60441806bf228de608caf4355b57f0c2340"
+        },
+        {
+          "member": "ucrt64/bin/libssl-4-x64.dll",
+          "path": "libssl-4-x64.dll",
+          "sha256": "879b67699f587b4e1c5ce23c444f587f01a4fbe10f0cdf0374414e37bd606331"
         },
         {
           "member": "ucrt64/share/licenses/openssl/LICENSE",
@@ -2308,12 +2517,12 @@
         }
       ],
       "source": {
-        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-openssl-3.6.5-1.src.tar.zst",
-        "archive": "mingw-w64-openssl-3.6.5-1.src.tar.zst",
-        "sha256": "997157ec74a6a722d7c8848605b1389a31a103d4b9f2aa6a40e179373a139cd1",
-        "bytes": 54979777,
+        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-openssl-4.1.0-1.src.tar.zst",
+        "archive": "mingw-w64-openssl-4.1.0-1.src.tar.zst",
+        "sha256": "bff1d415a5919720d844a28fabf04de182e802a6afae5aada4cf836ba84af9ce",
+        "bytes": 55635992,
         "recipe": "mingw-w64-openssl/PKGBUILD",
-        "recipeSha256": "88548a50bbff0074ab4071483139ff81e81acb39ee2811a512f9f0a5a11388e6"
+        "recipeSha256": "2bb951d72f48d1ea61df1a32f1ab0319edbcc8c1c552b3df93b21bdd589f4e52"
       }
     },
     {
@@ -3076,6 +3285,7 @@
     "bcryptprimitives.dll",
     "cfgmgr32.dll",
     "crypt32.dll",
+    "cryptnet.dll",
     "dnsapi.dll",
     "dwrite.dll",
     "gdi32.dll",
@@ -3084,10 +3294,12 @@
     "kernel32.dll",
     "msimg32.dll",
     "ncrypt.dll",
+    "normaliz.dll",
     "ntdll.dll",
     "ole32.dll",
     "oleaut32.dll",
     "rpcrt4.dll",
+    "secur32.dll",
     "shell32.dll",
     "shlwapi.dll",
     "user32.dll",
@@ -3095,11 +3307,12 @@
     "usp10.dll",
     "version.dll",
     "winmm.dll",
+    "wldap32.dll",
     "ws2_32.dll",
     "wsock32.dll"
   ],
   "delayedExternalImports": [],
-  "version": "9.0.2-4",
+  "version": "9.1-1",
   "notices": [
     {
       "package": "mingw-w64-ucrt-x86_64-ffmpeg",
@@ -3108,10 +3321,10 @@
       "sha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30",
       "sourceSha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30",
       "source": {
-        "archive": "mingw-w64-ffmpeg-9.0.2-4.src.tar.zst",
-        "innerArchive": "mingw-w64-ffmpeg/ffmpeg-9.0.2.tar.xz",
-        "innerSha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
-        "member": "ffmpeg-9.0.2/COPYING.LGPLv2.1"
+        "archive": "mingw-w64-ffmpeg-9.1-1.src.tar.zst",
+        "innerArchive": "mingw-w64-ffmpeg/ffmpeg-9.1.tar.xz",
+        "innerSha256": "1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433",
+        "member": "ffmpeg-9.1/COPYING.LGPLv2.1"
       }
     },
     {
@@ -3121,10 +3334,10 @@
       "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
       "sourceSha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
       "source": {
-        "archive": "mingw-w64-ffmpeg-9.0.2-4.src.tar.zst",
-        "innerArchive": "mingw-w64-ffmpeg/ffmpeg-9.0.2.tar.xz",
-        "innerSha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
-        "member": "ffmpeg-9.0.2/COPYING.GPLv2"
+        "archive": "mingw-w64-ffmpeg-9.1-1.src.tar.zst",
+        "innerArchive": "mingw-w64-ffmpeg/ffmpeg-9.1.tar.xz",
+        "innerSha256": "1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433",
+        "member": "ffmpeg-9.1/COPYING.GPLv2"
       }
     },
     {
@@ -3134,10 +3347,10 @@
       "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768",
       "sourceSha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768",
       "source": {
-        "archive": "mingw-w64-ffmpeg-9.0.2-4.src.tar.zst",
-        "innerArchive": "mingw-w64-ffmpeg/ffmpeg-9.0.2.tar.xz",
-        "innerSha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
-        "member": "ffmpeg-9.0.2/COPYING.LGPLv3"
+        "archive": "mingw-w64-ffmpeg-9.1-1.src.tar.zst",
+        "innerArchive": "mingw-w64-ffmpeg/ffmpeg-9.1.tar.xz",
+        "innerSha256": "1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433",
+        "member": "ffmpeg-9.1/COPYING.LGPLv3"
       }
     },
     {
@@ -3147,23 +3360,23 @@
       "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
       "sourceSha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
       "source": {
-        "archive": "mingw-w64-ffmpeg-9.0.2-4.src.tar.zst",
-        "innerArchive": "mingw-w64-ffmpeg/ffmpeg-9.0.2.tar.xz",
-        "innerSha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
-        "member": "ffmpeg-9.0.2/COPYING.GPLv3"
+        "archive": "mingw-w64-ffmpeg-9.1-1.src.tar.zst",
+        "innerArchive": "mingw-w64-ffmpeg/ffmpeg-9.1.tar.xz",
+        "innerSha256": "1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433",
+        "member": "ffmpeg-9.1/COPYING.GPLv3"
       }
     },
     {
       "package": "mingw-w64-ucrt-x86_64-ffmpeg",
       "file": "third_party/licenses/media/mingw-w64-ffmpeg/LICENSE.md.txt",
       "path": "licenses/source/mingw-w64-ffmpeg/LICENSE.md.txt",
-      "sha256": "2e1d16c72fd74e12063776371da757322f8b77589386532f4fd8634bde7de1af",
-      "sourceSha256": "2e1d16c72fd74e12063776371da757322f8b77589386532f4fd8634bde7de1af",
+      "sha256": "e6dc72d5665a1ebd6dcc841de59278dad4ca77ecc47b03f1064a55c3e9ea8bb8",
+      "sourceSha256": "e6dc72d5665a1ebd6dcc841de59278dad4ca77ecc47b03f1064a55c3e9ea8bb8",
       "source": {
-        "archive": "mingw-w64-ffmpeg-9.0.2-4.src.tar.zst",
-        "innerArchive": "mingw-w64-ffmpeg/ffmpeg-9.0.2.tar.xz",
-        "innerSha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
-        "member": "ffmpeg-9.0.2/LICENSE.md"
+        "archive": "mingw-w64-ffmpeg-9.1-1.src.tar.zst",
+        "innerArchive": "mingw-w64-ffmpeg/ffmpeg-9.1.tar.xz",
+        "innerSha256": "1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433",
+        "member": "ffmpeg-9.1/LICENSE.md"
       }
     },
     {
@@ -3622,6 +3835,6 @@
       }
     }
   ],
-  "coverage": "Mandatory and delayed PE imports resolved from pinned packages. Source recipes match each binary BUILDINFO; additional static and Rust source materials are registered separately.",
+  "coverage": "Mandatory and delayed PE imports and imported symbols verified against pinned DLLs. Source recipes match binary BUILDINFO; ngtcp2 records its original build recipe separately because the published source recipe changed. Additional static and Rust materials remain registered separately.",
   "licenseFile": "third_party/licenses/media/mingw-w64-ffmpeg/COPYING.GPLv3.txt"
 }

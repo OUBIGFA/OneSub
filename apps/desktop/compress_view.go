@@ -14,6 +14,12 @@ func (a *NativeApp) compressView(c *ui.Context) {
 		if audio {
 			mode = 1
 		}
+		qualities := composeQualities()
+		var qualityWidth float32
+		for _, q := range qualities {
+			width, _ := c.MeasureText(0, ui.Span{Text: q.Label})
+			qualityWidth = max(qualityWidth, width)
+		}
 		ui.Form(c, func() {
 			ui.Fieldset(c, locales.MediaOutputGroup(), func() {
 				ui.Field(c, locales.MediaProcessMode(), func() {
@@ -27,18 +33,18 @@ func (a *NativeApp) compressView(c *ui.Context) {
 					})
 				})
 				quality := ui.Field(c, locales.ComposeQuality(), func() {
-					idSelect(c, &a.settings.CompressionQuality, composeQualities()).Label(locales.ComposeQuality()).OnChange(a.saveSettings)
+					idSelect(c, &a.settings.CompressionQuality, qualities).MinWidth(qualityWidth + 48).Label(locales.ComposeQuality()).OnChange(a.saveSettings)
 				})
 				if audio {
 					quality.Invisible()
 				}
 			})
 		})
-		note := locales.ComposeCrfNote()
+		note := locales.CompressAv1Note()
 		if a.settings.MediaProcessMode == "audio" {
 			note = locales.AudioExtractNote()
 		}
-		stableDialogNote(c, note, false, locales.ComposeCrfNote(), locales.AudioExtractNote())
+		stableDialogNote(c, note, false, locales.CompressAv1Note(), locales.AudioExtractNote())
 		separator(c)
 		folderField(c, a.settings.OutputDir, locales.RecognitionBesideMedia(), a.busy, a.pickComposeDir, func() { a.settings.OutputDir = ""; a.saveSettings() })
 		lobeCheckbox(c, &a.settings.ComposeAskPath, locales.ComposeAskPath()).OnChange(a.saveSettings)
