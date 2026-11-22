@@ -500,10 +500,10 @@
     },
     {
       "file": "libssh.dll",
-      "bytes": 622845,
-      "sha256": "dbaf4b60ccbcef6aa5d6385d8d1965d4f483999b9ced1d5a2afbf719028b3d1e",
+      "bytes": 620221,
+      "sha256": "d3c50d4779bdb4d9aafce8f72ee4d15797a9fcd43ab35523513ab87c2720966b",
       "package": "mingw-w64-ucrt-x86_64-libssh",
-      "version": "0.12.2-1"
+      "version": "0.12.2-2"
     },
     {
       "file": "libssh2-1.dll",
@@ -836,10 +836,10 @@
     },
     {
       "file": "libsrt.dll",
-      "bytes": 852770,
-      "sha256": "6ad77ab5b1a9dc3d2d0bb929bfe9c6a46eb119c5f81d32014176ab873abeebdc",
+      "bytes": 852228,
+      "sha256": "bb353ded77b16734b7a3ef937f47d4c792a272b3b081895adcdc2bc9f7e912c4",
       "package": "mingw-w64-ucrt-x86_64-srt",
-      "version": "1.5.7-1"
+      "version": "1.5.7-2"
     },
     {
       "file": "libSvtAv1Enc-4.dll",

@@ -34,7 +34,7 @@ func TestHelperWithoutConsole(t *testing.T) {
 func TestRunLinesPassesStderrLines(t *testing.T) {
 	if os.Getenv("ONESUB_TEST_STDERR") == "1" {
 		os.Stderr.WriteString("[stage] one\r\n[sta")
-		os.Stderr.WriteString("ge] two 1/3\nlast")
+		os.Stderr.WriteString("ge] two 1/3\r[progress] 50%\nlast")
 		os.Exit(0)
 	}
 	cmd := CommandContext(context.Background(), os.Args[0], "-test.run=^TestRunLinesPassesStderrLines$")
@@ -43,7 +43,7 @@ func TestRunLinesPassesStderrLines(t *testing.T) {
 	if err := RunLines(context.Background(), cmd, nil, func(line string) { lines = append(lines, line) }); err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(lines, "|"); got != "[stage] one|[stage] two 1/3|last" {
+	if got := strings.Join(lines, "|"); got != "[stage] one|[stage] two 1/3|[progress] 50%|last" {
 		t.Fatalf("stderr lines = %q", got)
 	}
 }

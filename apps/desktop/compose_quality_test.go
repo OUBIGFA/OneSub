@@ -45,6 +45,37 @@ func TestComposeOffersCRFOnlyAndDailyRecommendation(t *testing.T) {
 			if after, _ := tt.Find(locales.ComposeStart()); after != button {
 				t.Fatal("quality choice resized the dialog", button, after)
 			}
+			if a.settings.ComposeEncoder != "cpu" || !tt.HasText(locales.ComposeEncoderCpu()) {
+				t.Fatal("incorrect install encoder default", a.settings.ComposeEncoder)
+			}
+			if err := tt.Click(locales.ComposeEncoder()); err != nil {
+				t.Fatal(err)
+			}
+			for _, label := range []string{locales.ComposeEncoderCpu(), locales.ComposeEncoderGpu()} {
+				if !tt.HasText(label) {
+					t.Fatal("missing encoder choice", label)
+				}
+			}
+			if err := tt.Click(locales.ComposeEncoderGpu()); err != nil {
+				t.Fatal(err)
+			}
+			prefs, err = settings.Load(filepath.Join(a.dataRoot, "settings.json"))
+			if err != nil || prefs.ComposeEncoder != "gpu" {
+				t.Fatal("encoder choice not saved", err, prefs.ComposeEncoder)
+			}
+			insideRedesign(t, tt, locales.ActionCompose(), locales.ComposeGpuNote(), locales.ComposeCrfRecommendation(), locales.ComposeStart())
+			if after, _ := tt.Find(locales.ComposeStart()); after != button {
+				t.Fatal("GPU encoder choice resized the dialog", button, after)
+			}
+			if err := tt.Click(locales.ComposeEncoder()); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.Click(locales.ComposeEncoderCpu()); err != nil {
+				t.Fatal(err)
+			}
+			if after, _ := tt.Find(locales.ComposeStart()); after != button {
+				t.Fatal("CPU encoder restore resized the dialog", button, after)
+			}
 			captureRedesign(t, tt, "compose-crf-"+language)
 		})
 	}

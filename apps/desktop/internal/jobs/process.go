@@ -39,18 +39,30 @@ type stderrLines struct {
 	tailBuffer
 	line    func(string)
 	partial []byte
+	skipLF  bool
 }
 
 func (s *stderrLines) Write(p []byte) (int, error) {
 	s.tailBuffer.Write(p)
 	s.partial = append(s.partial, p...)
-	for {
-		i := bytes.IndexByte(s.partial, '\n')
+	for len(s.partial) > 0 {
+		if s.skipLF {
+			s.skipLF = false
+			if s.partial[0] == '\n' {
+				s.partial = s.partial[1:]
+				continue
+			}
+		}
+		i := bytes.IndexAny(s.partial, "\r\n")
 		if i < 0 {
 			break
 		}
-		s.line(strings.TrimRight(string(s.partial[:i]), "\r"))
+		sep := s.partial[i]
+		s.line(string(s.partial[:i]))
 		s.partial = s.partial[i+1:]
+		if sep == '\r' {
+			s.skipLF = true
+		}
 	}
 	if len(s.partial) > 65536 {
 		s.partial = append([]byte{}, s.partial[len(s.partial)-65536:]...)

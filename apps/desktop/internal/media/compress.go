@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/jobs"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
@@ -29,10 +30,10 @@ const (
 	xpsnrInfScore          = 100.0
 )
 
-// CompressPreset defines a perceptual SVT-AV1 compression target guided by
-// FFmpeg's built-in Fraunhofer XPSNR filter. The sampling and interpolation
-// search follows the open methodology of ab-av1 (MIT) without copying code or
-// adding an external binary.
+// CompressPreset defines a perceptual compression target guided by FFmpeg's
+// built-in Fraunhofer XPSNR filter. The sampling and interpolation search
+// follows the open methodology of ab-av1 (MIT) without copying code or adding
+// an external binary.
 type CompressPreset struct {
 	ID          string
 	Preset      int
@@ -40,6 +41,7 @@ type CompressPreset struct {
 	MinCRF      float64
 	MaxCRF      float64
 	InitialCRF  float64
+	Step        float64
 }
 
 // CompressionReport records the perceptual search outcome inside ComposeReport.
@@ -48,6 +50,7 @@ type CompressionReport struct {
 	Preset           int     `json:"preset"`
 	CRF              float64 `json:"crf"`
 	TargetXPSNR      float64 `json:"targetXpsnr"`
+	FloorXPSNR       float64 `json:"floorXpsnr,omitempty"` // CPU-equivalent floor of a GPU search
 	MeasuredXPSNR    float64 `json:"measuredXpsnr"`
 	EstimatedPercent int     `json:"estimatedPercent,omitempty"`
 	Iterations       int     `json:"iterations"`
@@ -91,12 +94,26 @@ func CompressPresetFor(quality string) (CompressPreset, bool) {
 	}
 }
 
+func presetStep(preset CompressPreset) float64 {
+	if preset.Step > 0 {
+		return preset.Step
+	}
+	return crfStep
+}
+
 func formatCRF(crf float64) string {
 	return strconv.FormatFloat(quantizeCRF(crf), 'f', -1, 64)
 }
 
 func quantizeCRF(crf float64) float64 {
-	return math.Round(crf/crfStep) * crfStep
+	return quantizeWithStep(crf, crfStep)
+}
+
+func quantizeWithStep(value, step float64) float64 {
+	if step <= 0 {
+		step = crfStep
+	}
+	return math.Round(value/step) * step
 }
 
 func svtAV1Params(crf float64) string {
@@ -180,15 +197,17 @@ type crfSearchOutcome struct {
 	Iterations int
 }
 
-// searchCRF finds the highest CRF (smallest output) in [preset.MinCRF, preset.MaxCRF]
-// whose perceptual XPSNR meets preset.TargetXPSNR, using bounded secant
-// interpolation with binary-search fallback.
+// searchCRF finds the highest quality parameter (smallest output) in
+// [preset.MinCRF, preset.MaxCRF] whose perceptual XPSNR meets
+// preset.TargetXPSNR, using bounded secant interpolation with binary-search
+// fallback.
 func searchCRF(preset CompressPreset, evaluate func(crf float64) (float64, int64, error)) (crfSearchOutcome, error) {
 	var bestPass *crfEvaluation
 	var bestFail *crfEvaluation
 	tried := map[float64]bool{}
+	step := presetStep(preset)
 
-	current := quantizeCRF(min(preset.MaxCRF, max(preset.MinCRF, preset.InitialCRF)))
+	current := quantizeWithStep(min(preset.MaxCRF, max(preset.MinCRF, preset.InitialCRF)), step)
 	var previous *crfEvaluation
 	iterations := 0
 
@@ -233,7 +252,7 @@ func searchCRF(preset CompressPreset, evaluate func(crf float64) (float64, int64
 			slope := (eval.Score - previous.Score) / (eval.CRF - previous.CRF)
 			if slope < -0.01 {
 				candidate := eval.CRF + (preset.TargetXPSNR-eval.Score)/slope
-				candidate = quantizeCRF(min(preset.MaxCRF, max(preset.MinCRF, candidate)))
+				candidate = quantizeWithStep(min(preset.MaxCRF, max(preset.MinCRF, candidate)), step)
 				forward := eval.Score >= preset.TargetXPSNR && candidate > eval.CRF || eval.Score < preset.TargetXPSNR && candidate < eval.CRF
 				if forward && !tried[candidate] {
 					next, ok = candidate, true
@@ -255,9 +274,11 @@ func searchCRF(preset CompressPreset, evaluate func(crf float64) (float64, int64
 }
 
 func nextSearchCRF(preset CompressPreset, bestPass, bestFail *crfEvaluation, last crfEvaluation, tried map[float64]bool) (float64, bool) {
+	step := presetStep(preset)
+	boundsTolerance := max(crfBoundsTolerance, step)
 	if bestPass != nil && bestFail != nil {
 		span := bestFail.CRF - bestPass.CRF
-		if span <= crfBoundsTolerance {
+		if span <= boundsTolerance {
 			return 0, false
 		}
 		var candidate float64
@@ -268,17 +289,17 @@ func nextSearchCRF(preset CompressPreset, bestPass, bestFail *crfEvaluation, las
 		} else {
 			candidate = (bestPass.CRF + bestFail.CRF) / 2.0
 		}
-		candidate = quantizeCRF(candidate)
+		candidate = quantizeWithStep(candidate, step)
 		if candidate <= bestPass.CRF {
-			candidate = bestPass.CRF + crfStep
+			candidate = bestPass.CRF + step
 		}
 		if candidate >= bestFail.CRF {
-			candidate = bestFail.CRF - crfStep
+			candidate = bestFail.CRF - step
 		}
 		if candidate > bestPass.CRF && candidate < bestFail.CRF && !tried[candidate] {
 			return candidate, true
 		}
-		mid := quantizeCRF((bestPass.CRF + bestFail.CRF) / 2.0)
+		mid := quantizeWithStep((bestPass.CRF+bestFail.CRF)/2.0, step)
 		if mid > bestPass.CRF && mid < bestFail.CRF && !tried[mid] {
 			return mid, true
 		}
@@ -290,9 +311,9 @@ func nextSearchCRF(preset CompressPreset, bestPass, bestFail *crfEvaluation, las
 			return 0, false
 		}
 		delta := max(4.0, (last.Score-preset.TargetXPSNR)*1.5)
-		candidate := quantizeCRF(min(preset.MaxCRF, last.CRF+delta))
+		candidate := quantizeWithStep(min(preset.MaxCRF, last.CRF+delta), step)
 		if candidate == last.CRF {
-			candidate = quantizeCRF(min(preset.MaxCRF, last.CRF+crfStep))
+			candidate = quantizeWithStep(min(preset.MaxCRF, last.CRF+step), step)
 		}
 		if tried[candidate] {
 			return 0, false
@@ -304,9 +325,9 @@ func nextSearchCRF(preset CompressPreset, bestPass, bestFail *crfEvaluation, las
 		return 0, false
 	}
 	delta := max(4.0, (preset.TargetXPSNR-last.Score)*1.5)
-	candidate := quantizeCRF(max(preset.MinCRF, last.CRF-delta))
+	candidate := quantizeWithStep(max(preset.MinCRF, last.CRF-delta), step)
 	if candidate == last.CRF {
-		candidate = quantizeCRF(max(preset.MinCRF, last.CRF-crfStep))
+		candidate = quantizeWithStep(max(preset.MinCRF, last.CRF-step), step)
 	}
 	if tried[candidate] {
 		return 0, false
@@ -322,6 +343,43 @@ func estimateOutputPercent(sourceBytes int64, totalDurationSec float64, sampleEn
 	return int(math.Round((estimatedVideoBytes / float64(sourceBytes)) * 100.0))
 }
 
+// sampleTrial encodes one lossless reference window at quality q.
+type sampleTrial func(ctx context.Context, refPath, encPath string, windowMs int64, q float64, onProgress func(float64)) error
+
+func runSampleEncode(ctx context.Context, ffmpeg, refPath, encPath string, windowMs int64, video []string, onProgress func(float64)) error {
+	args := append([]string{"-hide_banner", "-nostdin", "-v", "error", "-i", refPath, "-map", "0:v:0"}, video...)
+	args = append(args, "-fps_mode:v:0", "passthrough", "-an", "-sn", "-dn", "-progress", "pipe:1", "-nostats", "-y", encPath)
+	return jobs.Run(ctx, exec.Command(ffmpeg, args...), func(line string) {
+		if fraction, ok := composeFraction(line, windowMs); ok {
+			onProgress(fraction)
+		}
+	})
+}
+
+func svtSampleTrial(ffmpeg string, preset CompressPreset) sampleTrial {
+	return func(ctx context.Context, refPath, encPath string, windowMs int64, crf float64, onProgress func(float64)) error {
+		return runSampleEncode(ctx, ffmpeg, refPath, encPath, windowMs, []string{
+			"-c:v:0", "libsvtav1", "-preset", strconv.Itoa(preset.Preset), "-pix_fmt:v:0", "yuv420p10le", "-svtav1-params", svtAV1Params(crf),
+		}, onProgress)
+	}
+}
+
+// qualitySearch describes one perceptual search. floor, when set, is a
+// reference encode whose measured score raises the target before the search,
+// so one encoder cannot settle below another one's output for the same preset.
+type qualitySearch struct {
+	preset   CompressPreset
+	encoder  string
+	trial    sampleTrial
+	parallel bool // run the windows of one trial concurrently
+	floor    *qualityFloor
+}
+
+type qualityFloor struct {
+	trial sampleTrial
+	q     float64
+}
+
 func searchCompressionCRF(
 	ctx context.Context,
 	ffmpeg string,
@@ -335,6 +393,79 @@ func searchCompressionCRF(
 	if !ok {
 		return 0, nil, errors.New(locales.ErrComposeQuality())
 	}
+	return searchQualityTarget(ctx, ffmpeg, scratch, options, info, durationMs, qualitySearch{preset: preset, encoder: "libsvtav1", trial: svtSampleTrial(ffmpeg, preset)}, progress)
+}
+
+// searchGPUCompressionQuality keeps GPU output from falling below the CPU
+// output of the same preset. The CPU search stops at MaxCRF, so its effective
+// quality is the target or the score at MaxCRF, whichever is higher. That
+// score is measured on the same samples with SVT-AV1 and used as the floor.
+func searchGPUCompressionQuality(
+	ctx context.Context,
+	ffmpeg string,
+	scratch string,
+	options ComposeOptions,
+	info Info,
+	durationMs int64,
+	encoder hardwareEncoder,
+	pixels int,
+	progress func(ComposeProgress),
+) (float64, *CompressionReport, error) {
+	preset, ok := gpuPresetFor(encoder, options.Quality)
+	if !ok {
+		return 0, nil, errors.New(locales.ErrComposeQuality())
+	}
+	cpu, _ := CompressPresetFor(options.Quality)
+	trial := func(ctx context.Context, refPath, encPath string, windowMs int64, q float64, onProgress func(float64)) error {
+		return runSampleEncode(ctx, ffmpeg, refPath, encPath, windowMs, encoder.videoArgs(q, pixels), onProgress)
+	}
+	return searchQualityTarget(ctx, ffmpeg, scratch, options, info, durationMs, qualitySearch{
+		preset: preset, encoder: encoder.Name, trial: trial, parallel: true,
+		floor: &qualityFloor{trial: svtSampleTrial(ffmpeg, cpu), q: cpu.MaxCRF},
+	}, progress)
+}
+
+// searchProgress merges concurrent window progress into one monotonic value.
+type searchProgress struct {
+	mu     sync.Mutex
+	report func(ComposeProgress)
+	total  float64
+	done   float64
+	active map[string]float64
+	last   float64
+}
+
+func (p *searchProgress) set(key string, fraction float64, finished bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if finished {
+		delete(p.active, key)
+		p.done++
+	} else {
+		p.active[key] = fraction
+	}
+	sum := p.done
+	for _, f := range p.active {
+		sum += f
+	}
+	value := min(0.99, 0.15+0.84*sum/p.total)
+	if value > p.last {
+		p.last = value
+		p.report(ComposeProgress{Stage: StageAnalyze, Fraction: value})
+	}
+}
+
+func searchQualityTarget(
+	ctx context.Context,
+	ffmpeg string,
+	scratch string,
+	options ComposeOptions,
+	info Info,
+	durationMs int64,
+	search qualitySearch,
+	progress func(ComposeProgress),
+) (float64, *CompressionReport, error) {
+	preset := search.preset
 	var mainVideo Stream
 	foundVideo := false
 	for _, s := range compositionStreams(info) {
@@ -392,82 +523,140 @@ func searchCompressionCRF(
 		progress(ComposeProgress{Stage: StageAnalyze, Fraction: 0.15 * float64(i+1) / float64(len(windows))})
 	}
 
-	evalCount := 0
-	outcome, err := searchCRF(preset, func(crf float64) (float64, int64, error) {
-		evalCount++
-		scoreSum := 0.0
-		var bytesSum int64
-		for i, refPath := range refs {
+	units := float64(crfSearchMaxIterations * len(refs))
+	if search.floor != nil {
+		units += float64(len(refs))
+	}
+	tracker := &searchProgress{report: progress, total: units, active: map[string]float64{}}
+
+	// measureWindow encodes one window, scores it against its reference and
+	// deletes the trial file.
+	measureWindow := func(ctx context.Context, trial sampleTrial, tag string, i int, q float64) (float64, int64, error) {
+		key := fmt.Sprintf("%s-%d", tag, i)
+		windowMs := int64(windows[i].DurationSec * 1000)
+		encPath := filepath.Join(sampleDir, "enc-"+key+".mkv")
+		defer os.Remove(encPath)
+		if err := trial(ctx, refs[i], encPath, windowMs, q, func(f float64) { tracker.set(key, 0.8*f, false) }); err != nil {
+			return 0, 0, err
+		}
+		stat, err := os.Stat(encPath)
+		if err != nil {
+			return 0, 0, err
+		}
+		xpsnrArgs := []string{
+			"-hide_banner", "-nostdin", "-v", "info",
+			"-i", encPath,
+			"-i", refs[i],
+			// XPSNR weights its FIRST (reference) input. FFmpeg 9.1's
+			// high-bit-depth path assumes a tightly packed second input,
+			// which AV1 decoders do not guarantee (vf_xpsnr.c: s_rec).
+			// Its 8-bit path explicitly copies both strides correctly.
+			// Normalize only the measurement; trial/final encodes stay 10-bit.
+			"-filter_complex", "[0:v]setpts=PTS-STARTPTS,format=yuv420p[d];[1:v]setpts=PTS-STARTPTS,format=yuv420p[r];[r][d]xpsnr=ts_sync_mode=nearest",
+			"-an", "-sn", "-dn", "-progress", "pipe:1", "-nostats",
+			"-f", "null", "-",
+		}
+		score := 0.0
+		gotScore := false
+		err = jobs.RunLines(ctx, exec.Command(ffmpeg, xpsnrArgs...), func(line string) {
+			if fraction, ok := composeFraction(line, windowMs); ok {
+				tracker.set(key, 0.8+0.2*fraction, false)
+			}
+		}, func(line string) {
+			if parsed, ok := parseXPSNR(line); ok {
+				score = parsed
+				gotScore = true
+			}
+		})
+		if err != nil {
+			return 0, 0, err
+		}
+		if !gotScore {
+			return 0, 0, errors.New("xpsnr filter produced no score")
+		}
+		tracker.set(key, 0, true)
+		return score, stat.Size(), nil
+	}
+
+	// measure averages all windows. Hardware encoders run the windows in
+	// parallel: one window's encode uses the GPU while another's XPSNR uses
+	// the CPU. Three sessions stay within consumer NVENC session limits.
+	measure := func(trial sampleTrial, tag string, q float64, parallel bool) (float64, int64, error) {
+		scores := make([]float64, len(refs))
+		sizes := make([]int64, len(refs))
+		if parallel {
+			runCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			errs := make([]error, len(refs))
+			var wg sync.WaitGroup
+			for i := range refs {
+				wg.Add(1)
+				go func(i int) {
+					defer wg.Done()
+					if scores[i], sizes[i], errs[i] = measureWindow(runCtx, trial, tag, i, q); errs[i] != nil {
+						cancel()
+					}
+				}(i)
+			}
+			wg.Wait()
 			if err := ctx.Err(); err != nil {
 				return 0, 0, err
 			}
-			encPath := filepath.Join(sampleDir, fmt.Sprintf("enc-%d-%d.mkv", evalCount, i))
-			// FFmpeg's progress stream keeps long trials visibly active. Reserve
-			// the last fifth of each trial for its full-frame XPSNR measurement.
-			trialProgress := func(offset, weight float64) func(string) {
-				return func(line string) {
-					if fraction, ok := composeFraction(line, int64(windows[i].DurationSec*1000)); ok {
-						done := float64((evalCount-1)*len(refs)+i) + offset + weight*fraction
-						progress(ComposeProgress{Stage: StageAnalyze, Fraction: min(0.99, 0.15+0.84*done/float64(crfSearchMaxIterations*len(refs)))})
-					}
+			if err := errors.Join(errs...); err != nil {
+				return 0, 0, err
+			}
+		} else {
+			for i := range refs {
+				score, size, err := measureWindow(ctx, trial, tag, i, q)
+				if err != nil {
+					return 0, 0, err
 				}
+				scores[i], sizes[i] = score, size
 			}
-			encArgs := []string{
-				"-hide_banner", "-nostdin", "-v", "error",
-				"-i", refPath,
-				"-c:v", "libsvtav1",
-				"-preset", strconv.Itoa(preset.Preset),
-				"-pix_fmt", "yuv420p10le",
-				"-svtav1-params", svtAV1Params(crf),
-				"-fps_mode:v:0", "passthrough",
-				"-an", "-sn", "-dn",
-				"-progress", "pipe:1", "-nostats",
-				"-y", encPath,
-			}
-			if err := jobs.Run(ctx, exec.Command(ffmpeg, encArgs...), trialProgress(0, 0.8)); err != nil {
-				return 0, 0, err
-			}
-			stat, err := os.Stat(encPath)
-			if err != nil {
-				return 0, 0, err
-			}
-			bytesSum += stat.Size()
-
-			xpsnrArgs := []string{
-				"-hide_banner", "-nostdin", "-v", "info",
-				"-i", encPath,
-				"-i", refPath,
-				// XPSNR weights its FIRST (reference) input. FFmpeg 9.1's
-				// high-bit-depth path assumes a tightly packed second input,
-				// which AV1 decoders do not guarantee (vf_xpsnr.c: s_rec).
-				// Its 8-bit path explicitly copies both strides correctly.
-				// Normalize only the measurement; trial/final encodes stay 10-bit.
-				"-filter_complex", "[0:v]setpts=PTS-STARTPTS,format=yuv420p[d];[1:v]setpts=PTS-STARTPTS,format=yuv420p[r];[r][d]xpsnr=ts_sync_mode=nearest",
-				"-an", "-sn", "-dn", "-progress", "pipe:1", "-nostats",
-				"-f", "null", "-",
-			}
-			score := 0.0
-			gotScore := false
-			err = jobs.RunLines(ctx, exec.Command(ffmpeg, xpsnrArgs...), trialProgress(0.8, 0.2), func(line string) {
-				if parsed, ok := parseXPSNR(line); ok {
-					score = parsed
-					gotScore = true
-				}
-			})
-			_ = os.Remove(encPath)
-			if err != nil {
-				return 0, 0, err
-			}
-			if !gotScore {
-				return 0, 0, errors.New("xpsnr filter produced no score")
-			}
-			scoreSum += score
-
-			doneSteps := float64((evalCount-1)*len(refs) + (i + 1))
-			totalSteps := float64(crfSearchMaxIterations * len(refs))
-			progress(ComposeProgress{Stage: StageAnalyze, Fraction: min(0.99, 0.15+0.84*(doneSteps/totalSteps))})
 		}
-		return scoreSum / float64(len(refs)), bytesSum, nil
+		sum, bytes := 0.0, int64(0)
+		for i := range refs {
+			sum += scores[i]
+			bytes += sizes[i]
+		}
+		return sum / float64(len(refs)), bytes, nil
+	}
+
+	type measured struct {
+		score float64
+		bytes int64
+	}
+	memo := map[float64]measured{}
+	floorScore := 0.0
+	if search.floor != nil {
+		// The floor (CPU) and the first trial (GPU) use different hardware,
+		// so they run at the same time. The first trial does not depend on
+		// the target, and searchCRF reuses its result.
+		first := quantizeWithStep(min(preset.MaxCRF, max(preset.MinCRF, preset.InitialCRF)), presetStep(preset))
+		var firstResult measured
+		var firstErr, floorErr error
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			firstResult.score, firstResult.bytes, firstErr = measure(search.trial, "first", first, search.parallel)
+		}()
+		floorScore, _, floorErr = measure(search.floor.trial, "floor", search.floor.q, false)
+		wg.Wait()
+		if err := errors.Join(floorErr, firstErr); err != nil {
+			return 0, nil, err
+		}
+		memo[first] = firstResult
+		preset.TargetXPSNR = max(preset.TargetXPSNR, floorScore)
+	}
+
+	evalCount := 0
+	outcome, err := searchCRF(preset, func(crf float64) (float64, int64, error) {
+		if cached, ok := memo[crf]; ok {
+			return cached.score, cached.bytes, nil
+		}
+		evalCount++
+		return measure(search.trial, strconv.Itoa(evalCount), crf, search.parallel)
 	})
 	if err != nil {
 		return 0, nil, err
@@ -479,10 +668,11 @@ func searchCompressionCRF(
 		estimatedPercent = estimateOutputPercent(sourceStat.Size(), float64(durationMs)/1000.0, outcome.Best.EncodedBytes, totalSampleSec)
 	}
 	report := &CompressionReport{
-		Encoder:          "libsvtav1",
+		Encoder:          search.encoder,
 		Preset:           preset.Preset,
 		CRF:              outcome.Best.CRF,
-		TargetXPSNR:      preset.TargetXPSNR,
+		TargetXPSNR:      math.Round(preset.TargetXPSNR*100) / 100,
+		FloorXPSNR:       math.Round(floorScore*100) / 100,
 		MeasuredXPSNR:    math.Round(outcome.Best.Score*100) / 100,
 		EstimatedPercent: estimatedPercent,
 		Iterations:       outcome.Iterations,

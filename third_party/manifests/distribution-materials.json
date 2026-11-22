@@ -34,7 +34,7 @@
     },
     {
       "file": "third_party/manifests/media-runtime.json",
-      "sha256": "58a94734a3496fda15bfd034739977cb72de8495fad27c5ccd2e24ca7922b46d"
+      "sha256": "2191e7affaa0a8d8e12578d7b1f6822dfbc13a32df365ef71cd5d6c827e13b96"
     },
     {
       "file": "third_party/manifests/media-cargo.json",
@@ -8791,11 +8791,11 @@
       "group": "media"
     },
     {
-      "archive": "mingw-w64-libssh-0.12.2-1.src.tar.zst",
-      "file": ".local/downloads/media-sources/mingw-w64-libssh-0.12.2-1.src.tar.zst",
-      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-libssh-0.12.2-1.src.tar.zst",
-      "sha256": "b935d915b5392e573f65855c491e476ae38860d3929d2b564e507aa660c3e05b",
-      "bytes": 762807,
+      "archive": "mingw-w64-libssh-0.12.2-2.src.tar.zst",
+      "file": ".local/downloads/media-sources/mingw-w64-libssh-0.12.2-2.src.tar.zst",
+      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-libssh-0.12.2-2.src.tar.zst",
+      "sha256": "e2c0bb2713326729e301333e6203dee061bfae4e36be02e04d774939dcea251a",
+      "bytes": 762649,
       "group": "media"
     },
     {
@@ -9031,11 +9031,11 @@
       "group": "media"
     },
     {
-      "archive": "mingw-w64-srt-1.5.7-1.src.tar.zst",
-      "file": ".local/downloads/media-sources/mingw-w64-srt-1.5.7-1.src.tar.zst",
-      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-srt-1.5.7-1.src.tar.zst",
-      "sha256": "bed7eb763e6d6c98aaf826d2375a959714669a8040a378ae19a81bed1d342daf",
-      "bytes": 1795977,
+      "archive": "mingw-w64-srt-1.5.7-2.src.tar.zst",
+      "file": ".local/downloads/media-sources/mingw-w64-srt-1.5.7-2.src.tar.zst",
+      "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-srt-1.5.7-2.src.tar.zst",
+      "sha256": "bf2ab2a87f695c0e9c1c9ab13a9634a78c219d79fd2e34670abe2d584a06cdde",
+      "bytes": 1795989,
       "group": "media"
     },
     {

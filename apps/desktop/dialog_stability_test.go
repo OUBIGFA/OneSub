@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/importing"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -74,6 +75,37 @@ func TestMediaToolsKeepGeometryAcrossModes(t *testing.T) {
 							}
 							if scale == 1 {
 								captureRedesign(t, tt, "stable-media-"+language+"-"+a.settings.MediaProcessMode)
+							}
+						}
+						for _, enc := range []struct {
+							label string
+							id    string
+							note  string
+						}{
+							{locales.ComposeEncoderGpu(), "gpu", locales.CompressGpuNote()},
+							{locales.ComposeEncoderCpu(), "cpu", locales.CompressAv1Note()},
+						} {
+							if err := tt.Click(locales.ComposeEncoder()); err != nil {
+								t.Fatal(err)
+							}
+							if err := tt.Click(enc.label); err != nil {
+								t.Fatal(err)
+							}
+							for i, label := range labels {
+								after, ok := tt.Find(label)
+								if !ok || after != before[i] {
+									t.Errorf("%s moved after encoder %s: %v -> %v", label, enc.id, before[i], after)
+								}
+							}
+							if after, _ := tt.Find(locales.CompressStart()); after != action {
+								t.Errorf("compress action moved after encoder %s: %v -> %v", enc.id, action, after)
+							}
+							if !tt.HasText(enc.note) {
+								t.Errorf("missing encoder note after choosing %s", enc.id)
+							}
+							prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
+							if err != nil || prefs.CompressionEncoder != enc.id {
+								t.Fatalf("compression encoder %s not persisted: %v (%q)", enc.id, err, prefs.CompressionEncoder)
 							}
 						}
 					})

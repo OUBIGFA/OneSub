@@ -47,3 +47,37 @@ func TestComposeQualityDefaultsAndRetiredChoice(t *testing.T) {
 		t.Fatal("omitted quality did not use the install default", err)
 	}
 }
+
+func TestEncoderDefaultsAndPersistence(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	fresh, err := Load(path)
+	if err != nil || fresh.ComposeEncoder != "cpu" || fresh.CompressionEncoder != "cpu" {
+		t.Fatal("new install must start on cpu encoder", fresh.ComposeEncoder, fresh.CompressionEncoder, err)
+	}
+	for _, encoder := range []string{"", "invalid", "nvenc", "cpu", "gpu"} {
+		s := Default()
+		s.ComposeEncoder, s.CompressionEncoder = encoder, encoder
+		raw, err := json.Marshal(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = os.WriteFile(path, raw, 0600); err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := Load(path)
+		want := "cpu"
+		if encoder == "gpu" {
+			want = "gpu"
+		}
+		if err != nil || loaded.ComposeEncoder != want || loaded.CompressionEncoder != want {
+			t.Fatal("encoder normalization failed", encoder, loaded.ComposeEncoder, loaded.CompressionEncoder, err)
+		}
+		if err = Save(path, loaded); err != nil {
+			t.Fatal(err)
+		}
+		again, err := Load(path)
+		if err != nil || again.ComposeEncoder != want || again.CompressionEncoder != want {
+			t.Fatal("encoder preference did not persist", err)
+		}
+	}
+}

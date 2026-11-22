@@ -48,7 +48,7 @@ and locked Cargo inputs; its source/patch definitions remain in the checkout.
 
 ## Build boundary
 
-Use `build/build-windows.ps1 -ReleaseTag '0.1.1'` after preparing the recorded
+Use `build/build-windows.ps1 -ReleaseTag '0.1.2'` after preparing the recorded
 toolchains and staging the reviewed source. The entry verifies the fixed Bun
 executable/revision, uses the local Go toolchain and records the staged Git tree.
 The product update signing secret is not part of source material; a local

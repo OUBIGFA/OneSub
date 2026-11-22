@@ -98,9 +98,9 @@ Workflow: **Import → Transcribe → Rebuild timing → Translate and review �
 
 ## Download
 
-Download `OneSub-0.1.1-Setup.exe` from [Releases](https://github.com/OUBIGFA/OneSub/releases), then run the installer.
+Download `OneSub-0.1.2-Setup.exe` from [Releases](https://github.com/OUBIGFA/OneSub/releases), then run the installer.
 
-- Version 0.1.1, Windows x64 only. The installer has no Windows Authenticode signature, so Windows may show a security prompt.
+- Version 0.1.2, Windows x64 only. The installer has no Windows Authenticode signature, so Windows may show a security prompt.
 - Check the Release page for the installer size. Download recognition models on demand (several hundred MB to several GB). You can change the model folder.
 
 ## System requirements
@@ -122,7 +122,7 @@ Subtitles only: drop a subtitle file to edit and translate. Media only: click "M
 
 | Item | Value | Reason |
 | --- | --- | --- |
-| Video encoding | High quality (AV1 · XPSNR 39) or Near-lossless (AV1 · XPSNR 42) | Use High quality for everyday delivery or Near-lossless for archives; CRF is chosen automatically by XPSNR sampling |
+| Video encoding | CPU: High quality (XPSNR 39) / GPU: Near-lossless (XPSNR 42) | CPU favors quality with smaller files but slower speed; use High quality. GPU favors speed with larger files; use Near-lossless. Both give nearly equivalent visual quality. |
 | Translation concurrent batches | 2 to 5 | Higher values may hit service rate limits |
 | Cues per batch | 50 | Balances context and stability |
 | Rebuild timing by sense groups | Enable with gpt-6-luna or stronger models | Improves translation accuracy and cue timing |

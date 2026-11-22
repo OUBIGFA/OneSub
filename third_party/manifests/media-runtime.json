@@ -1667,29 +1667,29 @@
     },
     {
       "name": "mingw-w64-ucrt-x86_64-libssh",
-      "version": "0.12.2-1",
+      "version": "0.12.2-2",
       "base": "mingw-w64-libssh",
       "licenses": [
         "spdx:LGPL-2.1-or-later"
       ],
-      "archive": "mingw-w64-ucrt-x86_64-libssh-0.12.2-1-any.pkg.tar.zst",
-      "sha256": "1be494f5fad8bf1210a1eeaccdd07d3e8319f4d13cd79a9302ae196fcc96da8b",
-      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libssh-0.12.2-1-any.pkg.tar.zst",
-      "bytes": 423141,
+      "archive": "mingw-w64-ucrt-x86_64-libssh-0.12.2-2-any.pkg.tar.zst",
+      "sha256": "94792281ae1291582ad84e39a6c67eae1982ba8e46012af6ddaeeb4f67bf2e0e",
+      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-libssh-0.12.2-2-any.pkg.tar.zst",
+      "bytes": 421646,
       "files": [
         {
           "member": "ucrt64/bin/libssh.dll",
           "path": "libssh.dll",
-          "sha256": "dbaf4b60ccbcef6aa5d6385d8d1965d4f483999b9ced1d5a2afbf719028b3d1e"
+          "sha256": "d3c50d4779bdb4d9aafce8f72ee4d15797a9fcd43ab35523513ab87c2720966b"
         }
       ],
       "source": {
-        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-libssh-0.12.2-1.src.tar.zst",
-        "archive": "mingw-w64-libssh-0.12.2-1.src.tar.zst",
-        "sha256": "b935d915b5392e573f65855c491e476ae38860d3929d2b564e507aa660c3e05b",
-        "bytes": 762807,
+        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-libssh-0.12.2-2.src.tar.zst",
+        "archive": "mingw-w64-libssh-0.12.2-2.src.tar.zst",
+        "sha256": "e2c0bb2713326729e301333e6203dee061bfae4e36be02e04d774939dcea251a",
+        "bytes": 762649,
         "recipe": "mingw-w64-libssh/PKGBUILD",
-        "recipeSha256": "a034ae78fc47fa516eee2336c44a99e8ddb2eb9e0e9f5ecea38219ad0fc85735"
+        "recipeSha256": "5a10d96e4f41c90fcc8bad4ea5d7dd20c9f0025b25e237d1f829b50cd63dc3b2"
       }
     },
     {
@@ -2863,20 +2863,20 @@
     },
     {
       "name": "mingw-w64-ucrt-x86_64-srt",
-      "version": "1.5.7-1",
+      "version": "1.5.7-2",
       "base": "mingw-w64-srt",
       "licenses": [
         "spdx:MPL-2.0"
       ],
-      "archive": "mingw-w64-ucrt-x86_64-srt-1.5.7-1-any.pkg.tar.zst",
-      "sha256": "f68cd966e8e7cba30a7884accc280fee82d508bddb0544f3c88f69872b783076",
-      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-srt-1.5.7-1-any.pkg.tar.zst",
-      "bytes": 798115,
+      "archive": "mingw-w64-ucrt-x86_64-srt-1.5.7-2-any.pkg.tar.zst",
+      "sha256": "92ebd6aa062f7285f23435b8fd0607e6d6e18a5e807327a18aba1fc4fd8df46d",
+      "url": "https://mirror.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-srt-1.5.7-2-any.pkg.tar.zst",
+      "bytes": 796157,
       "files": [
         {
           "member": "ucrt64/bin/libsrt.dll",
           "path": "libsrt.dll",
-          "sha256": "6ad77ab5b1a9dc3d2d0bb929bfe9c6a46eb119c5f81d32014176ab873abeebdc"
+          "sha256": "bb353ded77b16734b7a3ef937f47d4c792a272b3b081895adcdc2bc9f7e912c4"
         },
         {
           "member": "ucrt64/share/licenses/srt/LICENSE",
@@ -2885,12 +2885,12 @@
         }
       ],
       "source": {
-        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-srt-1.5.7-1.src.tar.zst",
-        "archive": "mingw-w64-srt-1.5.7-1.src.tar.zst",
-        "sha256": "bed7eb763e6d6c98aaf826d2375a959714669a8040a378ae19a81bed1d342daf",
-        "bytes": 1795977,
+        "url": "https://mirror.msys2.org/mingw/sources/mingw-w64-srt-1.5.7-2.src.tar.zst",
+        "archive": "mingw-w64-srt-1.5.7-2.src.tar.zst",
+        "sha256": "bf2ab2a87f695c0e9c1c9ab13a9634a78c219d79fd2e34670abe2d584a06cdde",
+        "bytes": 1795989,
         "recipe": "mingw-w64-srt/PKGBUILD",
-        "recipeSha256": "d19531282e69ec583125a645bbd9e3d3638ff7a323a58bf138421d7a063b7694"
+        "recipeSha256": "10b35150bb9971998430cf128977417f00d8ccc9742c615a55be12ebf06dff2e"
       }
     },
     {

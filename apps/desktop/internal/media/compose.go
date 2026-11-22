@@ -37,12 +37,15 @@ const (
 type ComposeOptions struct {
 	Source      string  `json:"source"`
 	Destination string  `json:"destination"`
-	Mode        string  `json:"mode"`    // hard, soft, compress or audio (no added subtitles)
-	Quality     string  `json:"quality"` // hard/compress: near-lossless, high or compact
-	ResolvedCRF float64 `json:"resolvedCrf,omitempty"`
-	Sample      bool    `json:"sample"`
-	Language    string  `json:"language"`
-	Revision    int64   `json:"revision"`
+	Mode        string  `json:"mode"`                  // hard, soft, compress or audio (no added subtitles)
+	Quality     string  `json:"quality"`               // hard/compress: near-lossless, high or compact
+	Encoder     string  `json:"encoder,omitempty"`     // cpu (default) or gpu
+	ResolvedCRF float64 `json:"resolvedCrf,omitempty"` // CRF, or the hardware encoder's quality value
+	// hardware is the detected GPU encoder; set by Compose, never by callers.
+	hardware *hardwareEncoder
+	Sample   bool   `json:"sample"`
+	Language string `json:"language"`
+	Revision int64  `json:"revision"`
 }
 type ComposeReport struct {
 	Version      int                `json:"version"`
@@ -124,6 +127,65 @@ func chaptersPreserved(source, output []Chapter, origin float64, sample bool) bo
 	return matched == len(output)
 }
 
+type streamPlan struct {
+	ext         string
+	mainVideo   Stream
+	covers      []Stream
+	audio       []Stream
+	subs        []Stream
+	attachments []Stream
+}
+
+func planCompositionStreams(options ComposeOptions, info Info) (streamPlan, error) {
+	if options.Mode != "hard" && options.Mode != "soft" && options.Mode != "compress" {
+		return streamPlan{}, errors.New(locales.ErrComposeMode())
+	}
+	ext := strings.ToLower(filepath.Ext(options.Destination))
+	if ext != ".mkv" && ext != ".mp4" {
+		return streamPlan{}, errors.New(locales.ErrComposeContainer())
+	}
+	plan := streamPlan{ext: ext}
+	var mainVideo []Stream
+	for _, s := range compositionStreams(info) {
+		switch s.CodecType {
+		case "video":
+			if s.Disposition.AttachedPic != 0 {
+				plan.covers = append(plan.covers, s)
+			} else {
+				mainVideo = append(mainVideo, s)
+			}
+		case "audio":
+			plan.audio = append(plan.audio, s)
+		case "subtitle":
+			plan.subs = append(plan.subs, s)
+		case "attachment":
+			plan.attachments = append(plan.attachments, s)
+		default:
+			return streamPlan{}, errors.New(locales.ErrComposeStreamType(s.CodecType))
+		}
+	}
+	if len(mainVideo) != 1 {
+		return streamPlan{}, errors.New(locales.ErrComposeMainVideo())
+	}
+	plan.mainVideo = mainVideo[0]
+	if options.Mode != "soft" && (plan.mainVideo.ColorTransfer == "smpte2084" || plan.mainVideo.ColorTransfer == "arib-std-b67") {
+		return streamPlan{}, errors.New(locales.ErrComposeHdr())
+	}
+	if ext == ".mp4" && len(plan.attachments) > 0 {
+		return streamPlan{}, errors.New(locales.ErrComposeMp4Attachments())
+	}
+	if ext == ".mp4" {
+		for _, s := range plan.subs {
+			switch s.CodecName {
+			case "subrip", "ass", "ssa", "webvtt", "mov_text", "text":
+			default:
+				return streamPlan{}, errors.New(locales.ErrComposeMp4Subtitles())
+			}
+		}
+	}
+	return plan, nil
+}
+
 // ComposeArgs is the auditable stream plan. Existing audio/subtitle/attachment
 // streams are never dropped silently. Chapter metadata has its own mapping;
 // unsupported data streams still fail preflight. MP4 attachments require MKV.
@@ -131,53 +193,9 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 	if options.Mode == "audio" {
 		return audioArgs(options, info, partial)
 	}
-	if options.Mode != "hard" && options.Mode != "soft" && options.Mode != "compress" {
-		return nil, errors.New(locales.ErrComposeMode())
-	}
-	ext := strings.ToLower(filepath.Ext(options.Destination))
-	if ext != ".mkv" && ext != ".mp4" {
-		return nil, errors.New(locales.ErrComposeContainer())
-	}
-	mainVideo := []Stream{}
-	covers := []Stream{}
-	audio := []Stream{}
-	subs := []Stream{}
-	attachments := []Stream{}
-	for _, s := range compositionStreams(info) {
-		switch s.CodecType {
-		case "video":
-			if s.Disposition.AttachedPic != 0 {
-				covers = append(covers, s)
-			} else {
-				mainVideo = append(mainVideo, s)
-			}
-		case "audio":
-			audio = append(audio, s)
-		case "subtitle":
-			subs = append(subs, s)
-		case "attachment":
-			attachments = append(attachments, s)
-		default:
-			return nil, errors.New(locales.ErrComposeStreamType(s.CodecType))
-		}
-	}
-	if len(mainVideo) != 1 {
-		return nil, errors.New(locales.ErrComposeMainVideo())
-	}
-	if options.Mode != "soft" && (mainVideo[0].ColorTransfer == "smpte2084" || mainVideo[0].ColorTransfer == "arib-std-b67") {
-		return nil, errors.New(locales.ErrComposeHdr())
-	}
-	if ext == ".mp4" && len(attachments) > 0 {
-		return nil, errors.New(locales.ErrComposeMp4Attachments())
-	}
-	if ext == ".mp4" {
-		for _, s := range subs {
-			switch s.CodecName {
-			case "subrip", "ass", "ssa", "webvtt", "mov_text", "text":
-			default:
-				return nil, errors.New(locales.ErrComposeMp4Subtitles())
-			}
-		}
+	plan, err := planCompositionStreams(options, info)
+	if err != nil {
+		return nil, err
 	}
 	// FFmpeg's default input handling subtracts the container start from
 	// all its streams together. Nonzero PTS is normal (AAC priming, edit
@@ -187,28 +205,32 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 	if options.Mode == "soft" {
 		args = append(args, "-i", assPath)
 	}
-	args = append(args, "-map", fmt.Sprintf("0:%d", mainVideo[0].Index))
-	for _, s := range covers {
+	args = append(args, "-map", fmt.Sprintf("0:%d", plan.mainVideo.Index))
+	for _, s := range plan.covers {
 		args = append(args, "-map", fmt.Sprintf("0:%d", s.Index))
 	}
-	for _, s := range audio {
+	for _, s := range plan.audio {
 		args = append(args, "-map", fmt.Sprintf("0:%d", s.Index))
 	}
 	if options.Mode == "soft" {
 		args = append(args, "-map", "1:s:0")
 	}
-	for _, s := range subs {
+	for _, s := range plan.subs {
 		args = append(args, "-map", fmt.Sprintf("0:%d", s.Index))
 	}
-	for _, s := range attachments {
+	for _, s := range plan.attachments {
 		args = append(args, "-map", fmt.Sprintf("0:%d", s.Index))
 	}
 	args = append(args, "-map_metadata", "0", "-map_chapters", "0", "-c", "copy")
 	if options.Mode != "soft" {
-		// Hard burn-in and standalone compression share the same 10-bit SVT-AV1
-		// perceptual pipeline. Only burn-in prepends the ASS filter using
-		// task-local fixed names, never shell-escaped user filenames.
+		// Hard burn-in and standalone compression share the same 10-bit
+		// perceptual pipeline on CPU (SVT-AV1) and GPU (FFmpeg hardware
+		// encoder). Only burn-in prepends the ASS filter using task-local
+		// fixed names, never shell-escaped user filenames.
 		preset, ok := CompressPresetFor(options.Quality)
+		if options.hardware != nil {
+			preset, ok = gpuPresetFor(*options.hardware, options.Quality)
+		}
 		if !ok {
 			return nil, errors.New(locales.ErrComposeQuality())
 		}
@@ -222,30 +244,38 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 		}
 		filters = append(filters, "crop=trunc(iw/2)*2:trunc(ih/2)*2:0:0")
 		args = append(args, "-filter:v:0", strings.Join(filters, ","))
-		args = append(args,
-			"-c:v:0", "libsvtav1",
-			"-preset", strconv.Itoa(preset.Preset),
-			"-pix_fmt:v:0", "yuv420p10le",
-			"-svtav1-params", svtAV1Params(crf),
-			"-fps_mode:v:0", "passthrough",
-		)
+		if options.hardware != nil {
+			args = append(args, options.hardware.videoArgs(crf, (plan.mainVideo.Width&^1)*(plan.mainVideo.Height&^1))...)
+			if plan.ext == ".mp4" && options.hardware.Codec == "hevc" {
+				// Apple players require the hvc1 sample entry for HEVC in MP4.
+				args = append(args, "-tag:v:0", "hvc1")
+			}
+		} else {
+			args = append(args,
+				"-c:v:0", "libsvtav1",
+				"-preset", strconv.Itoa(preset.Preset),
+				"-pix_fmt:v:0", "yuv420p10le",
+				"-svtav1-params", svtAV1Params(crf),
+			)
+		}
+		args = append(args, "-fps_mode:v:0", "passthrough")
 	} else {
-		if ext == ".mp4" {
+		if plan.ext == ".mp4" {
 			args = append(args, "-c:s", "mov_text")
 		} else {
 			args = append(args, "-c:s:0", "ass")
 		}
 		args = append(args, "-disposition:s:0", "default", "-metadata:s:s:0", "language="+containerLanguage(options.Language))
-		for i, s := range subs {
+		for i, s := range plan.subs {
 			if s.Disposition.Default != 0 {
 				args = append(args, fmt.Sprintf("-disposition:s:%d", i+1), "-default")
 			}
 		}
 	}
-	if options.Mode != "soft" && ext == ".mp4" && len(subs) > 0 {
+	if options.Mode != "soft" && plan.ext == ".mp4" && len(plan.subs) > 0 {
 		args = append(args, "-c:s", "mov_text")
 	}
-	if ext == ".mp4" {
+	if plan.ext == ".mp4" {
 		args = append(args, "-movflags", "+faststart")
 	}
 	if options.Sample {
@@ -412,13 +442,37 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 			return report, err
 		}
 	}
-	if (options.Mode == "compress" || options.Mode == "hard") && options.ResolvedCRF <= 0 {
-		resolvedCRF, compressionReport, searchErr := searchCompressionCRF(ctx, ffmpeg, scratch, options, info, duration, progress)
-		report.Compression = compressionReport
-		if searchErr != nil {
-			return report, searchErr
+	if options.Mode == "compress" || options.Mode == "hard" {
+		if options.Encoder != "" && options.Encoder != EncoderCPU && options.Encoder != EncoderGPU {
+			return report, errors.New(locales.ErrComposeMode())
 		}
-		options.ResolvedCRF = resolvedCRF
+		if options.Encoder == EncoderGPU {
+			encoder, detectErr := DetectGPUEncoder(ctx, ffmpeg)
+			if detectErr != nil {
+				return report, detectErr
+			}
+			options.hardware = &encoder
+		}
+		if options.ResolvedCRF <= 0 {
+			var resolved float64
+			var compressionReport *CompressionReport
+			var searchErr error
+			if options.hardware != nil {
+				plan, planErr := planCompositionStreams(options, info)
+				if planErr != nil {
+					return report, planErr
+				}
+				pixels := (plan.mainVideo.Width &^ 1) * (plan.mainVideo.Height &^ 1)
+				resolved, compressionReport, searchErr = searchGPUCompressionQuality(ctx, ffmpeg, scratch, options, info, duration, *options.hardware, pixels, progress)
+			} else {
+				resolved, compressionReport, searchErr = searchCompressionCRF(ctx, ffmpeg, scratch, options, info, duration, progress)
+			}
+			report.Compression = compressionReport
+			if searchErr != nil {
+				return report, searchErr
+			}
+			options.ResolvedCRF = resolved
+		}
 		args, err = ComposeArgs(options, info, assPath, partial)
 		if err != nil {
 			return report, err
@@ -496,7 +550,11 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	report.Chapters = len(output.Chapters)
 	report.Checks = []string{"streams", "duration", "chapter titles and timings", "full audiovisual decode", "sha256"}
 	if (options.Mode == "compress" || options.Mode == "hard") && report.Compression != nil {
-		report.Checks = append([]string{"xpsnr crf search"}, report.Checks...)
+		checkName := "xpsnr crf search"
+		if options.Encoder == EncoderGPU {
+			checkName = "xpsnr gpu quality search"
+		}
+		report.Checks = append([]string{checkName}, report.Checks...)
 	}
 	if options.Mode == "audio" {
 		report.Checks = []string{"audio stream only", "selected audio duration", "full audio decode", "sha256"}

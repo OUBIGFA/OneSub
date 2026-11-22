@@ -32,11 +32,11 @@ func TestAllFormDialogsExposeCompleteContents(t *testing.T) {
 								case "compose":
 									a.composeOpen = true
 									view, title, action = a.composeView, locales.ActionCompose(), locales.ComposeStart()
-									fields = []string{locales.OutputContent(), locales.OutputOrder(), locales.OutputPrimary(), locales.ComposeMode(), locales.ComposeQuality(), locales.ComposeCrfRecommendation(), locales.ComposeAskPath()}
+									fields = []string{locales.OutputContent(), locales.OutputOrder(), locales.OutputPrimary(), locales.ComposeMode(), locales.ComposeEncoder(), locales.ComposeQuality(), locales.ComposeCrfRecommendation(), locales.ComposeAskPath()}
 								case "compress", "audio":
 									a.compressOpen = true
 									view, title, action = a.compressView, locales.ActionCompress(), locales.CompressStart()
-									fields = []string{locales.CompressFormat(), locales.ComposeQuality(), locales.CompressAv1Note(), locales.ComposeAskPath()}
+									fields = []string{locales.CompressFormat(), locales.ComposeEncoder(), locales.ComposeQuality(), locales.CompressAv1Note(), locales.ComposeAskPath()}
 									if name == "audio" {
 										a.settings.MediaProcessMode = "audio"
 										action = locales.AudioExtractStart()

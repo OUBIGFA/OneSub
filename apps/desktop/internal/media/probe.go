@@ -26,6 +26,7 @@ type Stream struct {
 	TimeBase      string            `json:"time_base"`
 	StartTime     string            `json:"start_time"`
 	Tags          map[string]string `json:"tags"`
+	ColorSpace    string            `json:"color_space"`
 	ColorTransfer string            `json:"color_transfer"`
 	PixFmt        string            `json:"pix_fmt"`
 	SampleAspect  string            `json:"sample_aspect_ratio"`

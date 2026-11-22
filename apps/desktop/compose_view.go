@@ -29,12 +29,19 @@ func composeModes() []option {
 	}
 }
 
-// Hard burn-in and standalone compression share the same SVT-AV1 XPSNR targets.
+// Hard burn-in and standalone compression share the same XPSNR quality targets.
 func composeQualities() []option {
 	return []option{
 		{"near-lossless", locales.CompressQualityNearLossless()},
 		{"high", locales.CompressQualityHigh()},
 		{"compact", locales.CompressQualityCompact()},
+	}
+}
+
+func composeEncoders() []option {
+	return []option{
+		{media.EncoderCPU, locales.ComposeEncoderCpu()},
+		{media.EncoderGPU, locales.ComposeEncoderGpu()},
 	}
 }
 
@@ -50,6 +57,12 @@ func (a *NativeApp) composeView(c *ui.Context) {
 		for _, mode := range modes {
 			width, _ := c.MeasureText(0, ui.Span{Text: mode.Label})
 			modeWidth = max(modeWidth, width)
+		}
+		encoders := composeEncoders()
+		var encoderWidth float32
+		for _, enc := range encoders {
+			width, _ := c.MeasureText(0, ui.Span{Text: enc.Label})
+			encoderWidth = max(encoderWidth, width)
 		}
 		qualities := composeQualities()
 		var qualityWidth float32
@@ -69,12 +82,15 @@ func (a *NativeApp) composeView(c *ui.Context) {
 				})
 			}).Gap(em(c, 8))
 			ui.Fieldset(c, locales.ComposeEncodingGroup(), func() {
+				ui.Field(c, locales.ComposeMode(), func() {
+					// Reserve every mode's label in this frame, plus the normal
+					// Lobe Select insets and arrow. A shorter selected label must
+					// not shrink the form's intrinsic width and move its footer.
+					idSelect(c, &a.settings.ComposeMode, modes).MinWidth(modeWidth + 48).Label(locales.ComposeMode()).OnChange(a.saveSettings)
+				})
 				ui.Grid(c).Columns(2).GapX(em(c, 20)).Children(func() {
-					ui.Field(c, locales.ComposeMode(), func() {
-						// Reserve every mode's label in this frame, plus the normal
-						// Lobe Select insets and arrow. A shorter selected label must
-						// not shrink the form's intrinsic width and move its footer.
-						idSelect(c, &a.settings.ComposeMode, modes).MinWidth(modeWidth + 48).Label(locales.ComposeMode()).OnChange(a.saveSettings)
+					ui.Field(c, locales.ComposeEncoder(), func() {
+						idSelect(c, &a.settings.ComposeEncoder, encoders).MinWidth(encoderWidth + 48).Label(locales.ComposeEncoder()).Disabled(!hard).OnChange(a.saveSettings)
 					})
 					ui.Field(c, locales.ComposeQuality(), func() {
 						idSelect(c, &a.settings.ComposeQuality, qualities).MinWidth(qualityWidth + 48).Label(locales.ComposeQuality()).Disabled(!hard).OnChange(a.saveSettings)
@@ -97,8 +113,12 @@ func (a *NativeApp) composeView(c *ui.Context) {
 				potentialIssues = composeSubtitleIssues(*a.snapshot, options, a.problems.glyphs)
 			}
 		}
-		crfNote := locales.ComposeCrfNote() + "\n" + locales.ComposeCrfRecommendation()
-		note, warning := crfNote, false
+		cpuNote := locales.ComposeCrfNote() + "\n" + locales.ComposeCrfRecommendation()
+		gpuNote := locales.ComposeGpuNote() + "\n" + locales.ComposeCrfRecommendation()
+		note, warning := cpuNote, false
+		if a.settings.ComposeEncoder == media.EncoderGPU {
+			note = gpuNote
+		}
 		switch {
 		case outputErr != nil && len(issues) == 0:
 			note, warning = outputErr.Error(), true
@@ -108,7 +128,7 @@ func (a *NativeApp) composeView(c *ui.Context) {
 			note = locales.ComposeSoftNote()
 		}
 		normalNote := func() {
-			stableDialogNote(c, note, warning, a.outputNoteVariants(crfNote, locales.ComposeMovTextNote(), locales.ComposeSoftNote())...)
+			stableDialogNote(c, note, warning, a.outputNoteVariants(cpuNote, gpuNote, locales.ComposeMovTextNote(), locales.ComposeSoftNote())...)
 		}
 		if len(potentialIssues) > 0 {
 			selected := 0
@@ -242,10 +262,10 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 	if outputOptions.Normalized().Mode == "bilingual" {
 		language = "mul"
 	}
-	quality, title := a.settings.ComposeQuality, locales.ActionCompose()
+	quality, encoder, title := a.settings.ComposeQuality, a.settings.ComposeEncoder, locales.ActionCompose()
 	audio := compress && a.settings.MediaProcessMode == "audio"
 	if compress {
-		mode, quality, title = "compress-"+a.settings.CompressionFormat, a.settings.CompressionQuality, locales.ActionCompress()
+		mode, quality, encoder, title = "compress-"+a.settings.CompressionFormat, a.settings.CompressionQuality, a.settings.CompressionEncoder, locales.ActionCompress()
 	}
 	if audio {
 		mode, title = "audio-"+a.settings.AudioFormat, locales.MediaExtractAudio()
@@ -321,7 +341,7 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 				subtitleMode = "soft"
 			}
 		}
-		options := media.ComposeOptions{Source: state.Manifest.MediaPath, Destination: output, Mode: subtitleMode, Quality: quality, Sample: sample, Language: language, Revision: state.Revision}
+		options := media.ComposeOptions{Source: state.Manifest.MediaPath, Destination: output, Mode: subtitleMode, Quality: quality, Encoder: encoder, Sample: sample, Language: language, Revision: state.Revision}
 		report, err := media.Compose(ctx, a.ffmpeg, a.probe, filepath.Join(a.dataRoot, "cache", "worker"), options, document, progress)
 		if err != nil {
 			if audio {

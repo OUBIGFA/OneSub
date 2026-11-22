@@ -98,9 +98,9 @@ OneSub 将重建结果存入“优化字幕”，并独立保留“原始字幕�
 
 ## 下载
 
-从 [Releases](https://github.com/OUBIGFA/OneSub/releases) 下载 `OneSub-0.1.1-Setup.exe`，然后运行安装器。
+从 [Releases](https://github.com/OUBIGFA/OneSub/releases) 下载 `OneSub-0.1.2-Setup.exe`，然后运行安装器。
 
-- 版本 0.1.1，仅支持 Windows x64。安装器未添加 Windows Authenticode 签名，系统可能显示安全提示。
+- 版本 0.1.2，仅支持 Windows x64。安装器未添加 Windows Authenticode 签名，系统可能显示安全提示。
 - 安装器大小见 Release 页面。识别模型按需下载，体积从数百 MB 到数 GB，保存位置可改。
 
 ## 系统要求
@@ -122,7 +122,7 @@ OneSub 将重建结果存入“优化字幕”，并独立保留“原始字幕�
 
 | 项目 | 建议值 | 说明 |
 | --- | --- | --- |
-| 视频编码 | 高画质 (AV1 · XPSNR 39) / 近无损 (AV1 · XPSNR 42) | 日常交付选高画质，归档选近无损；自动抽样寻优 CRF |
+| 视频编码 | CPU：高画质 (XPSNR 39) / GPU：近无损 (XPSNR 42) | CPU 优势在于质量，体积小、速度慢，建议采用高画质；GPU 优势在于速度，速度快、体积大，建议采用近无损；两者画质几乎等价 |
 | 翻译并发批数 | 2 到 5 | 过高易触发服务限流 |
 | 每批字幕数 | 50 | 兼顾上下文与稳定性 |
 | 按意群重建时间轴 | 使用 gpt-6-luna 或更强模型时开启 | 提升译文准确度与时间轴合理性 |
