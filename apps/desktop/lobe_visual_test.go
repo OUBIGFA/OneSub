@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/importing"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -21,6 +22,26 @@ func TestLobeVisualAudit(t *testing.T) {
 				t.Run(language+"/"+page, func(t *testing.T) {
 					a := withStyleCatalog(t)
 					switch page {
+					case "workbench":
+						// A subtitle-only document exercises the filename, both text
+						// tracks, the selection and an empty monitor in the same frame.
+						a.snapshot.Manifest.SubtitlePath = "Morning walk.srt"
+						a.snapshot.SourceDocument = subtitle.Document{Format: "srt"}
+						a.snapshot.Document = subtitle.Document{Format: "srt"}
+						for i, line := range [][2]string{
+							{"We left just before sunrise.", "我们在日出前出发。"},
+							{"The street was still quiet.", "街道还很安静。"},
+							{"At the corner, a bakery had opened.", "转角的面包店已经开门了。"},
+							{"We stopped for coffee.", "我们停下来喝了杯咖啡。"},
+							{"Then we walked to the river.", "然后步行去了河边。"},
+						} {
+							cue := subtitle.Cue{ID: fmt.Sprint(i + 1), Position: i, StartMs: int64(i) * 3200, EndMs: int64(i+1) * 3200, Text: line[0]}
+							a.snapshot.SourceDocument.Cues = append(a.snapshot.SourceDocument.Cues, cue)
+							cue.OriginalText, cue.TranslationSource, cue.Text, cue.Translated = line[0], line[0], line[1], true
+							a.snapshot.Document.Cues = append(a.snapshot.Document.Cues, cue)
+						}
+						a.subtitleTab, a.selected = 1, 2
+						a.loadDraft()
 					case "translate":
 						a.workflowTab = 1
 					case "style-appearance":

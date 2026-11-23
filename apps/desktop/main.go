@@ -44,6 +44,7 @@ var BuildNumber = "native-development"
 // NativeApp keeps model data, not ui.Element values. The view and callbacks run
 // on MyGo's main thread; background results enter through Window.Update.
 type NativeApp struct {
+	playerFullscreen                     bool
 	win                                  *mygo.Window
 	player                               *mygo.WebView
 	tray                                 *mygo.Tray
@@ -208,34 +209,51 @@ func (a *NativeApp) view(c *ui.Context) {
 	width, height := c.Size()
 	// The split percentage and viewport are known in this frame; the list
 	// can choose its compact controls without measuring an earlier layout.
-	subtitleWidth := ((width-1)*(100-x)/100 - 1) * editor / 100
+	insets := em(c, 2*workbenchInset)
+	subtitleWidth := ((width-1)*(100-x)/100-1)*editor/100 - insets
 	paneHeight := height - em(c, toolbarSize+32) - 3
-	surface := ui.Column(c).Fill()
+	surface := ui.Column(c).Fill().Background(look.chrome)
 	surface.Children(func() {
+		if a.playerFullscreen {
+			// Reuse the native WebView and subtitle renderer at the new size.
+			// None of the four saved dividers participates in fullscreen layout.
+			a.playerView(c)
+			return
+		}
 		a.topBar(c, look)
-		separator(c)
+		ui.Box(c).Height(1).Shrink(0)
 		// Three independent columns: preview/style, subtitles/editor, workflow.
 		// Native splitters retain pointer, keyboard and same-frame layout.
-		ui.SplitPercent(c, &x, func() {
-			ui.SplitVerticalPercent(c, &y, func() { a.playerView(c) }, func() { a.stylePanelAtSize(c, (width-1)*x/100, paneHeight*(100-y)/100) }).Fill().OnChange(func() {
+		panelSplit(c, ui.SplitPercent, &x, func() {
+			panelSplit(c, ui.SplitVerticalPercent, &y, func() {
+				workbenchPanel(c, look, func() { a.playerView(c) })
+			}, func() {
+				workbenchPanel(c, look, func() { a.stylePanelAtSize(c, (width-1)*x/100-insets, paneHeight*(100-y)/100-insets) })
+			}, func() {
 				a.splitY = y
 				_, a.splitY, _, _ = a.paneSizes(c)
-			})
+			}).Fill()
 		}, func() {
-			ui.SplitPercent(c, &editor, func() {
-				ui.SplitVerticalPercent(c, &subtitles, func() { a.subtitlesViewAtWidth(c, subtitleWidth) }, func() { a.editorViewAtHeight(c, paneHeight*(100-subtitles)/100) }).Fill().OnChange(func() {
+			panelSplit(c, ui.SplitPercent, &editor, func() {
+				panelSplit(c, ui.SplitVerticalPercent, &subtitles, func() {
+					workbenchPanel(c, look, func() { a.subtitlesViewAtWidth(c, subtitleWidth) })
+				}, func() {
+					workbenchPanel(c, look, func() { a.editorViewAtHeight(c, paneHeight*(100-subtitles)/100-insets) })
+				}, func() {
 					a.subtitleSplit = subtitles
 					_, _, a.subtitleSplit, _ = a.paneSizes(c)
-				})
-			}, func() { a.workflowColumn(c) }).Fill().OnChange(func() {
+				}).Fill()
+			}, func() {
+				workbenchPanel(c, look, func() { a.workflowColumn(c) })
+			}, func() {
 				a.editorSplit = editor
 				_, _, _, a.editorSplit = a.paneSizes(c)
-			})
-		}).Grow(1).OnChange(func() {
+			}).Fill()
+		}, func() {
 			a.splitX = x
 			a.splitX, _, _, _ = a.paneSizes(c)
-		})
-		separator(c)
+		}).Grow(1)
+		ui.Box(c).Height(1).Shrink(0)
 		a.statusBar(c, look)
 	})
 	if paths := surface.DroppedFiles(); len(paths) > 0 {
@@ -292,7 +310,12 @@ func (a *NativeApp) view(c *ui.Context) {
 			c.After(a.previewDue.Sub(c.Now()))
 		}
 	}
-	if c.Shortcut(ui.Cmd, ui.KeyH) && !a.busy {
+	if c.Shortcut(0, ui.KeyF11) && !c.ShortcutRepeated() {
+		a.setPlayerFullscreen(!a.playerFullscreen)
+	} else if a.playerFullscreen && c.Shortcut(0, ui.KeyEscape) {
+		a.setPlayerFullscreen(false)
+	}
+	if !a.playerFullscreen && c.Shortcut(ui.Cmd, ui.KeyH) && !a.busy {
 		a.openFindReplace()
 	}
 	if c.Shortcut(ui.Cmd, ui.KeyS) && !a.busy {
@@ -301,7 +324,7 @@ func (a *NativeApp) view(c *ui.Context) {
 	if a.playbackShortcut(c) {
 		a.togglePlayback()
 	}
-	if !a.busy && a.list.Shortcut(c, 0, ui.KeyDelete) {
+	if !a.playerFullscreen && !a.busy && a.list.Shortcut(c, 0, ui.KeyDelete) {
 		if cues := a.activeDocument().Cues; a.selected >= 0 && a.selected < len(cues) {
 			a.deleteSubtitle(cues[a.selected].ID)
 		}
@@ -338,65 +361,71 @@ func (a *NativeApp) paneSizes(c *ui.Context) (player, top, subtitles, editor flo
 	}
 	// Reserve the style split's labels at the supported minimum. If the OS work
 	// area is smaller, retain the compact bounds for the other two columns.
-	playerMinimum, otherMinimum := em(c, 700), em(c, 356)+workflowMinimum+1
-	if width-1 < playerMinimum+otherMinimum {
-		playerMinimum = em(c, 260)
-	}
+	insets := em(c, 2*workbenchInset)
+	workflowMinimum += insets
+	playerFloor := em(c, 160) + insets
+	listMinimum := min(em(c, 356)+insets, max(em(c, 160)+insets, width-2-playerFloor-workflowMinimum))
+	otherMinimum := listMinimum + workflowMinimum + 1
+	playerMinimum := min(em(c, 700)+insets, max(playerFloor, width-1-otherMinimum))
 	keep(&player, width-1, playerMinimum, otherMinimum)
 	// Content must scroll inside a deliberately shortened pane, never
 	// override a user's drag with its measured natural height.
 	// Inspectors can fold to their native title bar and its separator.
 	// Content visibility uses this same frame's allocation, never old bounds.
-	keep(&top, height, em(c, 240), em(c, headerSize)+1)
-	keep(&subtitles, height, em(c, 240), em(c, headerSize)+1)
-	keep(&editor, (width-1)*(100-player)/100-1, em(c, 356), workflowMinimum)
+	keep(&top, height, em(c, 240)+insets, em(c, headerSize)+1+insets)
+	keep(&subtitles, height, em(c, 240)+insets, em(c, headerSize)+1+insets)
+	keep(&editor, (width-1)*(100-player)/100-1, listMinimum, workflowMinimum)
 	return
 }
 
-// Global file and output actions stay at opposite ends of the toolbar.
-// Processing belongs to the right workflow column.
+// The flexible filename gives way to commands as the viewport narrows.
+// Subtitle-only projects use their subtitle filename in the same slot.
 func (a *NativeApp) topBar(c *ui.Context, look studio) {
 	width, _ := c.Size()
-	// Secondary commands use their native icon buttons at minimum width.
 	command := func(label, name string) ui.Element {
-		if width < em(c, 1400) {
-			return toolIcon(c, label, name).Size(em(c, 40), em(c, 40))
+		if width < em(c, 1100) {
+			return toolIcon(c, label, name).Size(em(c, 36), em(c, 36))
 		}
-		return iconButton(c, label, name).MinHeight(em(c, 40))
+		return quietIconButton(c, label, name).MinHeight(em(c, 36))
 	}
-	ui.Row(c).Children(func() {
-		ui.Row(c).Grow(1).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-			ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
-				iconButton(c, locales.ActionAddFiles(), "folder-open").MinHeight(em(c, 40)).Disabled(a.busy).OnClick(a.pickFiles)
-				// Clearing is a secondary action, with the same target height as Add.
-				clear := toolIcon(c, locales.ActionClearWorkbench(), "eraser").Size(em(c, 40), em(c, 40))
-				clear.Disabled(a.busy || a.snapshot == nil).OnClick(a.requestClear)
-			})
-			ui.Spacer(c)
-			ui.Row(c).Gap(em(c, 12)).Justify(ui.End).AlignItems(ui.Center).Children(func() {
-				command(locales.MenuExportSubtitles(), "file-down").Disabled(a.busy || a.snapshot == nil || len(a.snapshot.Document.Cues) == 0).OnClick(a.requestExport)
-				command(locales.ActionCompress(), "file-video").Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(func() { a.compressOpen = true })
-				composeLabel := locales.ActionCompose()
-				composeDisabled := a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" || len(a.snapshot.Document.Cues) == 0
-				composeClick := a.compose
-				// Keep a background export reachable from the persistent top bar.
-				if a.composeRunning && a.composeInBackground && !a.compressRunning && !a.audioExtractRunning {
-					composeLabel = locales.ComposeShowProgress()
-					composeDisabled = false
-					composeClick = a.showComposeProgress
-				}
-				command(composeLabel, "clapperboard").Disabled(composeDisabled).OnClick(composeClick)
-				ui.Toolbar(c, func() {
-					toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
-				}).Padding(0)
-			})
+	hasMedia := a.snapshot != nil && a.snapshot.Manifest.MediaPath != ""
+	hasCues := a.snapshot != nil && len(a.snapshot.Document.Cues) > 0
+	ui.Row(c).Height(em(c, toolbarSize)).Shrink(0).AlignItems(ui.Center).Gap(em(c, 8)).Padding(0, em(c, 16)).Background(look.chrome).Label(locales.A11yToolbar()).Children(func() {
+		ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Shrink(0).Children(func() {
+			iconButton(c, locales.ActionAddFiles(), "folder-open").MinHeight(em(c, 36)).Disabled(a.busy).OnClick(a.pickFiles)
+			toolIcon(c, locales.ActionClearWorkbench(), "eraser").Disabled(a.busy || a.snapshot == nil).OnClick(a.requestClear)
 		})
-	}).Height(em(c, toolbarSize)).Shrink(0).AlignItems(ui.Center).Gap(em(c, 16)).Padding(em(c, 12), em(c, 20)).Background(look.chrome).Label(locales.A11yToolbar())
+		ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Center).Children(func() {
+			if a.snapshot == nil {
+				return
+			}
+			path := a.snapshot.Manifest.MediaPath
+			if path == "" {
+				path = a.snapshot.Manifest.SubtitlePath
+			}
+			if path != "" {
+				elidedText(c, filepath.Base(path)).MinWidth(0).Shrink(1).FontWeight(500)
+			}
+		})
+		ui.Row(c).AlignItems(ui.Center).Gap(em(c, 4)).Shrink(0).Children(func() {
+			toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
+			command(locales.ActionCompress(), "file-video").Disabled(a.busy || !hasMedia).OnClick(func() { a.compressOpen = true })
+		})
+		separator(c).Height(em(c, 20)).AlignSelf(ui.Center).Shrink(0)
+		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Children(func() {
+			label, disabled, run := locales.ActionCompose(), a.busy || !hasMedia || !hasCues, a.compose
+			// Reopen a background export from the same place it started.
+			if a.composeRunning && a.composeInBackground && !a.compressRunning && !a.audioExtractRunning {
+				label, disabled, run = locales.ComposeShowProgress(), false, a.showComposeProgress
+			}
+			command(label, "clapperboard").Disabled(disabled).OnClick(run)
+			primaryIconButton(c, locales.MenuExportSubtitles(), "file-down").MinHeight(em(c, 36)).Disabled(a.busy || !hasCues).OnClick(a.requestExport)
+		})
+	})
 }
 
-// toolbarSize is the top bar's height: the 40 of the file action and
-// 12 above and below. Pane sizes use it in the same frame, unmeasured.
-const toolbarSize = 64
+// Both split sizing and the toolbar use this height in the first frame.
+const toolbarSize = 56
 
 // errorDuration is how long the status bar shows an error before it goes
 // back to the last status.
@@ -745,6 +774,7 @@ func (a *NativeApp) showImportResult(loaded importing.Loaded) {
 // replaceProject switches the workbench to another project. The subtitle
 // file it came from is the saved baseline of the source track.
 func (a *NativeApp) replaceProject(next *project.Store, state project.Snapshot, url string) {
+	a.setPlayerFullscreen(false)
 	if a.store != nil {
 		a.store.Close()
 	}
@@ -1108,6 +1138,9 @@ func main() {
 		// Under the native view and the player's page is black: where the page
 		// lags behind a fast resize of its pane, black shows, as the page is.
 		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "OneSub", X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: bounds.Height, MinWidth: min(minimumWindowWidth, bounds.Width), MinHeight: min(640, bounds.Height), StateKey: "main", BackgroundColor: "#000000", Content: ui.View(a.view)})
+		a.win.OnLeaveFullScreen(func() {
+			a.win.Update(func() { a.playerFullscreen = false })
+		})
 		// Black fills the player until its page paints, as the page itself is.
 		a.player, err = a.win.NewWebView(mygo.WebViewOptions{URL: "/", BackgroundColor: "#000000"})
 		if err != nil {

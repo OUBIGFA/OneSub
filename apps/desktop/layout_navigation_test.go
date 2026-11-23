@@ -29,11 +29,12 @@ func TestUpdatedPaneOrderAndRatio(t *testing.T) {
 			if !(player.X < editor.X && editor.X < workflow.X) || player.X != style.X || player.W != style.W || tabs.Y < player.Y || tabs.Y > player.Y+headerSize || workflow.Y != player.Y || style.Y <= player.Y+player.H || editor.Y <= tabs.Y {
 				t.Fatal("three-column workbench order is wrong", player, style, editor, workflow, tabs)
 			}
-			if math.Abs(float64(editor.W/player.W)-1) > .015 || math.Abs(float64(workflow.W/player.W)-1.0/3) > .015 {
+			const insets = 2 * workbenchInset
+			if math.Abs(float64((editor.W+insets)/(player.W+insets))-1) > .015 || math.Abs(float64((workflow.W+insets)/(player.W+insets))-1.0/3) > .015 {
 				t.Fatal("column widths are not 3:3:1", player, editor, workflow)
 			}
 			listHeight := editor.Y - player.Y - 1
-			if math.Abs(float64(player.H/style.H)-3) > .015 || math.Abs(float64(listHeight/editor.H)-3) > .015 || math.Abs(float64(workflow.H-player.H-style.H-1)) > 1 {
+			if math.Abs(float64((player.H+insets)/(style.H+insets))-3) > .015 || math.Abs(float64(listHeight/(editor.H+insets))-3) > .015 || math.Abs(float64(workflow.H-player.H-style.H-insets-1)) > 1 {
 				t.Fatal("independent upper/lower shares are not 3:1", player, style, editor, workflow)
 			}
 			captureRedesign(t, tt, "three-columns-"+language)
@@ -98,14 +99,14 @@ func TestPaneRatiosSurviveWindowResize(t *testing.T) {
 		style, _ := tt.Find(locales.A11yStylePanel())
 		editor, _ := tt.Find(locales.A11yEditorPanel())
 		workflow, _ := tt.Find(locales.A11yWorkflowColumn())
-		x, y, dx, dy := player.X+player.W+.5, player.Y+player.H/2, float32(45), float32(0)
+		x, y, dx, dy := player.X+player.W+workbenchInset+.5, player.Y+player.H/2, float32(45), float32(0)
 		switch divider {
 		case 1:
-			x = workflow.X - .5
+			x = workflow.X - workbenchInset - .5
 		case 2:
-			x, y, dx, dy = player.X+player.W/2, style.Y-.5, 0, -45
+			x, y, dx, dy = player.X+player.W/2, style.Y-workbenchInset-.5, 0, -45
 		case 3:
-			x, y, dx, dy = editor.X+editor.W/2, editor.Y-.5, 0, -45
+			x, y, dx, dy = editor.X+editor.W/2, editor.Y-workbenchInset-.5, 0, -45
 		}
 		old := [4]float32{a.splitX, a.editorSplit, a.splitY, a.subtitleSplit}
 		tt.Press(x, y)
@@ -139,7 +140,8 @@ func TestInspectorsFoldToTitleAndRestore(t *testing.T) {
 						tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
 						tt.Frame()
 						before, _ := tt.Find(panel)
-						x, y := before.X+before.W/2, before.Y-.5
+						edge := workbenchInset*scale + .5
+						x, y := before.X+before.W/2, before.Y-edge
 						tt.Press(x, y)
 						tt.Move(x, y+2000*scale)
 						tt.Release(x, y+2000*scale)
@@ -161,9 +163,9 @@ func TestInspectorsFoldToTitleAndRestore(t *testing.T) {
 						}
 						firstFrameSettled(t, tt, "folded-inspector", func() {})
 						captureRedesign(t, tt, fmt.Sprintf("folded-%s-%s-%g", panel, language, scale))
-						tt.Press(x, folded.Y-.5)
-						tt.Move(x, before.Y-.5)
-						tt.Release(x, before.Y-.5)
+						tt.Press(x, folded.Y-edge)
+						tt.Move(x, before.Y-edge)
+						tt.Release(x, before.Y-edge)
 						if restored, _ := tt.Find(panel); math.Abs(float64(restored.H-before.H)) > 1 || a.draft != draft || !reflect.DeepEqual(a.currentStyle, style) {
 							t.Fatal("expanding changed inspector content or height", before, restored)
 						}

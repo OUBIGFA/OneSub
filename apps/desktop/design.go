@@ -17,15 +17,16 @@ import (
 // Shared native typography: controls stay compact; subtitle content and the
 // editor carry the larger reading sizes, as the work rather than the chrome.
 const (
-	bodySize     = 15 // the product's body text
-	captionSize  = 13 // the smallest text: status bar, units, hints
-	headingSize  = 18 // section headings, distinct from form labels
-	titleSize    = 24 // dialog titles
-	headerSize   = 48 // common panel navigation/title row
-	panelPad     = 20 // breathing room around inspector content
-	iconSize     = 16 // Fluent and Spectrum's icon beside 14–15 text
-	subtitleSize = 17
-	editSize     = 20
+	bodySize       = 15 // the product's body text
+	captionSize    = 13 // the smallest text: status bar, units, hints
+	headingSize    = 18 // section headings, distinct from form labels
+	titleSize      = 24 // dialog titles
+	headerSize     = 48 // common panel navigation/title row
+	workbenchInset = 4  // each side supplies half of the gutter around a divider
+	panelPad       = 20 // breathing room around inspector content
+	iconSize       = 16 // Fluent and Spectrum's icon beside 14–15 text
+	subtitleSize   = 17
+	editSize       = 20
 )
 
 // studio holds the colors the theme has no field for.
@@ -70,19 +71,23 @@ func icon(c *ui.Context, name string) ui.Element {
 	return ui.Icon(c, icons[name]).Size(em(c, iconSize), em(c, iconSize))
 }
 
-// iconButton is a native button with an icon before its label. MyGo centers
-// line boxes; raise the system font's visible ink by one DIP to align it with
-// the icon's center. This native transform scales with display DPI, not layout.
+// Use the same optical alignment in every command variant, including the
+// borderless tools that sit together on a shared toolbar.
 func iconButton(c *ui.Context, label, name string) ui.Element {
-	return lobeAction.Button(c, "", lobeAction.ButtonProps{}).Label(label).Children(func() {
-		icon(c, name).Label(locales.A11yIconOf(label))
-		ui.Text(c, label).SingleLine().Translate(0, -1)
-	})
+	return commandButton(c, label, name, lobeAction.Default)
 }
 
 // primaryIconButton is iconButton in the accent color, one per area.
 func primaryIconButton(c *ui.Context, label, name string) ui.Element {
-	return lobeAction.Button(c, "", lobeAction.ButtonProps{Variant: lobeAction.Primary}).Label(label).Children(func() {
+	return commandButton(c, label, name, lobeAction.Primary)
+}
+
+func quietIconButton(c *ui.Context, label, name string) ui.Element {
+	return commandButton(c, label, name, lobeAction.Text)
+}
+
+func commandButton(c *ui.Context, label, name string, variant lobeAction.ButtonVariant) ui.Element {
+	return lobeAction.Button(c, "", lobeAction.ButtonProps{Variant: variant}).Label(label).Children(func() {
 		icon(c, name).Label(locales.A11yIconOf(label))
 		ui.Text(c, label).SingleLine().Translate(0, -1)
 	})
@@ -185,23 +190,7 @@ func lobeTabs(c *ui.Context, selected *int, labels ...string) ui.Element {
 	for i, label := range labels {
 		items[i] = lobeNav.TabItem{Label: label}
 	}
-	tabs := lobeNav.Tabs(c, selected, lobeNav.TabsProps{Items: items, Variant: lobeNav.TabsSquare}, nil)
-	tabs.InsetShadow(0, -1, 0, 0, tabBorder(c))
-	return tabs
-}
-
-// Underlined navigation tabs retain a quiet one-DIP baseline in both appearances.
-func tabBorder(c *ui.Context) ui.Color {
-	if c.Preferences().HighContrast {
-		return c.Theme().Border
-	}
-	if c.Theme().Dark {
-		return lobeTheme.Dark().FillBorderStrong()
-	}
-	// The full strong token is too prominent on the light canvas. Blend
-	// with its normal border to keep the shared outline visible but quiet.
-	tokens := lobeTheme.Light()
-	return lobeTheme.Mix(tokens.FillBorder(), tokens.FillBorderStrong(), 0.2)
+	return lobeNav.Tabs(c, selected, lobeNav.TabsProps{Items: items, Variant: lobeNav.TabsRounded}, nil)
 }
 
 func lobeProgress(c *ui.Context, fraction float64) ui.Element {
@@ -222,7 +211,7 @@ func lobeColorPicker(c *ui.Context, color *ui.Color) ui.Element {
 // same layout pass, as the top bar does; the middle shrinks, as a file name
 // does.
 func panelHeader(c *ui.Context, start, middle, end func()) {
-	ui.Grid(c).ColumnTracks(ui.Fr(1), ui.FitContent(), ui.Fr(1)).Height(em(c, headerSize)).Padding(0, em(c, 8)).GapX(em(c, 4)).AlignItems(ui.Center).Shrink(0).Background(c.Theme().Surface).Children(func() {
+	ui.Grid(c).ColumnTracks(ui.Fr(1), ui.FitContent(), ui.Fr(1)).Height(em(c, headerSize)).Padding(0, em(c, 8)).GapX(em(c, 4)).AlignItems(ui.Center).Shrink(0).Background(studioColors(c).panel).Children(func() {
 		side := func(justify ui.Align, gap float32, content func()) {
 			row := ui.Row(c).Gap(gap).Justify(justify).AlignItems(ui.Center).MinWidth(0)
 			if content != nil {
@@ -332,10 +321,31 @@ func rowMuted(c *ui.Context, text string, chosen bool) ui.Element {
 	return label
 }
 
-// Boundaries are quieter than input borders. Keep them in the same native
-// divider system across the workbench, settings and review windows.
+// Within a panel, headings and tool groups retain their normal native rule.
 func separator(c *ui.Context) ui.Element {
 	return ui.Divider(c).Background(studioColors(c).hairline)
+}
+
+// Each resizable region has one continuous surface. Its gutter leaves the
+// native splitter outside the clipped corners and available for dragging.
+func workbenchPanel(c *ui.Context, look studio, content func()) {
+	ui.Column(c).Fill().Padding(em(c, workbenchInset)).Children(func() {
+		ui.Column(c).Fill().MinWidth(0).MinHeight(0).Radius(em(c, 12)).Clip().Background(look.panel).Children(content)
+	})
+}
+
+// Only the splitter uses transparent resting and hover colors. Its two
+// panes recover the original theme, including native focus and input borders.
+func panelSplit(c *ui.Context, split func(*ui.Context, *float32, func(), func()) ui.Element, share *float32, first, second, changed func()) ui.Element {
+	normal := c.Theme()
+	quiet := *normal
+	quiet.Border, quiet.Accent = ui.Transparent, ui.Transparent
+	pane := func(content func()) func() {
+		return func() { ui.Themed(c, normal).Fill().Background(ui.Transparent).Children(content) }
+	}
+	return ui.Themed(c, &quiet).MinHeight(0).MinWidth(0).Background(ui.Transparent).Children(func() {
+		split(c, share, pane(first), pane(second)).Fill().OnChange(changed)
+	})
 }
 
 // A section heading leads one flat native settings panel. There are no

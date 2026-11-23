@@ -446,6 +446,7 @@ func (a *NativeApp) hideToTray() {
 	if !a.commitEdit(true) {
 		return
 	}
+	a.setPlayerFullscreen(false)
 	a.win.Hide()
 }
 
@@ -514,6 +515,7 @@ func (a *NativeApp) clearWorkbench() {
 	// Keep the footer action only while its output belongs to the workbench.
 	a.lastOutput = ""
 	a.mediaURL = ""
+	a.setPlayerFullscreen(false)
 	a.position, a.duration, a.paused, a.activeCue, a.frameAspect = 0, 0, true, -1, 0
 	a.pendingClick, a.rowClick = nil, nil
 	a.browseHeld = false

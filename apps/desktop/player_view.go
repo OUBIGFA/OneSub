@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"math"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -12,17 +11,10 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// playerView is the program monitor: a header with the transcription action
-// and the file name, the picture edge to edge on black, and the transport.
+// The global file bar names the document. Give the entire monitor above
+// the transport to the picture, including before a file has been opened.
 func (a *NativeApp) playerView(c *ui.Context) {
 	ui.Column(c).Fill().Label(locales.A11yPlayer()).Children(func() {
-		name := ""
-		if a.snapshot != nil && a.snapshot.Manifest.MediaPath != "" {
-			name = filepath.Base(a.snapshot.Manifest.MediaPath)
-		}
-		panelHeader(c, nil, func() {
-			elidedText(c, name).TextColor(c.Theme().TextMuted).Shrink(1)
-		}, nil)
 		a.playerSurface(c)
 		a.transportBar(c)
 	})
@@ -58,30 +50,34 @@ func (a *NativeApp) playerSurface(c *ui.Context) {
 	})
 }
 
-// Keep transport, time, speed and volume on one row below the seek bar so
-// the picture gets the remaining height. Narrow panes wrap complete groups
-// without squeezing controls or time labels. Times use tabular digits.
+// Put times beside the seek bar. This leaves the command row wide enough
+// for both cue navigation and audio controls; narrow panes wrap whole groups.
 func (a *NativeApp) transportBar(c *ui.Context) {
 	disabled := !a.playbackAvailable()
-	ui.Column(c).Padding(em(c, 4), em(c, 12), em(c, 8), em(c, 12)).Gap(em(c, 4)).Shrink(0).Background(c.Theme().Surface).Label(locales.A11yPlayerControls()).Children(func() {
-		value := a.position
-		lobeSlider(c, &value, 0, math.Max(a.duration, .001)).Label(locales.PlayerPosition()).Disabled(disabled).OnChange(func() { a.evalPlayer(fmt.Sprintf("video.currentTime = %f", value)) })
+	ui.Column(c).Padding(em(c, 4), em(c, 12), em(c, 8), em(c, 12)).Gap(em(c, 4)).Shrink(0).Background(studioColors(c).panel).Label(locales.A11yPlayerControls()).Children(func() {
+		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, stamp(a.position)).FontSize(em(c, captionSize)).FontFeatures("tnum").NoWrap().Shrink(0)
+			value := a.position
+			lobeSlider(c, &value, 0, math.Max(a.duration, .001)).Grow(1).MinWidth(0).Label(locales.PlayerPosition()).Disabled(disabled).OnChange(func() { a.evalPlayer(fmt.Sprintf("video.currentTime = %f", value)) })
+			ui.Text(c, stamp(a.duration)).FontSize(em(c, captionSize)).FontFeatures("tnum").NoWrap().Shrink(0)
+		})
 		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Justify(ui.SpaceBetween).Children(func() {
-			ui.Row(c).Gap(em(c, 6)).AlignItems(ui.Center).Shrink(0).Children(func() {
-				ui.Text(c, stamp(a.position)).FontSize(em(c, captionSize)).FontFeatures("tnum").NoWrap().Shrink(0)
-				muted(c, "/").SingleLine()
-				muted(c, stamp(a.duration)).FontSize(em(c, captionSize)).FontFeatures("tnum").NoWrap().Shrink(0)
-			})
 			ui.Toolbar(c, func() {
 				toolIcon(c, locales.PlayerStart(), "skip-back").Disabled(disabled).OnClick(a.seekStart)
 				toolIcon(c, locales.PlayerBack(), "rewind").Disabled(disabled).OnClick(func() { a.seekBy(-15) })
+				toolIcon(c, locales.PlayerPreviousCue(), "chevron-left").Disabled(a.adjacentPlayerCue(-1) < 0).OnClick(func() { a.stepPlayerCue(-1) })
 				label, name := locales.PlayerPlay(), "play"
 				if !a.paused {
 					label, name = locales.PlayerPause(), "pause"
 				}
-				toolIcon(c, label, name).Size(em(c, 42), em(c, 42)).Background(c.Theme().Background).Border(1, c.Theme().Border).Tooltip(locales.PlayerSpaceShortcut()).Disabled(disabled).OnClick(a.togglePlayback)
+				play := toolIcon(c, label, name).Size(em(c, 42), em(c, 42)).Radius(em(c, 21)).Tooltip(locales.PlayerSpaceShortcut()).Disabled(disabled).OnClick(a.togglePlayback)
+				if !disabled {
+					play.Background(c.Theme().Text).TextColor(c.Theme().Background)
+				}
+				toolIcon(c, locales.PlayerNextCue(), "chevron-right").Disabled(a.adjacentPlayerCue(1) < 0).OnClick(func() { a.stepPlayerCue(1) })
 				toolIcon(c, locales.PlayerForward(), "fast-forward").Disabled(disabled).OnClick(func() { a.seekBy(15) })
-			}).Gap(em(c, 4)).Padding(0).AlignItems(ui.Center).Shrink(0)
+				toolIcon(c, locales.PlayerEnd(), "skip-forward").Disabled(disabled || a.duration <= 0).OnClick(a.seekEnd)
+			}).Gap(0).Padding(0).AlignItems(ui.Center).Shrink(0)
 			ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
 				ui.Toolbar(c, func() {
 					rates := make([]menuCommand, len(playbackRates))
@@ -102,6 +98,11 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 					volume := a.audibleVolume()
 					lobeSlider(c, &volume, 0, 100).Width(em(c, 88)).Label(locales.PlayerVolume()).Tooltip(locales.PlayerVolumeValue(int(math.Round(volume)))).OnChange(func() { a.setVolume(volume, false, c.Now()) })
 				})
+				label, glyph := locales.PlayerFullscreen(), "maximize"
+				if a.playerFullscreen {
+					label, glyph = locales.PlayerExitFullscreen(), "minimize"
+				}
+				toolIcon(c, label, glyph).Tooltip(label + " · F11").Disabled(!a.playerFullscreen && disabled).OnClick(func() { a.setPlayerFullscreen(!a.playerFullscreen) })
 			})
 		})
 	})
@@ -137,6 +138,7 @@ func (a *NativeApp) playerOverlay(c *ui.Context) {
 			{Label: locales.PlayerStart(), Disabled: disabled, Run: a.seekStart},
 			{Label: locales.PlayerBack(), Disabled: disabled, Run: func() { a.seekBy(-15) }},
 			{Label: locales.PlayerForward(), Disabled: disabled, Run: func() { a.seekBy(15) }},
+			{Label: locales.PlayerEnd(), Disabled: disabled || a.duration <= 0, Run: a.seekEnd},
 			{Divider: true},
 			{Label: muteLabel, Run: func() { a.toggleMute(time.Now()) }},
 		}
@@ -177,6 +179,26 @@ func (a *NativeApp) seekBy(seconds float64) {
 		return
 	}
 	a.evalPlayer(fmt.Sprintf("video.currentTime=Math.min(Number.isFinite(video.duration)?video.duration:video.currentTime+%g,video.currentTime+%g)", seconds, seconds))
+}
+
+// Pause before seeking so an enabled loop cannot restart at the end.
+func (a *NativeApp) seekEnd() {
+	if a.playbackAvailable() && a.duration > 0 {
+		a.position, a.paused = a.duration, true
+		a.evalPlayer("if (Number.isFinite(video.duration)) { video.pause(); video.currentTime=video.duration; }")
+	}
+}
+
+func (a *NativeApp) setPlayerFullscreen(full bool) {
+	if full == a.playerFullscreen || full && (!a.playbackAvailable() || a.composing || !a.commitEdit(true)) {
+		return
+	}
+	a.playerFullscreen = full
+	a.editing = false
+	a.pendingClick, a.rowClick = nil, nil
+	if a.win != nil {
+		a.win.SetFullScreen(full)
+	}
 }
 
 // setVolume applies the level at once and remembers it shortly after the

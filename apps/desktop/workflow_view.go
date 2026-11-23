@@ -10,7 +10,7 @@ import (
 // Only the three main columns resize; this band follows its content height.
 func (a *NativeApp) workflowColumn(c *ui.Context) {
 	ui.Column(c).Fill().Label(locales.A11yWorkflowColumn()).Children(func() {
-		ui.Column(c).Shrink(0).Padding(em(c, 16), em(c, panelPad)).Background(c.Theme().Surface).Children(func() {
+		ui.Column(c).Shrink(0).Padding(em(c, 12), em(c, panelPad)).Background(studioColors(c).panel).Children(func() {
 			label := a.processingLabel()
 			lobePrimaryButton(c, "").Label(label).MinHeight(em(c, 44)).Padding(em(c, 10), em(c, 12)).Justify(ui.Center).
 				Disabled(a.busy || a.snapshot == nil || a.snapshot.Manifest.MediaPath == "").OnClick(a.processMedia).Children(func() {
@@ -32,7 +32,7 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 			lobeTabs(c, &a.workflowTab, locales.WorkflowRecognize(), locales.WorkflowTranslate()).Label(locales.WorkflowTitle()).OnChange(func() { a.workflowScroll.Y = 0 })
 		}, nil)
 		separator(c)
-		ui.Column(c).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 12)).Shrink(0).Children(func() {
+		ui.Column(c).Padding(em(c, 12), em(c, panelPad)).Gap(em(c, 8)).Shrink(0).Background(studioColors(c).panel).Children(func() {
 			if a.workflowTab == 0 {
 				segmentedFill(c, &a.recognitionMode, locales.RecognitionCurrentFile(), locales.RecognitionFileQueue()).Label(locales.RecognitionTarget())
 				hasMedia := a.snapshot != nil && a.snapshot.Manifest.MediaPath != ""
@@ -47,6 +47,7 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 				startButton(c, locales.WorkflowStartTranslate(), "languages", a.busy || !hasCues, a.translate)
 			}
 		})
+		separator(c)
 		// Queue settings live on Current file. Give the queue the remaining
 		// viewport directly so only its list scrolls, not another inspector.
 		if a.workflowTab == 0 && a.recognitionMode == 1 {
@@ -54,7 +55,7 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 			return
 		}
 		ui.Scroll(c.Key(a.workflowTab)).Grow(1).MinHeight(0).TrackScroll(&a.workflowScroll).Children(func() {
-			ui.Column(c).Padding(0, em(c, panelPad), em(c, 24), em(c, panelPad)).Gap(em(c, 28)).Children(func() {
+			ui.Column(c).Padding(em(c, 16), em(c, panelPad), em(c, 24), em(c, panelPad)).Gap(em(c, 24)).Children(func() {
 				if a.workflowTab == 0 {
 					a.recognizeTab(c)
 				} else {
@@ -245,7 +246,9 @@ func (a *NativeApp) timelineRebuildChoice(c *ui.Context) {
 }
 
 func startButton(c *ui.Context, label, name string, disabled bool, run func()) {
-	lobePrimaryButton(c, "").Label(label).MinHeight(em(c, 40)).Justify(ui.Center).Padding(em(c, 8), em(c, 16)).Disabled(disabled).OnClick(run).Children(func() {
+	// The blue command runs both stages. A single-stage command stays visible
+	// below its tab with a neutral outline and its full action name.
+	lobeButton(c, "").Label(label).MinHeight(em(c, 40)).Justify(ui.Center).Padding(em(c, 8), em(c, 16)).Disabled(disabled).OnClick(run).Children(func() {
 		icon(c, name)
 		ui.Text(c, label).SingleLine()
 	})

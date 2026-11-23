@@ -51,6 +51,10 @@ func subtitleSearchLabel(cues []subtitle.Cue) string {
 	return locales.ListSearchRange(cues[0].Position+1, cues[len(cues)-1].Position+1)
 }
 
+func matchesSubtitleQuery(cue subtitle.Cue, track int, lowerQuery string) bool {
+	return lowerQuery == "" || strings.Contains(strings.ToLower(cueDisplayText(cue, track)+"\n"+cueDisplayText(cue, 0)), lowerQuery)
+}
+
 func (a *NativeApp) subtitlesView(c *ui.Context) {
 	width, _ := c.Size()
 	a.subtitlesViewAtWidth(c, width)
@@ -82,8 +86,8 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 			}
 			empty := ui.Column(c).Grow(1).Center().Gap(em(c, 12)).Children(func() {
 				muted(c, label)
-				a.proofreadingButton(c, false, false)
 				iconButton(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
+				a.proofreadingButton(c, false, false)
 			})
 			a.subtitleContextMenu(c, empty, -1, -1, nil)
 			return
@@ -99,11 +103,12 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 		cues := a.activeDocument().Cues
 		problems := a.subtitleProblems()
 		rows := []int{}
+		query := strings.ToLower(a.query)
 		for i, cue := range cues {
 			if a.problems.filter && len(problems[i]) == 0 && !(i == a.selected && a.editPending) {
 				continue
 			}
-			if strings.Contains(strings.ToLower(cueDisplayText(cue, a.subtitleTab)+"\n"+cueDisplayText(cue, 0)), strings.ToLower(a.query)) {
+			if matchesSubtitleQuery(cue, a.subtitleTab, query) {
 				rows = append(rows, i)
 			}
 		}
@@ -390,7 +395,7 @@ func (a *NativeApp) editorViewAtHeight(c *ui.Context, height float32) {
 		fixedTiming := readonly || a.snapshot.Document.Format == "ass" || a.snapshot.Document.Format == "ssa"
 		// Allocate the remaining space in this frame, as the recognition
 		// queue does. TextArea owns scrolling; no Bounds feedback resizes it.
-		ui.Column(c).Grow(1).MinHeight(0).Padding(em(c, 12), em(c, panelPad)).Gap(em(c, 8)).Children(func() {
+		ui.Column(c).Grow(1).MinHeight(0).Padding(em(c, 6), em(c, 12)).Gap(em(c, 6)).Children(func() {
 			// Cue number and duration are peer metadata at opposite edges.
 			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Justify(ui.SpaceBetween).Shrink(0).Children(func() {
 				muted(c, locales.EditorCueNumber(cue.Position+1)).FontFeatures("tnum").SingleLine().Shrink(0)
@@ -399,7 +404,7 @@ func (a *NativeApp) editorViewAtHeight(c *ui.Context, height float32) {
 			timeFocused, timeComposing := false, false
 			// Start and end are peer fields. No connector sits between them: it
 			// pushed the pair past the pane width and stayed behind after a wrap.
-			ui.Row(c).GapX(em(c, 16)).GapY(em(c, 8)).Wrap().AlignItems(ui.Center).Justify(ui.Center).Shrink(0).Label(locales.EditorTiming()).Children(func() {
+			ui.Row(c).GapX(em(c, 12)).GapY(em(c, 6)).Wrap().AlignItems(ui.Center).Justify(ui.Center).Shrink(0).Label(locales.EditorTiming()).Children(func() {
 				for i, field := range []struct {
 					label string
 					value *float64
@@ -434,7 +439,7 @@ func (a *NativeApp) editorViewAtHeight(c *ui.Context, height float32) {
 			}
 			// One full line of reading text always shows: line box plus the
 			// field's own padding. Extra lines scroll inside the native field.
-			area := lobeTextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(em(c, editSize*1.5+24)).Padding(em(c, 12), em(c, 16)).FontSize(em(c, editSize)).LineHeight(1.5).Background(studioColors(c).panel).ReadOnly(readonly).Label(locales.A11yCueText())
+			area := lobeTextArea(c.Key(cue.ID), &a.draft).Grow(1).MinHeight(em(c, editSize*1.5+16)).Padding(em(c, 8), em(c, 16)).FontSize(em(c, editSize)).LineHeight(1.5).Background(studioColors(c).panel).ReadOnly(readonly).Label(locales.A11yCueText())
 			a.composing = area.Composing() || timeComposing
 			a.editing = area.Focused() || timeFocused
 			if area.Changed() {

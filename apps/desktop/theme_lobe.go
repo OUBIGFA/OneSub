@@ -32,28 +32,33 @@ func studioTheme(base *ui.Theme, highContrast bool) (ui.Theme, studio) {
 	if highContrast {
 		t.Border, t.TextMuted, t.Focus = t.Text, t.Text, t.Accent
 	}
-	return t, studio{chrome: tokens.BgLayout}
+	return t, surfaceColors(&t, highContrast)
 }
 
 // Content, elevation and rules keep Lobe's surface roles in both appearances.
 // There is no separate WinOne/Fluent palette underneath the new components.
 func studioColors(c *ui.Context) studio {
+	return surfaceColors(c.Theme(), c.Preferences().HighContrast)
+}
+
+func surfaceColors(t *ui.Theme, highContrast bool) studio {
 	tokens := lobeTheme.Light()
-	if c.Theme().Dark {
+	if t.Dark {
 		tokens = lobeTheme.Dark()
 	}
 	look := studio{
-		chrome: tokens.BgLayout, panel: tokens.BgContainer,
+		chrome: ui.Hex("#F1F1F3"), panel: tokens.BgContainer,
 		hairline: tokens.BorderSecondary,
-		selected: c.Theme().Accent.Alpha(0.12), warningSoft: tokens.WarningBg,
+		selected: t.Accent.Alpha(0.12), warningSoft: tokens.WarningBg,
 	}
 	// BorderSecondary equals BgElevated in Lobe's dark palette. Use its
 	// normal border token so separators remain visible on modal surfaces.
-	if c.Theme().Dark {
+	if t.Dark {
+		look.chrome, look.panel = ui.Hex("#141519"), ui.Hex("#25262B")
 		look.hairline = tokens.Border
 	}
-	if c.Preferences().HighContrast {
-		look.hairline = c.Theme().Border
+	if highContrast {
+		look.chrome, look.panel, look.hairline = t.Background, t.Background, t.Border
 	}
 	return look
 }

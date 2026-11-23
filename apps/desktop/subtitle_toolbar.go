@@ -15,8 +15,8 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 	layout := a.subtitleToolbarDensity(c, width-em(c, 24)-1, compact)
 	// Tight panes spend the gap between rows too, preserving list space when
 	// large text makes the always-labelled smart split entry occupy a new row.
-	ui.Column(c).Padding(em(c, 8), em(c, 12)).Gap(layout.spacing(c)).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
-		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
+	ui.Column(c).Shrink(0).Label(locales.A11ySubtitleActions()).Children(func() {
+		ui.Row(c).Padding(em(c, 6), em(c, 12)).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
 			a.proofreadingButton(c, compact, width < em(c, 300))
 			if compact {
 				toolIcon(c, locales.ListImport(), "folder-open").Disabled(a.busy).OnClick(a.pickSubtitle)
@@ -26,20 +26,23 @@ func (a *NativeApp) subtitleToolbar(c *ui.Context, width float32, hasCues bool) 
 			a.subtitleSearch(c, compact)
 			a.subtitleSaveActions(c, compact, hasCues)
 		})
-		ui.Row(c).Gap(layout.spacing(c)).Wrap().AlignItems(ui.Center).Children(func() {
+		separator(c)
+		ui.Row(c).Padding(em(c, 4), em(c, 12)).Gap(layout.spacing(c)).Wrap().AlignItems(ui.Center).Children(func() {
 			selectionMode := a.subtitleSelectionMode()
 			ui.Toolbar(c, func() {
-				a.subtitleSelectionActions(c, layout)
+				subtitleTool(c, locales.FindReplace(), "text-search", layout).Disabled(!hasCues || a.busy || a.showsTranslationProgress() || selectionMode).OnClick(a.openFindReplace)
 				if !compact {
 					a.listPunctuationTools(c, layout)
 				}
-				subtitleTool(c, locales.FindReplace(), "text-search", layout).Disabled(!hasCues || a.busy || a.showsTranslationProgress() || selectionMode).OnClick(a.openFindReplace)
 			}).Padding(0).Gap(layout.spacing(c)).Shrink(0)
 			ui.Toolbar(c, func() {
-				a.retranslationActions(c, layout)
+				a.subtitleSelectionActions(c, layout)
 			}).Padding(0).Gap(layout.spacing(c)).Shrink(0)
 			a.readingToolbar(c, layout)
-			subtitleTool(c, locales.TranslationResults(), "file-warning", layout).Disabled(a.translationCandidate == nil || selectionMode).OnClick(func() { a.translationReview = true })
+			a.retranslationActions(c, layout)
+			if a.translationCandidate != nil {
+				subtitleTool(c, locales.TranslationResults(), "file-warning", layout).Disabled(selectionMode).OnClick(func() { a.translationReview = true })
+			}
 			// Grow the paired controls' row so they stay at the right edge after wrapping.
 			ui.Row(c).Gap(layout.spacing(c)).AlignItems(ui.Center).Justify(ui.End).Grow(1).Shrink(0).Children(func() {
 				a.subtitleProblemToggle(c)
@@ -60,7 +63,9 @@ func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow 
 	if a.retranslation != nil {
 		labels = append(labels, locales.RetranslateReopen())
 	}
-	labels = append(labels, locales.TranslationResults())
+	if a.translationCandidate != nil {
+		labels = append(labels, locales.TranslationResults())
+	}
 	var issueWidth float32
 	navigation := float32(0)
 	if !narrow {
@@ -87,9 +92,6 @@ func (a *NativeApp) subtitleToolbarDensity(c *ui.Context, width float32, narrow 
 	// Include both fixed right-side icons and every gap. The actions menu no
 	// longer contributes an oversized label budget that could hide this cost.
 	gaps := float32(len(labels)) + navigation + 1
-	if a.retranslation == nil {
-		gaps++ // The empty retranslation toolbar still separates its neighbors.
-	}
 	minimum := em(c, 64+navigation*32+gaps*4)
 	for i, label := range labels {
 		w, _ := c.MeasureText(0, ui.Span{Text: label, Weight: 500})
@@ -153,7 +155,7 @@ func subtitleTool(c *ui.Context, label, name string, layout subtitleToolbarLayou
 	if layout.iconOnly(label) {
 		return toolIcon(c, label, name)
 	}
-	return layout.button(c, label, iconButton(c, label, name)).Tooltip(label)
+	return layout.button(c, label, quietIconButton(c, label, name)).Tooltip(label)
 }
 
 func (a *NativeApp) subtitleSearch(c *ui.Context, compact bool) {

@@ -115,24 +115,29 @@ func TestMediaToolsKeepGeometryAcrossModes(t *testing.T) {
 	}
 }
 
-func TestToolbarSettingsIsLastAction(t *testing.T) {
+func TestToolbarKeepsFilenameAndOutputActionsInOrder(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			for _, width := range []int{900, 1800} {
 				for _, scale := range []float32{1, 1.5, 2} {
-					a := nativeForTest(t)
+					a := draftApp(t)
+					filename := strings.Repeat("subtitle-", 40) + ".srt"
+					a.snapshot.Manifest.SubtitlePath = filepath.Join("captions", filename)
 					tt := ui.NewTester(func(c *ui.Context) { a.topBar(c, applyStudioTheme(c)) }, int(float32(width)*scale), int(100*scale))
 					tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
 					tt.Frame()
 					var previous ui.Rect
-					for _, label := range []string{locales.ActionAddFiles(), locales.ActionClearWorkbench(), locales.MenuExportSubtitles(), locales.ActionCompress(), locales.ActionCompose(), locales.ActionSettings()} {
+					for _, label := range []string{locales.ActionAddFiles(), locales.ActionClearWorkbench(), filename, locales.ActionSettings(), locales.ActionCompress(), locales.ActionCompose(), locales.MenuExportSubtitles()} {
 						r, ok := tt.Find(label)
 						if !ok || r.X < previous.X+previous.W {
 							t.Fatalf("toolbar order incorrect: %s %v after %v", label, r, previous)
 						}
 						previous = r
 					}
-					insideRedesign(t, tt, locales.A11yToolbar(), locales.ActionSettings())
+					insideRedesign(t, tt, locales.A11yToolbar(), filename, locales.ActionSettings(), locales.MenuExportSubtitles())
+					a.snapshot.Manifest.MediaPath = filepath.Join("media", "lesson.mp4")
+					tt.Frame()
+					insideRedesign(t, tt, locales.A11yToolbar(), "lesson.mp4")
 				}
 			}
 		})

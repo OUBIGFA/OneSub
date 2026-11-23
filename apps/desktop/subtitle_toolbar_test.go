@@ -270,6 +270,7 @@ func TestSubtitleToolbarKeepsLabelsWhileTightening(t *testing.T) {
 					t.Run(fmt.Sprintf("%s/%g/checked=%t", language, scale, checked), func(t *testing.T) {
 						a := draftApp(t)
 						a.readingExpanded = true
+						a.translationCandidate = &translationCandidate{}
 						if checked {
 							a.checkAllSubtitles()
 							a.retranslation = &retranslationState{}

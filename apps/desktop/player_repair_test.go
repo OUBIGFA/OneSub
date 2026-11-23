@@ -46,7 +46,7 @@ func TestParameterContentCannotBlockDividerDrag(t *testing.T) {
 	a := withStyleCatalog(t)
 	tt := settled(a.view, 1800, 1000)
 	before, _ := tt.Find(locales.A11yStylePanel())
-	x, y := float32(600), before.Y-.5
+	x, y := float32(600), before.Y-workbenchInset-.5
 	tt.Press(x, y)
 	tt.Move(x, y+180)
 	tt.Release(x, y+180)

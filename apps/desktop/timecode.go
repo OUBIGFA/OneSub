@@ -93,7 +93,7 @@ func timecodeField(c *ui.Context, label string, value *float64, step float64, di
 				ui.Row(c).Gap(c.Theme().Space(1)).AlignItems(ui.Center).Shrink(0).Children(func() {
 					// Measure the exact text style and own the field's padding. Kit
 					// defaults must not consume the final milliseconds after migration.
-					fontSize, padding := em(c, bodySize), em(c, 12)
+					fontSize, padding := em(c, bodySize), em(c, 8)
 					width, _ := c.MeasureText(0, ui.Span{Text: stamp(*value), Size: fontSize, Features: "tnum"})
 					width = float32(math.Ceil(float64(width + 2*padding + 4)))
 					input = lobeTextInput(c, &draft.text).Width(width).MinWidth(width).Shrink(0).

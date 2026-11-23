@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
@@ -81,6 +82,55 @@ func subtitleSeekScript(action string, startMs int64) string {
 		return script + ";video.play()"
 	default:
 		return ""
+	}
+}
+
+// Step in document order, including for overlapping ASS events. A filtered
+// list keeps its search and its issue filter; never land on an invisible row.
+func (a *NativeApp) adjacentPlayerCue(direction int) int {
+	if a.snapshot == nil || a.busy || a.composing || a.subtitleSelectionMode() || a.showsTranslationProgress() || a.mediaURL != "" && !a.playbackAvailable() {
+		return -1
+	}
+	cues := a.activeDocument().Cues
+	query := strings.ToLower(a.query)
+	var problems [][]subtitle.CueProblem
+	if a.problems.filter {
+		problems = a.subtitleProblems()
+	}
+	first := a.selected + direction
+	if a.playerFullscreen && !a.paused {
+		// The list is unmounted in fullscreen. Use the playing cue instead
+		// of the row selected before entering the preview.
+		if near := cueNear(cues, a.position); near >= 0 {
+			ms := int64(math.Round(a.position * 1000))
+			first = near + direction
+			if direction > 0 && ms < cues[near].StartMs || direction < 0 && ms >= cues[near].EndMs {
+				first = near
+			}
+		}
+	}
+	for i := first; i >= 0 && i < len(cues); i += direction {
+		if !cues[i].ReadOnly && (!a.problems.filter || len(problems[i]) > 0) && matchesSubtitleQuery(cues[i], a.subtitleTab, query) {
+			return i
+		}
+	}
+	return -1
+}
+
+func (a *NativeApp) stepPlayerCue(direction int) {
+	index := a.adjacentPlayerCue(direction)
+	if index < 0 {
+		return
+	}
+	action := "seek-pause"
+	if !a.paused {
+		action = "seek-play"
+	}
+	a.pendingClick, a.rowClick = nil, nil
+	a.selectSubtitle(index, action)
+	if a.selected == index {
+		a.list.StopScroll()
+		a.browseHeld, a.locateCue = false, index
 	}
 }
 

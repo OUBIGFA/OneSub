@@ -55,7 +55,7 @@ func (a *NativeApp) stylePanelAtSize(c *ui.Context, width, height float32) {
 		}
 		switch {
 		case !hasCues:
-			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.ListEmpty()) })
+			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.StyleNeedsSubtitles()) })
 		case !ready:
 			ui.Column(c).Grow(1).Center().Children(func() { muted(c, locales.StyleLoading()) })
 		default:
@@ -80,7 +80,7 @@ func (a *NativeApp) stylePanelAtSize(c *ui.Context, width, height float32) {
 					})
 				})
 			}, func() {
-				ui.Scroll(c).Fill().TrackScroll(&a.styleScroll).Children(func() {
+				ui.Scroll(c).Fill().Background(studioColors(c).panel).TrackScroll(&a.styleScroll).Children(func() {
 					ui.Column(c).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 16)).Children(func() {
 						if ass {
 							muted(c, locales.StyleKeepAss())

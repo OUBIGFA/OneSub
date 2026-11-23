@@ -5,9 +5,54 @@ import (
 	"testing"
 	"time"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 	lobeTheme "github.com/lobehub/lobe-mygo/pkg/theme"
 )
+
+func TestWorkbenchHidesOnlyDividersBetweenPanels(t *testing.T) {
+	a := nativeForTest(t)
+	tt := settled(a.view, 1440, 1000)
+	for _, dark := range []bool{false, true} {
+		tt.SetDark(dark)
+		tt.Frame()
+		player, _ := tt.Find(locales.A11yPlayer())
+		editor, _ := tt.Find(locales.A11yEditorPanel())
+		style, _ := tt.Find(locales.A11yStylePanel())
+		workflow, _ := tt.Find(locales.A11yWorkflowColumn())
+		controls, _ := tt.Find(locales.A11yPlayerControls())
+		canvas, panel := ui.Hex("#F1F1F3"), ui.Hex("#FFFFFF")
+		if dark {
+			canvas, panel = ui.Hex("#141519"), ui.Hex("#25262B")
+		}
+		pixel := func(x, y float32, want ui.Color) {
+			t.Helper()
+			got := tt.Image().RGBAAt(int(x), int(y))
+			if got.R != want.R || got.G != want.G || got.B != want.B || got.A != 255 {
+				t.Fatalf("dark=%t at (%.1f, %.1f): got %v; want %v", dark, x, y, got, want)
+			}
+		}
+		pixel(player.X+18, player.Y+18, ui.Hex("#000000"))
+		for _, r := range []ui.Rect{style, editor, workflow, controls} {
+			pixel(r.X+16, r.Y+2, panel)
+		}
+		pixel(editor.X+16, player.Y+2, panel)
+		// In contrast, the editor's title rule remains painted inside its
+		// own panel. A fractional divider may cover either neighboring pixel.
+		pixels := tt.Image()
+		xRule, yRule := int(editor.X+18), int(editor.Y+headerSize)
+		rule, next := pixels.RGBAAt(xRule, yRule), pixels.RGBAAt(xRule, yRule+1)
+		if rule == next && rule.R == panel.R && rule.G == panel.G && rule.B == panel.B {
+			t.Fatal("the internal editor divider disappeared", dark, rule)
+		}
+		// The pointer may acquire the resize cursor but must not paint a line.
+		x, y := player.X+player.W+workbenchInset, player.Y+player.H/2
+		pixel(x, y, canvas)
+		tt.Move(x, y)
+		tt.Frame()
+		pixel(x, y, canvas)
+	}
+}
 
 // Exercise the shared native tooltip, including its rendered edge. Changing a
 // toolbar wrapper alone would leave input and settings hints with the old look.
@@ -112,8 +157,12 @@ func TestLobeSurfaceRoles(t *testing.T) {
 			tokens = lobeTheme.Dark()
 			hairline = tokens.Border
 		}
-		if look.chrome != tokens.BgLayout || look.panel != tokens.BgContainer || look.hairline != hairline || look.selected != ui.Hex("#2563eb").Alpha(0.12) {
-			t.Fatal("surfaces do not use Lobe roles", look)
+		frame, panel := ui.Hex("#F1F1F3"), ui.Hex("#FFFFFF")
+		if dark {
+			frame, panel = ui.Hex("#141519"), ui.Hex("#25262B")
+		}
+		if look.chrome != frame || look.panel != panel || look.hairline != hairline || look.selected != ui.Hex("#2563eb").Alpha(0.12) {
+			t.Fatal("the neutral canvas, shared panel surface or selection changed", look)
 		}
 		if look.hairline == tokens.BgElevated || look.hairline == tokens.BgContainer {
 			t.Fatal("separator disappears on dialog or content surface")

@@ -101,10 +101,12 @@ func TestRecognitionTargetAndTransportOrder(t *testing.T) {
 	a := nativeForTest(t)
 	a.position, a.duration = 123, 456
 	tt := settled(a.playerView, 1000, 600)
-	stamp, _ := tt.Find(stamp(123))
+	position, _ := tt.Find(stamp(123))
+	duration, _ := tt.Find(stamp(456))
+	seek, _ := tt.Find(locales.PlayerPosition())
 	play, _ := tt.Find(locales.PlayerPlay())
-	if stamp.X+stamp.W >= play.X || math.Abs(float64(stamp.Y+stamp.H/2-play.Y-play.H/2)) > 1 {
-		t.Fatal("time and transport groups have not swapped", stamp, play)
+	if position.X+position.W > seek.X || seek.X+seek.W > duration.X || seek.W <= 0 || play.Y < seek.Y+seek.H {
+		t.Fatal("seek bar must sit between the timecodes, above transport", position, seek, duration, play)
 	}
 }
 

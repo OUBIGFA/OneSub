@@ -39,7 +39,7 @@ func (a *NativeApp) proofreadingButton(c *ui.Context, compact, iconOnly bool) {
 	if iconOnly {
 		button = toolIcon(c, label, "list-checks")
 	} else {
-		button = iconButton(c, label, "list-checks")
+		button = quietIconButton(c, label, "list-checks")
 	}
 	button.Shrink(0).Tooltip(label).Disabled(a.busy || a.translationLive != nil).OnClick(a.toggleProofreading)
 	if compact && !iconOnly {

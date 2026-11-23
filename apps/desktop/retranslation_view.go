@@ -65,6 +65,9 @@ func (a *NativeApp) retranslationTargets() map[string]subtitle.Cue {
 
 func (a *NativeApp) checkedRetranslationIDs() []string {
 	ids := []string{}
+	if len(a.subtitleChecked[a.subtitleTab]) == 0 {
+		return ids
+	}
 	targets := a.retranslationTargets()
 	for _, cue := range a.activeDocument().Cues {
 		if _, ok := targets[cue.ID]; ok && a.subtitleChecked[a.subtitleTab][cue.ID] {
