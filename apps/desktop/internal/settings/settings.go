@@ -106,6 +106,9 @@ type Settings struct {
 	SubtitleHeight float64 `json:"subtitleHeight"`
 	// StyleContentWidth is the content/preset share inside the style panel.
 	StyleContentWidth float64 `json:"styleContentWidth"`
+	// Folded inspectors retain their expanded split percentages above.
+	StylePanelCollapsed  bool `json:"stylePanelCollapsed"`
+	EditorPanelCollapsed bool `json:"editorPanelCollapsed"`
 	// Local translation-output cleanup. Recognition preserves its punctuation;
 	// existing saved strip/keep choices move with the controls.
 	StripPunctuation bool   `json:"stripPunctuation"`

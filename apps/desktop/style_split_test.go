@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"testing"
 	"time"
 
@@ -11,6 +12,68 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
+
+// Folding the inspector gives its space to the video without changing the
+// user's dividers or style. Reopening, including after restart, restores them.
+func TestStylePanelDisclosureRestoresLayout(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			collapse, expand := "收起字幕样式", "展开字幕样式"
+			if language == "en" {
+				collapse, expand = "Collapse subtitle style", "Expand subtitle style"
+			}
+			a := withStyleCatalog(t)
+			a.splitY, a.styleTab = 55, 1
+			tt := settled(a.view, 1800, 1000)
+			captureRedesign(t, tt, "disclosure-expanded-"+language)
+			player, _ := tt.Find(locales.A11yPlayer())
+			style, _ := tt.Find(locales.A11yStylePanel())
+			properties, _ := tt.Find(locales.StyleProperties())
+			middle, _ := tt.Find(locales.A11ySubtitleTabs())
+			originalStyle := a.currentStyle
+			if err := tt.Click(collapse); err != nil {
+				t.Fatal(err)
+			}
+			folded, _ := tt.Find(locales.A11yStylePanel())
+			captureRedesign(t, tt, "disclosure-style-folded-"+language)
+			largerPlayer, _ := tt.Find(locales.A11yPlayer())
+			if !tt.HasText(expand) || tt.HasText(locales.StyleProperties()) || folded.H >= style.H || largerPlayer.H <= player.H {
+				t.Fatal("folding must leave the title and give the content's room to the player", folded, largerPlayer)
+			}
+			if other, _ := tt.Find(locales.A11ySubtitleTabs()); other != middle || a.splitY != 55 || a.styleTab != 1 || !reflect.DeepEqual(a.currentStyle, originalStyle) {
+				t.Fatal("folding changed another panel, the saved divider, or subtitle style")
+			}
+			tt.SetSize(1500, 850)
+			tt.SetSize(1800, 1000)
+			if after, _ := tt.Find(locales.A11yStylePanel()); after != folded {
+				t.Fatal("resizing changed the folded title bar", folded, after)
+			}
+			tt.Advance(time.Second)
+			prefs, err := settings.Load(a.dataRoot + "/settings.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			b := withStyleCatalog(t)
+			b.settings, b.splitY = prefs, float32(prefs.TopHeight)
+			reopened := settled(b.view, 1800, 1000)
+			if !reopened.HasText(expand) || reopened.HasText(locales.StyleProperties()) {
+				t.Fatal("restart did not restore the folded panel")
+			}
+			if err := tt.Click(expand); err != nil {
+				t.Fatal(err)
+			}
+			if after, _ := tt.Find(locales.A11yStylePanel()); after != style {
+				t.Fatal("expanding did not restore the style panel's size", style, after)
+			}
+			if after, _ := tt.Find(locales.StyleProperties()); after != properties || a.styleTab != 1 || !reflect.DeepEqual(a.currentStyle, originalStyle) {
+				t.Fatal("expanding did not restore the style controls", properties, after)
+			}
+			tt.Move(0, 0)
+			firstFrameSettled(t, tt, "fold-style", func() { a.settings.StylePanelCollapsed = true })
+			firstFrameSettled(t, tt, "expand-style", func() { a.settings.StylePanelCollapsed = false })
+		})
+	}
+}
 
 // The title spans both panes; moving their native divider must not move the
 // outer workbench dividers or lose the chosen share when the window resizes.

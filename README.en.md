@@ -98,9 +98,9 @@ Workflow: **Import → Transcribe → Rebuild timing → Translate and review �
 
 ## Download
 
-Download `OneSub-0.1.2-Setup.exe` from [Releases](https://github.com/OUBIGFA/OneSub/releases), then run the installer.
+Download `OneSub-0.1.3-Setup.exe` from [Releases](https://github.com/OUBIGFA/OneSub/releases), then run the installer.
 
-- Version 0.1.2, Windows x64 only. The installer has no Windows Authenticode signature, so Windows may show a security prompt.
+- Version 0.1.3, Windows x64 only. The installer has no Windows Authenticode signature, so Windows may show a security prompt.
 - Check the Release page for the installer size. Download recognition models on demand (several hundred MB to several GB). You can change the model folder.
 
 ## System requirements

@@ -211,8 +211,9 @@ func TestCompressionEntryDoesNotRequireSubtitles(t *testing.T) {
 	tt := settled(a.view, 1800, 1000)
 	compress, _ := tt.Find(locales.ActionCompress())
 	compose, _ := tt.Find(locales.ActionCompose())
-	if compress.X+compress.W > compose.X {
-		t.Fatal("compression is not immediately before video export", compress, compose)
+	export, _ := tt.Find(locales.MenuExportSubtitles())
+	if export.X+export.W > compress.X || compress.X+compress.W > compose.X {
+		t.Fatal("toolbar must order subtitle export, media processing, then video composition", export, compress, compose)
 	}
 	if err := tt.Click(locales.ActionCompress()); err != nil || !a.compressOpen {
 		t.Fatal("subtitle-free video could not open compression", err)

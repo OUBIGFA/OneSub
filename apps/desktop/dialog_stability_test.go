@@ -127,7 +127,7 @@ func TestToolbarKeepsFilenameAndOutputActionsInOrder(t *testing.T) {
 					tt.SetPreferences(ui.Preferences{TextScale: scale, ReduceMotion: true})
 					tt.Frame()
 					var previous ui.Rect
-					for _, label := range []string{locales.ActionAddFiles(), locales.ActionClearWorkbench(), filename, locales.ActionSettings(), locales.ActionCompress(), locales.ActionCompose(), locales.MenuExportSubtitles()} {
+					for _, label := range []string{locales.ActionAddFiles(), locales.ActionClearWorkbench(), filename, locales.ActionSettings(), locales.MenuExportSubtitles(), locales.ActionCompress(), locales.ActionCompose()} {
 						r, ok := tt.Find(label)
 						if !ok || r.X < previous.X+previous.W {
 							t.Fatalf("toolbar order incorrect: %s %v after %v", label, r, previous)

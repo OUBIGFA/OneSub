@@ -14,9 +14,14 @@ import (
 // The global file bar names the document. Give the entire monitor above
 // the transport to the picture, including before a file has been opened.
 func (a *NativeApp) playerView(c *ui.Context) {
+	width, _ := c.Size()
+	a.playerViewAtWidth(c, width)
+}
+
+func (a *NativeApp) playerViewAtWidth(c *ui.Context, width float32) {
 	ui.Column(c).Fill().Label(locales.A11yPlayer()).Children(func() {
 		a.playerSurface(c)
-		a.transportBar(c)
+		a.transportBar(c, width)
 	})
 }
 
@@ -50,9 +55,9 @@ func (a *NativeApp) playerSurface(c *ui.Context) {
 	})
 }
 
-// Put times beside the seek bar. This leaves the command row wide enough
-// for both cue navigation and audio controls; narrow panes wrap whole groups.
-func (a *NativeApp) transportBar(c *ui.Context) {
+// Equal grid tracks center transport on the picture, independently of the
+// side controls. Narrow panes put those controls below the centered transport.
+func (a *NativeApp) transportBar(c *ui.Context, width float32) {
 	disabled := !a.playbackAvailable()
 	ui.Column(c).Padding(em(c, 4), em(c, 12), em(c, 8), em(c, 12)).Gap(em(c, 4)).Shrink(0).Background(studioColors(c).panel).Label(locales.A11yPlayerControls()).Children(func() {
 		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
@@ -61,8 +66,13 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 			lobeSlider(c, &value, 0, math.Max(a.duration, .001)).Grow(1).MinWidth(0).Label(locales.PlayerPosition()).Disabled(disabled).OnChange(func() { a.evalPlayer(fmt.Sprintf("video.currentTime = %f", value)) })
 			ui.Text(c, stamp(a.duration)).FontSize(em(c, captionSize)).FontFeatures("tnum").NoWrap().Shrink(0)
 		})
-		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Justify(ui.SpaceBetween).Children(func() {
-			ui.Toolbar(c, func() {
+		compact := width < em(c, 640)
+		commands := ui.Grid(c).ColumnTracks(ui.Fr(1), ui.FitContent(), ui.Fr(1)).Gap(em(c, 8)).AlignItems(ui.Center)
+		if compact {
+			commands.ColumnTracks(ui.FitContent(), ui.Fr(1))
+		}
+		commands.Children(func() {
+			transport := ui.Toolbar(c, func() {
 				toolIcon(c, locales.PlayerStart(), "skip-back").Disabled(disabled).OnClick(a.seekStart)
 				toolIcon(c, locales.PlayerBack(), "rewind").Disabled(disabled).OnClick(func() { a.seekBy(-15) })
 				toolIcon(c, locales.PlayerPreviousCue(), "chevron-left").Disabled(a.adjacentPlayerCue(-1) < 0).OnClick(func() { a.stepPlayerCue(-1) })
@@ -77,18 +87,23 @@ func (a *NativeApp) transportBar(c *ui.Context) {
 				toolIcon(c, locales.PlayerNextCue(), "chevron-right").Disabled(a.adjacentPlayerCue(1) < 0).OnClick(func() { a.stepPlayerCue(1) })
 				toolIcon(c, locales.PlayerForward(), "fast-forward").Disabled(disabled).OnClick(func() { a.seekBy(15) })
 				toolIcon(c, locales.PlayerEnd(), "skip-forward").Disabled(disabled || a.duration <= 0).OnClick(a.seekEnd)
-			}).Gap(0).Padding(0).AlignItems(ui.Center).Shrink(0)
-			ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
-				ui.Toolbar(c, func() {
-					rates := make([]menuCommand, len(playbackRates))
-					for i, rate := range playbackRates {
-						rates[i] = menuCommand{Label: rateLabel(rate), Checkable: true, Checked: rate == a.playbackRate(), Run: func() { a.setPlaybackRate(rate) }}
-					}
-					lobeMenuButton(c, rateLabel(a.playbackRate()), "", false, func() []menuCommand { return rates }).Label(locales.PlayerSpeed()).Tooltip(locales.PlayerSpeed()).Disabled(disabled).FontFeatures("tnum")
-					if lobeToggle(c, &a.loop, "").Label(locales.PlayerLoop()).Tooltip(locales.PlayerLoop()).Padding(c.Theme().Space(2)).Disabled(disabled).Children(func() { icon(c, "repeat") }).Changed() {
-						a.evalPlayer(a.rateScript())
-					}
-				}).Padding(0).Gap(em(c, 4))
+			}).Gap(0).Padding(0).AlignItems(ui.Center).JustifySelf(ui.Center).ColumnStart(2).RowStart(1)
+			sideRow, audioColumn := 1, 3
+			if compact {
+				transport.ColumnStart(1).ColumnSpan(2)
+				sideRow, audioColumn = 2, 2
+			}
+			ui.Toolbar(c, func() {
+				rates := make([]menuCommand, len(playbackRates))
+				for i, rate := range playbackRates {
+					rates[i] = menuCommand{Label: rateLabel(rate), Checkable: true, Checked: rate == a.playbackRate(), Run: func() { a.setPlaybackRate(rate) }}
+				}
+				lobeMenuButton(c, rateLabel(a.playbackRate()), "", false, func() []menuCommand { return rates }).Label(locales.PlayerSpeed()).Tooltip(locales.PlayerSpeed()).Disabled(disabled).FontFeatures("tnum")
+				if lobeToggle(c, &a.loop, "").Label(locales.PlayerLoop()).Tooltip(locales.PlayerLoop()).Padding(c.Theme().Space(2)).Disabled(disabled).Children(func() { icon(c, "repeat") }).Changed() {
+					a.evalPlayer(a.rateScript())
+				}
+			}).Padding(0).Gap(em(c, 4)).ColumnStart(1).RowStart(sideRow).JustifySelf(ui.Start)
+			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).ColumnStart(audioColumn).RowStart(sideRow).JustifySelf(ui.End).Children(func() {
 				muteLabel, muteIcon := locales.PlayerMute(), "volume-2"
 				if a.settings.Muted || a.settings.Volume == 0 {
 					muteLabel, muteIcon = locales.PlayerUnmute(), "volume-x"

@@ -48,9 +48,13 @@ func (a *NativeApp) stylePanelAtSize(c *ui.Context, width, height float32) {
 	}
 	shown := fit(*split)
 	panel.Children(func() {
-		panelHeader(c, nil, func() { panelTitle(c, locales.StyleTitle()) }, nil)
+		panelHeader(c, nil, func() { panelTitle(c, locales.StyleTitle()) }, func() {
+			a.panelDisclosure(c, &a.settings.StylePanelCollapsed, height, locales.StyleCollapse(), locales.StyleExpand(), func() {
+				a.splitY = float32(settings.Default().TopHeight)
+			})
+		})
 		separator(c)
-		if height <= em(c, headerSize)+1.01 {
+		if a.settings.StylePanelCollapsed || height <= em(c, headerSize)+1.01 {
 			return
 		}
 		switch {

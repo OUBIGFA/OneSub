@@ -98,9 +98,9 @@ OneSub 将重建结果存入“优化字幕”，并独立保留“原始字幕�
 
 ## 下载
 
-从 [Releases](https://github.com/OUBIGFA/OneSub/releases) 下载 `OneSub-0.1.2-Setup.exe`，然后运行安装器。
+从 [Releases](https://github.com/OUBIGFA/OneSub/releases) 下载 `OneSub-0.1.3-Setup.exe`，然后运行安装器。
 
-- 版本 0.1.2，仅支持 Windows x64。安装器未添加 Windows Authenticode 签名，系统可能显示安全提示。
+- 版本 0.1.3，仅支持 Windows x64。安装器未添加 Windows Authenticode 签名，系统可能显示安全提示。
 - 安装器大小见 Release 页面。识别模型按需下载，体积从数百 MB 到数 GB，保存位置可改。
 
 ## 系统要求

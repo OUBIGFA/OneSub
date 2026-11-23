@@ -4,11 +4,58 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
+
+func TestEditorDisclosurePreservesDraftAndOtherPanels(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			a := storeApp(t, subtitle.Cue{ID: "draft", Text: "Original subtitle", StartMs: 1000, EndMs: 3000})
+			a.subtitleSplit = 55
+			tt := settled(a.view, 1800, 1000)
+			before, _ := tt.Find(locales.A11yEditorPanel())
+			player, _ := tt.Find(locales.A11yPlayer())
+			if err := tt.Click(locales.A11yCueText()); err != nil {
+				t.Fatal(err)
+			}
+			tt.Key(ui.Cmd, ui.KeyA)
+			tt.Type("Edited subtitle")
+			if err := tt.Click(locales.EditorCollapse()); err != nil {
+				t.Fatal(err)
+			}
+			if tt.HasText(locales.A11yCueText()) || !tt.HasText(locales.EditorExpand()) || a.draft != "Edited subtitle" || a.subtitleSplit != 55 {
+				t.Fatal("folding lost the draft or expanded divider position", a.draft, a.subtitleSplit)
+			}
+			if after, _ := tt.Find(locales.A11yPlayer()); after != player || a.settings.StylePanelCollapsed {
+				t.Fatal("folding the editor changed the video or style panel", player, after)
+			}
+			tt.Advance(time.Second)
+			prefs, err := settings.Load(a.dataRoot + "/settings.json")
+			if err != nil || !prefs.EditorPanelCollapsed || prefs.StylePanelCollapsed || prefs.SubtitleHeight != 55 {
+				t.Fatal("editor disclosure choice was not saved independently", err)
+			}
+			if a.snapshot.SourceDocument.Cues[0].Text != "Edited subtitle" {
+				t.Fatal("folded editor did not retain the pending edit in the document")
+			}
+			// The native disclosure keeps keyboard and accessibility semantics.
+			if info, ok := tt.Access(locales.EditorExpand()); !ok || info.Role != ui.RoleDisclosure || info.Expanded {
+				t.Fatal("folded editor lacks a native disclosure", info)
+			}
+			tt.Key(0, ui.KeySpace)
+			if after, _ := tt.Find(locales.A11yEditorPanel()); after != before || !tt.HasText(locales.A11yCueText()) || a.draft != "Edited subtitle" {
+				t.Fatal("keyboard expansion did not restore the editor and draft", before, after)
+			}
+			tt.Move(0, 0)
+			firstFrameSettled(t, tt, "fold-editor", func() { a.settings.EditorPanelCollapsed = true })
+			firstFrameSettled(t, tt, "expand-editor", func() { a.settings.EditorPanelCollapsed = false })
+		})
+	}
+}
 
 // Resizing a short editor must allocate this viewport's remaining space, not
 // keep a minimum-height scroll page with the editable text outside the panel.

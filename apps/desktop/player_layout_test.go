@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -80,12 +81,13 @@ func TestFullscreenPreviewRestoresWorkbench(t *testing.T) {
 // bounds. Native rows wrap complete command groups; the split stays user-owned.
 func TestPlayerTransportGroupsFitNarrowPanes(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
-		for _, width := range []int{320, 500, 900} {
+		for _, width := range []int{320, 500, 639, 640, 900} {
 			for _, scale := range []float32{1, 1.5, 2} {
 				t.Run(fmt.Sprintf("%s/%d/%g", language, width, scale), func(t *testing.T) {
 					inLocale(t, language, func() {
 						a := nativeForTest(t)
 						a.position, a.duration = 123, 456
+						a.rate = 1.25
 						a.mediaURL = "http://127.0.0.1/video"
 						tt := settled(func(c *ui.Context) {
 							theme, _ := studioTheme(c.Theme(), false)
@@ -95,6 +97,11 @@ func TestPlayerTransportGroupsFitNarrowPanes(t *testing.T) {
 						tt.SetPreferences(ui.Preferences{TextScale: scale})
 						labels := []string{locales.PlayerStart(), locales.PlayerBack(), locales.PlayerPreviousCue(), locales.PlayerPlay(), locales.PlayerNextCue(), locales.PlayerForward(), locales.PlayerEnd(), locales.PlayerSpeed(), locales.PlayerLoop(), stamp(123), stamp(456), locales.PlayerPosition(), locales.PlayerMute(), locales.PlayerVolume(), locales.PlayerFullscreen()}
 						insideRedesign(t, tt, locales.A11yPlayer(), labels...)
+						player, _ := tt.Find(locales.A11yPlayer())
+						play, _ := tt.Find(locales.PlayerPlay())
+						if math.Abs(float64(play.X+play.W/2-player.X-player.W/2)) > 1 {
+							t.Fatal("playback controls are not centered in the video pane", player, play)
+						}
 						for i, label := range labels {
 							r, _ := tt.Find(label)
 							for _, other := range labels[i+1:] {

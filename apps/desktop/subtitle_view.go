@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
@@ -368,18 +369,20 @@ func (a *NativeApp) editorView(c *ui.Context) {
 }
 
 func (a *NativeApp) editorViewAtHeight(c *ui.Context, height float32) {
-	folded := height <= em(c, headerSize)+1.01
+	folded := a.settings.EditorPanelCollapsed || height <= em(c, headerSize)+1.01
 	cues := a.activeDocument().Cues
 	valid := !a.showsTranslationProgress() && a.snapshot != nil && a.selected >= 0 && a.selected < len(cues)
 	ui.Column(c).Fill().Label(locales.A11yEditorPanel()).Children(func() {
 		panelHeader(c, nil, func() { panelTitle(c, locales.EditorTitle()) }, func() {
-			if folded {
-				return
+			if !folded {
+				ui.Toolbar(c, func() {
+					toolIcon(c, locales.EditorUndo(), "undo-2").Disabled(a.busy || a.snapshot == nil || !(a.snapshot.CanUndo || a.editPending)).OnClick(func() { a.undo(false) })
+					toolIcon(c, locales.EditorRedo(), "redo-2").Disabled(a.busy || a.snapshot == nil || !a.snapshot.CanRedo).OnClick(func() { a.undo(true) })
+				}).Padding(0).Gap(em(c, 2))
 			}
-			ui.Toolbar(c, func() {
-				toolIcon(c, locales.EditorUndo(), "undo-2").Disabled(a.busy || a.snapshot == nil || !(a.snapshot.CanUndo || a.editPending)).OnClick(func() { a.undo(false) })
-				toolIcon(c, locales.EditorRedo(), "redo-2").Disabled(a.busy || a.snapshot == nil || !a.snapshot.CanRedo).OnClick(func() { a.undo(true) })
-			}).Padding(0).Gap(em(c, 2))
+			a.panelDisclosure(c, &a.settings.EditorPanelCollapsed, height, locales.EditorCollapse(), locales.EditorExpand(), func() {
+				a.subtitleSplit = float32(settings.Default().SubtitleHeight)
+			})
 		})
 		separator(c)
 		if folded {

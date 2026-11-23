@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -226,6 +228,34 @@ func panelHeader(c *ui.Context, start, middle, end func()) {
 		})
 		side(ui.End, em(c, 4), end)
 	})
+}
+
+// Use MyGo's disclosure for native click, keyboard and expanded-state
+// semantics. The existing splitter owns body sizing in the same frame;
+// Collapsible.Panel's intrinsic-height animation would resize our scroll panes.
+func (a *NativeApp) panelDisclosure(c *ui.Context, collapsed *bool, height float32, collapseLabel, expandLabel string, restoreHeight func()) {
+	wasCollapsed := *collapsed
+	open := !wasCollapsed && height > em(c, headerSize)+1.01
+	label, angle := expandLabel, float32(0)
+	if open {
+		label, angle = collapseLabel, 180
+	}
+	// The editor's undo toolbar disappears when folded. Keep this identity
+	// stable so its keyboard focus survives that sibling being removed.
+	disclosure := ui.CollapsibleBase(c.Key("panel-disclosure"), &open)
+	trigger := disclosure.Trigger.Size(em(c, 32), em(c, 32)).Center().Radius(c.Theme().Radius).Label(label).Tooltip(label).OnChange(func() {
+		if open && !wasCollapsed {
+			// A title-only ratio saved before disclosures has no expanded
+			// height to restore. Reopen it at the existing default ratio.
+			restoreHeight()
+		}
+		*collapsed = !open
+		a.prefsSaveDue = c.Now().Add(400 * time.Millisecond)
+	})
+	if trigger.Hovered() {
+		trigger.Background(c.Theme().SurfaceHover)
+	}
+	trigger.Children(func() { icon(c, "chevron-down").Rotate(angle) })
 }
 
 // panelTitle is a panel's name: body size, semibold, as Fluent's Body

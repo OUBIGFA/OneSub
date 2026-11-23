@@ -19,8 +19,8 @@
     "licenseSha256": "f0b56f4ab53beb6e18c5e155219c2e2b6000b5475c0ae3ddb3af3894fd9349b4",
     "usage": "Native desktop controls, layout, themes, menus and embedded media WebView",
     "modifications": "Six native/UI patches and a build-only license-page hook; see third_party/patches/mygo/README.md",
-    "checkedAt": "2026-11-21",
-    "latestMainRevision": "b8249d84874892ac709441732893ec89261e272a",
+    "checkedAt": "2026-11-23",
+    "latestMainRevision": "da81e0ca50f67486fb7e3f9c00703b199dfb4465",
     "latestRelease": "v0.10.0"
   },
   "mcpGoSdk": {

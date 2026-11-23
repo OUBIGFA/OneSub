@@ -1,6 +1,6 @@
 {
   "provider": "MSYS2 UCRT64",
-  "checkedAt": "2026-11-21",
+  "checkedAt": "2026-11-23",
   "repository": "https://github.com/msys2/MINGW-packages",
   "database": {
     "url": "https://mirror.msys2.org/mingw/ucrt64/ucrt64.db",

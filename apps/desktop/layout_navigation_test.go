@@ -149,6 +149,13 @@ func TestInspectorsFoldToTitleAndRestore(t *testing.T) {
 						if math.Abs(float64(folded.H-(headerSize*scale+1))) > 1 {
 							t.Fatal("inspector cannot fold to its title", folded)
 						}
+						expand := locales.StyleExpand()
+						if panel == locales.A11yEditorPanel() {
+							expand = locales.EditorExpand()
+						}
+						if !tt.HasText(expand) {
+							t.Fatal("dragging to the title must leave an expand action", expand)
+						}
 						content := locales.OutputContent()
 						if panel == locales.A11yEditorPanel() {
 							content = locales.A11yCueText()
@@ -172,10 +179,37 @@ func TestInspectorsFoldToTitleAndRestore(t *testing.T) {
 						if _, shown := tt.Find(content); !shown {
 							t.Fatal("expanding did not restore inspector controls", content)
 						}
+						// Folding by drag and expanding by button share the same
+						// saved working height, not the collapsed percentage.
+						tt.Press(x, before.Y-edge)
+						tt.Move(x, before.Y-edge+2000*scale)
+						tt.Release(x, before.Y-edge+2000*scale)
+						if err := tt.Click(expand); err != nil {
+							t.Fatal(err)
+						}
+						if restored, _ := tt.Find(panel); math.Abs(float64(restored.H-before.H)) > 1 || !tt.HasText(content) {
+							t.Fatal("disclosure did not restore a panel folded by dragging", before, restored)
+						}
 					})
 				}
 			}
 		})
+	}
+}
+
+// Older settings stored a title-only split without a separate folded flag.
+// Its new disclosure must offer a usable expansion immediately.
+func TestSavedTitleOnlyInspectorsCanExpand(t *testing.T) {
+	a := withStyleCatalog(t)
+	a.splitY, a.subtitleSplit = 95, 95
+	tt := settled(a.view, 1800, 1000)
+	for _, action := range []string{locales.StyleExpand(), locales.EditorExpand()} {
+		if err := tt.Click(action); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !tt.HasText(locales.StyleProperties()) || !tt.HasText(locales.A11yCueText()) {
+		t.Fatal("saved title-only inspectors did not reopen their content")
 	}
 }
 

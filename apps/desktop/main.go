@@ -226,12 +226,20 @@ func (a *NativeApp) view(c *ui.Context) {
 		// Native splitters retain pointer, keyboard and same-frame layout.
 		panelSplit(c, ui.SplitPercent, &x, func() {
 			panelSplit(c, ui.SplitVerticalPercent, &y, func() {
-				workbenchPanel(c, look, func() { a.playerView(c) })
+				workbenchPanel(c, look, func() { a.playerViewAtWidth(c, (width-1)*x/100-insets) })
 			}, func() {
 				workbenchPanel(c, look, func() { a.stylePanelAtSize(c, (width-1)*x/100-insets, paneHeight*(100-y)/100-insets) })
 			}, func() {
+				previous := a.splitY
+				a.settings.StylePanelCollapsed = false
 				a.splitY = y
 				_, a.splitY, _, _ = a.paneSizes(c)
+				if paneHeight*(100-a.splitY)/100-insets <= em(c, headerSize)+1.01 {
+					// A drag to the title folds without discarding the height
+					// that the disclosure must restore on its next click.
+					a.settings.StylePanelCollapsed, a.splitY = true, previous
+				}
+				a.prefsSaveDue = c.Now().Add(400 * time.Millisecond)
 			}).Fill()
 		}, func() {
 			panelSplit(c, ui.SplitPercent, &editor, func() {
@@ -240,8 +248,14 @@ func (a *NativeApp) view(c *ui.Context) {
 				}, func() {
 					workbenchPanel(c, look, func() { a.editorViewAtHeight(c, paneHeight*(100-subtitles)/100-insets) })
 				}, func() {
+					previous := a.subtitleSplit
+					a.settings.EditorPanelCollapsed = false
 					a.subtitleSplit = subtitles
 					_, _, a.subtitleSplit, _ = a.paneSizes(c)
+					if paneHeight*(100-a.subtitleSplit)/100-insets <= em(c, headerSize)+1.01 {
+						a.settings.EditorPanelCollapsed, a.subtitleSplit = true, previous
+					}
+					a.prefsSaveDue = c.Now().Add(400 * time.Millisecond)
 				}).Fill()
 			}, func() {
 				workbenchPanel(c, look, func() { a.workflowColumn(c) })
@@ -374,6 +388,15 @@ func (a *NativeApp) paneSizes(c *ui.Context) (player, top, subtitles, editor flo
 	// Content visibility uses this same frame's allocation, never old bounds.
 	keep(&top, height, em(c, 240)+insets, em(c, headerSize)+1+insets)
 	keep(&subtitles, height, em(c, 240)+insets, em(c, headerSize)+1+insets)
+	// Folding is independent of the saved split: expanding restores the
+	// previous working height even after a resize or application restart.
+	foldedTop := max(0, 100-(em(c, headerSize)+1+insets)/max(height, 1)*100)
+	if a.settings.StylePanelCollapsed {
+		top = foldedTop
+	}
+	if a.settings.EditorPanelCollapsed {
+		subtitles = foldedTop
+	}
 	keep(&editor, (width-1)*(100-player)/100-1, listMinimum, workflowMinimum)
 	return
 }
@@ -409,6 +432,7 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 		})
 		ui.Row(c).AlignItems(ui.Center).Gap(em(c, 4)).Shrink(0).Children(func() {
 			toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
+			command(locales.MenuExportSubtitles(), "file-down").Disabled(a.busy || !hasCues).OnClick(a.requestExport)
 			command(locales.ActionCompress(), "file-video").Disabled(a.busy || !hasMedia).OnClick(func() { a.compressOpen = true })
 		})
 		separator(c).Height(em(c, 20)).AlignSelf(ui.Center).Shrink(0)
@@ -418,8 +442,7 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 			if a.composeRunning && a.composeInBackground && !a.compressRunning && !a.audioExtractRunning {
 				label, disabled, run = locales.ComposeShowProgress(), false, a.showComposeProgress
 			}
-			command(label, "clapperboard").Disabled(disabled).OnClick(run)
-			primaryIconButton(c, locales.MenuExportSubtitles(), "file-down").MinHeight(em(c, 36)).Disabled(a.busy || !hasCues).OnClick(a.requestExport)
+			primaryIconButton(c, label, "clapperboard").MinHeight(em(c, 36)).Disabled(disabled).OnClick(run)
 		})
 	})
 }
