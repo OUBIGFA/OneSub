@@ -84,11 +84,19 @@ updates need a separately authorized, non-prerelease GitHub Release tagged
 checksums, SBOMs, source materials and build records locally. Building does
 not authorize uploading any of these additional files.
 
-The app checks the latest release's `update-windows-amd64.json`. A missing
-release or manifest is shown as unavailable, not as evidence of being current.
-An installer-only Release therefore supports manual installation, but does
-not supply in-app updates. Publishing an update feed needs a separately
-approved distribution location and matching signed archive.
-Automatic checking and installation default on. Installation waits for an
-active workbench task to finish, uses its cancellation/exit guards and never
-forces a restart. The new build runs at the next launch.
+The app first checks the latest release's `update-windows-amd64.json`. When
+that feed returns 404, it reads GitHub's latest stable release through the
+same system proxy and compares the product version numerically. A newer
+release containing the matching `OneSub-<version>-Setup.exe` offers a
+**Download installer** action. The user downloads it in the browser and
+installs it manually. The installer is never passed to MyGo's signed-update
+installation path. A matching or older published version reports that the
+app is current; a missing newer installer, network failure and cancellation
+remain distinct outcomes.
+
+Publishing an automatic-update feed still needs a separately approved
+distribution location and matching signed archive. Automatic checking and
+signed installation default on. Signed installation waits for an active
+workbench task to finish, uses its cancellation/exit guards and never forces
+a restart. The new build runs at the next launch. Builds predating the
+installer-release check need one manual installation to receive this fix.

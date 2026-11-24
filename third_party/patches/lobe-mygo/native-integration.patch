@@ -54,7 +54,7 @@ diff --git a/pkg/action/button.go b/pkg/action/button.go
 diff --git a/pkg/action/segmented.go b/pkg/action/segmented.go
 --- a/pkg/action/segmented.go
 +++ b/pkg/action/segmented.go
-@@ -31,12 +31,12 @@
+@@ -31,13 +31,16 @@
  
  func Segmented(c *ui.Context, selected *int, options []string, p SegmentedProps) ui.Element {
  	tk := theme.TokensOf(c)
@@ -70,7 +70,11 @@ diff --git a/pkg/action/segmented.go b/pkg/action/segmented.go
  	}
  
  	indicator := tk.BgElevated
-@@ -52,12 +52,14 @@
++	if p.Variant != SegmentedOutlined && tk.Dark {
++		indicator = theme.Mix(tk.BgElevated, tk.Text, 0.14)
++	}
+ 	parts := ui.SegmentedBase(c, selected, len(options))
+@@ -52,12 +55,14 @@
  		track.AlignSelf(ui.Stretch)
  	}
  
@@ -565,6 +569,15 @@ diff --git a/pkg/field/select.go b/pkg/field/select.go
 diff --git a/pkg/form/group.go b/pkg/form/group.go
 --- a/pkg/form/group.go
 +++ b/pkg/form/group.go
+@@ -37,7 +37,7 @@
+ 					if p.Extra != nil {
+ 						p.Extra()
+ 					}
+ 				})
+-				ui.Box(c).Height(1).Margin(16, 0, 0, 0).AlignSelf(ui.Stretch).Background(tk.BorderSecondary)
++				ui.Box(c).Height(1).Margin(10, 0, 0, 0).AlignSelf(ui.Stretch).Background(tk.BorderSecondary)
+ 			}
+ 			ui.Column(c).AlignSelf(ui.Stretch).Children(content)
 @@ -104,7 +104,7 @@
  			if p.Icon != nil {
  				ui.Icon(c, p.Icon).FontSize(size).TextColor(tk.Text)
@@ -612,7 +625,20 @@ diff --git a/pkg/nav/tabs.go b/pkg/nav/tabs.go
  		} else {
  			list.Row().AlignItems(ui.Center).AlignSelf(ui.Start)
  		}
-@@ -90,24 +93,30 @@
+@@ -75,7 +78,11 @@
+ 		switch p.Variant {
+ 		case TabsRounded:
+-			list.Padding(3).Gap(4).Radius(tk.BorderRadiusLG).Background(tk.BgLayout)
++			trackBg := tk.FillTertiary
++			if p.Vertical {
++				trackBg = tk.BgLayout
++			}
++			list.Padding(3).Gap(4).Radius(tk.BorderRadiusLG).Background(trackBg)
+ 			if p.Vertical {
+ 				list.AlignSelf(ui.Stretch)
+ 			}
+ 		case TabsSquare:
+@@ -90,24 +97,34 @@
  			for i, it := range p.Items {
  				tab := tabs.Tab(i).Disabled(it.Disabled).Gap(6).AlignItems(ui.Center).Justify(ui.Center).
  					FontSize(fontSize).FontWeight(500).Shrink(0).Transition(ui.ElementTransition{Duration: 120 * time.Millisecond, Ease: motion.EaseOut, Colors: true})
@@ -635,8 +661,12 @@ diff --git a/pkg/nav/tabs.go b/pkg/nav/tabs.go
  					tab.Cursor(ui.CursorNotAllowed)
 +				case i == *selected:
 +					fg = tk.Primary
-+					if p.Vertical && p.Variant == TabsRounded {
-+						fg = c.Theme().AccentText
++					if p.Variant == TabsRounded {
++						if p.Vertical {
++							fg = c.Theme().AccentText
++						} else if tk.Dark {
++							fg = theme.Mix(tk.Primary, tk.Text, 0.55)
++						}
 +					}
 +					tab.Cursor(ui.CursorPointer)
  				case tab.Hovered():
@@ -647,7 +677,7 @@ diff --git a/pkg/nav/tabs.go b/pkg/nav/tabs.go
  					tab.Cursor(ui.CursorPointer)
  				default:
  					tab.Cursor(ui.CursorPointer)
-@@ -138,6 +147,11 @@
+@@ -138,6 +155,11 @@
  			body.Children(func() { panel(*selected) })
  		}
  	})
@@ -659,17 +689,21 @@ diff --git a/pkg/nav/tabs.go b/pkg/nav/tabs.go
  	return root
  }
  
-@@ -154,7 +168,10 @@
+@@ -154,7 +176,14 @@
  	case TabsPoint:
  		ind.Size(5, 5).Radius(2.5).Background(tk.Primary).Bottom(6).LeftPercent(50).Margin(0, 0, 0, -2.5)
  	default:
 -		ind.Top(0).Left(0).Right(0).Bottom(0).Radius(tk.BorderRadius).Background(tk.BgElevated)
 -		tk.Elevate(ind, theme.BoxShadowTertiary)
 +		color := tk.PrimaryBg
++		border := ui.Transparent
 +		if vertical {
 +			color = tk.Primary
++		} else if tk.Dark {
++			color = tk.Primary.Alpha(0.20)
++			border = tk.Primary.Alpha(0.35)
 +		}
-+		ind.Top(0).Left(0).Right(0).Bottom(0).Radius(tk.BorderRadius).Background(color)
++		ind.Top(0).Left(0).Right(0).Bottom(0).Radius(tk.BorderRadius).Background(color).Border(1, border)
  	}
  }
 diff --git a/pkg/overlay/dropdown.go b/pkg/overlay/dropdown.go

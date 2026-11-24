@@ -94,7 +94,7 @@ func (a *NativeApp) storageSettingsView(c *ui.Context) {
 				})
 			})
 		}
-		settingsRow(c, locales.StoragePlayer(), func() ui.Element {
+		settingsRowLast(c, locales.StoragePlayer(), func() ui.Element {
 			return ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
 				muted(c, locales.StorageManaged()).Grow(1)
 				lobeButton(c, locales.StorageClean()).Label(locales.StoragePlayer() + " / " + locales.StorageClean()).Disabled(a.storageUnavailable()).OnClick(func() { a.storage.confirm = "player"; a.storage.items = nil })

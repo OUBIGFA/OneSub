@@ -477,56 +477,61 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 				}).Padding(0)
 			})
 			ui.Column(c).Grow(1).Basis(0).MinHeight(0).Gap(em(c, 8)).Label(locales.RetranslateCompare()).Children(func() {
-				list := ui.List(c, &r.list, len(rows), func(i int) {
-					chosen := i == selected
-					index := rows[i]
-					row := &r.rows[index]
-					ui.Column(c).Padding(em(c, 12), em(c, 16)).Gap(em(c, 10)).Children(func() {
-						ui.Row(c).Gap(em(c, 16)).AlignItems(ui.Start).Children(func() {
-							ui.Column(c).Grow(1).MinWidth(0).Gap(em(c, 8)).Children(func() {
-								ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Children(func() {
-									ui.Text(c, fmt.Sprintf("# %d", row.cue.Position+1)).FontSize(em(c, captionSize)).FontFeatures("tnum").Grow(1)
-									rowMuted(c, stamp(float64(row.cue.StartMs)/1000)+" – "+stamp(float64(row.cue.EndMs)/1000), chosen).FontFeatures("tnum").FontSize(em(c, captionSize)).NoWrap().Shrink(0)
-									rowMuted(c, row.status(), chosen).FontSize(em(c, captionSize)).SingleLine().Shrink(0)
+				ui.Column(c).Grow(1).MinHeight(0).Background(modalInsetSurface(c)).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Clip().Children(func() {
+					list := ui.List(c, &r.list, len(rows), func(i int) {
+						chosen := i == selected
+						index := rows[i]
+						row := &r.rows[index]
+						ui.Column(c).Padding(em(c, 12), em(c, 16)).Gap(em(c, 10)).Children(func() {
+							ui.Row(c).Gap(em(c, 16)).AlignItems(ui.Start).Children(func() {
+								ui.Column(c).Grow(1).MinWidth(0).Gap(em(c, 10)).Children(func() {
+									ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Children(func() {
+										ui.Text(c, fmt.Sprintf("# %d", row.cue.Position+1)).FontSize(em(c, captionSize)).FontFeatures("tnum").Grow(1)
+										rowMuted(c, stamp(float64(row.cue.StartMs)/1000)+" – "+stamp(float64(row.cue.EndMs)/1000), chosen).FontFeatures("tnum").FontSize(em(c, captionSize)).NoWrap().Shrink(0)
+										rowMuted(c, row.status(), chosen).FontSize(em(c, captionSize)).SingleLine().Shrink(0)
+									})
+									ui.Column(c).Gap(em(c, 2)).Children(func() {
+										rowMuted(c, locales.TabSource(), chosen).FontSize(em(c, captionSize)).Shrink(0)
+										ui.Text(c, subtitle.SourceText(row.cue)).FontSize(em(c, captionSize)).LineHeight(1.45)
+									})
+									ui.Column(c).Gap(em(c, 2)).Children(func() {
+										rowMuted(c, locales.RetranslateCandidate(), chosen).FontSize(em(c, captionSize)).Shrink(0)
+										if row.result != nil && row.result.text != "" {
+											ui.Text(c, row.result.text).Selectable().FontSize(em(c, subtitleSize)).LineHeight(1.5)
+										}
+									})
+									ui.Column(c).Gap(em(c, 2)).Children(func() {
+										rowMuted(c, locales.RetranslateExisting(), chosen).FontSize(em(c, captionSize)).Shrink(0)
+										existing := cueDisplayText(row.cue, 1)
+										if existing != "" {
+											rowMuted(c, existing, chosen).Selectable().FontSize(em(c, bodySize)).LineHeight(1.45)
+										} else {
+											rowMuted(c, locales.RetranslateNoExisting(), chosen)
+										}
+									})
 								})
-								rowMuted(c, locales.TabSource(), chosen).FontSize(em(c, captionSize)).Shrink(0)
-								ui.Text(c, subtitle.SourceText(row.cue)).FontSize(em(c, captionSize)).LineHeight(1.45)
-								rowMuted(c, locales.RetranslateCandidate(), chosen).FontSize(em(c, captionSize)).Shrink(0)
-								if row.result != nil && row.result.text != "" {
-									ui.Text(c, row.result.text).Selectable().FontSize(em(c, subtitleSize)).LineHeight(1.5)
-								} else {
-									muted(c, "")
-								}
-								rowMuted(c, locales.RetranslateExisting(), chosen).FontSize(em(c, captionSize)).Shrink(0)
-								existing := cueDisplayText(row.cue, 1)
-								if existing != "" {
-									rowMuted(c, existing, chosen).Selectable().FontSize(em(c, bodySize)).LineHeight(1.45)
-								} else {
-									rowMuted(c, locales.RetranslateNoExisting(), chosen)
-								}
-							})
-							ui.Column(c).Shrink(0).Gap(em(c, 8)).Children(func() {
-								lobeButton(c, locales.RetranslateOne()).Disabled(a.busy || stale).OnClick(func() {
-									r.selected = index
-									a.startRetranslation(true)
+								ui.Column(c).Shrink(0).Gap(em(c, 8)).AlignItems(ui.Stretch).Children(func() {
+									lobeButton(c, locales.RetranslateOne()).Disabled(a.busy || stale).OnClick(func() {
+										r.selected = index
+										a.startRetranslation(true)
+									})
+									lobeButton(c, locales.RetranslateApplyOne()).Disabled(a.busy || stale || len(r.replacementEditsFor(index)) == 0).OnClick(func() {
+										r.selected = index
+										a.acceptRetranslation(true)
+									})
+									ignore := locales.RetranslateIgnore()
+									if row.ignored {
+										ignore = locales.RetranslateUnignore()
+									}
+									lobeButton(c, ignore).Disabled(a.busy || stale || row.result == nil || !row.result.valid || row.applied).OnClick(func() { a.toggleRetranslationIgnore(index) })
 								})
-								lobeButton(c, locales.RetranslateApplyOne()).Disabled(a.busy || stale || len(r.replacementEditsFor(index)) == 0).OnClick(func() {
-									r.selected = index
-									a.acceptRetranslation(true)
-								})
-								ignore := locales.RetranslateIgnore()
-								if row.ignored {
-									ignore = locales.RetranslateUnignore()
-								}
-								lobeButton(c, ignore).Disabled(a.busy || stale || row.result == nil || !row.result.valid || row.applied).OnClick(func() { a.toggleRetranslationIgnore(index) })
 							})
 						})
-						ui.Divider(c).Background(studioColors(c).hairline)
-					})
-				}).Grow(1).MinHeight(0).Gap(0).Label(locales.RetranslateList())
-				if list.Changed() && selected >= 0 && selected < len(rows) {
-					r.selected = rows[selected]
-				}
+					}).Grow(1).MinHeight(0).Gap(0).Dividers(1, studioColors(c).hairline).Label(locales.RetranslateList())
+					if list.Changed() && selected >= 0 && selected < len(rows) {
+						r.selected = rows[selected]
+					}
+				})
 			})
 			note := ""
 			if r.selected >= 0 && r.selected < len(r.rows) {
@@ -543,7 +548,7 @@ func (a *NativeApp) retranslationView(c *ui.Context) {
 			if note != "" {
 				// Reuse the diagnostic reader so new messages open at the start,
 				// retain padding, and remain selectable without moving the actions.
-				ui.Column(c).Height(em(c, 64)).Shrink(0).Padding(em(c, 12)).Background(studioColors(c).panel).Radius(c.Theme().Radius).Children(func() {
+				ui.Column(c).Height(em(c, 64)).Shrink(0).Padding(em(c, 12)).Background(modalInsetSurface(c)).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Children(func() {
 					// The outer padding stays clear even while the text scrolls.
 					status := reviewReadOnlyText(c, locales.RetranslateChecks(), note).Padding(0).FontSize(em(c, captionSize)).LineHeight(1.45).TextColor(c.Theme().TextMuted)
 					if stale || r.errorText != "" {

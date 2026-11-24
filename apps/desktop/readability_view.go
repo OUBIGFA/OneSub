@@ -95,7 +95,7 @@ func (a *NativeApp) readingIssues() []subtitleReadingIssue {
 // the tools or hides them in a second menu; native toolbar wrapping still fits.
 func (a *NativeApp) readingToolbar(c *ui.Context, layout subtitleToolbarLayout) {
 	if !a.readingExpanded {
-		layout.button(c, locales.ReadingTools(), iconButton(c, locales.ReadingTools(), "scissors")).OnClick(func() { a.readingExpanded = true })
+		layout.button(c, locales.ReadingTools(), quietIconButton(c, locales.ReadingTools(), "scissors")).OnClick(func() { a.readingExpanded = true })
 		return
 	}
 	toolIcon(c, locales.ReadingToolsCollapse(), "fold-horizontal").Shrink(0).OnClick(func() { a.readingExpanded = false })

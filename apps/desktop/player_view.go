@@ -59,12 +59,12 @@ func (a *NativeApp) playerSurface(c *ui.Context) {
 // side controls. Narrow panes put those controls below the centered transport.
 func (a *NativeApp) transportBar(c *ui.Context, width float32) {
 	disabled := !a.playbackAvailable()
-	ui.Column(c).Padding(em(c, 4), em(c, 12), em(c, 8), em(c, 12)).Gap(em(c, 4)).Shrink(0).Background(studioColors(c).panel).Label(locales.A11yPlayerControls()).Children(func() {
+	ui.Column(c).Padding(em(c, 8), em(c, 14), em(c, 10), em(c, 14)).Gap(em(c, 6)).Shrink(0).Background(studioColors(c).panel).Label(locales.A11yPlayerControls()).Children(func() {
 		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, stamp(a.position)).FontSize(em(c, captionSize)).FontFeatures("tnum").NoWrap().Shrink(0)
+			ui.Text(c, stamp(a.position)).FontSize(em(c, captionSize)).FontFeatures("tnum").TextColor(c.Theme().TextMuted).NoWrap().Shrink(0)
 			value := a.position
 			lobeSlider(c, &value, 0, math.Max(a.duration, .001)).Grow(1).MinWidth(0).Label(locales.PlayerPosition()).Disabled(disabled).OnChange(func() { a.evalPlayer(fmt.Sprintf("video.currentTime = %f", value)) })
-			ui.Text(c, stamp(a.duration)).FontSize(em(c, captionSize)).FontFeatures("tnum").NoWrap().Shrink(0)
+			ui.Text(c, stamp(a.duration)).FontSize(em(c, captionSize)).FontFeatures("tnum").TextColor(c.Theme().TextMuted).NoWrap().Shrink(0)
 		})
 		compact := width < em(c, 640)
 		commands := ui.Grid(c).ColumnTracks(ui.Fr(1), ui.FitContent(), ui.Fr(1)).Gap(em(c, 8)).AlignItems(ui.Center)
@@ -80,10 +80,7 @@ func (a *NativeApp) transportBar(c *ui.Context, width float32) {
 				if !a.paused {
 					label, name = locales.PlayerPause(), "pause"
 				}
-				play := toolIcon(c, label, name).Size(em(c, 42), em(c, 42)).Radius(em(c, 21)).Tooltip(locales.PlayerSpaceShortcut()).Disabled(disabled).OnClick(a.togglePlayback)
-				if !disabled {
-					play.Background(c.Theme().Text).TextColor(c.Theme().Background)
-				}
+				toolIcon(c, label, name).Size(em(c, 42), em(c, 42)).Radius(em(c, 21)).Tooltip(locales.PlayerSpaceShortcut()).Disabled(disabled).OnClick(a.togglePlayback)
 				toolIcon(c, locales.PlayerNextCue(), "chevron-right").Disabled(a.adjacentPlayerCue(1) < 0).OnClick(func() { a.stepPlayerCue(1) })
 				toolIcon(c, locales.PlayerForward(), "fast-forward").Disabled(disabled).OnClick(func() { a.seekBy(15) })
 				toolIcon(c, locales.PlayerEnd(), "skip-forward").Disabled(disabled || a.duration <= 0).OnClick(a.seekEnd)
@@ -98,8 +95,17 @@ func (a *NativeApp) transportBar(c *ui.Context, width float32) {
 				for i, rate := range playbackRates {
 					rates[i] = menuCommand{Label: rateLabel(rate), Checkable: true, Checked: rate == a.playbackRate(), Run: func() { a.setPlaybackRate(rate) }}
 				}
-				lobeMenuButton(c, rateLabel(a.playbackRate()), "", false, func() []menuCommand { return rates }).Label(locales.PlayerSpeed()).Tooltip(locales.PlayerSpeed()).Disabled(disabled).FontFeatures("tnum")
-				if lobeToggle(c, &a.loop, "").Label(locales.PlayerLoop()).Tooltip(locales.PlayerLoop()).Padding(c.Theme().Space(2)).Disabled(disabled).Children(func() { icon(c, "repeat") }).Changed() {
+				lobeMenuButton(c, rateLabel(a.playbackRate()), "", false, func() []menuCommand { return rates }).MinHeight(em(c, 32)).Padding(em(c, 4), em(c, 10)).Label(locales.PlayerSpeed()).Tooltip(locales.PlayerSpeed()).Disabled(disabled).FontFeatures("tnum")
+				loop := lobeToggle(c, &a.loop, "").Size(em(c, 32), em(c, 32)).Padding(0).Label(locales.PlayerLoop()).Tooltip(locales.PlayerLoop()).Disabled(disabled)
+				if a.loop {
+					loop.Background(studioColors(c).selected).TextColor(c.Theme().Accent).Border(1, c.Theme().Accent.Alpha(0.4))
+				} else {
+					loop.Background(ui.Transparent).Border(1, ui.Transparent)
+					if loop.Hovered() && !disabled {
+						loop.Background(c.Theme().SurfaceHover)
+					}
+				}
+				if loop.Children(func() { icon(c, "repeat") }).Changed() {
 					a.evalPlayer(a.rateScript())
 				}
 			}).Padding(0).Gap(em(c, 4)).ColumnStart(1).RowStart(sideRow).JustifySelf(ui.Start)
@@ -133,7 +139,14 @@ func (a *NativeApp) playerOverlay(c *ui.Context) {
 	layer := ui.Column(c).Fill().Center().OnClick(a.togglePlayback)
 	if a.mediaURL == "" {
 		layer.Children(func() {
-			iconButton(c, locales.PlayerAddVideo(), "folder-open").Disabled(a.busy).OnClick(a.pickFiles)
+			button := iconButton(c, locales.PlayerAddVideo(), "folder-open").MinHeight(em(c, 40)).Padding(em(c, 8), em(c, 18)).Disabled(a.busy).OnClick(a.pickFiles)
+			if !c.Preferences().HighContrast {
+				bg, border := ui.Hex("#1E2026"), ui.Hex("#3A3D46")
+				if button.Hovered() && !a.busy {
+					bg = ui.Hex("#2B2E36")
+				}
+				button.Background(bg).Border(1, border).TextColor(ui.Hex("#F4F4F6"))
+			}
 		})
 		return
 	}

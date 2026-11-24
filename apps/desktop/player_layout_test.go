@@ -117,3 +117,42 @@ func TestPlayerTransportGroupsFitNarrowPanes(t *testing.T) {
 		}
 	}
 }
+
+func TestPlayerPlayPauseHasNoBackgroundBlock(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		for _, mediaURL := range []string{"", "test-media"} {
+			for _, paused := range []bool{true, false} {
+				if mediaURL == "" && !paused {
+					continue
+				}
+				a := nativeForTest(t)
+				a.mediaURL, a.duration, a.paused = mediaURL, 10, paused
+				tt := settled(func(c *ui.Context) {
+					applyStudioTheme(c)
+					a.playerView(c)
+				}, 700, 500)
+				tt.SetDark(dark)
+				tt.Frame()
+				label := locales.PlayerPlay()
+				if mediaURL != "" && !paused {
+					label = locales.PlayerPause()
+				}
+				play, ok := tt.Find(label)
+				if !ok {
+					t.Fatalf("missing play/pause button %q (dark=%t media=%q paused=%t)", label, dark, mediaURL, paused)
+				}
+				panel := ui.Hex("#FFFFFF")
+				if dark {
+					panel = ui.Hex("#25262B")
+				}
+				img := tt.Image()
+				for _, x := range []float32{play.X + 3, play.X + play.W - 4} {
+					got := img.RGBAAt(int(x), int(play.Y+play.H/2))
+					if got.R != panel.R || got.G != panel.G || got.B != panel.B || got.A != 255 {
+						t.Fatalf("dark=%t media=%q paused=%t play/pause button painted background %v at (%.1f, %.1f), want %v", dark, mediaURL, paused, got, x, play.Y+play.H/2, panel)
+					}
+				}
+			}
+		}
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/netproxy"
 	"github.com/egoist/mygo/ui"
 	lobeChoice "github.com/lobehub/lobe-mygo/pkg/choice"
 	lobeDisplay "github.com/lobehub/lobe-mygo/pkg/display"
@@ -26,6 +28,7 @@ const (
 	updateChecking
 	updateCurrent
 	updateAvailable
+	updateInstallerAvailable
 	updateInstalling
 	updateInstalled
 	updateMissing
@@ -40,6 +43,7 @@ type appUpdates struct {
 	productVersion string
 	enabled        bool
 	release        *mygo.Update
+	installer      *installerRelease
 	failure        string
 	downloaded     int64
 	total          int64
@@ -106,24 +110,48 @@ func (a *NativeApp) checkUpdates() {
 	}
 	a.updates.phase, a.updates.failure = updateChecking, ""
 	a.updates.release = nil
+	a.updates.installer = nil
+	product := a.updates.productVersion
 	ctx, cancel := context.WithTimeout(a.updates.ctx, 45*time.Second)
 	go func() {
 		defer cancel()
 		release, err := mygo.Updater.Check(ctx)
+		// Public releases currently contain only the installer. A missing
+		// signed feed must not hide a newer, manually installable version.
+		if missingUpdateFeed(err) {
+			client := &http.Client{Transport: netproxy.Transport(), Timeout: 30 * time.Second}
+			installer, checkErr := checkInstallerRelease(ctx, client, product)
+			a.win.Update(func() { a.completeInstallerCheck(installer, checkErr) })
+			return
+		}
 		a.win.Update(func() { a.completeUpdateCheck(release, err) })
 	}()
 }
 
+func missingUpdateFeed(err error) bool {
+	// MyGo exposes HTTP status in its error text, not a typed error.
+	return err != nil && strings.HasSuffix(err.Error(), ": 404 Not Found")
+}
+
+func (a *NativeApp) completeInstallerCheck(installer *installerRelease, err error) {
+	a.completeUpdateCheck(nil, err)
+	if errors.Is(err, errNoPublishedInstaller) {
+		a.updates.phase = updateMissing
+	} else if err == nil && installer != nil {
+		a.updates.installer, a.updates.phase = installer, updateInstallerAvailable
+	}
+}
+
 func (a *NativeApp) completeUpdateCheck(release *mygo.Update, err error) {
 	a.updates.release, a.updates.failure = release, ""
+	a.updates.installer = nil
 	switch {
 	case errors.Is(err, context.Canceled):
 		a.updates.phase = updateCancelled
 	case err != nil:
 		a.updates.phase, a.updates.failure = updateFailed, err.Error()
-		// MyGo exposes HTTP status in its error text, not a typed error.
 		// A missing release/manifest is not evidence of being up to date.
-		if strings.HasSuffix(err.Error(), ": 404 Not Found") {
+		if missingUpdateFeed(err) {
 			a.updates.phase = updateMissing
 		}
 	case release == nil:
@@ -213,6 +241,8 @@ func (a *NativeApp) updateStatus() string {
 			return locales.AboutUpdateWaiting()
 		}
 		return locales.AboutUpdateAvailable()
+	case updateInstallerAvailable:
+		return locales.AboutInstallerAvailable(a.updates.installer.Version)
 	case updateInstalling:
 		if a.updates.total > 0 && a.updates.downloaded >= a.updates.total {
 			return locales.AboutVerifyingUpdate()
@@ -258,7 +288,6 @@ func (a *NativeApp) aboutSettingsView(c *ui.Context) {
 				ui.Text(c, "OneSub").FontSize(em(c, 24)).FontWeight(500)
 				muted(c, locales.AboutVersion(version))
 			})
-			muted(c, locales.AboutBuild(BuildNumber)).FontSize(em(c, captionSize)).FontFeatures("tnum")
 		})
 		group := func(title string, content func()) {
 			settingsGroup(c, title, func() { ui.Column(c).Children(content) })
@@ -279,17 +308,23 @@ func (a *NativeApp) aboutSettingsView(c *ui.Context) {
 				if a.updates.release != nil && a.updates.phase != updateInstalling && a.updates.phase != updateInstalled {
 					selected = 1
 				}
+				if a.updates.phase == updateInstallerAvailable {
+					selected = 2
+				}
 				stableVariants(c, selected, func() {
 					iconButton(c, locales.AboutCheckUpdates(), "rotate-cw").AlignSelf(ui.End).Disabled(!a.updates.enabled || a.settingsError || a.updates.phase == updateChecking || a.updates.phase == updateInstalling || a.updates.phase == updateInstalled).OnClick(a.checkUpdates)
 				}, func() {
 					primaryIconButton(c, locales.AboutInstallUpdate(), "download").AlignSelf(ui.End).Disabled(a.busy || a.settingsError).OnClick(func() { a.installUpdate(false) })
+				}, func() {
+					primaryIconButton(c, locales.AboutDownloadInstaller(), "download").AlignSelf(ui.End).OnClick(func() {
+						c.OpenURL(a.updates.installer.URL)
+					})
 				}).Shrink(0)
 			})
 			separator(c)
 			ui.Field(c, locales.AboutAutoUpdate(), func() {
 				lobeChoice.Switch(c, &a.settings.AutoUpdate, lobeChoice.SwitchProps{}).Label(locales.AboutAutoUpdate()).Disabled(a.settingsError).OnChange(a.automaticUpdatesChanged)
 			}).Row().Justify(ui.SpaceBetween).Gap(em(c, 24)).Padding(em(c, 10), 0).MinHeight(em(c, 52)).AlignItems(ui.Center)
-			separator(c)
 		})
 		group(locales.AboutProject(), func() {
 			ui.Row(c).Gap(em(c, 12)).Padding(em(c, 10), 0).MinHeight(em(c, 52)).AlignItems(ui.Center).Children(func() {
@@ -298,7 +333,6 @@ func (a *NativeApp) aboutSettingsView(c *ui.Context) {
 				ui.Spacer(c)
 				ui.Link(c, repositoryURL, repositoryURL).SingleLine().MinWidth(0)
 			})
-			separator(c)
 		})
 	})
 }

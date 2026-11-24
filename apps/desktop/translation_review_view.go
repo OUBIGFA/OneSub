@@ -92,31 +92,33 @@ func (a *NativeApp) translationFindingsView(c *ui.Context, candidate *translatio
 			muted(c, locales.ReviewFindingsVisible(len(findings), errors+warnings)).Shrink(0)
 			a.translationIssueList.Selected = &selected
 			a.translationIssueList.Key = func(i int) any { return findings[i].index }
-			table := subtitleTable(c, &a.translationIssueList, []ui.TableColumn{
-				{Title: locales.ReviewSeverity(), Width: em(c, 88), Fixed: true},
-				{Title: locales.ReviewMessage(), Fixed: true},
-			}, len(findings), func(row, col int) {
-				finding := findings[row]
-				if col == 0 {
-					text, color := locales.ReviewError(), c.Theme().Danger
-					if finding.warning {
-						text, color = locales.ReviewWarning(), c.Theme().Warning
+			ui.Column(c).Grow(1).MinHeight(0).Background(modalInsetSurface(c)).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Clip().Children(func() {
+				table := subtitleTable(c, &a.translationIssueList, []ui.TableColumn{
+					{Title: locales.ReviewSeverity(), Width: em(c, 88), Fixed: true},
+					{Title: locales.ReviewMessage(), Fixed: true},
+				}, len(findings), func(row, col int) {
+					finding := findings[row]
+					if col == 0 {
+						text, color := locales.ReviewError(), c.Theme().Danger
+						if finding.warning {
+							text, color = locales.ReviewWarning(), c.Theme().Warning
+						}
+						label := ui.Text(c, text).SingleLine().AlignSelf(ui.Start)
+						if row != selected {
+							label.TextColor(color)
+						}
+						return
 					}
-					label := ui.Text(c, text).SingleLine().AlignSelf(ui.Start)
-					if row != selected {
-						label.TextColor(color)
-					}
-					return
+					// Keep the list scannable; the selected message remains
+					// complete in the adjacent reader, not in a screen-tall row.
+					ui.Text(c, finding.message).MaxLines(3).LineHeight(1.4).AlignSelf(ui.Start)
+				}, func(bool) {}).Label(locales.ReviewFindingsList())
+				if table.Changed() && selected >= 0 && selected < len(findings) {
+					a.translationIssueSelected = findings[selected].index
 				}
-				// Keep the list scannable; the selected message remains
-				// complete in the adjacent reader, not in a screen-tall row.
-				ui.Text(c, finding.message).MaxLines(3).LineHeight(1.4).AlignSelf(ui.Start)
-			}, func(bool) {}).Label(locales.ReviewFindingsList())
-			if table.Changed() && selected >= 0 && selected < len(findings) {
-				a.translationIssueSelected = findings[selected].index
-			}
+			})
 		})
-		ui.Column(c).Fill().MinWidth(0).MinHeight(0).Gap(em(c, 12)).Padding(em(c, 16)).Background(studioColors(c).panel).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Label(locales.ReviewFindingDetail()).Children(func() {
+		ui.Column(c).Fill().MinWidth(0).MinHeight(0).Gap(em(c, 12)).Padding(em(c, 16)).Background(modalInsetSurface(c)).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Label(locales.ReviewFindingDetail()).Children(func() {
 			text := empty
 			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Shrink(0).Children(func() {
 				if selected >= 0 && selected < len(findings) {
@@ -132,6 +134,7 @@ func (a *NativeApp) translationFindingsView(c *ui.Context, candidate *translatio
 				ui.Text(c, locales.ReviewFindingDetail()).FontWeight(500)
 			})
 			muted(c, locales.ReviewBatchScope()).Shrink(0).Tooltip(locales.ReviewChecksScope())
+			separator(c)
 			// A real read-only input preserves the entire message and native
 			// selection/copy shortcuts, even for long multiline diagnostics.
 			reviewReadOnlyText(c, locales.ReviewChecks(), text)
@@ -143,7 +146,7 @@ func (a *NativeApp) translationFindingsView(c *ui.Context, candidate *translatio
 // from the beginning: reset only when the displayed message changes, leaving
 // subsequent scrolling and text selection under the reader's control.
 func reviewReadOnlyText(c *ui.Context, label, text string) ui.Element {
-	area := lobeTextArea(c, &text).ReadOnly(true).Grow(1).MinHeight(0).Padding(em(c, 12)).FontSize(em(c, 16)).LineHeight(1.5).Background(studioColors(c).panel).Border(0, ui.Transparent).Label(label)
+	area := lobeTextArea(c, &text).ReadOnly(true).Grow(1).MinHeight(0).Padding(em(c, 12)).FontSize(em(c, 16)).LineHeight(1.5).Background(modalInsetSurface(c)).Border(0, ui.Transparent).Label(label)
 	previous := ui.Local(area, "read-text", func() string { return "" })
 	if *previous != text {
 		area.SetTextSelection(0, 0)

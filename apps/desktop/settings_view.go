@@ -18,9 +18,19 @@ func settingsGroup(c *ui.Context, title string, content func()) {
 // Settings are read as rows: a stable label edge and a stable control edge.
 // Field retains the native label/control relationship and keyboard behavior.
 func settingsRow(c *ui.Context, label string, control func() ui.Element) {
+	settingsRowItem(c, label, true, control)
+}
+
+func settingsRowLast(c *ui.Context, label string, control func() ui.Element) {
+	settingsRowItem(c, label, false, control)
+}
+
+func settingsRowItem(c *ui.Context, label string, divided bool, control func() ui.Element) {
 	ui.Field(c, label, func() { control().Width(em(c, 260)) }).Row().Justify(ui.SpaceBetween).
 		AlignItems(ui.Center).Gap(em(c, 24)).Padding(em(c, 10), 0).MinHeight(em(c, 52))
-	separator(c)
+	if divided {
+		separator(c)
+	}
 }
 
 // Settings use one sidebar layout. The active form has explicit native grid
@@ -53,7 +63,7 @@ func (a *NativeApp) settingsView(c *ui.Context) {
 			// The sidebar meets the header and divider edge to edge. The modal
 			// clips its outer corners; a second radius would leave gaps inside.
 			lobeNav.Tabs(c, &selected, lobeNav.TabsProps{Items: tabs, Vertical: true, Variant: lobeNav.TabsRounded}, nil).
-				Width(max(em(c, 200), navigationWidth+em(c, 88))).Padding(em(c, 16), em(c, 12)).Radius(0).
+				Width(max(em(c, 200), navigationWidth+em(c, 88))).Padding(em(c, 16), em(c, 12)).Radius(0).Background(studioColors(c).chrome).
 				Label(locales.A11ySettingsTabs()).OnChange(func() {
 				a.settingsTab = order[selected]
 				if a.settingsTab == 7 {
@@ -116,7 +126,7 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 						a.saveSettings()
 					})
 				})
-				settingsRow(c, locales.SettingsCloseWindow(), func() ui.Element {
+				settingsRowLast(c, locales.SettingsCloseWindow(), func() ui.Element {
 					return idSelect(c, &behavior, []option{{"tray", locales.SettingsCloseTray()}, {"exit", locales.SettingsCloseExit()}}).Label(locales.SettingsCloseWindow()).OnChange(func() {
 						a.settings.CloseToTray = behavior == "tray"
 						a.saveSettings()
@@ -126,15 +136,15 @@ func (a *NativeApp) settingsContent(c *ui.Context, tab int) {
 		})
 		settingsGroup(c, locales.SettingsPlayback(), func() {
 			ui.Column(c).Children(func() {
-				for _, field := range []struct {
-					label string
-					value *string
-				}{{locales.SettingsSingleClick(), &a.settings.SingleClickAction}, {locales.SettingsDoubleClick(), &a.settings.DoubleClickAction}} {
-					settingsRow(c, field.label, func() ui.Element {
-						return idSelect(c, field.value, subtitleActions()).Label(field.label).OnChange(a.saveSettings)
-					})
-				}
-				lobeCheckbox(c, &a.settings.FollowPlayback, locales.SettingsFollowPlayback()).Margin(em(c, 12), 0, 0, 0).OnChange(func() { a.activeCue = -1; a.saveSettings() })
+				settingsRow(c, locales.SettingsSingleClick(), func() ui.Element {
+					return idSelect(c, &a.settings.SingleClickAction, subtitleActions()).Label(locales.SettingsSingleClick()).OnChange(a.saveSettings)
+				})
+				settingsRowLast(c, locales.SettingsDoubleClick(), func() ui.Element {
+					return idSelect(c, &a.settings.DoubleClickAction, subtitleActions()).Label(locales.SettingsDoubleClick()).OnChange(a.saveSettings)
+				})
+				ui.Row(c).Padding(em(c, 12), 0).AlignItems(ui.Center).Children(func() {
+					lobeCheckbox(c, &a.settings.FollowPlayback, locales.SettingsFollowPlayback()).OnChange(func() { a.activeCue = -1; a.saveSettings() })
+				})
 			})
 		})
 	case 1:
@@ -187,7 +197,9 @@ func (a *NativeApp) mcpSettingsView(c *ui.Context) {
 	settingsGroup(c, locales.SettingsMcp(), func() {
 		config := mcpConfig()
 		muted(c, locales.SettingsMcpNote())
-		ui.Text(c, config).Font("monospace").Selectable().Label(locales.A11yMcpConfig())
+		ui.Column(c).Padding(em(c, 12), em(c, 16)).Background(modalInsetSurface(c)).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Children(func() {
+			ui.Text(c, config).Font("monospace").Selectable().Label(locales.A11yMcpConfig())
+		})
 		lobeButton(c, locales.SettingsMcpCopy()).AlignSelf(ui.Start).OnClick(func() {
 			mygo.Clipboard.WriteText(config)
 			a.status = locales.SettingsMcpCopied()
@@ -290,9 +302,11 @@ func (a *NativeApp) recognitionModelField(c *ui.Context, title, kind string, id 
 			})
 			// The explanation is immediately below the selected model, before
 			// its folder. Native text wraps instead of hiding the useful hint.
-			muted(c, modelSummary(*id)).FontSize(em(c, captionSize)).MinWidth(0)
-			path := a.modelPath(*id)
-			elidedText(c, path).TextColor(c.Theme().TextMuted).FontSize(em(c, captionSize))
+			ui.Column(c).Gap(em(c, 4)).Children(func() {
+				muted(c, modelSummary(*id)).FontSize(em(c, captionSize)).MinWidth(0)
+				path := a.modelPath(*id)
+				elidedText(c, path).Font("monospace").TextColor(c.Theme().TextMuted).FontSize(em(c, captionSize))
+			})
 		})
 	})
 }

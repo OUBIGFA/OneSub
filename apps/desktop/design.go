@@ -12,6 +12,7 @@ import (
 	lobeFeedback "github.com/lobehub/lobe-mygo/pkg/feedback"
 	lobeField "github.com/lobehub/lobe-mygo/pkg/field"
 	lobeForm "github.com/lobehub/lobe-mygo/pkg/form"
+	lobeLucide "github.com/lobehub/lobe-mygo/pkg/lucide"
 	lobeNav "github.com/lobehub/lobe-mygo/pkg/nav"
 	lobeTheme "github.com/lobehub/lobe-mygo/pkg/theme"
 )
@@ -176,9 +177,12 @@ func lobeToggle(c *ui.Context, checked *bool, label string) ui.Element {
 	// Match Lobe's segmented selection: an elevated selected surface over a
 	// neutral track, independent of the containing page's background.
 	tokens := lobeTheme.TokensOf(c)
-	background := tokens.BgLayout
+	background := tokens.FillTertiary
 	if *checked {
 		background = tokens.BgElevated
+		if tokens.Dark {
+			background = lobeTheme.Mix(tokens.BgElevated, tokens.Text, 0.16)
+		}
 	}
 	return button.Background(background)
 }
@@ -279,12 +283,12 @@ func fixedDialog(c *ui.Context, open *bool, title string, width, height float32,
 	lobeFeedback.Modal(c, open, lobeFeedback.ModalProps{Width: min(em(c, width+40), vw-em(c, 40)), NoFooter: true, Instant: true, Panel: func(panel ui.Element) {
 		// The Lobe modal sizes all fields in this frame, without wrapping the
 		// whole form in a scroll view or leaving a dismissing panel mounted.
-		shell := panel.Column().MinWidth(min(em(c, width+40), vw-em(c, 40))).MaxWidth(vw - em(c, 40)).Label(title)
+		shell := panel.Column().MinWidth(min(em(c, width+40), vw-em(c, 40))).MaxWidth(vw - em(c, 40)).Border(1, look.hairline).Label(title)
 		if height > 0 {
 			shell.Height(min(em(c, height+40), vh-em(c, 40)))
 		}
 		shell.Children(func() {
-			ui.Row(c).Padding(em(c, 16), em(c, 24)).Gap(em(c, 16)).AlignItems(ui.Center).Shrink(0).Children(func() {
+			ui.Row(c).Padding(em(c, 14), em(c, 24)).Gap(em(c, 16)).AlignItems(ui.Center).Shrink(0).Children(func() {
 				ui.Text(c, title).FontSize(em(c, 20)).FontWeight(500).Grow(1)
 				if actions == nil {
 					lobeButton(c, locales.ActionClose()).OnClick(func() { *open = false })
@@ -366,15 +370,35 @@ func workbenchPanel(c *ui.Context, look studio, content func()) {
 
 // Only the splitter uses transparent resting and hover colors. Its two
 // panes recover the original theme, including native focus and input borders.
-func panelSplit(c *ui.Context, split func(*ui.Context, *float32, func(), func()) ui.Element, share *float32, first, second, changed func()) ui.Element {
+func panelSplit(c *ui.Context, vertical bool, share *float32, first, second, changed func()) ui.Element {
 	normal := c.Theme()
 	quiet := *normal
 	quiet.Border, quiet.Accent = ui.Transparent, ui.Transparent
-	pane := func(content func()) func() {
-		return func() { ui.Themed(c, normal).Fill().Background(ui.Transparent).Children(content) }
+	split := ui.SplitPercent
+	glyph := lobeLucide.GripVertical()
+	if vertical {
+		split = ui.SplitVerticalPercent
+		glyph = lobeLucide.GripHorizontal()
+	}
+	var firstPane, secondPane ui.Element
+	pane := func(dst *ui.Element, content func()) func() {
+		return func() {
+			*dst = ui.Themed(c, normal).Fill().Background(ui.Transparent).Children(content)
+		}
 	}
 	return ui.Themed(c, &quiet).MinHeight(0).MinWidth(0).Background(ui.Transparent).Children(func() {
-		split(c, share, pane(first), pane(second)).Fill().OnChange(changed)
+		s := split(c, share, pane(&firstPane, first), pane(&secondPane, second)).Fill().OnChange(changed)
+		if s.Hovered() && !firstPane.Hovered() && !secondPane.Hovered() {
+			indicator := ui.Box(c).Absolute().IgnoreInput(true).Center().Size(em(c, 16), em(c, 16))
+			if vertical {
+				indicator.TopPercent(*share).LeftPercent(50).TranslatePercent(-50, -50)
+			} else {
+				indicator.LeftPercent(*share).TopPercent(50).TranslatePercent(-50, -50)
+			}
+			indicator.Children(func() {
+				ui.Icon(c, glyph).Size(em(c, 16), em(c, 16)).TextColor(normal.TextMuted)
+			})
+		}
 	})
 }
 
@@ -389,8 +413,18 @@ func parameterGroup(c *ui.Context, title string, action, fields func()) {
 func lobeGroup(c *ui.Context, title string, action, fields func()) ui.Element {
 	var form lobeForm.Form[struct{}]
 	return lobeForm.Group(c, &form, lobeForm.GroupProps{Title: title, Extra: action, Fixed: true}, func() {
-		ui.Column(c).Gap(em(c, 16)).Padding(em(c, 16), 0, 0, 0).Children(fields)
+		ui.Column(c).Gap(em(c, 14)).Padding(em(c, 12), 0, 0, 0).Children(fields)
 	})
+}
+
+// modalInsetSurface gives recessed list, code and detail containers inside
+// elevated dialogs a clean depth contrast in both appearances.
+func modalInsetSurface(c *ui.Context) ui.Color {
+	look := studioColors(c)
+	if c.Theme().Dark {
+		return look.chrome
+	}
+	return look.panel
 }
 
 // parameterGrid sets a deliberate density ceiling instead of packing every

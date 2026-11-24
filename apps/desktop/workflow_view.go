@@ -55,7 +55,7 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 			return
 		}
 		ui.Scroll(c.Key(a.workflowTab)).Grow(1).MinHeight(0).TrackScroll(&a.workflowScroll).Children(func() {
-			ui.Column(c).Padding(em(c, 16), em(c, panelPad), em(c, 24), em(c, panelPad)).Gap(em(c, 24)).Children(func() {
+			ui.Column(c).Padding(em(c, 14), em(c, panelPad), em(c, 20), em(c, panelPad)).Gap(em(c, 20)).Children(func() {
 				if a.workflowTab == 0 {
 					a.recognizeTab(c)
 				} else {
@@ -70,10 +70,17 @@ func (a *NativeApp) workflowPanel(c *ui.Context) {
 }
 
 func (a *NativeApp) recognizeTab(c *ui.Context) {
+	hint := ""
 	if a.snapshot == nil || a.snapshot.Manifest.MediaPath == "" {
-		muted(c, locales.WorkflowNeedsVideo())
+		hint = locales.WorkflowNeedsVideo()
 	} else if !a.busy && a.settings.Processing != nil && a.settings.Processing.Stage == "recognize" {
-		muted(c, locales.RecognitionRestartNote())
+		hint = locales.RecognitionRestartNote()
+	}
+	if hint != "" {
+		ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Children(func() {
+			icon(c, "info").TextColor(c.Theme().TextMuted).Shrink(0)
+			muted(c, hint).Grow(1).MinWidth(0)
+		})
 	}
 	routed := a.settings.RecognitionMode != recognitionManual
 	parameterGroup(c, locales.WorkflowRecognitionSettings(), func() {
@@ -150,7 +157,7 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 
 func folderField(c *ui.Context, dir, fallback string, busy bool, choose, reset func()) {
 	ui.Field(c, locales.RecognitionDirectory(), func() {
-		ui.Row(c).Gap(em(c, 12)).Wrap().AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Children(func() {
 			if dir == "" {
 				muted(c, fallback).Grow(1).Basis(em(c, 180)).MinWidth(0)
 			} else {
@@ -227,17 +234,25 @@ func (a *NativeApp) timelineRebuildChoice(c *ui.Context) {
 	t := c.Theme()
 	hint := locales.TranslationOptimizeTimelineHint(locales.TabRebuilt())
 	choice := lobeToggle(c, &a.settings.OptimizeTimeline, "").Label(locales.TranslationOptimizeTimeline()).Description(hint).
-		MinHeight(em(c, 80)).Padding(em(c, 12)).Gap(em(c, 8)).
+		MinHeight(em(c, 88)).Padding(em(c, 12)).Gap(em(c, 8)).
 		Justify(ui.Start).AlignItems(ui.Center).Disabled(a.busy).OnChange(a.saveSettings)
 	choice.TextColor(t.Text)
+	dotColor, iconColor := t.Border, t.TextMuted
 	if a.settings.OptimizeTimeline {
+		dotColor, iconColor = t.Accent, t.Accent
 		choice.Background(studioColors(c).selected).Border(1, t.Accent)
 		if choice.Hovered() && !a.busy {
 			choice.Background(t.Accent.Alpha(0.18))
 		}
+	} else {
+		choice.Border(1, studioColors(c).hairline)
+	}
+	if a.busy {
+		iconColor = t.TextMuted
 	}
 	choice.Children(func() {
-		icon(c, "scissors").TextColor(t.Accent).Shrink(0)
+		ui.Box(c).Absolute().Top(em(c, 10)).Left(em(c, 10)).Size(em(c, 6), em(c, 6)).Radius(em(c, 3)).Background(dotColor).IgnoreInput(true)
+		icon(c, "scissors").TextColor(iconColor).Shrink(0)
 		ui.Column(c).Grow(1).MinWidth(0).Gap(em(c, 6)).AlignItems(ui.Center).Children(func() {
 			ui.Text(c, locales.TranslationOptimizeTimeline()).FontSize(em(c, bodySize)).FontWeight(500).SingleLine()
 			muted(c, hint).FontSize(em(c, captionSize)).TextAlign(ui.Center)

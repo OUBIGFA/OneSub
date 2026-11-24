@@ -133,7 +133,7 @@ func timecodeField(c *ui.Context, label string, value *float64, step float64, di
 						text, name string
 						delta      float64
 					}{{"−", locales.EditorDecreaseTime(label), -step}, {"+", locales.EditorIncreaseTime(label), step}} {
-						arrow := lobeButton(c, button.text).Padding(c.Theme().Space(1), c.Theme().Space(2)).KeepFocus().Label(button.name).
+						arrow := lobeButton(c, button.text).MinWidth(em(c, 28)).MinHeight(em(c, 32)).Padding(em(c, 4), em(c, 8)).KeepFocus().Label(button.name).
 							Tooltip(button.name + "\n" + locales.EditorTimeStepHint(int(step*1000))).
 							Disabled(disabled || button.delta < 0 && *value <= 0 || button.delta > 0 && *value >= 9007199254740)
 						hold := ui.Local(arrow, "hold", func() timecodeHold { return timecodeHold{} })

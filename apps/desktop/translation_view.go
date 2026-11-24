@@ -162,7 +162,7 @@ func (a *NativeApp) providerConnectionFields(c *ui.Context) {
 				toolIcon(c.Key("key-visibility"), label, glyph).ColumnStart(1).RowStart(1).JustifySelf(ui.End).AlignSelf(ui.Center).Size(em(c, 28), em(c, 28)).Margin(0, em(c, 4)).Padding(0).Background(ui.Transparent).Border(0, ui.Transparent).Disabled(a.settings.Provider() == nil).OnClick(a.toggleProviderKey)
 			})
 		})
-		ui.Row(c).Gap(em(c, 12)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Gap(em(c, 12)).Margin(em(c, 6), 0, 0, 0).AlignItems(ui.Center).Children(func() {
 			muted(c, a.keyStatus).FontSize(em(c, captionSize)).Grow(1)
 			lobeButton(c, locales.TranslationDeleteKey()).Disabled(a.settings.Provider() == nil).OnClick(func() {
 				if err := security.DeleteKey(a.settings.CredentialScope()); err != nil {

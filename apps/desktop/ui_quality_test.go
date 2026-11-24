@@ -1,8 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -139,5 +143,37 @@ func TestProviderProtocolNameRemainsCompleteAtMinimumWindow(t *testing.T) {
 			}
 			insideRedesign(t, tt, locales.A11ySettingsContent(), locales.TranslationEndpoint(), "API Key", locales.TranslationSaveKey())
 		})
+	}
+}
+
+func TestLocaleCopyHasNoTrailingPunctuationOrPeriods(t *testing.T) {
+	technicalTokens := regexp.MustCompile(`https?://\S+|\d+\.\d+|H\.264|\.onesub|SKILL\.md|HH:MM:SS\.mmm|\.(?:#+|0+)|\.(?:srt|vtt|ass|ssa|txt|mp4|mkv|wav|mp3|json|exe)\b`)
+	trailingPunct := regexp.MustCompile(`[。．\.！!？\?，,；;：:…、]$`)
+	for _, name := range []string{"zh-Hans.json", "en.json"} {
+		data, err := os.ReadFile(filepath.Join("locales", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var catalog map[string]any
+		if err := json.Unmarshal(data, &catalog); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		for key, raw := range catalog {
+			text, ok := raw.(string)
+			if !ok {
+				continue
+			}
+			if key == "listSeparator" || strings.HasPrefix(key, "statusOwner") {
+				continue
+			}
+			trimmed := strings.TrimSpace(text)
+			if trailingPunct.MatchString(trimmed) {
+				t.Errorf("%s %s ends with punctuation: %q", name, key, text)
+			}
+			cleaned := technicalTokens.ReplaceAllString(text, "")
+			if strings.ContainsAny(cleaned, "。．.") {
+				t.Errorf("%s %s contains a period: %q", name, key, text)
+			}
+		}
 	}
 }

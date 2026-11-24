@@ -165,9 +165,18 @@ func subtitleProblemDetails(problems []subtitle.CueProblem) string {
 }
 
 func (a *NativeApp) subtitleProblemToggle(c *ui.Context) {
-	lobeToggle(c, &a.problems.filter, "").Size(em(c, 32), em(c, 32)).Padding(0).
+	toggle := lobeToggle(c, &a.problems.filter, "").Size(em(c, 32), em(c, 32)).Padding(0).
 		Label(locales.SubtitleIssuesToggle()).Tooltip(locales.SubtitleIssuesToggle()).
-		Disabled(a.subtitleSelectionMode()).Children(func() { icon(c, "triangle-alert") }).OnChange(func() {
+		Disabled(a.subtitleSelectionMode())
+	if a.problems.filter {
+		toggle.Background(studioColors(c).warningSoft).TextColor(c.Theme().Warning).Border(1, c.Theme().Warning.Alpha(0.45))
+	} else {
+		toggle.Background(ui.Transparent).Border(1, ui.Transparent)
+		if toggle.Hovered() && !a.subtitleSelectionMode() {
+			toggle.Background(c.Theme().SurfaceHover)
+		}
+	}
+	toggle.Children(func() { icon(c, "triangle-alert") }).OnChange(func() {
 		a.query = ""
 		if a.problems.filter {
 			a.locateSubtitleProblem(1, true)
@@ -187,7 +196,7 @@ func (a *NativeApp) subtitleProblemSummary(c *ui.Context) {
 	if count == 0 && !a.problems.filter {
 		return
 	}
-	ui.Row(c).Padding(em(c, 6), em(c, 12)).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Shrink(0).Children(func() {
+	ui.Row(c).Padding(em(c, 6), em(c, 12)).Gap(em(c, 8)).Wrap().AlignItems(ui.Center).Shrink(0).Background(studioColors(c).warningSoft).Children(func() {
 		label := locales.SubtitleIssuesNone()
 		if count > 0 {
 			label = locales.SubtitleIssuesSummary(cues, count)
@@ -198,6 +207,7 @@ func (a *NativeApp) subtitleProblemSummary(c *ui.Context) {
 			toolIcon(c, locales.SubtitleIssuesNext(), "chevron-right").Disabled(cues == 0).OnClick(func() { a.locateSubtitleProblem(1, false) })
 		}
 	})
+	separator(c)
 }
 
 func (a *NativeApp) subtitleProblemDetail(c *ui.Context, index int, chosen bool) {

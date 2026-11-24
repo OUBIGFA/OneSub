@@ -65,7 +65,7 @@ func (a *NativeApp) stylePanelAtSize(c *ui.Context, width, height float32) {
 		default:
 			ui.SplitPercent(c, &shown, func() {
 				ui.Scroll(c).Fill().TrackScroll(contentScroll).Children(func() {
-					ui.Column(c).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 16)).Children(func() {
+					ui.Column(c).Padding(em(c, 12), em(c, panelPad)).Gap(em(c, 12)).Children(func() {
 						if bilingual {
 							segmentedFill(c, &a.styleLayer, locales.StylePrimaryLayer(), locales.StyleSecondaryLayer()).Label(locales.A11yStyleLayers())
 						}
@@ -85,7 +85,7 @@ func (a *NativeApp) stylePanelAtSize(c *ui.Context, width, height float32) {
 				})
 			}, func() {
 				ui.Scroll(c).Fill().Background(studioColors(c).panel).TrackScroll(&a.styleScroll).Children(func() {
-					ui.Column(c).Padding(em(c, 16), em(c, panelPad)).Gap(em(c, 16)).Children(func() {
+					ui.Column(c).Padding(em(c, 12), em(c, panelPad)).Gap(em(c, 12)).Children(func() {
 						if ass {
 							muted(c, locales.StyleKeepAss())
 							return
@@ -95,7 +95,7 @@ func (a *NativeApp) stylePanelAtSize(c *ui.Context, width, height float32) {
 						segmentedFill(c, &a.styleTab, locales.StyleText(), locales.StyleAppearance(), locales.StyleLayout()).Label(locales.StyleProperties()).OnChange(func() { a.styleScroll.Y = 0 })
 						// The selected native tab already groups these properties;
 						// use the same flat field alignment as the other inspectors.
-						ui.Column(c).Gap(em(c, 16)).Children(func() { a.styleControls(c, a.editedLayer()) })
+						ui.Column(c).Gap(em(c, 12)).Children(func() { a.styleControls(c, a.editedLayer()) })
 					})
 				})
 			}).Grow(1).OnChange(func() {

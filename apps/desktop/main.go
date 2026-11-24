@@ -224,8 +224,8 @@ func (a *NativeApp) view(c *ui.Context) {
 		ui.Box(c).Height(1).Shrink(0)
 		// Three independent columns: preview/style, subtitles/editor, workflow.
 		// Native splitters retain pointer, keyboard and same-frame layout.
-		panelSplit(c, ui.SplitPercent, &x, func() {
-			panelSplit(c, ui.SplitVerticalPercent, &y, func() {
+		panelSplit(c, false, &x, func() {
+			panelSplit(c, true, &y, func() {
 				workbenchPanel(c, look, func() { a.playerViewAtWidth(c, (width-1)*x/100-insets) })
 			}, func() {
 				workbenchPanel(c, look, func() { a.stylePanelAtSize(c, (width-1)*x/100-insets, paneHeight*(100-y)/100-insets) })
@@ -242,8 +242,8 @@ func (a *NativeApp) view(c *ui.Context) {
 				a.prefsSaveDue = c.Now().Add(400 * time.Millisecond)
 			}).Fill()
 		}, func() {
-			panelSplit(c, ui.SplitPercent, &editor, func() {
-				panelSplit(c, ui.SplitVerticalPercent, &subtitles, func() {
+			panelSplit(c, false, &editor, func() {
+				panelSplit(c, true, &subtitles, func() {
 					workbenchPanel(c, look, func() { a.subtitlesViewAtWidth(c, subtitleWidth) })
 				}, func() {
 					workbenchPanel(c, look, func() { a.editorViewAtHeight(c, paneHeight*(100-subtitles)/100-insets) })
@@ -416,22 +416,28 @@ func (a *NativeApp) topBar(c *ui.Context, look studio) {
 	ui.Row(c).Height(em(c, toolbarSize)).Shrink(0).AlignItems(ui.Center).Gap(em(c, 8)).Padding(0, em(c, 16)).Background(look.chrome).Label(locales.A11yToolbar()).Children(func() {
 		ui.Row(c).Gap(em(c, 4)).AlignItems(ui.Center).Shrink(0).Children(func() {
 			iconButton(c, locales.ActionAddFiles(), "folder-open").MinHeight(em(c, 36)).Disabled(a.busy).OnClick(a.pickFiles)
-			toolIcon(c, locales.ActionClearWorkbench(), "eraser").Disabled(a.busy || a.snapshot == nil).OnClick(a.requestClear)
+			toolIcon(c, locales.ActionClearWorkbench(), "eraser").Size(em(c, 36), em(c, 36)).Disabled(a.busy || a.snapshot == nil).OnClick(a.requestClear)
 		})
-		ui.Row(c).Grow(1).MinWidth(0).AlignItems(ui.Center).Children(func() {
-			if a.snapshot == nil {
-				return
-			}
-			path := a.snapshot.Manifest.MediaPath
-			if path == "" {
+		path, docIcon := "", "scroll-text"
+		if a.snapshot != nil {
+			path = a.snapshot.Manifest.MediaPath
+			if path != "" {
+				docIcon = "file-video"
+			} else {
 				path = a.snapshot.Manifest.SubtitlePath
 			}
+		}
+		if path != "" {
+			separator(c).Height(em(c, 18)).AlignSelf(ui.Center).Shrink(0)
+		}
+		ui.Row(c).Grow(1).MinWidth(0).Gap(em(c, 6)).AlignItems(ui.Center).Children(func() {
 			if path != "" {
+				ui.Icon(c, icons[docIcon]).Size(em(c, 15), em(c, 15)).TextColor(c.Theme().TextMuted).Shrink(0)
 				elidedText(c, filepath.Base(path)).MinWidth(0).Shrink(1).FontWeight(500)
 			}
 		})
 		ui.Row(c).AlignItems(ui.Center).Gap(em(c, 4)).Shrink(0).Children(func() {
-			toolIcon(c, locales.ActionSettings(), "settings").OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
+			toolIcon(c, locales.ActionSettings(), "settings").Size(em(c, 36), em(c, 36)).OnClick(func() { a.reloadTranslationProfiles(); a.settingsOpen = true })
 			command(locales.MenuExportSubtitles(), "file-down").Disabled(a.busy || !hasCues).OnClick(a.requestExport)
 			command(locales.ActionCompress(), "file-video").Disabled(a.busy || !hasMedia).OnClick(func() { a.compressOpen = true })
 		})
@@ -479,7 +485,7 @@ func (a *NativeApp) statusBar(c *ui.Context, look studio) {
 	}
 	// The 24-DIP actions fit inside the 32-DIP bar with four DIP above/below.
 	// Keep the same inset for icon-only and labelled actions at every text scale.
-	ui.Row(c).Height(em(c, 32)).Shrink(0).Padding(em(c, 4), em(c, 12)).Gap(em(c, 12)).AlignItems(ui.Center).Background(look.chrome).FontSize(em(c, captionSize)).Label(locales.A11yStatusBar()).Children(func() {
+	ui.Row(c).Height(em(c, 32)).Shrink(0).Padding(em(c, 4), em(c, 16)).Gap(em(c, 12)).AlignItems(ui.Center).Background(look.chrome).FontSize(em(c, captionSize)).Label(locales.A11yStatusBar()).Children(func() {
 		// Reading warnings and transient results stay on the left. Track counts
 		// have a separate stable slot immediately before the output action.
 		readingHint := false

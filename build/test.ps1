@@ -19,7 +19,8 @@ if ($CoreOnly) {
     $patchedMod = & python (Join-Path $root 'tools/prepare_mygo.py')
     if ($LASTEXITCODE -ne 0) { throw 'MyGo patch preparation failed' }
     $env:GOFLAGS = "`"-modfile=$patchedMod`""
-    if (-not $PSBoundParameters.ContainsKey('Packages')) { $Packages = @('./internal/...') }
+    $defaultCorePackages = -not $PSBoundParameters.ContainsKey('Packages')
+    if ($defaultCorePackages) { $Packages = @('./internal/...') }
     Push-Location (Join-Path $root 'apps/desktop')
     try {
         & go run github.com/egoist/mygo/cmd/mygo generate
@@ -28,6 +29,12 @@ if ($CoreOnly) {
         if ($TestName) { $arguments += @('-run', $TestName) }
         & go test @Packages @arguments
         if ($LASTEXITCODE -ne 0) { throw 'Core unit tests failed' }
+        if ($defaultCorePackages -and -not $TestName) {
+            # These application-level update tests use HTTP fixtures and
+            # plain state only; they never create a window or install files.
+            & go test . -timeout=2m -run '^Test(InstallerRelease|OrderedUpdateVersion|AutomaticCheckSchedule)'
+            if ($LASTEXITCODE -ne 0) { throw 'Update check unit tests failed' }
+        }
     } finally { Pop-Location }
     return
 }

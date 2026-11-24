@@ -45,12 +45,66 @@ func TestWorkbenchHidesOnlyDividersBetweenPanels(t *testing.T) {
 		if rule == next && rule.R == panel.R && rule.G == panel.G && rule.B == panel.B {
 			t.Fatal("the internal editor divider disappeared", dark, rule)
 		}
-		// The pointer may acquire the resize cursor but must not paint a line.
-		x, y := player.X+player.W+workbenchInset, player.Y+player.H/2
-		pixel(x, y, canvas)
-		tt.Move(x, y)
+		// At rest, all four gaps between the five main panels show pure canvas.
+		// Hovering any gap reveals only a centered grip icon without painting a line.
+		paneCenterY := (player.Y + style.Y + style.H) / 2
+		gaps := []struct {
+			name             string
+			vertical         bool
+			hoverX, hoverY   float32
+			centerX, centerY float32
+			offCenterX, offY float32
+		}{
+			{"player-middle", false, player.X + player.W + workbenchInset + .5, player.Y + player.H/2, player.X + player.W + workbenchInset + .5, paneCenterY, player.X + player.W + workbenchInset + .5, player.Y + 24},
+			{"player-style", true, player.X + 24, style.Y - workbenchInset - .5, player.X + player.W/2, style.Y - workbenchInset - .5, player.X + 24, style.Y - workbenchInset - .5},
+			{"middle-workflow", false, workflow.X - workbenchInset - .5, workflow.Y + 24, workflow.X - workbenchInset - .5, paneCenterY, workflow.X - workbenchInset - .5, workflow.Y + 24},
+			{"subtitles-editor", true, editor.X + 24, editor.Y - workbenchInset - .5, editor.X + editor.W/2, editor.Y - workbenchInset - .5, editor.X + 24, editor.Y - workbenchInset - .5},
+		}
+		hasGrip := func(cx, cy float32, vertical bool) bool {
+			img := tt.Image()
+			rx, ry := 3, 7
+			if vertical {
+				rx, ry = 7, 3
+			}
+			for py := int(cy) - ry; py <= int(cy)+ry; py++ {
+				for px := int(cx) - rx; px <= int(cx)+rx; px++ {
+					got := img.RGBAAt(px, py)
+					if got.R != canvas.R || got.G != canvas.G || got.B != canvas.B {
+						return true
+					}
+				}
+			}
+			return false
+		}
+		tt.Move(player.X+18, player.Y+18)
 		tt.Frame()
-		pixel(x, y, canvas)
+		for _, g := range gaps {
+			pixel(g.centerX, g.centerY, canvas)
+			pixel(g.offCenterX, g.offY, canvas)
+			if hasGrip(g.centerX, g.centerY, g.vertical) {
+				t.Fatalf("dark=%t %s showed grip icon at rest", dark, g.name)
+			}
+		}
+		for i, g := range gaps {
+			tt.Move(g.hoverX, g.hoverY)
+			tt.Frame()
+			if !hasGrip(g.centerX, g.centerY, g.vertical) {
+				t.Fatalf("dark=%t %s did not show grip icon on hover at (%.1f, %.1f) center (%.1f, %.1f)", dark, g.name, g.hoverX, g.hoverY, g.centerX, g.centerY)
+			}
+			for j, other := range gaps {
+				if j != i && hasGrip(other.centerX, other.centerY, other.vertical) {
+					t.Fatalf("dark=%t hovering %s also showed grip icon on %s", dark, g.name, other.name)
+				}
+			}
+			pixel(g.offCenterX, g.offY, canvas)
+		}
+		tt.Move(player.X+18, player.Y+18)
+		tt.Frame()
+		for _, g := range gaps {
+			if hasGrip(g.centerX, g.centerY, g.vertical) {
+				t.Fatalf("dark=%t %s grip icon remained after pointer left", dark, g.name)
+			}
+		}
 	}
 }
 

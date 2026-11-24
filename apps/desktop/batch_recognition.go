@@ -48,7 +48,7 @@ func (a *NativeApp) batchRecognitionView(c *ui.Context) {
 			done, failed := a.batchCounts()
 			muted(c, locales.BatchProgress(strconv.Itoa(done+failed), strconv.Itoa(len(a.batchItems)))).FontFeatures("tnum").SingleLine()
 		})
-		area := ui.Column(c).Grow(1).MinHeight(0).Background(studioColors(c).panel).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Clip().Label(locales.BatchDropArea())
+		area := ui.Column(c).Grow(1).MinHeight(0).Background(studioColors(c).chrome).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Clip().Label(locales.BatchDropArea())
 		if area.FileDragOver() && !a.busy {
 			area.BorderColor(c.Theme().Accent).Background(c.Theme().SurfaceHover)
 		}

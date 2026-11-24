@@ -321,7 +321,7 @@ func (a *NativeApp) providerModelsView(c *ui.Context) {
 	// The shared settings layout gives the catalog its remaining height.
 	// A minimum reading area keeps the form usable at the smallest window;
 	// fetching or filtering models cannot change the size of any settings page.
-	ui.Column(c).Height(em(c, 160)).Grow(1).Shrink(0).Background(studioColors(c).panel).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Clip().Label(locales.A11yModelCatalog()).Children(func() {
+	ui.Column(c).Height(em(c, 160)).Grow(1).Shrink(0).Background(modalInsetSurface(c)).Border(1, studioColors(c).hairline).Radius(c.Theme().Radius).Clip().Label(locales.A11yModelCatalog()).Children(func() {
 		if len(models) == 0 {
 			label := locales.TranslationModelsEmpty()
 			if a.modelQuery != "" {
