@@ -161,7 +161,7 @@ func TestActionsMovedBesideTheirContent(t *testing.T) {
 		t.Fatal("translation without a service did not open its settings")
 	}
 	a.settingsOpen = false
-	list, _ := tt.Find("字幕语言")
+	list, _ := tt.Find(locales.A11ySubtitleTabs())
 	source, _ := tt.Find("原始字幕")
 	translation, _ := tt.Find("优化字幕")
 	panelCentre := list.X + list.W/2

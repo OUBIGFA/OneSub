@@ -8,6 +8,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/translator"
+	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 // The pinned OneAsr CLI's stage lines, in either system language, become
@@ -166,7 +167,7 @@ func TestLanguagesShowFlagNameAndCode(t *testing.T) {
 	a := withStyleCatalog(t)
 	a.settings.RecognitionMode, a.settings.Language = recognitionManual, "zh"
 	tt := settled(a.workflowPanel, 800, 800)
-	if !tt.HasText("中国（普通话）-ZH") {
+	if !tt.HasText(locales.LanguageChina() + "-ZH") {
 		t.Fatal(tt.Texts())
 	}
 	if err := tt.Click("源语言"); err != nil {
@@ -177,7 +178,7 @@ func TestLanguagesShowFlagNameAndCode(t *testing.T) {
 			t.Fatal("option without its flag or label", o)
 		}
 	}
-	if err := tt.Click("日本-JA"); err != nil {
+	if err := tt.Click(locales.LanguageJapan() + "-JA"); err != nil {
 		t.Fatal(err)
 	}
 	if a.settings.Language != "ja" {

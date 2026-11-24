@@ -395,8 +395,12 @@ func panelSplit(c *ui.Context, vertical bool, share *float32, first, second, cha
 			} else {
 				indicator.LeftPercent(*share).TopPercent(50).TranslatePercent(-50, -50)
 			}
+			gripColor := normal.Scrollbar
+			if c.Preferences().HighContrast {
+				gripColor = normal.TextMuted
+			}
 			indicator.Children(func() {
-				ui.Icon(c, glyph).Size(em(c, 16), em(c, 16)).TextColor(normal.TextMuted)
+				ui.Icon(c, glyph).Size(em(c, 16), em(c, 16)).TextColor(gripColor)
 			})
 		}
 	})
