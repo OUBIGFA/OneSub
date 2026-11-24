@@ -12,7 +12,6 @@ import (
 	lobeFeedback "github.com/lobehub/lobe-mygo/pkg/feedback"
 	lobeField "github.com/lobehub/lobe-mygo/pkg/field"
 	lobeForm "github.com/lobehub/lobe-mygo/pkg/form"
-	lobeLucide "github.com/lobehub/lobe-mygo/pkg/lucide"
 	lobeNav "github.com/lobehub/lobe-mygo/pkg/nav"
 	lobeTheme "github.com/lobehub/lobe-mygo/pkg/theme"
 )
@@ -69,7 +68,7 @@ func appearances() []option {
 	}
 }
 
-// icon is a Lucide icon at the size every button and bar uses.
+// icon is a Solar Linear icon at the size every button and bar uses.
 func icon(c *ui.Context, name string) ui.Element {
 	return ui.Icon(c, icons[name]).Size(em(c, iconSize), em(c, iconSize))
 }
@@ -375,10 +374,10 @@ func panelSplit(c *ui.Context, vertical bool, share *float32, first, second, cha
 	quiet := *normal
 	quiet.Border, quiet.Accent = ui.Transparent, ui.Transparent
 	split := ui.SplitPercent
-	glyph := lobeLucide.GripVertical()
+	glyph := icons["grip-vertical"]
 	if vertical {
 		split = ui.SplitVerticalPercent
-		glyph = lobeLucide.GripHorizontal()
+		glyph = icons["grip-horizontal"]
 	}
 	var firstPane, secondPane ui.Element
 	pane := func(dst *ui.Element, content func()) func() {

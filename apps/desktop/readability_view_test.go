@@ -353,7 +353,7 @@ func TestReadingCategoryControlsKeepLayout(t *testing.T) {
 							t.Fatal("navigation button is not icon-sized", label, button)
 						}
 						if bounds, ok := tt.Find(locales.A11yIconOf(label)); !ok || bounds.W <= 0 || bounds.H <= 0 {
-							t.Fatal("navigation button has no Lucide icon", label)
+							t.Fatal("navigation button has no icon", label)
 						}
 					}
 					for _, category := range []string{locales.ReadingViewFast(1), locales.ReadingViewBrief(1), locales.ReadingViewLong(1)} {

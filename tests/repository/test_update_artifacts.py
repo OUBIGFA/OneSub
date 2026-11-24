@@ -104,16 +104,22 @@ class UpdateArtifactTests(unittest.TestCase):
             self.finalize()
         self.assertFalse(self.output.exists())
 
-    def test_about_icons_match_the_registered_upstream_bytes(self):
-        manifest = json.loads((ROOT / "third_party/manifests/lucide.json").read_text("utf-8"))
-        files = {entry["path"]: entry for entry in manifest["files"]}
-        for name in ("github", "info"):
-            path = "apps/desktop/icons/" + name + ".svg"
-            entry = files[path]
-            data = (ROOT / path).read_bytes()
-            self.assertEqual(len(data), entry["bytes"])
-            self.assertEqual(hashlib.sha256(data).hexdigest(), entry["sha256"])
-            self.assertIn(manifest["revision"], entry["source"])
+    def test_app_icons_match_the_registered_upstream_bytes(self):
+        owners = {}
+        for library in ("solar-icons", "lucide"):
+            manifest = json.loads((ROOT / "third_party/manifests" / (library + ".json")).read_text("utf-8"))
+            self.assertTrue((ROOT / manifest["license"]).is_file())
+            for entry in manifest["files"]:
+                self.assertNotIn(entry["path"], owners)
+                owners[entry["path"]] = library
+                data = (ROOT / entry["path"]).read_bytes()
+                self.assertEqual(len(data), entry["bytes"])
+                self.assertEqual(hashlib.sha256(data).hexdigest(), entry["sha256"])
+                self.assertIn(manifest["revision"], entry["source"])
+        shipped = {"apps/desktop/icons/" + p.name for p in (ROOT / "apps/desktop/icons").glob("*.svg")}
+        self.assertEqual(shipped, set(owners))
+        self.assertEqual(owners["apps/desktop/icons/github.svg"], "lucide")
+        self.assertEqual(owners["apps/desktop/icons/info.svg"], "solar-icons")
 
 
 if __name__ == "__main__":

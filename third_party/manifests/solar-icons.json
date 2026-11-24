@@ -1,0 +1,350 @@
+{
+  "name": "Solar Icons",
+  "revision": "ab241e1bf578dcfe45b0197aee59bd9a08b5fe68",
+  "repository": "https://github.com/saoudi-h/solar-icons",
+  "style": "Linear",
+  "spdx": "CC-BY-4.0",
+  "copyright": "Solar Icons Set by 480 Design; repository code Copyright (c) 2024 Hakim Saoudi (MIT)",
+  "attribution": "Solar Icons Set by 480 Design (https://www.figma.com/community/file/1166831539721848736), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
+  "license": "third_party/licenses/solar-icons.txt",
+  "usage": "Unmodified Linear icons rendered as monochrome masks by MyGo ui.Icon; app icon keys keep their existing names",
+  "modifications": "none",
+  "files": [
+    {
+      "path": "apps/desktop/icons/align-center.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/text-formatting/Linear/text-align-center.svg",
+      "sha256": "332d9f9867cab17f79bc0ad6f8b859b6c704b25cd9bd320f5b8d5143ac5c5b26",
+      "bytes": 518
+    },
+    {
+      "path": "apps/desktop/icons/align-left.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/text-formatting/Linear/text-align-left.svg",
+      "sha256": "b45201b7608530df5656abb79c2d89e4fc9f76c87d46ee8dd7f1c5807086c4cc",
+      "bytes": 510
+    },
+    {
+      "path": "apps/desktop/icons/align-right.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/text-formatting/Linear/text-align-right.svg",
+      "sha256": "3514230b12e5cb1285aecb7173f80e3dcc84c120c1266ec6cdb3797e211e26df",
+      "bytes": 512
+    },
+    {
+      "path": "apps/desktop/icons/arrow-down-to-line.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/arrows-action/Linear/arrow-down-to-line.svg",
+      "sha256": "1d2807a3c480367cfe105f1cfb594b8eef102a7fcff4819040fdbb371f73d37c",
+      "bytes": 338
+    },
+    {
+      "path": "apps/desktop/icons/arrow-up-to-line.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/arrows-action/Linear/arrow-up-to-line.svg",
+      "sha256": "df093f1c0423f2845a5e19daed6c86785594d54def6e2b80d598404e111d4e1e",
+      "bytes": 335
+    },
+    {
+      "path": "apps/desktop/icons/audio-lines.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/video/Linear/soundwave.svg",
+      "sha256": "7fbd9bcef9adfb9fb3847f5f700efcd61e029ff13115af2dbb01bf12f19c7157",
+      "bytes": 506
+    },
+    {
+      "path": "apps/desktop/icons/bold.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/text-formatting/Linear/text-bold.svg",
+      "sha256": "9403f871fc5aa02302cda682551a3a10b4ddec721b05fc4017222bdacb1abe17",
+      "bytes": 451
+    },
+    {
+      "path": "apps/desktop/icons/chevron-down.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/arrows/Linear/alt-arrow-down.svg",
+      "sha256": "eab60f152580c4984bb13af4fa272f5140de787b56aaed2bc4e4d910b73b56b9",
+      "bytes": 212
+    },
+    {
+      "path": "apps/desktop/icons/chevron-left.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/arrows/Linear/alt-arrow-left.svg",
+      "sha256": "2bdbbbc289c2b3d16b2c6e78f7f463c622cf9662e39c32951c4a3cbc25fef599",
+      "bytes": 213
+    },
+    {
+      "path": "apps/desktop/icons/chevron-right.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/arrows/Linear/alt-arrow-right.svg",
+      "sha256": "096225275617dbbb4acea4a56abd4f5cafd7ebc662d9969c2934737bcadc13d2",
+      "bytes": 212
+    },
+    {
+      "path": "apps/desktop/icons/clapperboard.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/video/Linear/clapperboard.svg",
+      "sha256": "1c4074f3a6ff3a311903c9f221db952f92aae7ff9a091fad690d2040dc5c0fc8",
+      "bytes": 678
+    },
+    {
+      "path": "apps/desktop/icons/copy-check.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/ui/Linear/copy-check.svg",
+      "sha256": "6989f7364cf9901942f8e8bfc53af3ec5cf84e537c6027f1a4840cee10a9ce36",
+      "bytes": 778
+    },
+    {
+      "path": "apps/desktop/icons/download.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/arrows-action/Linear/download-minimalistic.svg",
+      "sha256": "6b7eb63993667f8cb3bb271c5c1c02220e52d41479f7131cb380bbb19f453c33",
+      "bytes": 461
+    },
+    {
+      "path": "apps/desktop/icons/ellipsis.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/ui/Linear/menu-dots.svg",
+      "sha256": "3b9103a7a7ecdc7e5e1c4cd994501b00ea6964c0fa8d5c0c4519e2cdf392974c",
+      "bytes": 369
+    },
+    {
+      "path": "apps/desktop/icons/eraser.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/text-formatting/Linear/eraser.svg",
+      "sha256": "ed38dbef94d3b9cda90edcc7eaa38f7d4c12cccedb2e83b6e77a33a56f28832e",
+      "bytes": 643
+    },
+    {
+      "path": "apps/desktop/icons/eye.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/security/Linear/eye.svg",
+      "sha256": "0ed865eb264b99b637cfed719e8370f649916e9797624dcf8d12d354231dcb11",
+      "bytes": 656
+    },
+    {
+      "path": "apps/desktop/icons/eye-off.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/security/Linear/eye-off.svg",
+      "sha256": "85052fd9df781eee7b2e83eee38e8597cbd48bd8aecd012f6da24b2b024c98ab",
+      "bytes": 1072
+    },
+    {
+      "path": "apps/desktop/icons/fast-forward.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/video/Linear/rewind-forward.svg",
+      "sha256": "60f670ce1c51f4fda5b6dfb81f7a40a799b4ed352f09f2d054e97645785e803a",
+      "bytes": 562
+    },
+    {
+      "path": "apps/desktop/icons/file-down.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/files/Linear/file-download.svg",
+      "sha256": "07ea613d173ae35e7cac0a658d90ad82755c9ce7595b48a39b8124a594cf9395",
+      "bytes": 957
+    },
+    {
+      "path": "apps/desktop/icons/file-video.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/files/Linear/file-video-camera.svg",
+      "sha256": "6b5cbbe394f735525233514aa6d0bcea391ead7966df3c9021b314ffdc6db8a6",
+      "bytes": 1806
+    },
+    {
+      "path": "apps/desktop/icons/file-warning.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/files/Linear/file-warning.svg",
+      "sha256": "4a15b99b41afcddbf0e395d16279a648596c54c43437d021d91f11b5b17032ac",
+      "bytes": 1017
+    },
+    {
+      "path": "apps/desktop/icons/fold-horizontal.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/arrows/Linear/chevrons-right-left.svg",
+      "sha256": "85ef41d18cc7de382e152c50ae5c8a429a99d3172aacc9bd61a929d6d2825976",
+      "bytes": 322
+    },
+    {
+      "path": "apps/desktop/icons/folder-open.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/folders/Linear/folder-open.svg",
+      "sha256": "c5b10fcbf21ca52293ed33e7526258d8b7ec374da41e305986b1a0a82bdcae4e",
+      "bytes": 1419
+    },
+    {
+      "path": "apps/desktop/icons/grip-horizontal.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/ui/Linear/grip-horizontal.svg",
+      "sha256": "51a4ecc9c7b8b1c874f8548532f78f801af15da31d68f8bc5eaf8244f5c3ef84",
+      "bytes": 681
+    },
+    {
+      "path": "apps/desktop/icons/grip-vertical.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/ui/Linear/grip-vertical.svg",
+      "sha256": "c037fc634492a44ec4aa23de4daf18204d51d858c830f416439dceaefef6d863",
+      "bytes": 683
+    },
+    {
+      "path": "apps/desktop/icons/info.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/ui/Linear/info-circle.svg",
+      "sha256": "57acd8e8a15528ce6fc2e654fa61daa4ef8069222eb063926e2d4a1417978742",
+      "bytes": 379
+    },
+    {
+      "path": "apps/desktop/icons/italic.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/text-formatting/Linear/text-italic.svg",
+      "sha256": "bf011e071a31e36e00936a892ee271f541a39cdd6f72bbfab86cad7d888957da",
+      "bytes": 237
+    },
+    {
+      "path": "apps/desktop/icons/languages.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/text-formatting/Linear/translate.svg",
+      "sha256": "c43c1b0a7fa2c614bb6e065a24aabfa8c3a39041981f162407507b4981936cea",
+      "bytes": 713
+    },
+    {
+      "path": "apps/desktop/icons/list-checks.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/list/Linear/list-check.svg",
+      "sha256": "d3fe474a3527210cfdb29a6b7143a113b1cd6ed68320eadf986d332c6e3e44be",
+      "bytes": 537
+    },
+    {
+      "path": "apps/desktop/icons/list-x.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/list/Linear/list-cross.svg",
+      "sha256": "eb5fa35bf29027436bff3c4cf0c86a4d67a89e0f84c9708c3acdca710539dd0b",
+      "bytes": 580
+    },
+    {
+      "path": "apps/desktop/icons/locate-fixed.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/map/Linear/gps.svg",
+      "sha256": "eea2d425c136f8b133e52f9d9d1070c7318469223137be0519a1308cdbc3102c",
+      "bytes": 787
+    },
+    {
+      "path": "apps/desktop/icons/maximize.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/video/Linear/full-screen.svg",
+      "sha256": "6ab1177c3e7ac250cf9a6bc8a35eff70a6f56395a486393eefc771430818d605",
+      "bytes": 659
+    },
+    {
+      "path": "apps/desktop/icons/minimize.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/video/Linear/quit-full-screen.svg",
+      "sha256": "171b0d2dfbf26368ac9ebfacab1f02bb4a196a906e2ff2a530aba5953a993e91",
+      "bytes": 667
+    },
+    {
+      "path": "apps/desktop/icons/pause.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/video/Linear/pause.svg",
+      "sha256": "4623dd6deab797527156aa6291c0794da0187a4a6a8878921062c27a72ef8b25",
+      "bytes": 775
+    },
+    {
+      "path": "apps/desktop/icons/play.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/video/Linear/play.svg",
+      "sha256": "ea00bf6d0c72f3f3a5174bed4c6131dd03a59cd7f7234d574cb5af1100cfff57",
+      "bytes": 349
+    },
+    {
+      "path": "apps/desktop/icons/quote.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/text-formatting/Linear/quote.svg",
+      "sha256": "9aaa2bc5535df810236438ac1d48544b9170ccc4aa21894ef5f4c6016f095294",
+      "bytes": 1448
+    },
+    {
+      "path": "apps/desktop/icons/redo-2.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/arrows-action/Linear/undo-right.svg",
+      "sha256": "2d5425cb5eb396824b5a3b69d65b6a01b7860811f66baab9113031de6b63da07",
+      "bytes": 438
+    },
+    {
+      "path": "apps/desktop/icons/repeat.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/video/Linear/repeat.svg",
+      "sha256": "147a27985d1990cfe266c0785d6279ec89d5399ec19b3a09b7833d1b403c06cb",
+      "bytes": 433
+    },
+    {
+      "path": "apps/desktop/icons/rewind.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/video/Linear/rewind-back.svg",
+      "sha256": "f5d930d003278e4c6c10d5e0bb5110f1b840d8e9d909868c5553d15e4c72c0bc",
+      "bytes": 576
+    },
+    {
+      "path": "apps/desktop/icons/rotate-cw.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/arrows/Linear/restart.svg",
+      "sha256": "3fecb9e676f0f3dddabd3ebdd5d8e1aadeb9b27680999e64a91af2e42bdc5b9b",
+      "bytes": 448
+    },
+    {
+      "path": "apps/desktop/icons/route.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/map/Linear/route.svg",
+      "sha256": "58b828c7609821855ab109b8ab3d397a92ea4b1e709fb8579ca7fade22bd70a3",
+      "bytes": 655
+    },
+    {
+      "path": "apps/desktop/icons/ruler.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/tools/Linear/ruler.svg",
+      "sha256": "e3c67678da4d0b9881390b642cc6beecb8e4e95c8f822fec863aa7334a962772",
+      "bytes": 1077
+    },
+    {
+      "path": "apps/desktop/icons/save.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/devices/Linear/diskette.svg",
+      "sha256": "83e29b88eeac1b9b583b76b1a81b099d3153b34c349246e5df7f7576af24487f",
+      "bytes": 936
+    },
+    {
+      "path": "apps/desktop/icons/scissors.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/ui/Linear/scissors.svg",
+      "sha256": "dd38eb25aaeb3aa5c059108e56d78228c4fb8ee22b20820334b11e42bc47753a",
+      "bytes": 507
+    },
+    {
+      "path": "apps/desktop/icons/scroll-text.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/files/Linear/file-text.svg",
+      "sha256": "690e1a1cdb34fad2b2623852c08bf8ff168fc90a180eb6ed079b08675ee71945",
+      "bytes": 973
+    },
+    {
+      "path": "apps/desktop/icons/server.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/devices/Linear/server.svg",
+      "sha256": "5833a41db194e5b5af6b48439330f6973fbc4f70cb0682e9abf7209ca70e4973",
+      "bytes": 1084
+    },
+    {
+      "path": "apps/desktop/icons/settings.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/settings/Linear/settings.svg",
+      "sha256": "0e7d0c4749d07973aad4fe9ea26683feda555bcfe6ac7fdd152e87be0733b748",
+      "bytes": 2481
+    },
+    {
+      "path": "apps/desktop/icons/skip-back.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/video/Linear/skip-previous.svg",
+      "sha256": "8fcc5d44a7938c7c930f5475b05ae3cd2033895845df59294fcb66f1bdd07ee8",
+      "bytes": 431
+    },
+    {
+      "path": "apps/desktop/icons/skip-forward.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/video/Linear/skip-next.svg",
+      "sha256": "273f8e392ad1019b7964e1f7d6eca76790cb7d5198285cd4fe63ae076edf8e22",
+      "bytes": 427
+    },
+    {
+      "path": "apps/desktop/icons/sliders-horizontal.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/settings/Linear/tuning-2.svg",
+      "sha256": "9971afdaa86ff3a67af0a39ee9f7cdc37797cb2b5dc4488dee880ce96988a065",
+      "bytes": 916
+    },
+    {
+      "path": "apps/desktop/icons/text-search.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/search/Linear/magnifier.svg",
+      "sha256": "3cf85ed5efae91a9fda3278f9279216d1bcc655a833b8c9c1a3179c6fc263260",
+      "bytes": 300
+    },
+    {
+      "path": "apps/desktop/icons/triangle-alert.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/ui/Linear/danger-triangle.svg",
+      "sha256": "b8e1581a7c1611086cf9343d92bbb549e8c5e1c2215f2201682b225d6ee5b330",
+      "bytes": 647
+    },
+    {
+      "path": "apps/desktop/icons/underline.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/text-formatting/Linear/text-underline.svg",
+      "sha256": "b900fa007e74aea8ac202db95ea37452d0e75c1ab08d9370fa452388c7d38c2b",
+      "bytes": 361
+    },
+    {
+      "path": "apps/desktop/icons/undo-2.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/arrows-action/Linear/undo-left.svg",
+      "sha256": "2aa4493e7c64ff32993665b13539a4641b19c0cf4c15453b3672950f42d4d94a",
+      "bytes": 442
+    },
+    {
+      "path": "apps/desktop/icons/volume-2.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/video/Linear/volume-loud.svg",
+      "sha256": "7937ba14343084c53ebe04714d45e5e4e6e6dc54fa85af2e92662b9a02cc3f23",
+      "bytes": 1482
+    },
+    {
+      "path": "apps/desktop/icons/volume-x.svg",
+      "source": "https://raw.githubusercontent.com/saoudi-h/solar-icons/ab241e1bf578dcfe45b0197aee59bd9a08b5fe68/packages/core/svgs/video/Linear/volume-cross.svg",
+      "sha256": "92641561b3c9c96c7379196c887eac8ee387108e1ef177055fecc85291fd6a91",
+      "bytes": 1615
+    }
+  ]
+}
