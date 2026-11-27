@@ -21,9 +21,9 @@ func (a *NativeApp) compressView(c *ui.Context) {
 			width, _ := c.MeasureText(0, ui.Span{Text: enc.Label})
 			encoderWidth = max(encoderWidth, width)
 		}
-		qualities := composeQualities()
+		qualities := composeQualities(a.settings.CompressionEncoder)
 		var qualityWidth float32
-		for _, q := range qualities {
+		for _, q := range append(composeQualities(media.EncoderCPU), composeQualities(media.EncoderCPUH264)...) {
 			width, _ := c.MeasureText(0, ui.Span{Text: q.Label})
 			qualityWidth = max(qualityWidth, width)
 		}
@@ -43,7 +43,7 @@ func (a *NativeApp) compressView(c *ui.Context) {
 					idSelect(c, &a.settings.CompressionEncoder, encoders).MinWidth(encoderWidth + 48).Label(locales.ComposeEncoder()).OnChange(a.saveSettings)
 				})
 				quality := ui.Field(c, locales.ComposeQuality(), func() {
-					idSelect(c, &a.settings.CompressionQuality, qualities).MinWidth(qualityWidth + 48).Label(locales.ComposeQuality()).OnChange(a.saveSettings)
+					idSelect(c, a.settings.VideoQuality(true), qualities).MinWidth(qualityWidth + 48).Label(locales.ComposeQuality()).OnChange(a.saveSettings)
 				})
 				if audio {
 					encoder.Invisible()
@@ -54,11 +54,13 @@ func (a *NativeApp) compressView(c *ui.Context) {
 		note := locales.CompressAv1Note()
 		if a.settings.CompressionEncoder == media.EncoderGPU {
 			note = locales.CompressGpuNote()
+		} else if a.settings.CompressionEncoder == media.EncoderCPUH264 {
+			note = locales.CompressH264Note()
 		}
 		if a.settings.MediaProcessMode == "audio" {
 			note = locales.AudioExtractNote()
 		}
-		stableDialogNote(c, note, false, locales.CompressAv1Note(), locales.CompressGpuNote(), locales.AudioExtractNote())
+		stableDialogNote(c, note, false, locales.CompressAv1Note(), locales.CompressGpuNote(), locales.CompressH264Note(), locales.AudioExtractNote())
 		separator(c)
 		folderField(c, a.settings.OutputDir, locales.RecognitionBesideMedia(), a.busy, a.pickComposeDir, func() { a.settings.OutputDir = ""; a.saveSettings() })
 		lobeCheckbox(c, &a.settings.ComposeAskPath, locales.ComposeAskPath()).OnChange(a.saveSettings)

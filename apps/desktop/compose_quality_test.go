@@ -4,11 +4,36 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/media"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
-func TestComposeOffersCRFOnlyAndDailyRecommendation(t *testing.T) {
+func TestVideoEncodingChoices(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			encoders := composeEncoders()
+			if len(encoders) != 3 || encoders[0].ID != media.EncoderCPU || encoders[1].ID != media.EncoderCPUH264 || encoders[2].ID != media.EncoderGPU {
+				t.Fatal("expected two CPU encoders and one GPU option", encoders)
+			}
+			for _, encoder := range encoders {
+				qualities := composeQualities(encoder.ID)
+				if len(qualities) != 3 || encoder.Label == "" {
+					t.Fatal("missing quality or encoder label", encoder, qualities)
+				}
+				for _, quality := range qualities {
+					_, fixed := media.H264CRF(quality.ID)
+					_, measured := media.CompressPresetFor(quality.ID)
+					if fixed != (encoder.ID == media.EncoderCPUH264) || measured == fixed {
+						t.Fatal("encoder exposes another encoder's qualities", encoder, quality)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestComposeOffersEncoderQualitiesAndDailyRecommendation(t *testing.T) {
 	for _, language := range []string{"zh-Hans", "en"} {
 		inLocale(t, language, func() {
 			a := nativeForTest(t)
@@ -51,7 +76,7 @@ func TestComposeOffersCRFOnlyAndDailyRecommendation(t *testing.T) {
 			if err := tt.Click(locales.ComposeEncoder()); err != nil {
 				t.Fatal(err)
 			}
-			for _, label := range []string{locales.ComposeEncoderCpu(), locales.ComposeEncoderGpu()} {
+			for _, label := range []string{locales.ComposeEncoderCpu(), locales.ComposeEncoderH264(), locales.ComposeEncoderGpu()} {
 				if !tt.HasText(label) {
 					t.Fatal("missing encoder choice", label)
 				}
@@ -75,6 +100,28 @@ func TestComposeOffersCRFOnlyAndDailyRecommendation(t *testing.T) {
 			}
 			if after, _ := tt.Find(locales.ComposeStart()); after != button {
 				t.Fatal("CPU encoder restore resized the dialog", button, after)
+			}
+			if err := tt.Click(locales.ComposeEncoder()); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.Click(locales.ComposeEncoderH264()); err != nil {
+				t.Fatal(err)
+			}
+			if !tt.HasText("CRF 20") || !tt.HasText(locales.ComposeH264Note()) || !tt.HasText(locales.ComposeH264Recommendation()) {
+				t.Fatal("H.264 choices or explanation missing")
+			}
+			if err := tt.Click(locales.ComposeQuality()); err != nil {
+				t.Fatal(err)
+			}
+			if err := tt.Click("CRF 18"); err != nil {
+				t.Fatal(err)
+			}
+			prefs, err = settings.Load(filepath.Join(a.dataRoot, "settings.json"))
+			if err != nil || prefs.ComposeEncoder != media.EncoderCPUH264 || prefs.ComposeH264Quality != "crf18" || prefs.ComposeQuality != "high" {
+				t.Fatal("H.264 choice overwrote AV1 quality or was not saved", err, prefs)
+			}
+			if after, _ := tt.Find(locales.ComposeStart()); after != button {
+				t.Fatal("H.264 encoder choice resized the dialog", button, after)
 			}
 			captureRedesign(t, tt, "compose-crf-"+language)
 		})

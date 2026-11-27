@@ -86,9 +86,11 @@ type Settings struct {
 	SecondaryPreset        string                 `json:"secondaryPreset,omitempty"`
 	ComposeMode            string                 `json:"composeMode"`
 	ComposeQuality         string                 `json:"composeQuality"`
+	ComposeH264Quality     string                 `json:"composeH264Quality"`
 	ComposeEncoder         string                 `json:"composeEncoder"`
 	CompressionFormat      string                 `json:"compressionFormat"`
 	CompressionQuality     string                 `json:"compressionQuality"`
+	CompressionH264Quality string                 `json:"compressionH264Quality"`
 	CompressionEncoder     string                 `json:"compressionEncoder"`
 	MediaProcessMode       string                 `json:"mediaProcessMode"` // compress or audio
 	AudioFormat            string                 `json:"audioFormat"`
@@ -123,8 +125,23 @@ type Settings struct {
 // and SmartSub's shadow as defaults; Load moves them to version 2's.
 const version = 7
 
+// VideoQuality keeps fixed H.264 CRFs separate from perceptual quality targets
+// so switching encoders never reinterprets or overwrites a saved choice.
+func (s *Settings) VideoQuality(compress bool) *string {
+	if compress {
+		if s.CompressionEncoder == "cpu-h264" {
+			return &s.CompressionH264Quality
+		}
+		return &s.CompressionQuality
+	}
+	if s.ComposeEncoder == "cpu-h264" {
+		return &s.ComposeH264Quality
+	}
+	return &s.ComposeQuality
+}
+
 func Default() Settings {
-	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, AutoUpdate: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "Qwen3-ForcedAligner-Ultra", Backend: "auto", RecognitionMode: "route", Language: "zh", LanguageModels: map[string]string{}, ManualLanguages: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "near-lossless", ComposeEncoder: "cpu", CompressionFormat: "mp4", CompressionQuality: "near-lossless", CompressionEncoder: "cpu", MediaProcessMode: "compress", AudioFormat: "mp3", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 300.0 / 7, TopHeight: 75, EditorWidth: 75, SubtitleHeight: 75, StyleContentWidth: 100.0 / 3, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
+	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, AutoUpdate: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "Qwen3-ForcedAligner-Ultra", Backend: "auto", RecognitionMode: "route", Language: "zh", LanguageModels: map[string]string{}, ManualLanguages: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "near-lossless", ComposeH264Quality: "crf20", ComposeEncoder: "cpu", CompressionFormat: "mp4", CompressionQuality: "near-lossless", CompressionH264Quality: "crf23", CompressionEncoder: "cpu", MediaProcessMode: "compress", AudioFormat: "mp3", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 300.0 / 7, TopHeight: 75, EditorWidth: 75, SubtitleHeight: 75, StyleContentWidth: 100.0 / 3, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
 }
 
 // TranslationPunctuation freezes the local output options for a task.
@@ -156,7 +173,7 @@ func Load(path string) (Settings, error) {
 	if s.Version < version {
 		upgrade(&s)
 	}
-	// Hard burn-in and standalone compression both use perceptual XPSNR presets.
+	// Preserve existing perceptual choices independently of the fixed CRFs.
 	for _, quality := range []*string{&s.ComposeQuality, &s.CompressionQuality} {
 		switch *quality {
 		case "near-lossless", "high", "compact":
@@ -166,9 +183,16 @@ func Load(path string) (Settings, error) {
 	}
 	for _, encoder := range []*string{&s.ComposeEncoder, &s.CompressionEncoder} {
 		switch *encoder {
-		case "cpu", "gpu":
+		case "cpu", "cpu-h264", "gpu":
 		default:
 			*encoder = Default().ComposeEncoder
+		}
+	}
+	for quality, fallback := range map[*string]string{&s.ComposeH264Quality: "crf20", &s.CompressionH264Quality: "crf23"} {
+		switch *quality {
+		case "crf18", "crf20", "crf23":
+		default:
+			*quality = fallback
 		}
 	}
 	if s.ModelPaths == nil {

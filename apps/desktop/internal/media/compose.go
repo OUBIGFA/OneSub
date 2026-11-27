@@ -38,8 +38,8 @@ type ComposeOptions struct {
 	Source      string  `json:"source"`
 	Destination string  `json:"destination"`
 	Mode        string  `json:"mode"`                  // hard, soft, compress or audio (no added subtitles)
-	Quality     string  `json:"quality"`               // hard/compress: near-lossless, high or compact
-	Encoder     string  `json:"encoder,omitempty"`     // cpu (default) or gpu
+	Quality     string  `json:"quality"`               // perceptual targets, or crf18/crf20/crf23 for cpu-h264
+	Encoder     string  `json:"encoder,omitempty"`     // cpu (SVT-AV1 default), cpu-h264 or gpu
 	ResolvedCRF float64 `json:"resolvedCrf,omitempty"` // CRF, or the hardware encoder's quality value
 	// hardware is the detected GPU encoder; set by Compose, never by callers.
 	hardware *hardwareEncoder
@@ -63,6 +63,21 @@ type ComposeReport struct {
 	Chapters     int                `json:"chapters"`
 	Compression  *CompressionReport `json:"compression,omitempty"`
 	Checks       []string           `json:"checks"`
+}
+
+// H264CRF restores the fixed quality choices from 0.1.0. These are encoder
+// parameters, not equivalents of the perceptual targets used by AV1 and GPU.
+func H264CRF(quality string) (float64, bool) {
+	switch quality {
+	case "crf18":
+		return 18, true
+	case "crf20":
+		return 20, true
+	case "crf23":
+		return 23, true
+	default:
+		return 0, false
+	}
 }
 
 func streamCounts(streams []Stream) map[string]int {
@@ -223,18 +238,23 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 	}
 	args = append(args, "-map_metadata", "0", "-map_chapters", "0", "-c", "copy")
 	if options.Mode != "soft" {
-		// Hard burn-in and standalone compression share the same 10-bit
-		// perceptual pipeline on CPU (SVT-AV1) and GPU (FFmpeg hardware
-		// encoder). Only burn-in prepends the ASS filter using task-local
+		// All encoders share stream mapping and validation. H.264 restores
+		// fixed CRF without a perceptual search. Burn-in adds ASS using local
 		// fixed names, never shell-escaped user filenames.
+		if options.Encoder != "" && options.Encoder != EncoderCPU && options.Encoder != EncoderCPUH264 && options.Encoder != EncoderGPU {
+			return nil, errors.New(locales.ErrComposeMode())
+		}
 		preset, ok := CompressPresetFor(options.Quality)
+		crf := options.ResolvedCRF
 		if options.hardware != nil {
 			preset, ok = gpuPresetFor(*options.hardware, options.Quality)
+		}
+		if options.Encoder == EncoderCPUH264 {
+			crf, ok = H264CRF(options.Quality)
 		}
 		if !ok {
 			return nil, errors.New(locales.ErrComposeQuality())
 		}
-		crf := options.ResolvedCRF
 		if crf <= 0 {
 			crf = preset.InitialCRF
 		}
@@ -244,7 +264,9 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 		}
 		filters = append(filters, "crop=trunc(iw/2)*2:trunc(ih/2)*2:0:0")
 		args = append(args, "-filter:v:0", strings.Join(filters, ","))
-		if options.hardware != nil {
+		if options.Encoder == EncoderCPUH264 {
+			args = append(args, "-c:v:0", "libx264", "-preset", "medium", "-crf", formatCRF(crf), "-pix_fmt:v:0", "yuv420p")
+		} else if options.hardware != nil {
 			args = append(args, options.hardware.videoArgs(crf, (plan.mainVideo.Width&^1)*(plan.mainVideo.Height&^1))...)
 			if plan.ext == ".mp4" && options.hardware.Codec == "hevc" {
 				// Apple players require the hvc1 sample entry for HEVC in MP4.
@@ -443,9 +465,6 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 		}
 	}
 	if options.Mode == "compress" || options.Mode == "hard" {
-		if options.Encoder != "" && options.Encoder != EncoderCPU && options.Encoder != EncoderGPU {
-			return report, errors.New(locales.ErrComposeMode())
-		}
 		if options.Encoder == EncoderGPU {
 			encoder, detectErr := DetectGPUEncoder(ctx, ffmpeg)
 			if detectErr != nil {
@@ -453,7 +472,7 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 			}
 			options.hardware = &encoder
 		}
-		if options.ResolvedCRF <= 0 {
+		if options.Encoder != EncoderCPUH264 && options.ResolvedCRF <= 0 {
 			var resolved float64
 			var compressionReport *CompressionReport
 			var searchErr error

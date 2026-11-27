@@ -83,6 +83,7 @@ func TestMediaToolsKeepGeometryAcrossModes(t *testing.T) {
 							note  string
 						}{
 							{locales.ComposeEncoderGpu(), "gpu", locales.CompressGpuNote()},
+							{locales.ComposeEncoderH264(), "cpu-h264", locales.CompressH264Note()},
 							{locales.ComposeEncoderCpu(), "cpu", locales.CompressAv1Note()},
 						} {
 							if err := tt.Click(locales.ComposeEncoder()); err != nil {
@@ -100,12 +101,18 @@ func TestMediaToolsKeepGeometryAcrossModes(t *testing.T) {
 							if after, _ := tt.Find(locales.CompressStart()); after != action {
 								t.Errorf("compress action moved after encoder %s: %v -> %v", enc.id, action, after)
 							}
-							if !tt.HasText(enc.note) {
-								t.Errorf("missing encoder note after choosing %s", enc.id)
+							// stableDialogNote renders each line as a separate element.
+							for _, line := range strings.Split(enc.note, "\n") {
+								if !tt.HasText(line) {
+									t.Errorf("missing encoder note after choosing %s: %s", enc.id, line)
+								}
 							}
 							prefs, err := settings.Load(filepath.Join(a.dataRoot, "settings.json"))
 							if err != nil || prefs.CompressionEncoder != enc.id {
 								t.Fatalf("compression encoder %s not persisted: %v (%q)", enc.id, err, prefs.CompressionEncoder)
+							}
+							if enc.id == "cpu-h264" && (!tt.HasText("CRF 23") || prefs.CompressionH264Quality != "crf23") {
+								t.Fatal("compression did not restore its H.264 default")
 							}
 						}
 					})

@@ -29,8 +29,11 @@ func composeModes() []option {
 	}
 }
 
-// Hard burn-in and standalone compression share the same XPSNR quality targets.
-func composeQualities() []option {
+// H.264 exposes its original fixed CRFs; AV1 and GPU use measured targets.
+func composeQualities(encoder string) []option {
+	if encoder == media.EncoderCPUH264 {
+		return []option{{"crf18", "CRF 18"}, {"crf20", "CRF 20"}, {"crf23", "CRF 23"}}
+	}
 	return []option{
 		{"near-lossless", locales.CompressQualityNearLossless()},
 		{"high", locales.CompressQualityHigh()},
@@ -41,6 +44,7 @@ func composeQualities() []option {
 func composeEncoders() []option {
 	return []option{
 		{media.EncoderCPU, locales.ComposeEncoderCpu()},
+		{media.EncoderCPUH264, locales.ComposeEncoderH264()},
 		{media.EncoderGPU, locales.ComposeEncoderGpu()},
 	}
 }
@@ -64,9 +68,10 @@ func (a *NativeApp) composeView(c *ui.Context) {
 			width, _ := c.MeasureText(0, ui.Span{Text: enc.Label})
 			encoderWidth = max(encoderWidth, width)
 		}
-		qualities := composeQualities()
+		qualities := composeQualities(a.settings.ComposeEncoder)
 		var qualityWidth float32
-		for _, q := range qualities {
+		// Reserve both sets of choices in this frame to keep the form stable.
+		for _, q := range append(composeQualities(media.EncoderCPU), composeQualities(media.EncoderCPUH264)...) {
 			width, _ := c.MeasureText(0, ui.Span{Text: q.Label})
 			qualityWidth = max(qualityWidth, width)
 		}
@@ -93,7 +98,7 @@ func (a *NativeApp) composeView(c *ui.Context) {
 						idSelect(c, &a.settings.ComposeEncoder, encoders).MinWidth(encoderWidth + 48).Label(locales.ComposeEncoder()).Disabled(!hard).OnChange(a.saveSettings)
 					})
 					ui.Field(c, locales.ComposeQuality(), func() {
-						idSelect(c, &a.settings.ComposeQuality, qualities).MinWidth(qualityWidth + 48).Label(locales.ComposeQuality()).Disabled(!hard).OnChange(a.saveSettings)
+						idSelect(c, a.settings.VideoQuality(false), qualities).MinWidth(qualityWidth + 48).Label(locales.ComposeQuality()).Disabled(!hard).OnChange(a.saveSettings)
 					})
 				})
 			}).Gap(em(c, 8)).Margin(em(c, 8), 0, 0, 0)
@@ -115,9 +120,12 @@ func (a *NativeApp) composeView(c *ui.Context) {
 		}
 		cpuNote := locales.ComposeCrfNote() + "\n" + locales.ComposeCrfRecommendation()
 		gpuNote := locales.ComposeGpuNote() + "\n" + locales.ComposeCrfRecommendation()
+		h264Note := locales.ComposeH264Note() + "\n" + locales.ComposeH264Recommendation()
 		note, warning := cpuNote, false
 		if a.settings.ComposeEncoder == media.EncoderGPU {
 			note = gpuNote
+		} else if a.settings.ComposeEncoder == media.EncoderCPUH264 {
+			note = h264Note
 		}
 		switch {
 		case outputErr != nil && len(issues) == 0:
@@ -128,7 +136,7 @@ func (a *NativeApp) composeView(c *ui.Context) {
 			note = locales.ComposeSoftNote()
 		}
 		normalNote := func() {
-			stableDialogNote(c, note, warning, a.outputNoteVariants(cpuNote, gpuNote, locales.ComposeMovTextNote(), locales.ComposeSoftNote())...)
+			stableDialogNote(c, note, warning, a.outputNoteVariants(cpuNote, gpuNote, h264Note, locales.ComposeMovTextNote(), locales.ComposeSoftNote())...)
 		}
 		if len(potentialIssues) > 0 {
 			selected := 0
@@ -262,10 +270,10 @@ func (a *NativeApp) startVideoExport(sample, compress bool) {
 	if outputOptions.Normalized().Mode == "bilingual" {
 		language = "mul"
 	}
-	quality, encoder, title := a.settings.ComposeQuality, a.settings.ComposeEncoder, locales.ActionCompose()
+	quality, encoder, title := *a.settings.VideoQuality(false), a.settings.ComposeEncoder, locales.ActionCompose()
 	audio := compress && a.settings.MediaProcessMode == "audio"
 	if compress {
-		mode, quality, encoder, title = "compress-"+a.settings.CompressionFormat, a.settings.CompressionQuality, a.settings.CompressionEncoder, locales.ActionCompress()
+		mode, quality, encoder, title = "compress-"+a.settings.CompressionFormat, *a.settings.VideoQuality(true), a.settings.CompressionEncoder, locales.ActionCompress()
 	}
 	if audio {
 		mode, title = "audio-"+a.settings.AudioFormat, locales.MediaExtractAudio()

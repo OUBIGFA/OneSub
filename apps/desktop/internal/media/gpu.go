@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	EncoderCPU = "cpu"
-	EncoderGPU = "gpu"
+	EncoderCPU     = "cpu"
+	EncoderCPUH264 = "cpu-h264"
+	EncoderGPU     = "gpu"
 )
 
 // hardwareEncoder is one of the bundled FFmpeg's hardware video encoders.

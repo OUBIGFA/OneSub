@@ -413,8 +413,8 @@ type composeVideoIn struct {
 	SubtitlePath string `json:"subtitle_path"`
 	OutputPath   string `json:"output_path" jsonschema:"absolute new mp4 or mkv path"`
 	Mode         string `json:"mode" jsonschema:"soft for selectable subtitles or hard for burned-in captions"`
-	Quality      string `json:"quality,omitempty" jsonschema:"hard mode only: near-lossless, high or compact; default near-lossless"`
-	Encoder      string `json:"encoder,omitempty" jsonschema:"hard mode only: cpu (SVT-AV1, default) or gpu (hardware acceleration)"`
+	Quality      string `json:"quality,omitempty" jsonschema:"hard mode: cpu/gpu use near-lossless (default), high or compact; cpu-h264 uses crf18, crf20 (default) or crf23"`
+	Encoder      string `json:"encoder,omitempty" jsonschema:"hard mode only: cpu (SVT-AV1, default), cpu-h264 (fixed CRF H.264) or gpu (hardware acceleration)"`
 	Language     string `json:"language,omitempty" jsonschema:"subtitle language ID; omitted means und (undetermined)"`
 	Sample       bool   `json:"sample,omitempty" jsonschema:"true creates a five-second sample before a full export"`
 }
@@ -433,17 +433,26 @@ func (s mcpServer) composeVideo(ctx context.Context, req *mcp.CallToolRequest, i
 	if in.Mode != "soft" && in.Mode != "hard" {
 		return nil, composeVideoOut{}, errors.New("mode must be soft or hard")
 	}
-	if in.Quality == "" {
-		in.Quality = media.CompressQualityNearLossless
-	}
-	if _, ok := media.CompressPresetFor(in.Quality); !ok {
-		return nil, composeVideoOut{}, errors.New("unknown quality; use near-lossless, high or compact")
-	}
 	if in.Encoder == "" {
 		in.Encoder = media.EncoderCPU
 	}
-	if in.Encoder != media.EncoderCPU && in.Encoder != media.EncoderGPU {
-		return nil, composeVideoOut{}, errors.New("unknown encoder; use cpu or gpu")
+	if in.Encoder != media.EncoderCPU && in.Encoder != media.EncoderCPUH264 && in.Encoder != media.EncoderGPU {
+		return nil, composeVideoOut{}, errors.New("unknown encoder; use cpu, cpu-h264 or gpu")
+	}
+	if in.Encoder == media.EncoderCPUH264 {
+		if in.Quality == "" {
+			in.Quality = "crf20"
+		}
+		if _, ok := media.H264CRF(in.Quality); !ok {
+			return nil, composeVideoOut{}, errors.New("unknown H.264 quality; use crf18, crf20 or crf23")
+		}
+	} else {
+		if in.Quality == "" {
+			in.Quality = media.CompressQualityNearLossless
+		}
+		if _, ok := media.CompressPresetFor(in.Quality); !ok {
+			return nil, composeVideoOut{}, errors.New("unknown quality; use near-lossless, high or compact")
+		}
 	}
 	if in.Language == "" {
 		in.Language = "und"

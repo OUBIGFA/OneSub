@@ -75,8 +75,8 @@ Workflow: **Import → Transcribe → Rebuild timing → Translate and review �
 ### Media and delivery
 
 - **Subtitles alone**: Import subtitles without a video to edit, translate, check, and export.
-- **Media tools**: Compress video to MP4 or MKV without subtitles using 10-bit SVT-AV1 and XPSNR-guided CRF search (Near-lossless, High quality, Compact). Keep audio tracks and chapters, never overwrite source files, and stop early when output size would not shrink. Extract the first audio track to MP3, M4A, AAC, WAV, FLAC, OGG, or Opus.
-- **Consistent preview and output**: Preview real-time ASS styles with JASSUB using 9 presets, custom presets, bilingual styles, and glyph checks. Export soft subtitles (muxed) or hard subtitles (burn-in using the same 10-bit SVT-AV1 perceptual pipeline), test a 5-second sample, or run in background.
+- **Media tools**: Compress video to MP4 or MKV without subtitles. Choose CPU (SVT-AV1), CPU (H.264), or GPU. Keep audio tracks and chapters without overwriting source files. Extract the first audio track to MP3, M4A, AAC, WAV, FLAC, OGG, or Opus.
+- **Consistent preview and output**: Preview real-time ASS styles with JASSUB using 9 presets, custom presets, bilingual styles, and glyph checks. Export soft subtitles (muxed) or hard subtitles (burn-in with any of the three encoding options), test a 5-second sample, or run in background.
 - **Bilingual interface**: Switch between Chinese and English interfaces, light and dark themes, and tray mode.
 - **Storage cleanup**: Use Settings → Storage to inspect and clear caches, logs, partial downloads and past projects. Current and pending projects, source files, exports and complete models are kept.
 
@@ -122,10 +122,14 @@ Subtitles only: drop a subtitle file to edit and translate. Media only: click "M
 
 | Item | Value | Reason |
 | --- | --- | --- |
-| Video encoding | CPU: High quality (XPSNR 39) / GPU: Near-lossless (XPSNR 42) | CPU favors quality with smaller files but slower speed; use High quality. GPU favors speed with larger files; use Near-lossless. Both give nearly equivalent visual quality. |
+| CPU (SVT-AV1) | High quality for everyday work; Near-lossless when needed for archives | Favors quality and small files; analyzes samples before encoding and takes longer |
+| CPU (H.264) | CRF 20 by default for subtitle exports; CRF 23 for compression | Starts encoding without sample analysis; choose CRF 18, 20, or 23; lower values preserve more detail and produce larger files |
+| GPU | Choose Near-lossless, High quality, or Compact as needed | Uses supported graphics hardware; selects AV1 when available or HEVC otherwise; files may be larger at similar quality |
 | Translation concurrent batches | 2 to 5 | Higher values may hit service rate limits |
 | Cues per batch | 50 | Balances context and stability |
 | Rebuild timing by sense groups | Enable with gpt-6-luna or stronger models | Improves translation accuracy and cue timing |
+
+Video compression and hard subtitle exports offer two CPU options and one GPU option, with saved choices. CPU (SVT-AV1) and GPU analyze samples and stop if the estimated reduction is too small. CPU (H.264) encodes directly without estimating size savings. Re-encoding does not guarantee smaller files. Export a five-second preview to check the result. Quality choices across encoders are not directly equivalent.
 
 Turn off "Rebuild timing by sense groups" if a weaker model fails to return stable segments.
 

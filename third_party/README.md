@@ -22,7 +22,7 @@ TXT 文稿导出直接调用固定 libse 的 `HtmlUtil.RemoveHtmlTags`、`HtmlUt
 
 旧版浅色主题的 WinOne 来源、许可副本、哈希与适配边界见 [历史配色登记](ports/winone/README.md)；当前浅深色主题均使用 Lobe MyGo 的主题令牌。
 
-MyGo 原生 UI 锁定为 2026-11-23 核查时的最新正式发布 `v0.10.0`，满足当前 Lobe MyGo `v0.0.0-20261116124832-d88b4ad7f238` 的依赖；源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。
+MyGo 原生 UI 锁定为 2026-11-27 核查时的最新正式发布 `v0.10.0`，满足当前 Lobe MyGo `v0.0.0-20261116124832-d88b4ad7f238` 的依赖；源码 ZIP 与许可校验见 [运行时清单](manifests/runtimes.json)，有限补丁与行为边界见 [补丁登记](patches/mygo/README.md)。
 
 MyGo 的签名更新直接复用 `mygo.Updater.Check`／`Update.Install`，包括 HTTPS／系统代理、Ed25519 校验、解包与替换／回滚。签名清单返回 404 时，应用通过 MyGo 同一系统代理读取 GitHub 最新正式发布，按产品版本识别安装器，并提供浏览器下载入口；安装器须手动安装，不进入自动安装路径。没有引入另一套下载器或安装器。设置“关于”与任务协调由应用原生 UI 承担，产品版本为 `0.1.3`，用数值第四段区分内部构建。归档与签名由 MyGo 构建器生成，只调整清单中的内部构建号与不可变 Release URL，见 [构建与更新说明](../build/README.md)。新增 GitHub 和“关于”图标继续直接复用同一固定 Lucide 修订，原字节、大小和哈希见 [图标清单](manifests/lucide.json)。
 
@@ -43,7 +43,11 @@ Windows 11 / WebView2 `158.0.4370.1` 的正式 `OneSub.exe` 对照中，正常 1
 
 字幕工具栏的设计检查参考 [Impeccable](https://github.com/pbakaus/impeccable)（pbakaus，Apache-2.0）与 [unslop](https://github.com/heydamir/unslop)（Damir Sokolovsky / @heydamir，CC-BY-4.0）的操作分组、间距、文案与克制表达方法；本次仅阅读其公开设计指南，没有复制脚本、组件、图标或其他分发资产，也没有将其加入运行时依赖
 
-硬字幕烧录与独立视频压缩默认使用 CPU `libsvtav1`（抽样感知寻优思路参考 MIT 许可的 [ab-av1](https://github.com/alexheretic/ab-av1)，由 OneSub 在 `apps/desktop/internal/media/compress.go` 以 Go 原生实现，使用 [media-runtime.json](manifests/media-runtime.json) 锁定的 `FFmpeg 9.1` 与 `SVT-AV1 4.3.0`）。可选的 GPU 方案使用同一份 FFmpeg 内置的硬件编码器（`av1_nvenc`、`av1_qsv`、`av1_amf`，不支持时为对应的 `hevc_*`），与 CPU 共用同一条滤镜和流映射管线，不另外分发编码程序；ab-av1 同样通过 FFmpeg 调用这些编码器。FFmpeg 9.1 是 2026-11-22 核查时的最新稳定版；同包更新 ffprobe、依赖、许可和对应源码，没有复制 ab-av1 Rust 代码或引入未登记运行时。
+硬字幕烧录与独立视频压缩默认使用 CPU `libsvtav1`（抽样感知寻优思路参考 MIT 许可的 [ab-av1](https://github.com/alexheretic/ab-av1)，由 OneSub 在 `apps/desktop/internal/media/compress.go` 以 Go 原生实现，使用 [media-runtime.json](manifests/media-runtime.json) 锁定的 `FFmpeg 9.1` 与 `SVT-AV1 4.3.0`）。可选的 GPU 方案使用同一份 FFmpeg 内置的硬件编码器（`av1_nvenc`、`av1_qsv`、`av1_amf`，不支持时为对应的 `hevc_*`），与 CPU 共用同一条滤镜和流映射管线，不另外分发编码程序；ab-av1 同样通过 FFmpeg 调用这些编码器。FFmpeg 9.1 是 2026-11-27 核查时的最新稳定版；同包更新 ffprobe、依赖、许可和对应源码，没有复制 ab-av1 Rust 代码或引入未登记运行时。
+
+CPU（H.264）复用同包内已登记的 `libx264`，恢复 0.1.0 的 `medium`、8 位 `yuv420p` 和固定 CRF 18/20/23。合成默认 CRF 20，独立压缩默认 CRF 23；不执行 XPSNR 寻优，不引入新依赖，音轨、章节及输出验证与其他编码方案共用。
+
+2026-11-27 核查 MSYS2 UCRT64 的 FFmpeg 包仍为 `9.1-1`，SVT-AV1 包仍为 `4.3.0-1`，沿用已校验的二进制与对应源码。SVT-AV1 上游已发布 4.3.1；本次不单独替换发行包内的 DLL，待 UCRT64 对应包更新后同步复核。
 
 编码使用 [SVT 官方速度预设说明](https://github.com/AOMediaCodec/SVT-AV1/blob/v4.3.0/Docs/CommonQuestions.md)中的 preset 8；样本和最终编码使用相同参数，保留原有画质目标。XPSNR 按[官方文档](https://ffmpeg.org/ffmpeg-filters.html#xpsnr)将原片置于第一输入。FFmpeg 9.1 的 `libavfilter/vf_xpsnr.c` 在高位深路径中将第二输入步长假定为画面宽度，部分 AV1 解码缓冲带行填充，会产生错误负分；评分统一转为 8 位 YCbCr，使用该滤镜正确处理步长的复制路径，实际编码保持 10 位。此兼容项应在升级 FFmpeg 后复核，不能只删除格式转换。新增 HTTP 库依赖按实际 DLL 导入和符号校验；ngtcp2 的对应源码包后来删除了一个构建依赖，清单单独登记与二进制 BUILDINFO 校验值一致的原始构建配方。
 
