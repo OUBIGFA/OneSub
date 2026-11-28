@@ -71,6 +71,7 @@ try {
     if (-not $SkipTests) {
         & (Join-Path $PSScriptRoot 'test.ps1')
         & (Join-Path $PSScriptRoot 'test.ps1') -CoreOnly
+        & (Join-Path $PSScriptRoot 'test.ps1') -WorkersOnly
     }
     $package = Join-Path $root "_temp/build-output/packages/$BuildNumber"
     if (Test-Path $package) { throw 'Use a new internal build number; package directories are immutable' }

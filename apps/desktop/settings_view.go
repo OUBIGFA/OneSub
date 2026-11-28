@@ -1,7 +1,10 @@
 package main
 
 import (
+	"path/filepath"
+
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/models"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/i18n"
@@ -375,4 +378,17 @@ func (a *NativeApp) modelManagerView(c *ui.Context) {
 			primaryIconButton(c, locales.ModelDownload(), "download").Width(width).Disabled(a.busy).OnClick(func() { a.downloadModel(model) })
 		}
 	})
+}
+
+func (a *NativeApp) saveSettings() {
+	a.settings.SyncProvider()
+	if a.settingsError {
+		a.showError("settings", locales.ErrSettingsNeedRepair())
+		return
+	}
+	if err := settings.Save(filepath.Join(a.dataRoot, "settings.json"), a.settings); err != nil {
+		a.showError("settings", err.Error())
+	} else {
+		a.clearError("settings")
+	}
 }

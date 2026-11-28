@@ -32,6 +32,32 @@ func snapshot(t *testing.T, s *Store) Snapshot {
 }
 func edit(text string) []Edit { return []Edit{{ID: "c1", Text: text, StartMs: 100, EndMs: 2000}} }
 
+func TestRejectedSourceDoesNotReserveProjectDirectory(t *testing.T) {
+	root := t.TempDir()
+	large := filepath.Join(root, "large.srt")
+	file, err := os.Create(large)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = file.Truncate(64*1024*1024 + 1); err != nil {
+		file.Close()
+		t.Fatal(err)
+	}
+	if err = file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, source := range []string{large, filepath.Join(root, "missing.srt")} {
+		path := filepath.Join(root, filepath.Base(source)+".onesub")
+		if store, err := Create(path, "", source, sample()); err == nil {
+			store.Close()
+			t.Fatal("accepted invalid source", source)
+		}
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatal("failed input left a project directory that blocks retry", path, err)
+		}
+	}
+}
+
 func TestCommitReopenAndOriginalBytes(t *testing.T) {
 	root := t.TempDir()
 	source := filepath.Join(root, "原文.srt")

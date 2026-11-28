@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/videoencoding"
 )
 
 // Real muxers, not mocked probe values: AAC priming and B-frame DTS are kept,
@@ -52,7 +54,7 @@ func TestRealNonzeroStartComposition(t *testing.T) {
 				t.Run(fmt.Sprintf("%s/%s/%s/%s", inputExt, offset, mode, ext), func(t *testing.T) {
 					outputDir, scratch := t.TempDir(), t.TempDir()
 					target := filepath.Join(outputDir, "result."+ext)
-					opts := ComposeOptions{Source: source, Destination: target, Mode: mode, Quality: CompressQualityHigh, Language: "en"}
+					opts := ComposeOptions{Source: source, Destination: target, Mode: mode, Quality: videoencoding.QualityHigh, Language: "en"}
 					report, err := Compose(context.Background(), ffmpeg, probe, scratch, opts, document, func(ComposeProgress) {})
 					if err != nil {
 						t.Fatal(err)
@@ -140,7 +142,7 @@ func TestCompositionFailureAndCancellationLeaveNoSidecars(t *testing.T) {
 	for _, scenario := range []string{"invalid-quality", "cancel-encode", "cancel-validation"} {
 		t.Run(scenario, func(t *testing.T) {
 			outDir, scratch := t.TempDir(), t.TempDir()
-			opts := ComposeOptions{Source: source, Destination: filepath.Join(outDir, "result.mp4"), Mode: "hard", Quality: CompressQualityHigh}
+			opts := ComposeOptions{Source: source, Destination: filepath.Join(outDir, "result.mp4"), Mode: "hard", Quality: videoencoding.QualityHigh}
 			if scenario == "invalid-quality" {
 				opts.Quality = "invalid"
 			}
@@ -194,7 +196,7 @@ func TestRealNonzeroChapterTimeline(t *testing.T) {
 	document := compositionTestDocument(t, worker, root, 16.0/9)
 	for _, sample := range []bool{false, true} {
 		target := filepath.Join(root, fmt.Sprintf("chapters-%t.mkv", sample))
-		_, err := Compose(context.Background(), ffmpeg, probe, root, ComposeOptions{Source: source, Destination: target, Mode: "hard", Quality: CompressQualityHigh, Sample: sample}, document, func(ComposeProgress) {})
+		_, err := Compose(context.Background(), ffmpeg, probe, root, ComposeOptions{Source: source, Destination: target, Mode: "hard", Quality: videoencoding.QualityHigh, Sample: sample}, document, func(ComposeProgress) {})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -226,7 +228,7 @@ func TestRealNonzeroChapterTimeline(t *testing.T) {
 		t.Fatalf("%v %s", err, out)
 	}
 	target := filepath.Join(t.TempDir(), "chapter-gap.mp4")
-	_, err = Compose(context.Background(), ffmpeg, probe, root, ComposeOptions{Source: gapSource, Destination: target, Mode: "hard", Quality: CompressQualityHigh}, document, func(ComposeProgress) {})
+	_, err = Compose(context.Background(), ffmpeg, probe, root, ComposeOptions{Source: gapSource, Destination: target, Mode: "hard", Quality: videoencoding.QualityHigh}, document, func(ComposeProgress) {})
 	if err == nil {
 		t.Fatal("MP4 changed the first chapter start without detection")
 	}
@@ -245,7 +247,7 @@ func TestNonzeroStartBurnTiming(t *testing.T) {
 	}
 	document := compositionTestDocument(t, worker, root, 16.0/9)
 	target := filepath.Join(root, "burn.mp4")
-	_, err := Compose(context.Background(), ffmpeg, probe, root, ComposeOptions{Source: source, Destination: target, Mode: "hard", Quality: CompressQualityNearLossless}, document, func(ComposeProgress) {})
+	_, err := Compose(context.Background(), ffmpeg, probe, root, ComposeOptions{Source: source, Destination: target, Mode: "hard", Quality: videoencoding.QualityNearLossless}, document, func(ComposeProgress) {})
 	if err != nil {
 		t.Fatal(err)
 	}

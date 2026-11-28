@@ -2,7 +2,6 @@
 package media
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -56,9 +55,11 @@ type Info struct {
 	} `json:"format"`
 }
 
+// HasVideo excludes cover art, which ffprobe also reports as a video stream.
+// A cover must not enable video composition or automatic video association.
 func (i Info) HasVideo() bool {
 	for _, stream := range i.Streams {
-		if stream.CodecType == "video" {
+		if stream.CodecType == "video" && stream.Disposition.AttachedPic == 0 {
 			return true
 		}
 	}
@@ -86,22 +87,14 @@ func (i Info) DurationMs() int64 {
 	return int64(seconds * 1000)
 }
 
-type limitedOutput struct{ bytes.Buffer }
-
-func (o *limitedOutput) Write(p []byte) (int, error) {
-	if o.Len()+len(p) > 1024*1024 {
-		return 0, errors.New(locales.ErrProbeTooLarge())
-	}
-	return o.Buffer.Write(p)
-}
-
 // Probe bounds both runtime and output; stderr is not surfaced with local paths.
 func Probe(ctx context.Context, executable, path string) (Info, error) {
 	var info Info
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	cmd := jobs.CommandContext(ctx, executable, "-v", "error", "-show_streams", "-show_format", "-show_chapters", "-of", "json", "-i", path)
-	stdout, stderr := &limitedOutput{}, &limitedOutput{}
+	stdout := &jobs.BoundedBuffer{Limit: 1024 * 1024, Overflow: errors.New(locales.ErrProbeTooLarge())}
+	stderr := &jobs.BoundedBuffer{Limit: 1024 * 1024, Overflow: errors.New(locales.ErrProbeTooLarge())}
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	if err := cmd.Run(); err != nil {
 		return info, apperr.Wrap(locales.ErrProbe(err.Error()), err)

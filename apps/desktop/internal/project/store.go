@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -80,6 +81,15 @@ func Create(path, mediaPath, sourcePath string, doc subtitle.Document, displayNa
 	if !strings.EqualFold(filepath.Ext(path), ".onesub") {
 		return nil, errors.New(locales.ErrProjectExtension())
 	}
+	// Reject unreadable or oversized input before reserving the project. This
+	// also leaves the requested name available when the user fixes the input.
+	var source []byte
+	if sourcePath != "" {
+		source, err = readSource(sourcePath)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if err := os.Mkdir(path, 0700); err != nil {
 		return nil, apperr.Wrap(locales.ErrProjectExists(err.Error()), err)
 	}
@@ -91,16 +101,9 @@ func Create(path, mediaPath, sourcePath string, doc subtitle.Document, displayNa
 		return nil, err
 	}
 	if sourcePath != "" {
-		raw, err := os.ReadFile(sourcePath)
-		if err != nil {
-			return nil, err
-		}
-		if len(raw) > 64*1024*1024 {
-			return nil, errors.New(locales.ErrProjectSourceSize())
-		}
-		hash := sha256.Sum256(raw)
+		hash := sha256.Sum256(source)
 		manifest.SourceSHA256 = hex.EncodeToString(hash[:])
-		if err = os.WriteFile(filepath.Join(path, "originals", "source"+filepath.Ext(sourcePath)), raw, 0600); err != nil {
+		if err = os.WriteFile(filepath.Join(path, "originals", "source"+filepath.Ext(sourcePath)), source, 0600); err != nil {
 			return nil, err
 		}
 	}
@@ -120,6 +123,32 @@ func Create(path, mediaPath, sourcePath string, doc subtitle.Document, displayNa
 		return nil, err
 	}
 	return s, nil
+}
+
+// readSource checks size before allocation and bounds reads if the source
+// grows after Stat. The immutable copy and its digest use these same bytes.
+func readSource(path string) ([]byte, error) {
+	const limit = 64 * 1024 * 1024
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > limit {
+		return nil, errors.New(locales.ErrProjectSourceSize())
+	}
+	raw, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > limit {
+		return nil, errors.New(locales.ErrProjectSourceSize())
+	}
+	return raw, nil
 }
 
 func localPath(path string) (string, error) {

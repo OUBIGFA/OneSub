@@ -8,13 +8,8 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/jobs"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/videoencoding"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
-)
-
-const (
-	EncoderCPU     = "cpu"
-	EncoderCPUH264 = "cpu-h264"
-	EncoderGPU     = "gpu"
 )
 
 // hardwareEncoder is one of the bundled FFmpeg's hardware video encoders.
@@ -122,7 +117,7 @@ func gpuPresetFor(encoder hardwareEncoder, quality string) (CompressPreset, bool
 	}
 	// Starting points measured on hevc_nvenc (1080p): cq 34 ~ XPSNR 44, cq 40
 	// ~ 41.7, cq 44 ~ 40. AV1 NVENC uses a 0-63 scale, so it starts higher.
-	initial := map[string]float64{CompressQualityNearLossless: 30, CompressQualityHigh: 36, CompressQualityCompact: 42}[quality]
+	initial := map[string]float64{videoencoding.QualityNearLossless: 30, videoencoding.QualityHigh: 36, videoencoding.QualityCompact: 42}[quality]
 	if encoder.MaxQ > 51 {
 		initial += 6
 	}

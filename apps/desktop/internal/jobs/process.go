@@ -24,12 +24,20 @@ func CommandContext(ctx context.Context, name string, args ...string) *exec.Cmd 
 type tailBuffer struct{ data []byte }
 
 func (b *tailBuffer) Write(p []byte) (int, error) {
-	n := len(p)
-	b.data = append(b.data, p...)
-	if len(b.data) > 32768 {
-		b.data = append([]byte{}, b.data[len(b.data)-32768:]...)
+	b.data = appendTail(b.data, p, 32768)
+	return len(p), nil
+}
+
+// appendTail reuses storage and discards excess bytes before appending. A busy
+// child must not allocate a new log buffer for every write or one huge line.
+func appendTail(dst, p []byte, limit int) []byte {
+	if len(p) >= limit {
+		return append(dst[:0], p[len(p)-limit:]...)
 	}
-	return n, nil
+	if discard := len(dst) + len(p) - limit; discard > 0 {
+		dst = dst[:copy(dst, dst[discard:])]
+	}
+	return append(dst, p...)
 }
 
 // stderrLines keeps the bounded tail for error reports and passes each
@@ -44,30 +52,27 @@ type stderrLines struct {
 
 func (s *stderrLines) Write(p []byte) (int, error) {
 	s.tailBuffer.Write(p)
-	s.partial = append(s.partial, p...)
-	for len(s.partial) > 0 {
+	n := len(p)
+	for len(p) > 0 {
 		if s.skipLF {
 			s.skipLF = false
-			if s.partial[0] == '\n' {
-				s.partial = s.partial[1:]
+			if p[0] == '\n' {
+				p = p[1:]
 				continue
 			}
 		}
-		i := bytes.IndexAny(s.partial, "\r\n")
+		i := bytes.IndexAny(p, "\r\n")
 		if i < 0 {
+			s.partial = appendTail(s.partial, p, 65536)
 			break
 		}
-		sep := s.partial[i]
-		s.line(string(s.partial[:i]))
-		s.partial = s.partial[i+1:]
-		if sep == '\r' {
-			s.skipLF = true
-		}
+		s.partial = appendTail(s.partial, p[:i], 65536)
+		s.line(string(s.partial))
+		s.partial = s.partial[:0]
+		s.skipLF = p[i] == '\r'
+		p = p[i+1:]
 	}
-	if len(s.partial) > 65536 {
-		s.partial = append([]byte{}, s.partial[len(s.partial)-65536:]...)
-	}
-	return len(p), nil
+	return n, nil
 }
 
 // Run consumes stdout concurrently and retains only a bounded stderr tail. On

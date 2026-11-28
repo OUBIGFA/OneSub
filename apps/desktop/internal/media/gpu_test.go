@@ -14,6 +14,7 @@ import (
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/videoencoding"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
@@ -88,7 +89,7 @@ func TestHardwareVideoArgs(t *testing.T) {
 }
 
 func TestGPUPresetKeepsCPUTarget(t *testing.T) {
-	for _, quality := range []string{CompressQualityNearLossless, CompressQualityHigh, CompressQualityCompact} {
+	for _, quality := range []string{videoencoding.QualityNearLossless, videoencoding.QualityHigh, videoencoding.QualityCompact} {
 		cpu, _ := CompressPresetFor(quality)
 		for _, e := range hardwareEncoders {
 			preset, ok := gpuPresetFor(e, quality)
@@ -114,7 +115,7 @@ func TestComposeArgsUseHardwareEncoderInTheSharedPipeline(t *testing.T) {
 		{hardwareEncoders[0], ".mp4", false}, // av1_nvenc
 	} {
 		encoder := tc.encoder
-		args, err := ComposeArgs(ComposeOptions{Source: "source.mp4", Destination: "out" + tc.ext, Mode: "hard", Quality: CompressQualityHigh, Encoder: EncoderGPU, ResolvedCRF: 33, hardware: &encoder}, info, "render.ass", "partial"+tc.ext)
+		args, err := ComposeArgs(ComposeOptions{Source: "source.mp4", Destination: "out" + tc.ext, Mode: "hard", Quality: videoencoding.QualityHigh, Encoder: videoencoding.EncoderGPU, ResolvedCRF: 33, hardware: &encoder}, info, "render.ass", "partial"+tc.ext)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -187,8 +188,8 @@ func TestRealGPUCompressionAndHardComposition(t *testing.T) {
 			Source:      source,
 			Destination: output,
 			Mode:        "compress",
-			Quality:     CompressQualityHigh,
-			Encoder:     EncoderGPU,
+			Quality:     videoencoding.QualityHigh,
+			Encoder:     videoencoding.EncoderGPU,
 		}
 		start := time.Now()
 		report, err := Compose(context.Background(), ffmpeg, probe, scratch, opts, styles.Document{}, func(ComposeProgress) {})
@@ -269,8 +270,8 @@ func TestRealGPUCompressionAndHardComposition(t *testing.T) {
 			Source:      source,
 			Destination: hardOut,
 			Mode:        "hard",
-			Quality:     CompressQualityNearLossless,
-			Encoder:     EncoderGPU,
+			Quality:     videoencoding.QualityNearLossless,
+			Encoder:     videoencoding.EncoderGPU,
 			Language:    "zh-CN",
 			Revision:    1,
 		}, doc, func(ComposeProgress) {})

@@ -14,14 +14,11 @@ import (
 	"sync"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/jobs"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/videoencoding"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
 const (
-	CompressQualityNearLossless = "near-lossless"
-	CompressQualityHigh         = "high"
-	CompressQualityCompact      = "compact"
-
 	crfStep                = 0.25
 	crfSearchMaxIterations = 6
 	crfScoreToleranceDB    = 0.25
@@ -62,27 +59,27 @@ func CompressPresetFor(quality string) (CompressPreset, bool) {
 	// Presets 5/6 spent substantially more CPU on every trial and on the final
 	// encode; preset 8 trades some compression efficiency for turnaround time.
 	switch quality {
-	case CompressQualityNearLossless:
+	case videoencoding.QualityNearLossless:
 		return CompressPreset{
-			ID:          CompressQualityNearLossless,
+			ID:          videoencoding.QualityNearLossless,
 			Preset:      8,
 			TargetXPSNR: 42.0,
 			MinCRF:      10.0,
 			MaxCRF:      55.0,
 			InitialCRF:  26.0,
 		}, true
-	case CompressQualityHigh:
+	case videoencoding.QualityHigh:
 		return CompressPreset{
-			ID:          CompressQualityHigh,
+			ID:          videoencoding.QualityHigh,
 			Preset:      8,
 			TargetXPSNR: 39.0,
 			MinCRF:      12.0,
 			MaxCRF:      60.0,
 			InitialCRF:  32.0,
 		}, true
-	case CompressQualityCompact:
+	case videoencoding.QualityCompact:
 		return CompressPreset{
-			ID:          CompressQualityCompact,
+			ID:          videoencoding.QualityCompact,
 			Preset:      8,
 			TargetXPSNR: 36.0,
 			MinCRF:      16.0,

@@ -12,11 +12,12 @@ import (
 	"time"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/videoencoding"
 )
 
 func TestCompressionHasNoSubtitleInputOrBurnFilter(t *testing.T) {
 	info := Info{Streams: []Stream{{Index: 0, CodecType: "video", CodecName: "h264"}, {Index: 1, CodecType: "audio", CodecName: "aac"}}}
-	args, err := ComposeArgs(ComposeOptions{Source: "source.mp4", Destination: "compressed.mp4", Mode: "compress", Quality: CompressQualityNearLossless, ResolvedCRF: 27.5}, info, "must-not-use.ass", "output.partial.mp4")
+	args, err := ComposeArgs(ComposeOptions{Source: "source.mp4", Destination: "compressed.mp4", Mode: "compress", Quality: videoencoding.QualityNearLossless, ResolvedCRF: 27.5}, info, "must-not-use.ass", "output.partial.mp4")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +83,7 @@ func TestParseXPSNR(t *testing.T) {
 }
 
 func TestSearchCRFConverges(t *testing.T) {
-	preset, ok := CompressPresetFor(CompressQualityNearLossless)
+	preset, ok := CompressPresetFor(videoencoding.QualityNearLossless)
 	if !ok {
 		t.Fatal("missing near-lossless preset")
 	}
@@ -107,7 +108,7 @@ func TestSearchCRFConverges(t *testing.T) {
 // A smooth curve should not spend the six-attempt budget stepping toward the
 // target after two measurements already establish its slope.
 func TestSearchCRFUsesMeasuredSlopeBeforeBracketing(t *testing.T) {
-	preset, _ := CompressPresetFor(CompressQualityNearLossless)
+	preset, _ := CompressPresetFor(videoencoding.QualityNearLossless)
 	for _, targetCRF := range []float64{18, 46} {
 		outcome, err := searchCRF(preset, func(crf float64) (float64, int64, error) {
 			return 42 + (targetCRF-crf)*0.4, 1000, nil
@@ -125,7 +126,7 @@ func TestSearchCRFUsesMeasuredSlopeBeforeBracketing(t *testing.T) {
 }
 
 func TestSearchCRFRejectsUnmetQualityTarget(t *testing.T) {
-	preset, _ := CompressPresetFor(CompressQualityHigh)
+	preset, _ := CompressPresetFor(videoencoding.QualityHigh)
 	_, err := searchCRF(preset, func(crf float64) (float64, int64, error) {
 		return 30 - crf*0.1, 1000, nil
 	})
@@ -160,7 +161,7 @@ func TestCompressionPerformance(t *testing.T) {
 	totalStart := started
 	timings := map[string]time.Duration{}
 	report, err := Compose(context.Background(), ffmpeg, probe, root,
-		ComposeOptions{Source: source, Destination: filepath.Join(root, "compressed.mkv"), Mode: "compress", Quality: CompressQualityNearLossless},
+		ComposeOptions{Source: source, Destination: filepath.Join(root, "compressed.mkv"), Mode: "compress", Quality: videoencoding.QualityNearLossless},
 		styles.Document{}, func(p ComposeProgress) {
 			if p.Stage != stage {
 				timings[stage] += time.Since(started)
@@ -204,7 +205,7 @@ func TestRealCompressionWithoutSubtitles(t *testing.T) {
 			t.Fatal(err)
 		}
 		output := filepath.Join(dir, "compressed."+extension)
-		options := ComposeOptions{Source: source, Destination: output, Mode: "compress", Quality: CompressQualityHigh}
+		options := ComposeOptions{Source: source, Destination: output, Mode: "compress", Quality: videoencoding.QualityHigh}
 		sawAnalyze := false
 		analyzeFraction := 0.0
 		report, err := Compose(context.Background(), ffmpeg, probe, root, options, styles.Document{}, func(p ComposeProgress) {

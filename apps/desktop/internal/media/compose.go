@@ -17,6 +17,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/apperr"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/jobs"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/videoencoding"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
@@ -63,21 +64,6 @@ type ComposeReport struct {
 	Chapters     int                `json:"chapters"`
 	Compression  *CompressionReport `json:"compression,omitempty"`
 	Checks       []string           `json:"checks"`
-}
-
-// H264CRF restores the fixed quality choices from 0.1.0. These are encoder
-// parameters, not equivalents of the perceptual targets used by AV1 and GPU.
-func H264CRF(quality string) (float64, bool) {
-	switch quality {
-	case "crf18":
-		return 18, true
-	case "crf20":
-		return 20, true
-	case "crf23":
-		return 23, true
-	default:
-		return 0, false
-	}
 }
 
 func streamCounts(streams []Stream) map[string]int {
@@ -241,7 +227,7 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 		// All encoders share stream mapping and validation. H.264 restores
 		// fixed CRF without a perceptual search. Burn-in adds ASS using local
 		// fixed names, never shell-escaped user filenames.
-		if options.Encoder != "" && options.Encoder != EncoderCPU && options.Encoder != EncoderCPUH264 && options.Encoder != EncoderGPU {
+		if options.Encoder != "" && !videoencoding.ValidEncoder(options.Encoder) {
 			return nil, errors.New(locales.ErrComposeMode())
 		}
 		preset, ok := CompressPresetFor(options.Quality)
@@ -249,8 +235,8 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 		if options.hardware != nil {
 			preset, ok = gpuPresetFor(*options.hardware, options.Quality)
 		}
-		if options.Encoder == EncoderCPUH264 {
-			crf, ok = H264CRF(options.Quality)
+		if options.Encoder == videoencoding.EncoderCPUH264 {
+			crf, ok = videoencoding.H264CRF(options.Quality)
 		}
 		if !ok {
 			return nil, errors.New(locales.ErrComposeQuality())
@@ -264,7 +250,7 @@ func ComposeArgs(options ComposeOptions, info Info, assPath, partial string) ([]
 		}
 		filters = append(filters, "crop=trunc(iw/2)*2:trunc(ih/2)*2:0:0")
 		args = append(args, "-filter:v:0", strings.Join(filters, ","))
-		if options.Encoder == EncoderCPUH264 {
+		if options.Encoder == videoencoding.EncoderCPUH264 {
 			args = append(args, "-c:v:0", "libx264", "-preset", "medium", "-crf", formatCRF(crf), "-pix_fmt:v:0", "yuv420p")
 		} else if options.hardware != nil {
 			args = append(args, options.hardware.videoArgs(crf, (plan.mainVideo.Width&^1)*(plan.mainVideo.Height&^1))...)
@@ -465,14 +451,14 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 		}
 	}
 	if options.Mode == "compress" || options.Mode == "hard" {
-		if options.Encoder == EncoderGPU {
+		if options.Encoder == videoencoding.EncoderGPU {
 			encoder, detectErr := DetectGPUEncoder(ctx, ffmpeg)
 			if detectErr != nil {
 				return report, detectErr
 			}
 			options.hardware = &encoder
 		}
-		if options.Encoder != EncoderCPUH264 && options.ResolvedCRF <= 0 {
+		if options.Encoder != videoencoding.EncoderCPUH264 && options.ResolvedCRF <= 0 {
 			var resolved float64
 			var compressionReport *CompressionReport
 			var searchErr error
@@ -570,7 +556,7 @@ func Compose(ctx context.Context, ffmpeg, probe, scratchRoot string, options Com
 	report.Checks = []string{"streams", "duration", "chapter titles and timings", "full audiovisual decode", "sha256"}
 	if (options.Mode == "compress" || options.Mode == "hard") && report.Compression != nil {
 		checkName := "xpsnr crf search"
-		if options.Encoder == EncoderGPU {
+		if options.Encoder == videoencoding.EncoderGPU {
 			checkName = "xpsnr gpu quality search"
 		}
 		report.Checks = append([]string{checkName}, report.Checks...)

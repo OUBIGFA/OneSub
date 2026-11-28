@@ -1,7 +1,32 @@
-param([string]$GoRoot = $env:GOROOT, [string[]]$Packages = @('./...'), [switch]$GoOnly, [string]$PackageRoot, [string]$TestName, [switch]$NativeDesktop, [switch]$CoreOnly)
+param([string]$GoRoot = $env:GOROOT, [string[]]$Packages = @('./...'), [switch]$GoOnly, [string]$PackageRoot, [string]$TestName, [switch]$NativeDesktop, [switch]$CoreOnly, [switch]$WorkersOnly)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-if ($CoreOnly -and $NativeDesktop) { throw 'CoreOnly and NativeDesktop are separate test scopes' }
+if (([int]$CoreOnly.IsPresent + [int]$NativeDesktop.IsPresent + [int]$WorkersOnly.IsPresent) -gt 1) { throw 'CoreOnly, WorkersOnly and NativeDesktop are separate test scopes' }
+if ($WorkersOnly) {
+    # Font/ASS and subtitle format regressions are ordinary child processes.
+    # They need their built runtimes, but never a desktop or an installed app.
+    $env:PYTHONUTF8 = '1'
+    $env:ONESUB_SUBTITLE_WORKER = Join-Path $root 'build/output/subtitle-core/OneSub.SubtitleCore.exe'
+    $env:ONESUB_FFMPEG = Join-Path $root 'build/output/media-tools/ffmpeg.exe'
+    if ($PackageRoot) {
+        $runtimeRoot = [IO.Path]::GetFullPath($PackageRoot)
+        $env:ONESUB_SUBTITLE_WORKER = Join-Path $runtimeRoot 'subtitle-core/OneSub.SubtitleCore.exe'
+        $env:ONESUB_FFMPEG = Join-Path $runtimeRoot 'media-tools/ffmpeg.exe'
+    }
+    if (-not (Test-Path -LiteralPath $env:ONESUB_SUBTITLE_WORKER)) { throw 'Run build/build-subtitle.ps1 first' }
+    if (-not (Test-Path -LiteralPath $env:ONESUB_FFMPEG)) { throw 'Prepare the media runtime first' }
+    Push-Location (Join-Path $root 'workers/style-core')
+    try {
+        & bun test
+        if ($LASTEXITCODE -ne 0) { throw 'SmartSub style tests failed' }
+    } finally { Pop-Location }
+    Push-Location $root
+    try {
+        & python -m unittest discover -s tests/regression -v
+        if ($LASTEXITCODE -ne 0) { throw 'Subtitle worker regression failed' }
+    } finally { Pop-Location }
+    return
+}
 if ($CoreOnly) {
     # Business-package unit tests need no window, private desktop or model.
     if (-not $GoRoot) { $GoRoot = Join-Path $root '.local/toolchains/go1.27.4/go' }
@@ -12,6 +37,7 @@ if ($CoreOnly) {
     $env:GOCACHE = Join-Path $root '.local/gocache'
     $env:PYTHONUTF8 = '1'
     $env:ONESUB_SUBTITLE_WORKER = Join-Path $root 'build/output/subtitle-core/OneSub.SubtitleCore.exe'
+    $env:ONESUB_STYLE_WORKER = Join-Path $root 'build/output/style-core/OneSub.StyleCore.exe'
     $env:ONESUB_SKILL_WORKER = Join-Path $root 'build/output/skill-tools/OneSub.SkillTools.exe'
     $env:ONESUB_SKILL_ROOT = Join-Path $root 'third_party/skills/srt-subtitle-translator'
     $env:ONESUB_FFMPEG = Join-Path $root 'build/output/media-tools/ffmpeg.exe'
@@ -30,10 +56,25 @@ if ($CoreOnly) {
         & go test @Packages @arguments
         if ($LASTEXITCODE -ne 0) { throw 'Core unit tests failed' }
         if ($defaultCorePackages -and -not $TestName) {
-            # These application-level update tests use HTTP fixtures and
-            # plain state only; they never create a window or install files.
-            & go test . -timeout=2m -run '^Test(InstallerRelease|OrderedUpdateVersion|AutomaticCheckSchedule)'
-            if ($LASTEXITCODE -ne 0) { throw 'Update check unit tests failed' }
+            # Exact names avoid accidentally opting in a future native view
+            # test with a similar prefix. These use state, local HTTP and MCP.
+            $applicationTests = @(
+                'BusinessPackagesDoNotImportViews', 'VideoEncodingChoices',
+                'ElapsedTimeUsesReadableUnits', 'TaskTimingExcludesPausedAndFinishedWait',
+                'FinishTaskFreezesPreviousModuleBeforeStartingNext',
+                'MCPServerTools', 'MCPPreflightAvoidsExpensiveWork',
+                'MCPTranslationSavesAndResumes', 'MCPFileWorkflow',
+                'InstallerReleaseDetectsPublishedVersionWithoutSignedArchive',
+                'InstallerReleaseComparesProductVersionsNumerically',
+                'InstallerReleaseDoesNotOfferUnpublishedOrUnrelatedDownloads',
+                'InstallerReleaseDistinguishesAbsenceFailureAndCancellation',
+                'InstallerReleaseStatusOffersManualDownloadWithoutAutomaticInstall',
+                'InstallerReleaseFallbackOnlyUsesMissingFeed',
+                'OrderedUpdateVersionKeepsTheProductAndComparesBuilds',
+                'AutomaticCheckScheduleStopsOnActualExit'
+            )
+            & go test . -timeout=5m -run ('^Test(' + ($applicationTests -join '|') + ')$')
+            if ($LASTEXITCODE -ne 0) { throw 'Application unit tests failed' }
         }
     } finally { Pop-Location }
     return
@@ -115,13 +156,7 @@ try {
     } finally { Pop-Location }
     if ($GoOnly) { return }
     & (Join-Path $PSScriptRoot 'test-updates.ps1')
-    Push-Location workers/style-core
-    try {
-        & bun test
-        if ($LASTEXITCODE -ne 0) { throw 'SmartSub style tests failed' }
-    } finally { Pop-Location }
-    & python -m unittest discover -s tests/regression -v
-    if ($LASTEXITCODE -ne 0) { throw 'Subtitle worker regression failed' }
+    & $PSCommandPath -WorkersOnly -PackageRoot $PackageRoot
     & python tools/check_repo.py
     if ($LASTEXITCODE -ne 0) { throw 'Repository check failed' }
     & python -m unittest discover -s tests/repository -v

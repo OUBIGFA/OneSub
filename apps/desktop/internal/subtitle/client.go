@@ -116,19 +116,6 @@ func (c Client) documentOperation(ctx context.Context, operation string, documen
 	return c.run(ctx, operation, input)
 }
 
-// boundedBuffer prevents a broken helper from allocating unbounded stdout/stderr.
-type boundedBuffer struct {
-	bytes.Buffer
-	limit int
-}
-
-func (b *boundedBuffer) Write(p []byte) (int, error) {
-	if b.Len()+len(p) > b.limit {
-		return 0, errors.New(locales.ErrWorkerOutput())
-	}
-	return b.Buffer.Write(p)
-}
-
 func (c Client) run(ctx context.Context, operation, input string) ([]byte, error) {
 	dir, err := os.MkdirTemp(c.Scratch, "subtitle-")
 	if err != nil {
@@ -145,8 +132,8 @@ func (c Client) run(ctx context.Context, operation, input string) ([]byte, error
 	defer cancel()
 	cmd := jobs.CommandContext(ctx, c.Executable)
 	cmd.Stdin = bytes.NewReader(request)
-	stdout := &boundedBuffer{limit: 1024 * 1024}
-	stderr := &boundedBuffer{limit: 64 * 1024}
+	stdout := &jobs.BoundedBuffer{Limit: 1024 * 1024}
+	stderr := &jobs.BoundedBuffer{Limit: 64 * 1024}
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	runErr := cmd.Run()
 	var reply struct {

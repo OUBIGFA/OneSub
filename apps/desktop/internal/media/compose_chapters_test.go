@@ -13,6 +13,7 @@ import (
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/videoencoding"
 )
 
 // A self-authored 30 fps FFmetadata fixture makes FFmpeg produce the same
@@ -122,7 +123,7 @@ func TestRealCompositionPreservesChapterData(t *testing.T) {
 		mode, extension, sample := c.mode, c.extension, c.sample
 		t.Run(fmt.Sprintf("%s%s/sample%t", mode, extension, sample), func(t *testing.T) {
 			output := filepath.Join(root, fmt.Sprintf("%s-%t%s", mode, sample, extension))
-			options := ComposeOptions{Source: source, Destination: output, Mode: mode, Quality: CompressQualityNearLossless, Sample: sample, Language: "en"}
+			options := ComposeOptions{Source: source, Destination: output, Mode: mode, Quality: videoencoding.QualityNearLossless, Sample: sample, Language: "en"}
 			report, err := Compose(context.Background(), ffmpeg, probe, root, options, document, func(ComposeProgress) {})
 			if err != nil {
 				t.Fatal("chapter-bearing video rejected", err)
@@ -185,7 +186,7 @@ func TestChapterMappingRejectsUnidentifiedData(t *testing.T) {
 				info.Streams = []Stream{{Index: 0, CodecType: "video", CodecName: "av1", PixFmt: "yuv420p"}, {Index: 1, CodecType: "audio", CodecName: "aac"}, {Index: 2, CodecType: "subtitle", CodecName: "mov_text", CodecTag: "tx3g"}, {Index: 3, CodecType: "data", CodecName: "bin_data", CodecTag: "text", Tags: map[string]string{"handler_name": "SubtitleHandler"}}}
 				info.Chapters = []Chapter{{StartTime: "0", EndTime: "6", Tags: map[string]string{"title": "Chapter"}}}
 				scenario.change(&info)
-				opts := ComposeOptions{Source: "source.mp4", Destination: "output" + extension, Mode: "hard", Quality: CompressQualityNearLossless}
+				opts := ComposeOptions{Source: "source.mp4", Destination: "output" + extension, Mode: "hard", Quality: videoencoding.QualityNearLossless}
 				args, err := ComposeArgs(opts, info, "render.ass", "partial"+extension)
 				if (err == nil) != scenario.allow {
 					t.Fatal("chapter exception accepted or rejected the wrong data", err)
@@ -244,7 +245,7 @@ func TestLocalChapterMediaLosslessSample(t *testing.T) {
 		t.Fatal(err)
 	}
 	document := compositionTestDocument(t, worker, root, info.FrameAspect())
-	opts := ComposeOptions{Source: source, Destination: filepath.Join(root, "sample.mp4"), Mode: "hard", Quality: CompressQualityNearLossless, Sample: true, Language: "en"}
+	opts := ComposeOptions{Source: source, Destination: filepath.Join(root, "sample.mp4"), Mode: "hard", Quality: videoencoding.QualityNearLossless, Sample: true, Language: "en"}
 	report, err := Compose(context.Background(), ffmpeg, probe, root, opts, document, func(ComposeProgress) {})
 	if err != nil {
 		t.Fatal(err)

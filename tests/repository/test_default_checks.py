@@ -46,12 +46,12 @@ class DefaultChecksTests(unittest.TestCase):
             "    def test_fixture(self):\n        self.assertTrue(True)\n", encoding='utf-8',
         )
 
-    def run_checks(self):
+    def run_checks(self, *arguments):
         environment = os.environ.copy()
         environment['PYTHONUTF8'] = '1'
         environment.pop('MYGO_UPDATER_PRIVATE_KEY', None)
         return subprocess.run(
-            ['powershell.exe', '-NoProfile', '-NonInteractive', '-File', str(self.root / 'build/test.ps1')],
+            ['powershell.exe', '-NoProfile', '-NonInteractive', '-File', str(self.root / 'build/test.ps1'), *arguments],
             cwd=self.root, env=environment, capture_output=True, text=True,
             encoding='utf-8', errors='replace', timeout=30, creationflags=subprocess.CREATE_NO_WINDOW,
         )
@@ -78,6 +78,17 @@ class DefaultChecksTests(unittest.TestCase):
         result = self.run_checks()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Repository tests failed', result.stderr)
+
+    def test_worker_checks_require_the_runtime_instead_of_skipping(self):
+        result = self.run_checks('-WorkersOnly')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Run build/build-subtitle.ps1 first', result.stderr)
+        self.assertNotIn('private_desktop', result.stderr)
+
+    def test_native_and_worker_scopes_cannot_be_combined(self):
+        result = self.run_checks('-NativeDesktop', '-WorkersOnly')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('separate test scopes', result.stderr)
 
 
 if __name__ == '__main__':

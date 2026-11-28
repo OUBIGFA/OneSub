@@ -10,6 +10,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/translator"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/videoencoding"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 )
 
@@ -129,19 +130,64 @@ const version = 7
 // so switching encoders never reinterprets or overwrites a saved choice.
 func (s *Settings) VideoQuality(compress bool) *string {
 	if compress {
-		if s.CompressionEncoder == "cpu-h264" {
+		if s.CompressionEncoder == videoencoding.EncoderCPUH264 {
 			return &s.CompressionH264Quality
 		}
 		return &s.CompressionQuality
 	}
-	if s.ComposeEncoder == "cpu-h264" {
+	if s.ComposeEncoder == videoencoding.EncoderCPUH264 {
 		return &s.ComposeH264Quality
 	}
 	return &s.ComposeQuality
 }
 
 func Default() Settings {
-	return Settings{TranslationConcurrency: translator.DefaultConcurrency, TranslationBatchSize: translator.DefaultBatchSize, SubtitleOutput: subtitle.OutputOptions{SourceTrack: "original"}, Version: version, CloseToTray: true, AutoUpdate: true, Appearance: "dark", ModelPaths: map[string]string{}, AsrModel: "Qwen3-ASR-0.6B-hf", Aligner: "Qwen3-ForcedAligner-Ultra", Backend: "auto", RecognitionMode: "route", Language: "zh", LanguageModels: map[string]string{}, ManualLanguages: map[string]string{}, RecognitionFormat: "srt", ChunkSeconds: 60, MaxTokens: 2048, ProviderAPI: "chat-completions", TargetLanguage: "zh-CN", MaxRequests: 100, OptimizeTimeline: true, ComposeMode: "hard-mp4", ComposeQuality: "near-lossless", ComposeH264Quality: "crf20", ComposeEncoder: "cpu", CompressionFormat: "mp4", CompressionQuality: "near-lossless", CompressionH264Quality: "crf23", CompressionEncoder: "cpu", MediaProcessMode: "compress", AudioFormat: "mp3", Volume: 50, SingleClickAction: "seek-pause", DoubleClickAction: "seek-play", FollowPlayback: true, PlayerWidth: 300.0 / 7, TopHeight: 75, EditorWidth: 75, SubtitleHeight: 75, StyleContentWidth: 100.0 / 3, StripPunctuation: true, ReplacePeriods: true, KeepPunctuation: "?"}
+	return Settings{
+		TranslationConcurrency: translator.DefaultConcurrency,
+		TranslationBatchSize:   translator.DefaultBatchSize,
+		SubtitleOutput:         subtitle.OutputOptions{SourceTrack: "original"},
+		Version:                version,
+		CloseToTray:            true,
+		AutoUpdate:             true,
+		Appearance:             "dark",
+		ModelPaths:             map[string]string{},
+		AsrModel:               "Qwen3-ASR-0.6B-hf",
+		Aligner:                "Qwen3-ForcedAligner-Ultra",
+		Backend:                "auto",
+		RecognitionMode:        "route",
+		Language:               "zh",
+		LanguageModels:         map[string]string{},
+		ManualLanguages:        map[string]string{},
+		RecognitionFormat:      "srt",
+		ChunkSeconds:           60,
+		MaxTokens:              2048,
+		ProviderAPI:            "chat-completions",
+		TargetLanguage:         "zh-CN",
+		MaxRequests:            100,
+		OptimizeTimeline:       true,
+		ComposeMode:            "hard-mp4",
+		ComposeQuality:         videoencoding.QualityNearLossless,
+		ComposeH264Quality:     videoencoding.QualityCRF20,
+		ComposeEncoder:         videoencoding.EncoderCPU,
+		CompressionFormat:      "mp4",
+		CompressionQuality:     videoencoding.QualityNearLossless,
+		CompressionH264Quality: videoencoding.QualityCRF23,
+		CompressionEncoder:     videoencoding.EncoderCPU,
+		MediaProcessMode:       "compress",
+		AudioFormat:            "mp3",
+		Volume:                 50,
+		SingleClickAction:      "seek-pause",
+		DoubleClickAction:      "seek-play",
+		FollowPlayback:         true,
+		PlayerWidth:            300.0 / 7,
+		TopHeight:              75,
+		EditorWidth:            75,
+		SubtitleHeight:         75,
+		StyleContentWidth:      100.0 / 3,
+		StripPunctuation:       true,
+		ReplacePeriods:         true,
+		KeepPunctuation:        "?",
+	}
 }
 
 // TranslationPunctuation freezes the local output options for a task.
@@ -175,23 +221,17 @@ func Load(path string) (Settings, error) {
 	}
 	// Preserve existing perceptual choices independently of the fixed CRFs.
 	for _, quality := range []*string{&s.ComposeQuality, &s.CompressionQuality} {
-		switch *quality {
-		case "near-lossless", "high", "compact":
-		default:
-			*quality = Default().ComposeQuality
+		if !videoencoding.ValidQuality(videoencoding.EncoderCPU, *quality) {
+			*quality = videoencoding.DefaultQuality(videoencoding.EncoderCPU)
 		}
 	}
 	for _, encoder := range []*string{&s.ComposeEncoder, &s.CompressionEncoder} {
-		switch *encoder {
-		case "cpu", "cpu-h264", "gpu":
-		default:
-			*encoder = Default().ComposeEncoder
+		if !videoencoding.ValidEncoder(*encoder) {
+			*encoder = videoencoding.EncoderCPU
 		}
 	}
-	for quality, fallback := range map[*string]string{&s.ComposeH264Quality: "crf20", &s.CompressionH264Quality: "crf23"} {
-		switch *quality {
-		case "crf18", "crf20", "crf23":
-		default:
+	for quality, fallback := range map[*string]string{&s.ComposeH264Quality: videoencoding.QualityCRF20, &s.CompressionH264Quality: videoencoding.QualityCRF23} {
+		if !videoencoding.ValidQuality(videoencoding.EncoderCPUH264, *quality) {
 			*quality = fallback
 		}
 	}

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/OUBIGFA/OneSub/apps/desktop/internal/media"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/videoencoding"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -23,7 +23,7 @@ func (a *NativeApp) compressView(c *ui.Context) {
 		}
 		qualities := composeQualities(a.settings.CompressionEncoder)
 		var qualityWidth float32
-		for _, q := range append(composeQualities(media.EncoderCPU), composeQualities(media.EncoderCPUH264)...) {
+		for _, q := range append(composeQualities(videoencoding.EncoderCPU), composeQualities(videoencoding.EncoderCPUH264)...) {
 			width, _ := c.MeasureText(0, ui.Span{Text: q.Label})
 			qualityWidth = max(qualityWidth, width)
 		}
@@ -52,9 +52,9 @@ func (a *NativeApp) compressView(c *ui.Context) {
 			})
 		})
 		note := locales.CompressAv1Note()
-		if a.settings.CompressionEncoder == media.EncoderGPU {
+		if a.settings.CompressionEncoder == videoencoding.EncoderGPU {
 			note = locales.CompressGpuNote()
-		} else if a.settings.CompressionEncoder == media.EncoderCPUH264 {
+		} else if a.settings.CompressionEncoder == videoencoding.EncoderCPUH264 {
 			note = locales.CompressH264Note()
 		}
 		if a.settings.MediaProcessMode == "audio" {

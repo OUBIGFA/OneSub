@@ -16,6 +16,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/project"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/videoencoding"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -434,25 +435,19 @@ func (s mcpServer) composeVideo(ctx context.Context, req *mcp.CallToolRequest, i
 		return nil, composeVideoOut{}, errors.New("mode must be soft or hard")
 	}
 	if in.Encoder == "" {
-		in.Encoder = media.EncoderCPU
+		in.Encoder = videoencoding.EncoderCPU
 	}
-	if in.Encoder != media.EncoderCPU && in.Encoder != media.EncoderCPUH264 && in.Encoder != media.EncoderGPU {
+	if !videoencoding.ValidEncoder(in.Encoder) {
 		return nil, composeVideoOut{}, errors.New("unknown encoder; use cpu, cpu-h264 or gpu")
 	}
-	if in.Encoder == media.EncoderCPUH264 {
-		if in.Quality == "" {
-			in.Quality = "crf20"
-		}
-		if _, ok := media.H264CRF(in.Quality); !ok {
+	if in.Quality == "" {
+		in.Quality = videoencoding.DefaultQuality(in.Encoder)
+	}
+	if !videoencoding.ValidQuality(in.Encoder, in.Quality) {
+		if in.Encoder == videoencoding.EncoderCPUH264 {
 			return nil, composeVideoOut{}, errors.New("unknown H.264 quality; use crf18, crf20 or crf23")
 		}
-	} else {
-		if in.Quality == "" {
-			in.Quality = media.CompressQualityNearLossless
-		}
-		if _, ok := media.CompressPresetFor(in.Quality); !ok {
-			return nil, composeVideoOut{}, errors.New("unknown quality; use near-lossless, high or compact")
-		}
+		return nil, composeVideoOut{}, errors.New("unknown quality; use near-lossless, high or compact")
 	}
 	if in.Language == "" {
 		in.Language = "und"

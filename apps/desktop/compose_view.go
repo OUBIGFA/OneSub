@@ -12,6 +12,7 @@ import (
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/media"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/videoencoding"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -31,22 +32,33 @@ func composeModes() []option {
 
 // H.264 exposes its original fixed CRFs; AV1 and GPU use measured targets.
 func composeQualities(encoder string) []option {
-	if encoder == media.EncoderCPUH264 {
-		return []option{{"crf18", "CRF 18"}, {"crf20", "CRF 20"}, {"crf23", "CRF 23"}}
+	labels := map[string]string{
+		videoencoding.QualityNearLossless: locales.CompressQualityNearLossless(),
+		videoencoding.QualityHigh:         locales.CompressQualityHigh(),
+		videoencoding.QualityCompact:      locales.CompressQualityCompact(),
 	}
-	return []option{
-		{"near-lossless", locales.CompressQualityNearLossless()},
-		{"high", locales.CompressQualityHigh()},
-		{"compact", locales.CompressQualityCompact()},
+	var options []option
+	for _, id := range videoencoding.Qualities(encoder) {
+		label := labels[id]
+		if crf, fixed := videoencoding.H264CRF(id); fixed {
+			label = fmt.Sprintf("CRF %g", crf)
+		}
+		options = append(options, option{id, label})
 	}
+	return options
 }
 
 func composeEncoders() []option {
-	return []option{
-		{media.EncoderCPU, locales.ComposeEncoderCpu()},
-		{media.EncoderCPUH264, locales.ComposeEncoderH264()},
-		{media.EncoderGPU, locales.ComposeEncoderGpu()},
+	labels := map[string]string{
+		videoencoding.EncoderCPU:     locales.ComposeEncoderCpu(),
+		videoencoding.EncoderCPUH264: locales.ComposeEncoderH264(),
+		videoencoding.EncoderGPU:     locales.ComposeEncoderGpu(),
 	}
+	var options []option
+	for _, id := range videoencoding.Encoders() {
+		options = append(options, option{id, labels[id]})
+	}
+	return options
 }
 
 // Content, encoding and destination are separate decisions. Fixed geometry
@@ -71,7 +83,7 @@ func (a *NativeApp) composeView(c *ui.Context) {
 		qualities := composeQualities(a.settings.ComposeEncoder)
 		var qualityWidth float32
 		// Reserve both sets of choices in this frame to keep the form stable.
-		for _, q := range append(composeQualities(media.EncoderCPU), composeQualities(media.EncoderCPUH264)...) {
+		for _, q := range append(composeQualities(videoencoding.EncoderCPU), composeQualities(videoencoding.EncoderCPUH264)...) {
 			width, _ := c.MeasureText(0, ui.Span{Text: q.Label})
 			qualityWidth = max(qualityWidth, width)
 		}
@@ -122,9 +134,9 @@ func (a *NativeApp) composeView(c *ui.Context) {
 		gpuNote := locales.ComposeGpuNote() + "\n" + locales.ComposeCrfRecommendation()
 		h264Note := locales.ComposeH264Note() + "\n" + locales.ComposeH264Recommendation()
 		note, warning := cpuNote, false
-		if a.settings.ComposeEncoder == media.EncoderGPU {
+		if a.settings.ComposeEncoder == videoencoding.EncoderGPU {
 			note = gpuNote
-		} else if a.settings.ComposeEncoder == media.EncoderCPUH264 {
+		} else if a.settings.ComposeEncoder == videoencoding.EncoderCPUH264 {
 			note = h264Note
 		}
 		switch {

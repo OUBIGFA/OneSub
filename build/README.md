@@ -27,7 +27,8 @@ source files before building:
 ```
 
 This runs the repository checks and business-package unit tests in
-`build/test.ps1` (the latter use `-CoreOnly`), builds
+`build/test.ps1` (the latter use `-CoreOnly`), the worker regressions
+(`-WorkersOnly`), builds
 the installer with MyGo and writes the fixed
 local artifacts in `build/output/release/`:
 
@@ -44,6 +45,18 @@ tests remain optional and require an explicit `-NativeDesktop` invocation.
 The private-desktop launcher tests also require an explicit
 `ONESUB_TEST_PRIVATE_DESKTOP=1` opt-in; repository discovery does not run them.
 Do not describe unperformed Windows tests as passed.
+
+Use `build/test.ps1 -CoreOnly -Packages './internal/media' -TestName '^TestH264'`
+for a focused backend change. `-CoreOnly` without a package filter also runs
+an explicit list of non-window application tests, including local MCP file
+workflows, update checks and dependency boundaries. Use exact test names when
+selecting tests in the application package; similarly named view tests may
+require the optional native scope.
+
+`build/test.ps1 -WorkersOnly` runs the real subtitle-format and SmartSub/libass
+regressions without opening a window. It requires the prepared subtitle and
+media runtimes and the locked style dependencies. Missing runtimes fail the
+entry rather than silently skipping those checks.
 
 The SBOM records packaged file SHA-256 values and source-tree/build identity.
 It labels declarations separately from binary discovery and keeps incomplete

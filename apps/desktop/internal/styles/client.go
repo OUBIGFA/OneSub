@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -147,14 +148,17 @@ func (c Client) call(ctx context.Context, operation string, input any, result an
 	defer cancel()
 	cmd := jobs.CommandContext(ctx, c.Executable)
 	cmd.Stdin = bytes.NewReader(request)
-	response, runErr := cmd.Output()
+	stdout := &jobs.BoundedBuffer{Limit: 1024 * 1024}
+	stderr := &jobs.BoundedBuffer{Limit: 64 * 1024}
+	cmd.Stdout, cmd.Stderr = stdout, stderr
+	runErr := cmd.Run()
 	var reply struct {
 		Protocol  int
 		RequestID string
 		OK        bool
 		Error     string
 	}
-	if err = json.Unmarshal(response, &reply); err != nil || reply.Protocol != 1 || reply.RequestID != filepath.Base(dir) {
+	if err = json.Unmarshal(stdout.Bytes(), &reply); err != nil || reply.Protocol != 1 || reply.RequestID != filepath.Base(dir) {
 		return apperr.Wrap(locales.ErrStyleWorker(fmt.Sprint(runErr)), runErr)
 	}
 	if !reply.OK {
@@ -163,16 +167,26 @@ func (c Client) call(ctx context.Context, operation string, input any, result an
 	if runErr != nil {
 		return runErr
 	}
-	info, err := os.Stat(outputPath)
+	output, err := os.Open(outputPath)
+	if err != nil {
+		return err
+	}
+	defer output.Close()
+	info, err := output.Stat()
 	if err != nil {
 		return err
 	}
 	if info.Size() > 64*1024*1024 {
 		return errors.New(locales.ErrStyleSize())
 	}
-	data, err := os.ReadFile(outputPath)
+	// Read the checked file through a limit as well, so growth after Stat
+	// cannot bypass the artifact bound.
+	data, err := io.ReadAll(io.LimitReader(output, 64*1024*1024+1))
 	if err != nil {
 		return err
+	}
+	if len(data) > 64*1024*1024 {
+		return errors.New(locales.ErrStyleSize())
 	}
 	return json.Unmarshal(data, result)
 }

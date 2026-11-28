@@ -75,7 +75,9 @@ func TestMCPFileWorkflow(t *testing.T) {
 		t.Helper()
 		params := &mcp.CallToolParams{Name: name, Arguments: args}
 		if name == "compose_video" {
-			params.SetProgressToken(args["mode"])
+			// Each encode is a separate operation, including two hard-subtitle
+			// exports that use different encoders.
+			params.SetProgressToken(args["output_path"])
 		}
 		res, err := cs.CallTool(ctx, params)
 		if err != nil || res.IsError != fails {
@@ -160,23 +162,31 @@ func TestMCPFileWorkflow(t *testing.T) {
 	if info["duration_ms"].(float64) < 4900 {
 		t.Fatal("duration not returned", info)
 	}
-	for _, mode := range []string{"soft", "hard"} {
-		composed := filepath.Join(data, mode+".mkv")
-		args := map[string]any{"media_path": video, "subtitle_path": output, "output_path": composed, "mode": mode, "quality": "high"}
+	for _, encoding := range []struct{ mode, encoder, quality string }{
+		{"soft", "cpu", "high"}, {"hard", "cpu", "high"}, {"hard", "cpu-h264", ""},
+	} {
+		composed := filepath.Join(data, encoding.mode+"-"+encoding.encoder+".mkv")
+		args := map[string]any{"media_path": video, "subtitle_path": output, "output_path": composed, "mode": encoding.mode, "encoder": encoding.encoder, "quality": encoding.quality}
 		result := call("compose_video", args, false)
 		report := result["report"].(map[string]any)
 		streams := report["streams"].(map[string]any)
 		if streams["audio"] != float64(1) || streams["video"] != float64(1) || report["outputSha256"] == "" {
 			t.Fatal("composition verification missing", report)
 		}
-		if mode == "soft" && streams["subtitle"] != float64(1) {
+		if encoding.mode == "soft" && streams["subtitle"] != float64(1) {
 			t.Fatal("soft subtitle missing", report)
 		}
 		call("inspect_media", map[string]any{"media_path": composed}, false)
+		if encoding.encoder == "cpu-h264" {
+			probe, err := media.Probe(ctx, os.Getenv("ONESUB_FFPROBE"), composed)
+			if err != nil || probe.Streams[0].CodecName != "h264" || report["compression"] != nil {
+				t.Fatal("MCP H.264 default did not use fixed-CRF H.264", probe, report, err)
+			}
+		}
 		call("compose_video", args, true)
 	}
 	mu.Lock()
-	if len(lastProgress) != 2 {
+	if len(lastProgress) != 3 {
 		t.Error("composition progress did not reach the client")
 	}
 	mu.Unlock()

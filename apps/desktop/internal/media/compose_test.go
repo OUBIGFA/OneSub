@@ -10,6 +10,7 @@ import (
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/videoencoding"
 )
 
 func TestComposeMappingAndGuards(t *testing.T) {
@@ -28,7 +29,7 @@ func TestComposeMappingAndGuards(t *testing.T) {
 		}
 	}
 	opts.Mode = "hard"
-	opts.Quality = CompressQualityNearLossless
+	opts.Quality = videoencoding.QualityNearLossless
 	info.Streams[0].ColorTransfer = "smpte2084"
 	if _, err = ComposeArgs(opts, info, "render.ass", "partial.mkv"); err == nil {
 		t.Fatal("HDR burn accepted")
@@ -73,7 +74,7 @@ func TestRealSmartSubComposition(t *testing.T) {
 	for _, c := range [][2]string{{"hard", ".mp4"}, {"soft", ".mkv"}} {
 		mode, extension := c[0], c[1]
 		output := filepath.Join(root, mode+extension)
-		options := ComposeOptions{Source: source, Destination: output, Mode: mode, Quality: CompressQualityHigh, Language: "zh-CN", Revision: 1}
+		options := ComposeOptions{Source: source, Destination: output, Mode: mode, Quality: videoencoding.QualityHigh, Language: "zh-CN", Revision: 1}
 		report, err := Compose(context.Background(), ffmpeg, probe, root, options, document, func(p ComposeProgress) {
 			if p.Stage == "" || p.Fraction < -1 || p.Fraction > 1 {
 				t.Errorf("invalid progress: %+v", p)
@@ -101,9 +102,9 @@ func TestComposeQualityLevels(t *testing.T) {
 	info.Format.StartTime = "0"
 	info.Streams = []Stream{{Index: 0, CodecType: "video", CodecName: "h264", PixFmt: "yuv444p10le"}}
 	for quality, wantPreset := range map[string]string{
-		CompressQualityNearLossless: "8",
-		CompressQualityHigh:         "8",
-		CompressQualityCompact:      "8",
+		videoencoding.QualityNearLossless: "8",
+		videoencoding.QualityHigh:         "8",
+		videoencoding.QualityCompact:      "8",
 	} {
 		opts := ComposeOptions{Source: "source.mkv", Destination: "out.mkv", Mode: "hard", Quality: quality, ResolvedCRF: 26.25}
 		args, err := ComposeArgs(opts, info, "render.ass", "partial.mkv")
