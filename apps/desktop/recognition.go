@@ -10,6 +10,7 @@ import (
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/settings"
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/styles"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"github.com/OUBIGFA/OneSub/apps/desktop/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -153,7 +154,7 @@ func recognitionStepLabel(step recognitionStep) string {
 		"plan": locales.RecognitionStagePlan, "hotwords": locales.RecognitionStageHotwords,
 		"load-asr": locales.RecognitionStageLoadAsr, "transcribe": locales.RecognitionStageTranscribe,
 		"load-aligner": locales.RecognitionStageLoadAligner, "align": locales.RecognitionStageAlign,
-		"export": locales.RecognitionStageExport, "punctuate": locales.RecognitionStagePunctuate,
+		"diarize": locales.SpeakerAnnotate, "export": locales.RecognitionStageExport, "punctuate": locales.RecognitionStagePunctuate,
 		"lid": locales.RecognitionDetectLanguage,
 	}[step.Stage]
 	if step.Stage == "routed" {
@@ -223,8 +224,17 @@ func publishRecognition(source, directory, format string, data []byte) (string, 
 // finishRecognition validates the CLI artifacts, saves the selected format,
 // then loads that exact file. A save failure still leaves the recognized text
 // editable and explicitly unsaved; it never masquerades as a successful export.
-func (a *NativeApp) finishRecognition(ctx context.Context, source, srt string, words []byte, prefs settings.Settings, style styles.Style, aspect float64) (func(), error) {
-	data, repaired, err := a.toolset().recognitionFile(ctx, srt, prefs, style, aspect)
+func (a *NativeApp) finishRecognition(ctx context.Context, source, srt string, words []byte, prefs settings.Settings, style styles.Style, aspect float64, recognized ...*subtitle.Document) (func(), error) {
+	var data []byte
+	var repaired int
+	var err error
+	if len(recognized) > 0 {
+		var doc subtitle.Document
+		doc, repaired = subtitle.NormalizeRecognition(*recognized[0])
+		data, err = a.toolset().renderRecognition(ctx, doc, prefs, style, aspect)
+	} else {
+		data, repaired, err = a.toolset().recognitionFile(ctx, srt, prefs, style, aspect)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -233,10 +243,14 @@ func (a *NativeApp) finishRecognition(ctx context.Context, source, srt string, w
 	}
 	path, saveErr := publishRecognition(source, prefs.RecognitionDir, prefs.RecognitionFormat, data)
 	input := path
-	if saveErr != nil {
+	if saveErr != nil || prefs.ShowSpeakers {
 		input = srt
 	}
-	apply, err := a.importFiles(ctx, []string{source, input}, words)
+	var speakers *subtitle.SpeakerState
+	if len(recognized) > 0 {
+		speakers = recognized[0].Speakers
+	}
+	apply, err := a.importFilesEvidence(ctx, []string{source, input}, [][]byte{words}, speakers)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +264,11 @@ func (a *NativeApp) finishRecognition(ctx context.Context, source, srt string, w
 			a.status = locales.StatusFailed()
 			return
 		}
-		a.markSaved(0, path)
+		if prefs.ShowSpeakers {
+			a.markSaved(0, "")
+		} else {
+			a.markSaved(0, path)
+		}
 		a.lastOutput = path
 		a.status = locales.RecognitionSaved(len(a.snapshot.Document.Cues), path)
 		if repaired > 0 {

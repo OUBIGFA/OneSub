@@ -1238,5 +1238,22 @@
   "storagePlayerCleaned": "Player cache cleared",
   "storageMoved": "Moved to Recycle Bin: {count} items, {size}",
   "storageSelection": "Selected: {count} items, {size}",
-  "storageOtherInstance": "Close other OneSub instances or MCP sessions before cleaning files"
+  "storageOtherInstance": "Close other OneSub instances or MCP sessions before cleaning files",
+  "speakerTitle": "Speakers",
+  "speakerAnnotate": "Annotate speakers",
+  "speakerCount": "Speaker count, 0 for automatic",
+  "speakerUnknown": "Unknown",
+  "speakerMixed": "Multiple speakers",
+  "speakerReview": "Review speakers",
+  "speakerApply": "Apply annotation",
+  "speakerAssign": "Assign selected subtitles",
+  "speakerName": "Display name",
+  "speakerRename": "Save name",
+  "speakerAdd": "Add speaker",
+  "speakerDownload": "Download speaker models",
+  "speakerPreview": "Analysis is ready for review before applying",
+  "speakerShow": "Show speaker names in output",
+  "speakerModelSummary": "Label who speaks when on this computer",
+  "speakerSelection": "Use the current or checked subtitles",
+  "speakerAnalyzeFailed": "Speaker analysis failed, existing subtitles are preserved"
 }

@@ -39,6 +39,10 @@ func (a *NativeApp) importPaths(paths []string) {
 	a.run(locales.TaskImport(), func(ctx context.Context) (func(), error) { return a.importFiles(ctx, paths) })
 }
 func (a *NativeApp) importFiles(ctx context.Context, paths []string, wordEvidence ...[]byte) (func(), error) {
+	return a.importFilesEvidence(ctx, paths, wordEvidence, nil)
+}
+
+func (a *NativeApp) importFilesEvidence(ctx context.Context, paths []string, wordEvidence [][]byte, speakers *subtitle.SpeakerState) (func(), error) {
 	selection, err := importing.Discover(paths)
 	if err != nil {
 		return nil, err
@@ -123,6 +127,9 @@ func (a *NativeApp) importFiles(ctx context.Context, paths []string, wordEvidenc
 	root := filepath.Join(a.dataRoot, "projects")
 	if err = os.MkdirAll(root, 0700); err != nil {
 		return nil, err
+	}
+	if speakers != nil {
+		loaded.Document = subtitle.AttachSpeakers(loaded.Document, speakers)
 	}
 	next, err := project.Create(filepath.Join(root, name+"-"+uuid.NewString()+".onesub"), loaded.Selection.Media, loaded.Selection.Subtitle, loaded.Document, name)
 	if err != nil {

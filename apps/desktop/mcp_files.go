@@ -44,6 +44,7 @@ type mcpModel struct {
 	Downloaded bool   `json:"downloaded"`
 }
 type capabilitiesOut struct {
+	SpeakerModelsReady    bool       `json:"speaker_models_ready"`
 	SubtitleWorker        bool       `json:"subtitle_worker"`
 	StyleWorker           bool       `json:"style_worker"`
 	MediaTools            bool       `json:"media_tools"`
@@ -65,10 +66,13 @@ func (s mcpServer) capabilities(ctx context.Context, req *mcp.CallToolRequest, _
 	available := func(path string) bool { info, err := os.Stat(path); return err == nil && info.Mode().IsRegular() }
 	out := capabilitiesOut{SubtitleWorker: available(s.tools.worker.Executable), StyleWorker: available(s.tools.styles.Executable), MediaTools: available(s.tools.ffmpeg) && available(s.probePath()), TranslationConfigured: prefs.ProviderURL != "" && prefs.ProviderModel != "", TranslationModel: prefs.ProviderModel, TargetLanguage: prefs.TargetLanguage, RecognitionMode: prefs.RecognitionMode, RecognitionModel: prefs.AsrModel, Models: []mcpModel{}, SubtitleFormats: []string{"srt", "vtt", "ass", "ssa"}, ComposeModes: []string{"soft", "hard"}}
 	for _, model := range models.Catalog() {
-		if model.Kind == "asr" {
+		if model.Kind == "asr" || model.Kind == "diarization" {
 			out.Models = append(out.Models, mcpModel{model.ID, model.FilesPresent(s.tools.modelPath(prefs, model.ID))})
 		}
 	}
+	seg, _ := models.ByID("speaker-segmentation")
+	embedding, _ := models.ByID("speaker-embedding")
+	out.SpeakerModelsReady = seg.FilesPresent(s.tools.modelPath(prefs, seg.ID)) && embedding.FilesPresent(s.tools.modelPath(prefs, embedding.ID)) && available(filepath.Join(s.tools.sherpaRuntime(), "sherpa-onnx-c-api.dll"))
 	return nil, out, nil
 }
 
@@ -410,14 +414,16 @@ func (s mcpServer) convertSubtitles(ctx context.Context, req *mcp.CallToolReques
 }
 
 type composeVideoIn struct {
-	MediaPath    string `json:"media_path"`
-	SubtitlePath string `json:"subtitle_path"`
-	OutputPath   string `json:"output_path" jsonschema:"absolute new mp4 or mkv path"`
-	Mode         string `json:"mode" jsonschema:"soft for selectable subtitles or hard for burned-in captions"`
-	Quality      string `json:"quality,omitempty" jsonschema:"hard mode: cpu/gpu use near-lossless (default), high or compact; cpu-h264 uses crf18, crf20 (default) or crf23"`
-	Encoder      string `json:"encoder,omitempty" jsonschema:"hard mode only: cpu (SVT-AV1, default), cpu-h264 (fixed CRF H.264) or gpu (hardware acceleration)"`
-	Language     string `json:"language,omitempty" jsonschema:"subtitle language ID; omitted means und (undetermined)"`
-	Sample       bool   `json:"sample,omitempty" jsonschema:"true creates a five-second sample before a full export"`
+	SpeakerArtifact string `json:"speaker_artifact,omitempty" jsonschema:"matching annotation artifact from recognition, annotation or translation"`
+	ShowSpeakers    bool   `json:"show_speakers,omitempty" jsonschema:"prefix speaker names in output only"`
+	MediaPath       string `json:"media_path"`
+	SubtitlePath    string `json:"subtitle_path"`
+	OutputPath      string `json:"output_path" jsonschema:"absolute new mp4 or mkv path"`
+	Mode            string `json:"mode" jsonschema:"soft for selectable subtitles or hard for burned-in captions"`
+	Quality         string `json:"quality,omitempty" jsonschema:"hard mode: cpu/gpu use near-lossless (default), high or compact; cpu-h264 uses crf18, crf20 (default) or crf23"`
+	Encoder         string `json:"encoder,omitempty" jsonschema:"hard mode only: cpu (SVT-AV1, default), cpu-h264 (fixed CRF H.264) or gpu (hardware acceleration)"`
+	Language        string `json:"language,omitempty" jsonschema:"subtitle language ID; omitted means und (undetermined)"`
+	Sample          bool   `json:"sample,omitempty" jsonschema:"true creates a five-second sample before a full export"`
 }
 type composeVideoOut struct {
 	VideoPath string              `json:"video_path"`
@@ -461,6 +467,14 @@ func (s mcpServer) composeVideo(ctx context.Context, req *mcp.CallToolRequest, i
 		return nil, composeVideoOut{}, err
 	}
 	state := project.Snapshot{SourceDocument: doc, Document: doc}
+	doc, err = attachSpeakerArtifact(doc, in.SpeakerArtifact)
+	if err != nil {
+		return nil, composeVideoOut{}, err
+	}
+	if in.ShowSpeakers {
+		doc = subtitle.WithSpeakerNames(doc)
+	}
+	state = project.Snapshot{SourceDocument: doc, Document: doc}
 	output := subtitle.OutputOptions{Mode: "source", SourceTrack: "original"}
 	if err = composeSubtitleError(composeSubtitleIssues(state, output, nil)); err != nil {
 		return nil, composeVideoOut{}, err

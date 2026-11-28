@@ -132,6 +132,8 @@ func subtitleProblemReason(problem subtitle.CueProblem) string {
 		}
 	case "empty":
 		reason = locales.SubtitleIssueEmpty()
+	case "speaker":
+		return locales.SpeakerReview()
 	case "missing":
 		reason = locales.SubtitleIssueMissing()
 	case "time":

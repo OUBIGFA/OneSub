@@ -122,6 +122,13 @@ func (e *engine) rebuild(ctx context.Context, doc subtitle.Document, summary any
 		return nil, firstErr
 	}
 	guardSenseGroups(atoms, spans, starts)
+	// Keep context in the request, but enforce speaker boundaries locally even
+	// when the model proposes a fluent cross-speaker sentence.
+	for i := 1; i < len(spans); i++ {
+		if !subtitle.SpeakerCompatible(doc.Cues[i-1].Speaker, doc.Cues[i].Speaker) {
+			starts[spans[i].first] = true
+		}
+	}
 	ranges := []subtitle.SourceRange{}
 	cueOf := map[string]cueSpan{}
 	for _, s := range spans {

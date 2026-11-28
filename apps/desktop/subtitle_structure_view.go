@@ -39,6 +39,7 @@ func (a *NativeApp) subtitleStructureCommands(index int) []menuCommand {
 		return !disabled && first >= 0 && first+1 < len(cues) && !cues[first].ReadOnly && !cues[first+1].ReadOnly && cues[first].Translated == cues[first+1].Translated
 	}
 	return []menuCommand{
+		{Label: locales.SpeakerTitle(), Disabled: disabled, Run: a.openSpeakers},
 		{Label: locales.RetranslatePick(), Disabled: disabled || a.translationLive != nil || !eligible, Run: func() { a.setSubtitleChecked(id, !a.subtitleChecked[a.subtitleTab][id]) }},
 		{Label: locales.RetranslateSelected(checked), Disabled: disabled || a.translationLive != nil || checked == 0, Run: a.openRetranslation},
 		{Label: locales.RetranslateCheckAll(), Disabled: disabled || a.translationLive != nil || len(targets) == 0, Run: a.checkAllSubtitles},

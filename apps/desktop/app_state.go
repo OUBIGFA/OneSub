@@ -18,6 +18,7 @@ import (
 // NativeApp keeps model data, not ui.Element values. The view and callbacks run
 // on MyGo's main thread; background results enter through Window.Update.
 type NativeApp struct {
+	speakers                             speakerUI
 	playerFullscreen                     bool
 	win                                  *mygo.Window
 	player                               *mygo.WebView

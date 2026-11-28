@@ -27,7 +27,7 @@ import (
 
 const (
 	// version changes the cache key whenever the prompts change.
-	version = "onesub-translate/4"
+	version = "onesub-translate/5"
 	// contextChars: sources up to this size go whole to every request;
 	// longer ones are read once into a summary and working glossary.
 	contextChars = 12000
@@ -51,6 +51,7 @@ Translate each item of "units" into the target language: one finished subtitle p
 - "lockedGlossary" lists the user's mandated renderings (LOCKED terms): use them exactly.
 - Keep each unit's markup tags and line breaks with the text they belong to.
 - "previousProblems", when present, says what was wrong in an earlier answer for these units: fix it.
+- "durationMs" is the actual display duration. "readingBudget" gives soft targets in the target profile's counting units, with a separate per-line limit. Keep facts, names, numbers, negation, conditions, terminology and formatting even when they cannot fit. Prefer concise faithful wording; never truncate, invent time, move information or omit a unit to meet a budget. Parenthetical original-language annotations follow the skill's counting exemptions. Speaker metadata is context only, never text to translate or prefix.
 Return only one JSON object whose keys are exactly the given unit IDs and whose values are their translations: {"<id>": "<translation>"}. No markdown, comments, alternatives or time codes.`
 
 type overview struct {
@@ -69,9 +70,12 @@ var overviewSchema = map[string]any{
 }
 
 type unitLine struct {
-	ID          string `json:"id"`
-	Text        string `json:"text"`
-	Translation string `json:"translation,omitempty"`
+	ID            string                      `json:"id"`
+	Text          string                      `json:"text"`
+	Translation   string                      `json:"translation,omitempty"`
+	DurationMs    int64                       `json:"durationMs,omitempty"`
+	ReadingBudget *ReadingBudget              `json:"readingBudget,omitempty"`
+	Speaker       *subtitle.SpeakerAssignment `json:"speaker,omitempty"`
 }
 
 // translatePayload is ordered as sent: what every batch of a run shares
@@ -86,13 +90,14 @@ type translatePayload struct {
 }
 
 type engine struct {
-	config  Config
-	svc     *service
-	cache   cache
-	lang    language
-	profile Profile
-	markup  bool
-	key     string // what every cached result of this run depends on
+	config        Config
+	svc           *service
+	cache         cache
+	lang          language
+	profile       Profile
+	markup        bool
+	key           string // what every cached result of this run depends on
+	budgetVersion int
 
 	mu       sync.Mutex
 	ruleSets map[string]ruleSet
@@ -211,6 +216,14 @@ func Translate(ctx context.Context, config Config, document subtitle.Document) (
 		return result, err
 	}
 	e := &engine{config: config, cache: cache{config.CacheDir}, lang: lang, profile: profile, ruleSets: map[string]ruleSet{}, accepted: map[int]string{}}
+	e.budgetVersion = readingBudgetVersion
+	if config.Resume != nil {
+		// Older interrupted jobs keep their already accepted work and old mode.
+		e.budgetVersion = config.Resume.BudgetVersion
+		if e.budgetVersion != 0 && (e.budgetVersion != readingBudgetVersion || config.Resume.BudgetRules != cacheKey(lang)) {
+			return result, errors.New(locales.TranslationResumeStale())
+		}
+	}
 	e.svc = newService(route(base, config.API), config.API, config.Model, config.Key, config.Client, config.MaxRequests)
 	e.svc.maxOutputTokens = config.MaxOutputTokens
 	e.svc.onRetry = e.retryNote
@@ -330,7 +343,7 @@ func Translate(ctx context.Context, config Config, document subtitle.Document) (
 		}
 		shared = lines
 	}
-	result.Resume = &ResumeState{InputHash: cacheKey(document), Units: units, Context: json.RawMessage(marshal(shared))}
+	result.Resume = &ResumeState{InputHash: cacheKey(document), Units: units, Context: json.RawMessage(marshal(shared)), BudgetVersion: e.budgetVersion, BudgetRules: cacheKey(lang)}
 	e.mu.Lock()
 	e.stageNow = Event{Stage: "translate", Total: len(todo)}
 	progress := *result.Resume

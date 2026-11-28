@@ -13,6 +13,16 @@ import (
 func (s *Store) ApplyTranslationDocument(commandID string, expected int64, candidate subtitle.Document, allowMissing ...bool) (int64, error) {
 	return s.mutate(commandID, expected, func(tx *sql.Tx, cursor int64) (int64, error) {
 		var base subtitle.Document
+		var speakerRaw string
+		if err := tx.QueryRow("SELECT body FROM speaker_state WHERE singleton=1").Scan(&speakerRaw); err != nil {
+			return cursor, err
+		}
+		if err := json.Unmarshal([]byte(speakerRaw), &base.Speakers); err != nil {
+			return cursor, err
+		}
+		if err := s.hydrateSpeakers(base.Speakers); err != nil {
+			return cursor, err
+		}
 		if err := tx.QueryRow("SELECT format,original FROM state WHERE singleton=1").Scan(&base.Format, &base.Original); err != nil {
 			return cursor, err
 		}
@@ -37,6 +47,9 @@ func (s *Store) ApplyTranslationDocument(commandID string, expected int64, candi
 		if err != nil {
 			return cursor, err
 		}
+		// Snapshot marks evidence from replaced media for review. Validate the
+		// candidate against that same visible state, not stale stored labels.
+		base = invalidateSpeakerMedia(base, s.manifest.MediaPath)
 		if err = subtitle.ValidateTranslation(base, candidate, allowMissing...); err != nil {
 			return cursor, err
 		}

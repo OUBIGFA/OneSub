@@ -3,6 +3,7 @@ package project
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 
 	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
@@ -49,6 +50,16 @@ func (s *Store) splitCues(ctx context.Context, command string, expected int64, o
 			return cursor, err
 		}
 		document := subtitle.Document{Format: format, Cues: cues}
+		var speakerRaw string
+		if err = tx.QueryRow("SELECT body FROM speaker_state WHERE singleton=1").Scan(&speakerRaw); err != nil {
+			return cursor, err
+		}
+		if err = json.Unmarshal([]byte(speakerRaw), &document.Speakers); err != nil {
+			return cursor, err
+		}
+		if err = s.hydrateSpeakers(document.Speakers); err != nil {
+			return cursor, err
+		}
 		var report subtitle.SplitReport
 		if id == "" {
 			report, err = subtitle.SmartSplit(ctx, document, command, original, punctuation)

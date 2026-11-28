@@ -17,7 +17,7 @@ import (
 )
 
 // punctuationConfig is SherpaOnnxOfflinePunctuationConfig of the pinned
-// sherpa-onnx v2.0.1 C API (c-api.h): two pointers around two int32s.
+// sherpa-onnx v2.0.3 C API (c-api.h): two pointers around two int32s.
 type punctuationConfig struct {
 	CtTransformer *byte
 	NumThreads    int32

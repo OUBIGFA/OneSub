@@ -33,10 +33,13 @@ var catalogJSON []byte
 var sherpaJSON []byte
 
 type File struct {
-	Name   string `json:"name"`
-	Size   int64  `json:"size"`
-	SHA256 string `json:"sha256"`
-	URL    string `json:"url"`
+	ArchiveMember string `json:"archiveMember,omitempty"`
+	ArchiveSize   int64  `json:"archiveSize,omitempty"`
+	ArchiveSHA256 string `json:"archiveSha256,omitempty"`
+	Name          string `json:"name"`
+	Size          int64  `json:"size"`
+	SHA256        string `json:"sha256"`
+	URL           string `json:"url"`
 }
 type Model struct {
 	ID    string `json:"id"`
@@ -256,6 +259,13 @@ func Download(ctx context.Context, client *http.Client, m Model, dir string, pro
 		if err := verifyFile(ctx, final, spec); err == nil {
 			completed += spec.Size
 			progress(Progress{completed, m.Size(), StageDone})
+			continue
+		}
+		if spec.ArchiveMember != "" {
+			if err := downloadArchiveMember(ctx, client, spec, dir, func(p Progress) { progress(Progress{completed + p.Done, m.Size(), p.Stage}) }); err != nil {
+				return err
+			}
+			completed += spec.Size
 			continue
 		}
 		// Ultra's local refinement files live below local_head/.

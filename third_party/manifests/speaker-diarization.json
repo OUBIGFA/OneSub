@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-11-28",
+  "runtime": "sherpa-onnx v2.0.3 CPU, C API",
+  "models": [
+    {
+      "id": "speaker-segmentation",
+      "upstream": "https://huggingface.co/pyannote/segmentation-3.0",
+      "distribution": "https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-segmentation-models",
+      "spdx": "MIT",
+      "license": "third_party/licenses/pyannote-segmentation.txt",
+      "licenseSha256": "14d7016ad68e7394d6e6b78d96cc2ae431c905287b89674cfdf021e79e62b8ba",
+      "notice": "The official conversion archive retains Copyright (c) 2022 CNRS; the upstream model repository has its own 2023 notice. Preserve the shipped archive notice verbatim.",
+      "weights": "model.onnx FP32, SHA-256 in catalog_sherpa.json"
+    },
+    {
+      "id": "speaker-embedding",
+      "upstream": "https://modelscope.cn/models/iic/speech_campplus_sv_zh_en_16k-common_advanced",
+      "distribution": "https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models",
+      "conversion": "https://github.com/k2-fsa/sherpa-onnx/blob/38016c6e0622e90bf417c35e8b47e0eb805af417/scripts/3dspeaker/export-onnx.py",
+      "spdx": "Apache-2.0",
+      "license": "third_party/licenses/3d-speaker.txt",
+      "notice": "3D-Speaker / ModelScope speaker embedding model. Model card declares Apache License 2.0. Converted by sherpa-onnx.",
+      "weights": "CAM++ Chinese/English advanced, SHA-256 in catalog_sherpa.json",
+      "licenseSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    }
+  ],
+  "distribution": "Models downloaded on explicit user action, not bundled in the installer",
+  "modifications": "No third-party model or inference source modifications; OneSub calls the pinned C API in an isolated child process",
+  "reference": "Voxa supplied workflow ideas only; no Voxa code copied"
+}

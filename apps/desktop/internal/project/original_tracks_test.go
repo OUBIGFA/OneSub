@@ -43,7 +43,7 @@ func TestVersionOneProjectRecoversOriginalTrackBeforeRebuild(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Produce the exact v1 layout using the real database, not a mock store.
-	if _, err = s.db.Exec("DROP TABLE source_cues; ALTER TABLE history DROP COLUMN track; PRAGMA user_version=1;"); err != nil {
+	if _, err = s.db.Exec("DROP TABLE source_cues; DROP TABLE speaker_state; ALTER TABLE history DROP COLUMN track; PRAGMA user_version=1;"); err != nil {
 		t.Fatal(err)
 	}
 	manifest := s.manifest

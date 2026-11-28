@@ -10,11 +10,12 @@ import (
 // OutputOptions selects language content independently from ASS visual priority.
 // SourceFirst controls reading order, not which language receives the main style.
 type OutputOptions struct {
-	Mode        string `json:"mode"`
-	Primary     string `json:"primary"`
-	SourceFirst bool   `json:"sourceFirst"`
-	SourceTrack string `json:"sourceTrack,omitempty"` // "original" selects the independent original timeline
-	SkipMissing bool   `json:"-"`                     // explicit choice for this output only, never a saved default
+	ShowSpeakers bool   `json:"showSpeakers,omitempty"`
+	Mode         string `json:"mode"`
+	Primary      string `json:"primary"`
+	SourceFirst  bool   `json:"sourceFirst"`
+	SourceTrack  string `json:"sourceTrack,omitempty"` // "original" selects the independent original timeline
+	SkipMissing  bool   `json:"-"`                     // explicit choice for this output only, never a saved default
 }
 
 func (o OutputOptions) Normalized() OutputOptions {
@@ -100,6 +101,9 @@ func SelectOutput(doc Document, options OutputOptions) (Document, error) {
 				result.Cues[i].Text = cue.Text + "\n" + source
 			}
 		}
+	}
+	if o.ShowSpeakers {
+		result = WithSpeakerNames(result)
 	}
 	return result, nil
 }

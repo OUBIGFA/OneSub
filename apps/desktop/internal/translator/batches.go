@@ -105,7 +105,7 @@ func (e *engine) translateBatch(ctx context.Context, units []subtitle.Cue, batch
 			continue
 		}
 		var text string
-		if e.cache.get(cacheKey(contextKey, unitID(i), units[i].Text), &text) {
+		if e.cache.get(e.unitCacheKey(contextKey, i, units[i]), &text) {
 			e.mu.Lock()
 			e.report.Resumed++
 			e.mu.Unlock()
@@ -147,7 +147,7 @@ func (e *engine) translateUnits(ctx context.Context, units []subtitle.Cue, group
 	for _, i := range group {
 		id := unitID(i)
 		ids[id] = i
-		payload.Units = append(payload.Units, unitLine{ID: id, Text: units[i].Text})
+		payload.Units = append(payload.Units, e.translationUnit(i, units[i]))
 		properties[id] = map[string]any{"type": "string"}
 		required = append(required, id)
 	}
@@ -158,7 +158,7 @@ func (e *engine) translateUnits(ctx context.Context, units []subtitle.Cue, group
 		if _, inGroup := ids[unitID(i)]; inGroup || units[i].ReadOnly {
 			continue
 		}
-		line := unitLine{ID: unitID(i), Text: units[i].Text}
+		line := unitLine{ID: unitID(i), Text: units[i].Text, Speaker: units[i].Speaker}
 		if i < group[0] {
 			line.Translation = e.accepted[i]
 		}
@@ -181,7 +181,7 @@ func (e *engine) translateUnits(ctx context.Context, units []subtitle.Cue, group
 				valid := text != "" && sameMarkup(units[i].Text, text) && (round >= 2 || !untranslated(units[i].Text, text, e.lang)) && (round > 0 || len(missingNumbers(units[i].Text, text)) == 0)
 				if valid && finished[i] != text {
 					finished[i] = text
-					e.keep(cacheKey(contextKey, p.key, units[i].Text), text)
+					e.keep(e.unitCacheKey(contextKey, i, units[i]), text)
 					e.update(i, text, true, thinking)
 				} else if !valid {
 					e.update(i, text, false, thinking)
@@ -233,7 +233,7 @@ func (e *engine) translateUnits(ctx context.Context, units []subtitle.Cue, group
 			issues = append(issues, problem)
 			continue
 		}
-		e.keep(cacheKey(contextKey, id, units[i].Text), text)
+		e.keep(e.unitCacheKey(contextKey, i, units[i]), text)
 		e.update(i, text, true, "")
 	}
 	return left, issues, err

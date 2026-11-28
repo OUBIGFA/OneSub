@@ -111,6 +111,21 @@ func (c Client) BuildOutput(ctx context.Context, doc subtitle.Document, style, s
 		if o.Primary == "source" {
 			primary, second = second, primary
 		}
+		if o.ShowSpeakers {
+			// Prefix the first visible language layer, never both layers.
+			first := primary
+			if o.SourceFirst != (o.Primary == "source") {
+				first = second
+			}
+			projected := cue
+			projected.Text = first
+			prefixed := subtitle.WithSpeakerNames(subtitle.Document{Speakers: doc.Speakers, Cues: []subtitle.Cue{projected}}).Cues[0].Text
+			if o.SourceFirst != (o.Primary == "source") {
+				second = prefixed
+			} else {
+				primary = prefixed
+			}
+		}
 		cue.Text = primary
 		cues = append(cues, bilingualCue{cue, second})
 	}

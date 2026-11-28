@@ -245,6 +245,9 @@ func (a *NativeApp) routeField(c *ui.Context, group string) {
 // Keep each catalog choice explicit so similarly named ASR and hotword models
 // cannot inherit one another's capabilities.
 func modelSummary(id string) string {
+	if id == "speaker-segmentation" || id == "speaker-embedding" {
+		return locales.SpeakerModelSummary()
+	}
 	switch id {
 	case "Qwen3-ASR-0.6B-hf":
 		return locales.ModelSummaryQwenSmall()

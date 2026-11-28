@@ -37,6 +37,9 @@ func composeSubtitleIssues(state project.Snapshot, options subtitle.OutputOption
 	var issues []composeSubtitleIssue
 	for _, track := range tracks {
 		doc := state.TrackDocument(track)
+		if options.ShowSpeakers {
+			doc = subtitle.WithSpeakerNames(doc)
+		}
 		rows := subtitle.InspectProblems(doc, translated && track == 1, glyphs)
 		if track == 0 && translated {
 			for _, index := range unrepresentedSourceCues(state) {

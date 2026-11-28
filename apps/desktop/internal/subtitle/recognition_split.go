@@ -112,6 +112,9 @@ func recognitionLong(lane splitText) bool {
 }
 
 func joinRecognitionContinuation(before, next Cue, format string) (Cue, bool) {
+	if !SpeakerCompatible(before.Speaker, next.Speaker) {
+		return before, false
+	}
 	end := strings.TrimRightFunc(before.Text, func(r rune) bool { return unicode.IsSpace(r) || closingPunctuation(r) })
 	last, _ := utf8.DecodeLastRuneInString(end)
 	if end == "" || strings.ContainsRune(".!?。！？…؟", last) {

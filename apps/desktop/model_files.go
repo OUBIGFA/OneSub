@@ -20,7 +20,11 @@ import (
 func modelAssetPaths(model models.Model, dir string) ([]string, error) {
 	paths := []string{}
 	for _, file := range model.Files {
-		for _, name := range []string{file.Name, file.Name + ".partial"} {
+		names := []string{file.Name, file.Name + ".partial"}
+		if file.ArchiveMember != "" {
+			names = append(names, file.Name+".archive", file.Name+".archive.partial")
+		}
+		for _, name := range names {
 			path := filepath.Join(dir, name)
 			info, err := os.Lstat(path)
 			if errors.Is(err, os.ErrNotExist) {

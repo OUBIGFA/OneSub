@@ -50,6 +50,10 @@ func SmartSplitCueForced(ctx context.Context, doc Document, command string, orig
 }
 
 func smartSplit(ctx context.Context, doc Document, command string, original bool, id string, force bool, punctuation PunctuationOptions) (SplitReport, error) {
+	var speakerEvidence speakerIndex
+	if doc.Speakers != nil {
+		speakerEvidence = newSpeakerIndex(doc.Speakers.Turns)
+	}
 	if id != "" && !slices.ContainsFunc(doc.Cues, func(c Cue) bool { return c.ID == id }) {
 		return SplitReport{}, errors.New(locales.ErrCuePosition())
 	}
@@ -96,6 +100,19 @@ func smartSplit(ctx context.Context, doc Document, command string, original bool
 			}
 		}
 		for _, part := range parts {
+			if len(parts) > 1 && cue.Speaker != nil {
+				if cue.Speaker.Manual {
+					part.Speaker = cue.Speaker
+					if cue.Speaker.Status != "single" || part.TimingQuality == "estimated" {
+						MarkSpeakerReview(&part)
+					}
+				} else if doc.Speakers != nil && part.TimingQuality != "estimated" {
+					part.Speaker = speakerEvidence.assign(part, doc.Speakers.AnalysisID)
+				} else {
+					part.Speaker = cue.Speaker
+					MarkSpeakerReview(&part)
+				}
+			}
 			part.Position = len(out.Document.Cues)
 			out.Document.Cues = append(out.Document.Cues, part)
 			if len(parts) > 1 && part.TimingQuality == "estimated" {

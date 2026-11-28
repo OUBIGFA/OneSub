@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/OUBIGFA/OneSub/apps/desktop/internal/subtitle"
 	"image/png"
 	"os"
 	"path/filepath"
@@ -41,6 +42,35 @@ func TestViewsDoNotLayOutFromEarlierFrames(t *testing.T) {
 		if n := len(layoutFeedback.FindAll(data, -1)); n > layoutFeedbackAllowed[file] {
 			t.Errorf("%s lays out from an earlier frame (%d uses of Bounds or After(0)); use native layout", file, n)
 		}
+	}
+}
+
+// This is an offscreen component test: no native window or desktop is opened.
+func TestSpeakerDialogKeepsFirstFrameAndGeometry(t *testing.T) {
+	for _, language := range []string{"zh-Hans", "en"} {
+		inLocale(t, language, func() {
+			a := storeApp(t, subtitle.Cue{ID: "one", Text: "source", StartMs: 0, EndMs: 2000})
+			a.openSpeakers()
+			tt := ui.NewTester(func(c *ui.Context) { applyStudioTheme(c); a.speakersView(c) }, 1000, 900)
+			tt.SetPreferences(ui.Preferences{ReduceMotion: true})
+			tt.Frame()
+			labels := []string{locales.SpeakerName(), locales.SpeakerApply(), locales.ActionClose()}
+			positions := map[string]ui.Rect{}
+			for _, label := range labels {
+				box, ok := tt.Find(label)
+				if !ok || box.X < 0 || box.Y < 0 || box.X+box.W > 1000 || box.Y+box.H > 900 {
+					t.Fatal("missing or clipped speaker control", label, box)
+				}
+				positions[label] = box
+			}
+			firstFrameSettled(t, tt, "speakers-ready", func() { a.speakers.candidate = &subtitle.SpeakerState{Names: map[string]string{"a": "A"}} })
+			for _, label := range labels {
+				box, _ := tt.Find(label)
+				if box != positions[label] {
+					t.Fatal("speaker dialog moved", label, positions[label], box)
+				}
+			}
+		})
 	}
 }
 

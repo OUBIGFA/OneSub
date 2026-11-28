@@ -20,7 +20,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 2
+const schemaVersion = 3
 const maxSafeTime = int64(9007199254740991)
 
 // ErrInvalidEdit distinguishes rejected input from persistence failures. The
@@ -178,7 +178,7 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	// No migration is attempted on an unknown schema; the existing files stay intact.
-	if (m.Schema != 1 && m.Schema != schemaVersion) || m.ID == "" {
+	if (m.Schema < 1 || m.Schema > schemaVersion) || m.ID == "" {
 		return nil, errors.New(locales.ErrProjectVersion())
 	}
 	s, err := connect(path, m, false)
@@ -187,6 +187,12 @@ func Open(path string) (*Store, error) {
 	}
 	if m.Schema == 1 {
 		if err = s.upgradeOriginalTrack(); err != nil {
+			s.Close()
+			return nil, err
+		}
+	}
+	if m.Schema < 3 {
+		if err = s.upgradeSpeakers(); err != nil {
 			s.Close()
 			return nil, err
 		}
@@ -237,11 +243,26 @@ func (s *Store) initialize(doc subtitle.Document) error {
  CREATE TABLE source_cues (id TEXT PRIMARY KEY, position INTEGER UNIQUE NOT NULL, body TEXT NOT NULL);
  CREATE TABLE history (seq INTEGER PRIMARY KEY, before_json TEXT NOT NULL, after_json TEXT NOT NULL, track TEXT NOT NULL DEFAULT 'working');
  CREATE TABLE commands (id TEXT PRIMARY KEY, revision INTEGER NOT NULL);
- PRAGMA user_version=2;`)
+ CREATE TABLE speaker_state(singleton INTEGER PRIMARY KEY CHECK(singleton=1),body TEXT NOT NULL);
+ INSERT INTO speaker_state VALUES(1,'null');
+ PRAGMA user_version=3;`)
 	if err != nil {
 		return err
 	}
 	if _, err = tx.Exec("INSERT INTO state VALUES(1,0,0,?,?)", doc.Format, doc.Original); err != nil {
+		return err
+	}
+	if err = subtitle.ValidateSpeakerState(doc.Speakers); err != nil {
+		return err
+	}
+	if err = s.persistSpeakerArtifact(doc.Speakers); err != nil {
+		return err
+	}
+	speakerRaw, err := json.Marshal(speakerReference(doc.Speakers))
+	if err != nil {
+		return err
+	}
+	if _, err = tx.Exec("UPDATE speaker_state SET body=? WHERE singleton=1", string(speakerRaw)); err != nil {
 		return err
 	}
 	for i, cue := range doc.Cues {
@@ -316,6 +337,25 @@ func (s *Store) Snapshot() (Snapshot, error) {
 		return result, err
 	}
 	err = s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM history WHERE seq<=?),EXISTS(SELECT 1 FROM history WHERE seq>?)", cursor, cursor).Scan(&result.CanUndo, &result.CanRedo)
+	if err != nil {
+		return result, err
+	}
+	var speakerRaw string
+	if err = s.db.QueryRow("SELECT body FROM speaker_state WHERE singleton=1").Scan(&speakerRaw); err != nil {
+		return result, err
+	}
+	if err = json.Unmarshal([]byte(speakerRaw), &result.Document.Speakers); err != nil {
+		return result, err
+	}
+	if err = s.hydrateSpeakers(result.Document.Speakers); err != nil {
+		return result, err
+	}
+	if err = subtitle.ValidateSpeakerState(result.Document.Speakers); err != nil {
+		return result, err
+	}
+	result.SourceDocument.Speakers = result.Document.Speakers
+	result.Document = invalidateSpeakerMedia(result.Document, s.manifest.MediaPath)
+	result.SourceDocument = invalidateSpeakerMedia(result.SourceDocument, s.manifest.MediaPath)
 	return result, err
 }
 
@@ -431,6 +471,7 @@ func (s *Store) apply(commandID string, expected int64, edits []Edit, manual boo
 				cue.Text = e.Text
 			}
 			if manual && (sourceChanged || cue.StartMs != e.StartMs || cue.EndMs != e.EndMs) {
+				subtitle.MarkSpeakerReview(&cue)
 				// Word evidence describes an exact source/timeline revision.
 				cue.Words = nil
 				cue.SourceRange = nil
@@ -497,6 +538,17 @@ func (s *Store) Undo(commandID string, expected int64, redo bool) (int64, error)
 			return cursor, errors.New(locales.ErrNothingToUndo())
 		}
 		var before, after []subtitle.Cue
+		if track == "speakers" {
+			var value speakerSnapshot
+			raw := beforeRaw
+			if redo {
+				raw = afterRaw
+			}
+			if err := json.Unmarshal([]byte(raw), &value); err != nil {
+				return cursor, err
+			}
+			return next, writeSpeakers(tx, value)
+		}
 		if err := json.Unmarshal([]byte(beforeRaw), &before); err != nil {
 			return cursor, err
 		}

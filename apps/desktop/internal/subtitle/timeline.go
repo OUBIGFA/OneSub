@@ -27,6 +27,7 @@ func TimelineAtoms(doc Document) ([]Atom, error) {
 	for _, cue := range doc.Cues {
 		text := SourceText(cue)
 		protected := doc.Format != "srt" || cue.ReadOnly || cue.TextLocked || cue.TimeLocked || strings.ContainsAny(text, "<{\\") || strings.Contains(text, "\n")
+		protected = protected || cue.Speaker != nil && (cue.Speaker.Status != "single" || cue.Speaker.Review)
 		if len(cue.Words) == 0 || protected {
 			atoms = append(atoms, Atom{cue.ID, cue.ID, text, cue.StartMs, cue.EndMs, protected})
 			continue
@@ -57,6 +58,10 @@ func TimelineAtoms(doc Document) ([]Atom, error) {
 // Resegment resolves ordered closed ranges into times on the host. It rejects
 // missing/duplicate coverage, protected edits, and overlap-crossing joins.
 func Resegment(doc Document, ranges []SourceRange) (Document, []string, error) {
+	var speakerEvidence speakerIndex
+	if doc.Speakers != nil {
+		speakerEvidence = newSpeakerIndex(doc.Speakers.Turns)
+	}
 	atoms, err := TimelineAtoms(doc)
 	if err != nil {
 		return Document{}, nil, err
@@ -83,6 +88,11 @@ func Resegment(doc Document, ranges []SourceRange) (Document, []string, error) {
 			return Document{}, nil, errors.New(locales.ErrRangeInvalid())
 		}
 		group := atoms[first : last+1]
+		for i := 1; i < len(group); i++ {
+			if group[i].CueID != group[i-1].CueID && !SpeakerCompatible(cues[group[i-1].CueID].Speaker, cues[group[i].CueID].Speaker) {
+				return Document{}, nil, errors.New("cannot rebuild across a speaker boundary")
+			}
+		}
 		start, end := group[0].StartMs, group[len(group)-1].EndMs
 		ids := []string{}
 		var text strings.Builder
@@ -154,6 +164,22 @@ func Resegment(doc Document, ranges []SourceRange) (Document, []string, error) {
 		}
 		if cue.EndMs <= cue.StartMs {
 			return Document{}, nil, errors.New(locales.ErrRangeDuration())
+		}
+		var manualSpeaker *SpeakerAssignment
+		for _, id := range ids {
+			if value := cues[id].Speaker; value != nil && value.Manual {
+				manualSpeaker = value
+				break
+			}
+		}
+		if !unchanged && manualSpeaker != nil {
+			// A confirmed identity belongs to the source, not the old model
+			// guess. Cross-cue compatibility was checked before rebuilding.
+			assignment := *manualSpeaker
+			assignment.IDs = append([]string{}, manualSpeaker.IDs...)
+			cue.Speaker = &assignment
+		} else if doc.Speakers != nil && !unchanged {
+			cue.Speaker = speakerEvidence.assign(cue, doc.Speakers.AnalysisID)
 		}
 		if !cue.ReadOnly && !cue.TextLocked {
 			copyRange := r

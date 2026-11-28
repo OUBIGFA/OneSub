@@ -123,6 +123,9 @@ func (a *NativeApp) recognizeTab(c *ui.Context) {
 		})
 	})
 	parameterGroup(c, locales.WorkflowOutput(), nil, func() {
+		a.speakerSettings(c)
+		lobeButton(c, locales.SpeakerDownload()).Disabled(a.busy).OnClick(a.downloadSpeakerModels)
+		lobeCheckbox(c, &a.settings.ShowSpeakers, locales.SpeakerShow()).OnChange(a.saveSettings)
 		ui.Field(c, locales.ExportFormat(), func() {
 			idSelect(c, &a.settings.RecognitionFormat, []option{{"srt", "SRT"}, {"vtt", "VTT"}, {"ass", "ASS"}}).Label(locales.ExportFormat()).OnChange(a.saveSettings)
 		})

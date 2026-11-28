@@ -20,7 +20,7 @@
     "usage": "Native desktop controls, layout, themes, menus and embedded media WebView",
     "modifications": "Six native/UI patches and a build-only license-page hook; see third_party/patches/mygo/README.md",
     "checkedAt": "2026-11-28",
-    "latestMainRevision": "ad4b874dcfcfa5022758daf8446f3b746ca7380c",
+    "latestMainRevision": "21bc220193126b5f4641f6425d67725832d3675f",
     "latestRelease": "v0.10.0"
   },
   "mcpGoSdk": {
@@ -954,24 +954,24 @@
     "modifications": "none; official Windows x64 executable renamed to fireredvad.exe"
   },
   "sherpaOnnx": {
-    "version": "v2.0.1",
+    "version": "v2.0.3",
     "repository": "https://github.com/k2-fsa/sherpa-onnx",
-    "revision": "af2d8d81dbfa61c4cea4c568da78f3982edca005",
-    "download": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/sherpa-onnx-v2.0.1-win-x64-shared-MT-Release-no-tts.tar.bz2",
-    "archiveBytes": 25567228,
-    "archiveSha256": "a644dfe2f7944afec9a356d2557c0452380f20ffcf2f8c704653cfce37558596",
+    "revision": "38016c6e0622e90bf417c35e8b47e0eb805af417",
+    "download": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.3/sherpa-onnx-v2.0.3-win-x64-shared-MT-Release-no-tts.tar.bz2",
+    "archiveBytes": 30850705,
+    "archiveSha256": "e1536db1fcd1dde829f3cf26dfdbf60909aee6984983f6cd16b03b1352ac43fc",
     "files": [
       {
         "file": "sherpa-onnx-offline.exe",
         "source": "bin/sherpa-onnx-offline.exe",
-        "bytes": 2763776,
-        "sha256": "047bff7c67bedbf99d1a0e55773ed6770f67d161466f6e4977af3e217de99e27"
+        "bytes": 3572736,
+        "sha256": "1d1937ce8df53ed6321a6acc6d13c30fd64eb08330041ba249d152e5b7823831"
       },
       {
         "file": "sherpa-onnx-offline-language-identification.exe",
         "source": "bin/sherpa-onnx-offline-language-identification.exe",
-        "bytes": 897024,
-        "sha256": "7c1d8687ec1f827eac00878e59c0dbb31e66b128b0b7e0805ee823362c21856b"
+        "bytes": 1441792,
+        "sha256": "c0793cc50711af6ba02916a6504e703bfc4f36b2e52e457208f86984109b0e74"
       },
       {
         "file": "onnxruntime.dll",
@@ -988,8 +988,8 @@
       {
         "file": "sherpa-onnx-c-api.dll",
         "source": "lib/sherpa-onnx-c-api.dll",
-        "bytes": 3667968,
-        "sha256": "ee2af9f49b8fc5dae135ad20c0b955cbab90d17b79cc1ad0db91e03b24962f68"
+        "bytes": 4888064,
+        "sha256": "8c1dcee0f9a43defa55c3f7792f664d2766259da097ca47783c161825b5f6b04"
       }
     ],
     "spdx": "Apache-2.0",

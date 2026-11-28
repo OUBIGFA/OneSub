@@ -2,7 +2,7 @@
 
 工作台组件与主题使用 MIT 的 [Lobe MyGo](patches/lobe-mygo/README.md)，底层窗口、布局、虚拟表格与媒体承载使用 MyGo。旧版 WinOne 和 Fluent UI 设计来源记录保留用于追溯，不再作为当前界面的主题实现。
 
-当前已引入 MyGo、官方 MCP Go SDK、libse worker、SmartSub 样式模块、OneAsr 模型目录与开发运行时、完整字幕技能快照、Lucide 图标以及 JASSUB 播放渲染依赖。所有识别模型及自动语言检测共用 FireRedVAD `v1.0.0` 的 VAD 候选与 AED 说话确认，使用同一已打包二进制和默认模型参数，见 [集成登记](ports/oneasr/README.md)。SenseVoice、Paraformer 与 Parakeet-TDT 由 Apache-2.0 的 sherpa-onnx `v2.0.1` 官方 CPU 运行时执行，模型由用户按固定修订下载，不随安装器分发，见 [集成登记](ports/sherpa-onnx/README.md)。精确记录位于 `manifests/`，移植边界位于 `ports/`。
+当前已引入 MyGo、官方 MCP Go SDK、libse worker、SmartSub 样式模块、OneAsr 模型目录与开发运行时、完整字幕技能快照、Lucide 图标以及 JASSUB 播放渲染依赖。所有识别模型及自动语言检测共用 FireRedVAD `v1.0.0` 的 VAD 候选与 AED 说话确认，使用同一已打包二进制和默认模型参数，见 [集成登记](ports/oneasr/README.md)。SenseVoice、Paraformer 与 Parakeet-TDT 由 Apache-2.0 的 sherpa-onnx `v2.0.3` 官方 CPU 运行时执行，模型由用户按固定修订下载，不随安装器分发，见 [集成登记](ports/sherpa-onnx/README.md)。精确记录位于 `manifests/`，移植边界位于 `ports/`。
 
 发行需保留传递许可、对应源码、构建材料、SBOM、摘要及真实签名状态。Windows 桌面、Windows 10、干净机器、安装、升级、失败回滚和卸载验收不作为构建或发布门槛，未实测的范围如实标注。JASSUB 的包装层 MIT 不代表其 WASM 只有 MIT 许可。
 

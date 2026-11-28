@@ -202,6 +202,35 @@
           "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny/resolve/65176e2deb88badc814a94058666cadccc29b61c/tiny-decoder.int8.onnx"
         }
       ]
+    },
+    {
+      "id": "speaker-segmentation",
+      "label": "Pyannote segmentation 3.0",
+      "kind": "diarization",
+      "files": [
+        {
+          "name": "model.onnx",
+          "size": 5992913,
+          "sha256": "220ad67ca923bef2fa91f2390c786097bf305bceb5e261d4af67b38e938e1079",
+          "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2",
+          "archiveMember": "sherpa-onnx-pyannote-segmentation-3-0/model.onnx",
+          "archiveSize": 6958444,
+          "archiveSha256": "24615ee884c897d9d2ba09bb4d30da6bb1b15e685065962db5b02e76e4996488"
+        }
+      ]
+    },
+    {
+      "id": "speaker-embedding",
+      "label": "CAM++ Chinese/English",
+      "kind": "diarization",
+      "files": [
+        {
+          "name": "model.onnx",
+          "size": 28281165,
+          "sha256": "53cab20ba8f2eb2f6e2d89ecc18e88ef3222169b61b4419cbc13666744a4574b",
+          "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
+        }
+      ]
     }
   ]
 }

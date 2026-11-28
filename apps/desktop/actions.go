@@ -50,12 +50,12 @@ func (a *NativeApp) recognizeWithTranslation(translate bool, continuing ...bool)
 	a.recognitionStep, a.recognitionRoute = recognitionStep{Stage: "verify"}, recognitionRoute{}
 	a.evalPlayer("video.pause()")
 	a.runTimed(timingRecognition, len(continuing) > 0 && continuing[0], locales.ActionRecognize(), func(ctx context.Context) (func(), error) {
-		srt, words, cleanup, err := t.recognize(ctx, prefs, source, a.recognitionStepChanged)
+		recognized, err := t.recognizeDocument(ctx, prefs, source, a.recognitionStepChanged)
 		if err != nil {
 			return nil, err
 		}
-		defer cleanup()
-		return a.finishRecognition(ctx, source, srt, words, prefs, style, aspect)
+		defer recognized.Cleanup()
+		return a.finishRecognition(ctx, source, recognized.Path, recognized.Words, prefs, style, aspect, &recognized.Document)
 	})
 }
 func boundedText(data []byte) string {

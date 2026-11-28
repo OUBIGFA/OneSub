@@ -16,7 +16,7 @@ import (
 
 func TestCatalogHasOneAsrAndSherpaChoices(t *testing.T) {
 	c := Catalog()
-	if len(c) != 13 {
+	if len(c) != 15 {
 		t.Fatal(len(c))
 	}
 	ids := map[string]bool{}
@@ -29,7 +29,8 @@ func TestCatalogHasOneAsrAndSherpaChoices(t *testing.T) {
 			t.Fatal(m)
 		}
 		for _, f := range m.Files {
-			if len(f.SHA256) != 64 || !strings.Contains(f.URL, "/resolve/") || strings.Contains(f.URL, "/master/") {
+			pinned := strings.Contains(f.URL, "/resolve/") || m.Kind == "diarization" && strings.HasPrefix(f.URL, "https://github.com/k2-fsa/sherpa-onnx/releases/download/")
+			if len(f.SHA256) != 64 || !pinned || strings.Contains(f.URL, "/master/") {
 				t.Fatal(f)
 			}
 		}

@@ -33,10 +33,13 @@ type PendingProcessing struct {
 }
 
 type Settings struct {
-	Version     int    `json:"version"`
-	UILanguage  string `json:"uiLanguage"` // "" follows the system
-	Appearance  string `json:"appearance"` // "dark", "light" or "system"
-	CloseToTray bool   `json:"closeToTray"`
+	Diarize      bool    `json:"diarize"`
+	SpeakerCount float64 `json:"speakerCount"`
+	ShowSpeakers bool    `json:"showSpeakers"`
+	Version      int     `json:"version"`
+	UILanguage   string  `json:"uiLanguage"` // "" follows the system
+	Appearance   string  `json:"appearance"` // "dark", "light" or "system"
+	CloseToTray  bool    `json:"closeToTray"`
 	// AutoUpdate defaults on for new and older settings. An explicit false
 	// survives loading; updates never replace the user's data directory.
 	AutoUpdate bool              `json:"autoUpdate"`

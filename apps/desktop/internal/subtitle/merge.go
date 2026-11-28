@@ -28,7 +28,8 @@ func MergeAdjacent(doc Document, at int, id string) (Document, error) {
 	}
 	join := func(a, b string) string { return joinMergeText(a, b, doc.Format == "ass" || doc.Format == "ssa") }
 	merged := Cue{
-		ID: id, Position: at, StartMs: min(first.StartMs, second.StartMs), EndMs: max(first.EndMs, second.EndMs),
+		Speaker: MergeSpeakers(first.Speaker, second.Speaker),
+		ID:      id, Position: at, StartMs: min(first.StartMs, second.StartMs), EndMs: max(first.EndMs, second.EndMs),
 		Text: join(first.Text, second.Text), OriginalText: join(first.OriginalText, second.OriginalText),
 		Translated: first.Translated, TextLocked: first.TextLocked || second.TextLocked || first.Translated,
 		TimeLocked: true, TimingQuality: "manual",

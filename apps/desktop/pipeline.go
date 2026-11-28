@@ -83,13 +83,87 @@ func (t toolset) recognitionModels(prefs settings.Settings) (asr, aligner models
 // recognize publishes locally segmented original subtitles for every engine.
 // Desktop, batch and MCP callers all pass through this post-ASR boundary.
 func (t toolset) recognize(ctx context.Context, prefs settings.Settings, source string, step func(recognitionStep)) (srt string, words []byte, cleanup func(), err error) {
-	srt, words, cleanup, err = t.recognizeNative(ctx, prefs, source, step)
+	result, err := t.recognizeDocument(ctx, prefs, source, step)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	return result.Path, result.Words, result.Cleanup, nil
+}
+
+type recognitionResult struct {
+	Document subtitle.Document
+	Path     string
+	Words    []byte
+	Cleanup  func()
+}
+
+// Preserve metadata through the business boundary; SRT is only an output.
+func (t toolset) recognizeDocument(ctx context.Context, prefs settings.Settings, source string, step func(recognitionStep)) (result recognitionResult, err error) {
+	if prefs.Diarize {
+		if err = t.speakerModels(ctx, prefs); err != nil {
+			return
+		}
+	}
+	result.Path, result.Words, result.Cleanup, err = t.recognizeNative(ctx, prefs, source, step)
 	if err != nil {
 		return
 	}
-	if err = t.segmentRecognition(ctx, srt, words); err != nil {
-		cleanup()
-		return "", nil, nil, err
+	defer func() {
+		if err != nil {
+			result.Cleanup()
+		}
+	}()
+	result.Document, err = t.worker.Read(ctx, result.Path)
+	if err != nil {
+		return
+	}
+	result.Document, _, err = subtitle.AttachOneAsrWords(result.Document, result.Words)
+	if err != nil {
+		return
+	}
+	if prefs.Diarize {
+		var state *subtitle.SpeakerState
+		state, err = t.analyzeSpeakers(ctx, prefs, source, filepath.Join(filepath.Dir(result.Path), "input.wav"), step)
+		if err != nil {
+			return
+		}
+		if state.OffsetMs != 0 {
+			for i := range result.Document.Cues {
+				cue := &result.Document.Cues[i]
+				cue.StartMs += state.OffsetMs
+				cue.EndMs += state.OffsetMs
+				for j := range cue.Words {
+					cue.Words[j].StartMs += state.OffsetMs
+					cue.Words[j].EndMs += state.OffsetMs
+				}
+			}
+			evidence, parseErr := subtitle.ParseOneAsrWords(result.Words)
+			if parseErr != nil {
+				err = parseErr
+				return
+			}
+			for i := range evidence {
+				evidence[i].StartMs += state.OffsetMs
+				evidence[i].EndMs += state.OffsetMs
+			}
+			result.Words, err = subtitle.MarshalOneAsrWords(evidence)
+			if err != nil {
+				return
+			}
+		}
+		result.Document = subtitle.SplitSpeakerChanges(subtitle.AttachSpeakers(result.Document, state))
+	}
+	result.Document, err = subtitle.SegmentRecognition(ctx, result.Document)
+	if err != nil {
+		return
+	}
+	if result.Document.Speakers != nil {
+		result.Document = subtitle.AttachSpeakers(result.Document, result.Document.Speakers)
+	}
+	var data []byte
+	data, err = t.worker.Write(ctx, result.Document)
+	if err == nil {
+		err = os.WriteFile(result.Path, data, 0600)
 	}
 	return
 }
@@ -316,6 +390,9 @@ func (t toolset) recognitionFile(ctx context.Context, srt string, prefs settings
 // only refine later splits and are checked as the window loads the file,
 // where a fault is a notice, not a failed recognition.
 func (t toolset) renderRecognition(ctx context.Context, doc subtitle.Document, prefs settings.Settings, style styles.Style, aspect float64) ([]byte, error) {
+	if prefs.ShowSpeakers {
+		doc = subtitle.WithSpeakerNames(doc)
+	}
 	switch prefs.RecognitionFormat {
 	case "ass":
 		result, err := t.styles.Build(ctx, doc.Cues, style, aspect)

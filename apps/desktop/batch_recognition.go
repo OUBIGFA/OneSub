@@ -344,12 +344,15 @@ func (a *NativeApp) transcribeBatchFile(ctx context.Context, t toolset, source s
 			}
 		})
 	}
-	srt, _, cleanup, err := t.recognize(ctx, prefs, source, step)
+	recognized, err := t.recognizeDocument(ctx, prefs, source, step)
 	if err != nil {
 		return "", err
 	}
-	defer cleanup()
-	data, _, err := t.recognitionFile(ctx, srt, prefs, style, aspect)
+	defer recognized.Cleanup()
+	if _, err = t.keepSpeakerArtifact(recognized.Document); err != nil {
+		return "", err
+	}
+	data, err := t.renderRecognition(ctx, recognized.Document, prefs, style, aspect)
 	if err != nil {
 		return "", err
 	}

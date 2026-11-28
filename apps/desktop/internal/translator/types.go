@@ -35,10 +35,12 @@ type Config struct {
 // ResumeState keeps a frozen, validated segmentation and only completed texts.
 // It contains no key. The input digest prevents applying progress to other cues.
 type ResumeState struct {
-	InputHash string            `json:"inputHash"`
-	Units     subtitle.Document `json:"units"`
-	Completed map[int]string    `json:"completed"`
-	Context   json.RawMessage   `json:"context"`
+	BudgetVersion int               `json:"budgetVersion,omitempty"`
+	BudgetRules   string            `json:"budgetRules,omitempty"`
+	InputHash     string            `json:"inputHash"`
+	Units         subtitle.Document `json:"units"`
+	Completed     map[int]string    `json:"completed"`
+	Context       json.RawMessage   `json:"context"`
 }
 
 type Report struct {

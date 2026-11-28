@@ -98,6 +98,7 @@ func (a *NativeApp) view(c *ui.Context) {
 	a.presetDialogView(c)
 	a.insertSubtitleView(c)
 	a.findReplaceView(c)
+	a.speakersView(c)
 	a.observeStyle(c.Now())
 	// The panes keep the sizes the user drags them to, saved once the drag
 	// stops, as the other preferences.

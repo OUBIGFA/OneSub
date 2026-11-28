@@ -31,19 +31,20 @@ type SourceRange struct {
 }
 
 type Cue struct {
-	ID                string   `json:"id"`
-	Position          int      `json:"position"`
-	StartMs           int64    `json:"startMs"`
-	EndMs             int64    `json:"endMs"`
-	Text              string   `json:"text"`
-	OriginalText      string   `json:"originalText"`
-	Translated        bool     `json:"translated,omitempty"`
-	TranslationSource string   `json:"translationSource,omitempty"`
-	ReadOnly          bool     `json:"readOnly"`
-	TextLocked        bool     `json:"textLocked"`
-	TimeLocked        bool     `json:"timeLocked"`
-	Words             []Word   `json:"words,omitempty"`
-	SourceCueIDs      []string `json:"sourceCueIds,omitempty"`
+	Speaker           *SpeakerAssignment `json:"speaker,omitempty"`
+	ID                string             `json:"id"`
+	Position          int                `json:"position"`
+	StartMs           int64              `json:"startMs"`
+	EndMs             int64              `json:"endMs"`
+	Text              string             `json:"text"`
+	OriginalText      string             `json:"originalText"`
+	Translated        bool               `json:"translated,omitempty"`
+	TranslationSource string             `json:"translationSource,omitempty"`
+	ReadOnly          bool               `json:"readOnly"`
+	TextLocked        bool               `json:"textLocked"`
+	TimeLocked        bool               `json:"timeLocked"`
+	Words             []Word             `json:"words,omitempty"`
+	SourceCueIDs      []string           `json:"sourceCueIds,omitempty"`
 	// MergedCueIDs are the original file blocks replaced by a manual merge.
 	// They are distinct from AI source provenance and flatten repeated merges.
 	MergedCueIDs []string `json:"mergedCueIds,omitempty"`
@@ -56,10 +57,11 @@ type Cue struct {
 }
 
 type Document struct {
-	Format       string `json:"format"`
-	TargetFormat string `json:"targetFormat"`
-	Original     string `json:"original"`
-	Cues         []Cue  `json:"cues"`
+	Speakers     *SpeakerState `json:"speakers,omitempty"`
+	Format       string        `json:"format"`
+	TargetFormat string        `json:"targetFormat"`
+	Original     string        `json:"original"`
+	Cues         []Cue         `json:"cues"`
 }
 
 // Client runs one request per process. Scratch is owned by this application,

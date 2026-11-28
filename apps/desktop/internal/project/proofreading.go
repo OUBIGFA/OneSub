@@ -73,6 +73,9 @@ func (s *Store) ImportProofreading(commandID string, expected int64, doc subtitl
 			// An absent source must stay absent, including legacy display fallbacks.
 			cue.OriginalText = original
 			cue.Words, cue.SourceRange = nil, nil
+			if source {
+				subtitle.MarkSpeakerReview(&cue)
+			}
 			cue.TextLocked, cue.TimeLocked = cue.Translated, true
 			after = append(after, cue)
 		}

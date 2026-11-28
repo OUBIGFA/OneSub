@@ -1029,5 +1029,22 @@
   "storagePlayerCleaned": "已清除播放器缓存",
   "storageMoved": "已移至回收站：{count} 项，{size}",
   "storageSelection": "本次清理：{count} 项，{size}",
-  "storageOtherInstance": "请先关闭其他 OneSub 实例或 MCP 会话，再清理文件"
+  "storageOtherInstance": "请先关闭其他 OneSub 实例或 MCP 会话，再清理文件",
+  "speakerTitle": "说话人",
+  "speakerAnnotate": "标注说话人",
+  "speakerCount": "说话人数，0 为自动",
+  "speakerUnknown": "未知",
+  "speakerMixed": "多人或换人",
+  "speakerReview": "说话人待确认",
+  "speakerApply": "应用标注",
+  "speakerAssign": "修改所选归属",
+  "speakerName": "显示名称",
+  "speakerRename": "保存名称",
+  "speakerAdd": "添加说话人",
+  "speakerDownload": "下载说话人模型",
+  "speakerPreview": "分析已完成，应用前可继续校对",
+  "speakerShow": "导出时显示说话人",
+  "speakerModelSummary": "在本机标注谁在何时说话",
+  "speakerSelection": "使用当前字幕或勾选字幕",
+  "speakerAnalyzeFailed": "说话人分析失败，现有字幕保持不变"
 }

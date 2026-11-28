@@ -41,6 +41,9 @@ func InspectProblems(doc Document, expectTranslation bool, missingGlyphs []strin
 			continue // Protected ASS drawings/comments are not editable dialogue.
 		}
 		validTime := cue.StartMs >= 0 && cue.EndMs > cue.StartMs
+		if cue.Speaker != nil && (cue.Speaker.Review || cue.Speaker.Status != "single") {
+			rows[i] = append(rows[i], CueProblem{Kind: "speaker"})
+		}
 		if !validTime {
 			rows[i] = append(rows[i], CueProblem{Kind: "time"})
 		} else if doc.Format != "ass" && doc.Format != "ssa" {

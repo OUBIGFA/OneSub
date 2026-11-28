@@ -211,6 +211,9 @@ func (a *NativeApp) subtitlesViewAtWidth(c *ui.Context, width float32) {
 				cell(stamp(end))
 			default:
 				ui.Column(c).Gap(em(c, 4)).Padding(em(c, 8), em(c, 4)).Children(func() {
+					if label := speakerText(cue, a.activeDocument().Speakers); label != "" {
+						rowMuted(c, label, chosen).FontSize(em(c, captionSize)).SingleLine().Tooltip(label)
+					}
 					if a.subtitleTab == 1 {
 						source := cueDisplayText(cue, 0)
 						if index == a.selected && a.editPending && a.editRebuiltSource {
@@ -405,6 +408,9 @@ func (a *NativeApp) editorViewAtHeight(c *ui.Context, height float32) {
 			// Cue number and duration are peer metadata at opposite edges.
 			ui.Row(c).Gap(em(c, 8)).AlignItems(ui.Center).Justify(ui.SpaceBetween).Shrink(0).Children(func() {
 				muted(c, locales.EditorCueNumber(cue.Position+1)).FontFeatures("tnum").SingleLine().Shrink(0)
+				if !cue.ReadOnly {
+					lobeButton(c, locales.SpeakerTitle()).Disabled(a.busy).OnClick(a.openSpeakers).Tooltip(speakerText(cue, a.activeDocument().Speakers))
+				}
 				muted(c, locales.EditorSeconds(math.Max(0, a.end-a.start))).Label(locales.EditorDuration()).FontFeatures("tnum").NoWrap().Shrink(0)
 			})
 			timeFocused, timeComposing := false, false

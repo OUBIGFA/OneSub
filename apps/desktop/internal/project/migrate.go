@@ -19,7 +19,7 @@ func (s *Store) upgradeOriginalTrack() error {
 	if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version != 1 && version != schemaVersion {
+	if version != 1 && version != 2 {
 		return errors.New(locales.ErrProjectVersion())
 	}
 	if version == 1 {
@@ -119,7 +119,7 @@ func (s *Store) upgradeOriginalTrack() error {
 		}
 	}
 	// A crash after the transaction but before the manifest is safe to resume.
-	s.manifest.Schema = schemaVersion
+	s.manifest.Schema = 2
 	raw, err := json.MarshalIndent(s.manifest, "", "  ")
 	if err != nil {
 		return err

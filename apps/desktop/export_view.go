@@ -97,6 +97,7 @@ func (a *NativeApp) outputColumn(c *ui.Context) {
 	for _, cell := range a.outputFields(c, true) {
 		cell()
 	}
+	lobeCheckbox(c, &a.settings.SubtitleOutput.ShowSpeakers, locales.SpeakerShow()).OnChange(func() { a.saveSettings(); a.previewPending = true })
 }
 
 // exportView separates content, format and line selection, with an anchored

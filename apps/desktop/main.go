@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -31,6 +32,13 @@ var icons = map[string]*ui.SVG{}
 var BuildNumber = "native-development"
 
 func main() {
+	if len(os.Args) >= 2 && os.Args[1] == "diarize" {
+		if err := runDiarize(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	// "OneSub.exe mcp" is the MCP server a client starts, beside a window
 	// that may be open: it takes no instance lock and shows nothing.
 	// "OneSub.exe punctuate" is the child that restores Paraformer's
